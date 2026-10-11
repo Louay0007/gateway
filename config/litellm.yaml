@@ -1,0 +1,249 @@
+# ═══════════════════════════════════════════════════════════════════════
+#  LiteLLM gateway configuration — dual-format (OpenAI + Anthropic)
+#
+#  Determine which block below applies by running:
+#      ./scripts/probe-upstream.sh
+#  See DESIGN.md §4 for the reasoning behind each choice.
+# ═══════════════════════════════════════════════════════════════════════
+
+model_list:
+  # ─────────────────────────────────────────────────────────────────────
+  # BLOCK A — UPSTREAM SUPPORTS BOTH FORMATS NATIVELY  (recommended)
+  # ═════════════════════════════════════════════════════════════════════
+  # Same upstream registered twice under one model_name. LiteLLM forms a
+  # model group and routes by endpoint:
+  #   /v1/chat/completions -> the openai/ deployment
+  #   /v1/messages         -> either, but the anthropic/ one is native
+  #
+  # The supported_endpoints opt-in (v1.92.0+) makes /v1/messages forward
+  # UNTRANSLATED. Without it LiteLLM translates and DROPS cache_control,
+  # which silently inflates cost ~10x on cached prefixes.
+
+  - model_name: fast
+    litellm_params:
+      model: anthropic/claude-sonnet-5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      # Fail fast on hangs. A healthy fast-model step completes in
+      # seconds (LATENCY.md §6.2: ~7s for 500 tokens); 240s is generous
+      # but bounds the worst case — a late failure is the most expensive
+      # event in the system (LATENCY.md §5.3). Resolution order:
+      # request < deployment < router < litellm_settings.request_timeout.
+      timeout: 240
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  - model_name: fast
+    litellm_params:
+      model: openai/claude-sonnet-5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      cache_control_ttl: true
+      timeout: 240
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  - model_name: smart
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      # Adaptive thinking, default medium. TTFA spans seconds to ~1 min
+      # at high effort (LATENCY.md §3.2). 600s matches
+      # litellm_settings.request_timeout; do not lower this without also
+      # lowering the reasoning effort you allow on `smart`.
+      timeout: 600
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  - model_name: smart
+    litellm_params:
+      model: openai/claude-opus-5-5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      cache_control_ttl: true
+      timeout: 600
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  - model_name: frontier
+    litellm_params:
+      model: anthropic/claude-fable-5-1
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      # Adaptive thinking ALWAYS ON, default high, comparative latency
+      # "Slower" (Anthropic model table). Slowest class we serve — 600s
+      # ceiling, and gate this alias behind the top plan tier only.
+      timeout: 600
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  - model_name: frontier
+    litellm_params:
+      model: openai/claude-fable-5-1
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      cache_control_ttl: true
+      timeout: 600
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # BLOCK B — UPSTREAM IS OPENAI-COMPATIBLE ONLY
+  # ═════════════════════════════════════════════════════════════════════
+  # /v1/chat/completions  -> native
+  # /v1/messages          -> TRANSLATED (lossy: cache_control dropped)
+  #
+  # Keep this block ONLY if the probe said "OpenAI only" AND you have
+  # accepted the caching cost implication. See DESIGN.md §4.6.
+  #
+  # model_list:
+  #   - model_name: fast
+  #     litellm_params:
+  #       model: openai/claude-sonnet-5
+  #       api_base: os.environ/UPSTREAM_BASE_URL
+  #       api_key: os.environ/UPSTREAM_API_KEY
+  #       cache_control_ttl: true
+  #     model_info:
+  #       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+  # ─────────────────────────────────────────────────────────────────────
+  # BLOCK C — UPSTREAM IS ANTHROPIC-NATIVE ONLY
+  # ═════════════════════════════════════════════════════════════════════
+  # /v1/messages         -> native passthrough
+  # /v1/chat/completions -> TRANSLATED (system messages, tool-call shapes
+  #                        approximated)
+  #
+  # model_list:
+  #   - model_name: fast
+  #     litellm_params:
+  #       model: anthropic/claude-sonnet-5
+  #       api_base: os.environ/UPSTREAM_BASE_URL
+  #       api_key: os.environ/UPSTREAM_API_KEY
+  #     model_info:
+  #       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Routing
+# ═══════════════════════════════════════════════════════════════════════
+router_settings:
+  # usage-based, NOT latency-based. latency-based-routing would send
+  # /v1/messages traffic to whichever deployment is fastest — including
+  # the openai/ one, which TRANSLATES and drops cache_control
+  # (DESIGN.md §4.2). Correctness over a few milliseconds.
+  routing_strategy: usage-based-routing-v2
+  redis_host: os.environ/REDIS_HOST
+  redis_port: os.environ/REDIS_PORT
+
+  # Router-level ceiling. Per-deployment `timeout` above wins where set.
+  timeout: 600
+
+  # Retries: same deployment, fixed 1s base with exponential backoff.
+  # Converts the provider's ~1.16% per-request failure rate into seconds
+  # of latency instead of failed agentic chains (LATENCY.md §5.3).
+  # Auth errors are never retried by the router — only retryable classes.
+  num_retries: 2
+  retry_after: 1
+
+  # Cooldowns: a deployment failing >3x/min is pulled from the pool for
+  # 60s instead of burning every request against it. This is the
+  # retry-storm brake (LATENCY.md §5.5). 429s cool down for 5s by default.
+  allowed_fails: 3
+  cooldown_time: 60
+
+  # Reject over-context-window calls BEFORE spending upstream time on them.
+  enable_pre_call_checks: true
+
+  # Per-deployment concurrency ceiling. Single upstream: bounds the blast
+  # radius of a tenant's runaway agent. Sized for ~120 dev users: typical
+  # concurrent streams are 10–30; 100 gives headroom without letting a
+  # retry storm through. Per-key max_parallel_requests (scripts/issue-key.sh,
+  # default 3) is the tighter, tenant-level control.
+  default_max_parallel_requests: 100
+
+  # Never let a translated fallback silently downgrade a model.
+  context_window_fallback_dict: {}
+
+  # No `fallbacks:` block by design. Single upstream — falling back from
+  # fast to fast is a second full-price call that cannot succeed where the
+  # first failed, except transiently, which retries already cover.
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Behaviour
+# ═══════════════════════════════════════════════════════════════════════
+litellm_settings:
+  # Generations legitimately run long; 600s ceiling.
+  request_timeout: 600
+  num_retries: 2
+
+  # Return 429, not 402, on budget exhaustion. Clients retry 429 correctly.
+  budget_exceeded_status_code: 429
+
+  # Strip params the upstream rejects instead of failing the request.
+  drop_params: true
+
+  success_callback: ["prometheus"]
+  failure_callback: ["prometheus"]
+
+  # Structured logs. The latency pipeline (LATENCY.md §9) scrapes Caddy's
+  # access log, not this — but JSON here makes the error path greppable
+  # when a slow request needs a post-mortem.
+  json_logs: true
+
+  # Track per-application spend without trusting client-supplied headers.
+  # Only safe because the gateway strips inbound x-app-id at the edge.
+  # extra_spend_tag_headers: ["x-app-id"]
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Governance
+# ═══════════════════════════════════════════════════════════════════════
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  store_model_in_db: true
+
+  # PRIVACY: prompt and response content is NOT persisted.
+  # Leave false. Setting true makes this gateway a data processor for
+  # your users' content — a materially different legal position.
+  store_prompts_in_spend_logs: false
+
+  # Bound the ledger.
+  maximum_spend_logs_retention_period: "90d"
+
+  # Instance-wide kill switch. Everything above is per-key; this stops
+  # the whole gateway if the upstream account is ever compromised.
+  # (max_budget also gates this; enforce BOTH.)
+
+  # ── Public surface ────────────────────────────────────────────────
+  # Only the endpoints DESIGN.md §4.1 specifies. Removes /key/generate,
+  # /spend/*, /config/* from the public API host entirely.
+  allowed_routes:
+    - "/v1/chat/completions"
+    - "/v1/responses"
+    - "/v1/messages"
+    - "/v1/messages/count_tokens"
+    - "/v1/models"
+    - "/health"
+
+  # ── Client IP attribution ─────────────────────────────────────────
+  # DESIGN.md §6.1: no CDN by default, so the TCP peer IS the client IP
+  # and no trusted_proxies configuration is required or wanted.
+  #
+  # If a CDN is ever added, ALL THREE are required together:
+  #   1. uncomment these two lines
+  #   2. firewall :443 to accept ONLY the CDN's published CIDRs
+  #   3. schedule a refresh of that CIDR list (it changes)
+  #
+  # NEVER set trusted_proxies to 0.0.0.0/0 on a reachable origin.
+  # See CVE-2023-50463, CVE-2024-21494, GHSA-73p3-rqpv-59wx.
+  #
+  # client_ip_headers CF-Connecting-IP X-Forwarded-For X-Real-IP
+
+# ═══════════════════════════════════════════════════════════════════════
+#  Bootstrap keys
+# ═══════════════════════════════════════════════════════════════════════
+# Intentionally empty. Tenant keys are minted at runtime via
+# /key/generate (scripts/issue-key.sh) so that plaintext tenant keys
+# never enter version control. Pinned user_id is mandatory — see
+# DESIGN.md §5.1.
+key_list: []

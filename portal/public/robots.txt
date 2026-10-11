@@ -1,0 +1,3 @@
+# The dashboard is authenticated and not a search target.
+User-agent: *
+Disallow: /

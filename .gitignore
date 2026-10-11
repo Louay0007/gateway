@@ -1,0 +1,31 @@
+# ── Secrets (never commit) ───────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ── Backups + exports (contain live data) ────────────────────────────
+# Both formats: *.sql.gz was the single-database archive, *.tar.gz is the
+# current two-database one. These hold every subscription, key prefix and
+# usage record in the business — they must never enter a PUBLIC repo.
+backup-*.sql.gz
+backup-*.tar.gz
+latency.csv
+
+# ── Node / Next.js ───────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+dist/
+*.log
+*.tsbuildinfo
+next-env.d.ts
+playwright-report/
+test-results/
+.DS_Store
+
+# ── Local tooling state ──────────────────────────────────────────────
+# Editor/agent workspace markers. Machine-local identity, not project
+# content, and this repository is public.
+.freebuff/

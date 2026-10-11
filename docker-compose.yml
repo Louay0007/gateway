@@ -1,0 +1,203 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: litellm
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Creates the `portal` database on FIRST BOOT ONLY — Docker runs
+      # initdb scripts exactly once, when the data directory is empty. On
+      # a cluster that already exists this mount is a no-op, which is why
+      # `make db-init` exists and is idempotent: run it after every
+      # upgrade that adds a database.
+      - ./portal/db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # No published ports. Internal network only.
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD:?set in .env}
+      --appendonly yes
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  litellm:
+    # Pinned exact tag. Never :latest — it makes rollbacks
+    # non-deterministic. Verify the current stable before changing.
+    #   ghcr.io/berriai/litellm/tags
+    # Tag and v-prefixed tag resolve to the same image since v1.84.0.
+    image: ghcr.io/berriai/litellm:${LITELLM_VERSION:-v1.103.1}
+    restart: unless-stopped
+    command:
+      - "--config=/app/config.yaml"
+      - "--num_workers=${NUM_WORKERS:-2}"
+      - "--port=4000"
+    environment:
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
+      LITELLM_SALT_KEY: ${LITELLM_SALT_KEY:?set in .env}
+      LITELLM_MODE: PRODUCTION
+
+      # ERROR, not DEBUG. The default is DEBUG, and DEBUG logging is
+      # LiteLLM's documented #1 latency cause on large payloads.
+      # Raise to INFO only while debugging a live incident, then put back.
+      LITELLM_LOG: ERROR
+
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/litellm
+
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set in .env}
+
+      # Upstream. Never read from a request field. See DESIGN.md §6.2.
+      UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:?set in .env}
+      UPSTREAM_API_KEY: ${UPSTREAM_API_KEY:?set in .env}
+      LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX: ${LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX:-false}
+
+      STORE_MODEL_IN_DB: "True"
+    volumes:
+      - ./config:/app/config:ro
+    ports:
+      # LOOPBACK ONLY. Single most important line in this file.
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  portal:
+    build:
+      context: ./portal
+      target: runner
+    restart: unless-stopped
+    environment:
+      # Our own database. db/index.ts REFUSES to start against `litellm`
+      # (PLATFORM.md §1.2), so a copy-paste error here fails loudly
+      # instead of silently writing into LiteLLM's schema.
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/portal
+
+      # Gateway over the compose network. REST ONLY.
+      LITELLM_INTERNAL_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
+
+      # Auth.js self-hosted. AUTH_TRUST_HOST is safe here and only here:
+      # Caddy is the only thing in front of this port and it sets Host
+      # from the TLS SNI. Never enable AUTH_DEBUG in production — it logs
+      # the sign-in POST body, password included (auth.ts).
+      AUTH_SECRET: ${AUTH_SECRET:?set in .env}
+      AUTH_URL: https://${PORTAL_DOMAIN:?set in .env}
+      AUTH_TRUST_HOST: "true"
+      AUTH_DEBUG: "false"
+
+      # Public gateway host, for the quickstart snippet on /dashboard/keys.
+      API_DOMAIN: ${API_DOMAIN:?set in .env}
+      NEXT_PUBLIC_APP_URL: https://${PORTAL_DOMAIN:?set in .env}
+      APP_URL: https://${PORTAL_DOMAIN:?set in .env}
+
+      # The portal reads the SAME price table as the gateway. One file,
+      # two consumers — a divergence here is a silent margin bug.
+      PRICE_FILE: /app/prices/models.yaml
+
+      LITELLM_LOG: ERROR
+
+      # Phase 6+. Empty now; the webhook route stays uninstalled until
+      # STRIPE_WEBHOOK_SECRET is real, so it cannot accept unsigned events.
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+    volumes:
+      - ./prices:/app/prices:ro
+    ports:
+      # LOOPBACK ONLY. Caddy is the sole public entry point; publishing
+      # this on 0.0.0.0 would serve the dashboard without TLS and without
+      # the security headers.
+      - "127.0.0.1:3000:3000"
+    healthcheck:
+      # Busybox wget ships in the alpine base — no curl dependency.
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      postgres: { condition: service_healthy }
+      litellm: { condition: service_started }
+
+  jobs:
+    # The background runner (IMPLEMENTATION.md §4): usage collection,
+    # rollups, entitlement reconcile. A separate image target because the
+    # runner imports db/ and lib/ directly and needs the real dependency
+    # tree, which the standalone Next bundle does not contain.
+    build:
+      context: ./portal
+      target: jobs
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/portal
+      LITELLM_INTERNAL_URL: http://litellm:4000
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
+      PRICE_FILE: /app/prices/models.yaml
+      LITELLM_LOG: ERROR
+    volumes:
+      - ./prices:/app/prices:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      litellm: { condition: service_started }
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set in .env}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set in .env}
+      CODE_DOMAIN: ${CODE_DOMAIN:?set in .env}
+      PORTAL_DOMAIN: ${PORTAL_DOMAIN:?set in .env}
+    volumes:
+      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+      - caddyconfig:/config
+    # HOST NETWORKING, and this is load-bearing rather than stylistic.
+    #
+    # The Caddyfile proxies three upstreams by HOST LOOPBACK:
+    #   127.0.0.1:4000  litellm    (published on the host)
+    #   127.0.0.1:3000  portal     (published on the host)
+    #   127.0.0.1:4096  opencode-web — a systemd unit on the HOST, which
+    #                            no container network can reach at all
+    #
+    # On the default bridge network, 127.0.0.1 inside the caddy container
+    # is the CONTAINER's loopback: every one of those upstreams would fail
+    # to connect. Host networking makes the file correct as written, which
+    # is what BLUEPRINT.md §13, IMPLEMENTATION.md §5.3 and LATENCY.md §9
+    # all assume.
+    #
+    # Trade-off, stated plainly: caddy binds the host's :80/:443 directly,
+    # so `ports:` must be absent (Docker rejects it in host mode), and
+    # nothing else may bind those ports. `remote_ip` matching in the
+    # IP-gated vhosts still works — with no CDN, the TCP peer IS the
+    # client (DESIGN.md §6.1).
+    network_mode: host
+    depends_on:
+      - litellm
+
+volumes:
+  pgdata:
+  redisdata:
+  caddydata:
+  caddyconfig:

@@ -1,0 +1,42 @@
+# Your price table. Reviewed monthly against the provider's live
+# pricing page. Do NOT hardcode values from documentation examples.
+#
+# Source for all rows below: official Claude Platform docs, Oct 2026
+# (models overview + per-model pages). Multipliers are stable:
+# write-5m = 1.25x, write-1h = 2.0x, cache-read = 0.10x — EXCEPT
+# Fable 5.1 (0.025x) and Opus 5.5 (0.05x). Those exceptions are priced
+# in below; do not "simplify" them back to 0.10x.
+models:
+  claude-sonnet-5:
+    input_per_mtok:          2.00
+    cache_write_5m_per_mtok: 2.50
+    cache_write_5m_note:     1.25x input
+    cache_write_1h_per_mtok: 4.00
+    cache_write_1h_note:     2.0x input
+    cache_read_per_mtok:     0.20
+    cache_read_note:         0.10x input
+    output_per_mtok:         10.00
+
+  claude-opus-5-5:
+    input_per_mtok:          4.00
+    cache_write_5m_per_mtok: 5.00
+    cache_write_1h_per_mtok: 8.00
+    cache_read_per_mtok:     0.20
+    cache_read_note:         0.05x input (per-model exception)
+    output_per_mtok:         20.00
+
+  claude-fable-5-1:
+    input_per_mtok:          10.00
+    cache_write_5m_per_mtok: 12.50
+    cache_write_1h_per_mtok: 20.00
+    cache_read_per_mtok:     0.25
+    cache_read_note:         0.025x input (per-model exception)
+    output_per_mtok:         50.00
+
+# Long-context tiers price differently above a context threshold.
+# Add them explicitly rather than approximating.
+#
+# long_context:
+#   threshold_tokens: 200000
+#   input_per_mtok: 6.00
+#   output_per_mtok: 22.50

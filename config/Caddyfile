@@ -1,0 +1,190 @@
+{
+	email you@yourdomain.com
+
+	# DESIGN.md §6.1 — no CDN by default. DNS-only A record → VPS.
+	# With no intermediary, the TCP peer IS the client IP and Caddy's
+	# default (strip inbound X-Forwarded-*, set from the connection)
+	# is exactly correct. No trusted_proxies needed.
+	#
+	# If a CDN is ever added, ALL THREE controls are required together:
+	#   1. these directives
+	#   2. origin firewall allowing :443 ONLY from the CDN CIDRs
+	#   3. scheduled refresh of the CIDR list
+	# Never 0.0.0.0/0 on a reachable origin.
+}
+
+# ── Public API ──────────────────────────────────────────────────────
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		max_size 10MB
+	}
+
+	# Strip headers a client could use to forge identity or routing.
+	# LiteLLM reads Authorization and x-api-key interchangeably, so
+	# clients can still use either style — we only remove the ones
+	# that would let a caller assert a different identity or endpoint.
+	header {
+		-X-Forwarded-For
+		-X-Real-IP
+		-X-App-Id
+		-Base-Url
+		-Api-Base
+		-Upstream-Url
+	}
+
+	reverse_proxy 127.0.0.1:4000 {
+		# SSE. Low-latency mode: flush after every write.
+		# Caddy also auto-detects text/event-stream and unknown
+		# Content-Length, but this is set explicitly rather than
+		# inferred — buffering is the single most common gateway bug.
+		flush_interval -1
+
+		# Long generations must not be cut off mid-stream.
+		transport http {
+			dial_timeout 10s
+
+			# First-byte ceiling. 300s, not 120s: reasoning models
+			# legitimately take 12–150s to first token (LATENCY.md §3.2).
+			# A lower value converts slow thinking into a client-side
+			# 502 and a wasted full-price upstream call.
+			response_header_timeout 300s
+			read_timeout 900s
+			write_timeout 900s
+
+			# Connection reuse. New TLS+TCP handshakes cost more than
+			# the entire gateway overhead (LATENCY.md §10.2). Caddy
+			# keep-alives to the upstream by default; these raise the
+			# per-host idle pool for sustained concurrent streams.
+			# (Client-facing keep-alive needs no config — it is on.)
+			keepalive_interval 30s
+			keepalive_idle_conns_per_host 64
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	# Per-request latency split, straight into the access log:
+	#   up_lat_ms = Caddy → LiteLLM first-byte  (gateway + upstream wait)
+	#   up_dur_ms = Caddy → LiteLLM total       (incl. full stream)
+	# duration (built-in) − up_dur_ms ≈ Caddy's own cost.
+	# Scrape these for the LATENCY.md §9 dashboard.
+	log_append up_lat_ms {rp.upstream.latency_ms}
+	log_append up_dur_ms {rp.upstream.duration_ms}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "no-referrer"
+		-Server
+	}
+}
+
+# ── Portal (customer dashboard) ─────────────────────────────────────
+# Next.js, published on 127.0.0.1:3000 by the `portal` container and
+# reachable here ONLY because caddy runs with host networking — see the
+# network_mode comment in docker-compose.yml.
+{$PORTAL_DOMAIN} {
+	encode zstd gzip
+
+	request_body {
+		# 2MB. The portal takes JSON and form posts; the gateway's 10MB
+		# limit is for prompts. This is a tighter ceiling on a control
+		# plane that never handles model payloads.
+		max_size 2MB
+	}
+
+	reverse_proxy 127.0.0.1:3000 {
+		# Required by the Stripe webhook route: without it, Caddy may
+		# buffer the request body and Stripe's signature check fails
+		# intermittently — a bug that appears only under load and only on
+		# the one endpoint that moves money.
+		flush_interval -1
+
+		# Short timeouts. Portal handlers wait on Postgres, LiteLLM REST,
+		# and Stripe — never on a model generation. A portal request that
+		# blocks for minutes is a bug, not a slow query.
+		transport http {
+			dial_timeout 10s
+			response_header_timeout 60s
+			read_timeout 120s
+			write_timeout 120s
+			keepalive_interval 30s
+			keepalive_idle_conns_per_host 64
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "no-referrer"
+		-Server
+	}
+}
+
+# Browser access to `opencode web` (systemd unit `opencode-web`,
+# loopback 127.0.0.1:4096, working dir /opt/gateway).
+#
+# WARNING: opencode web has NO built-in auth — this host is the entire
+# security boundary. Default-deny, IP-gated like the admin host.
+# Replace 203.0.113.4/32 with YOUR public IP (curl ifconfig.me) before
+# first use. Requires DNS: code A <VPS_IP>.
+{$CODE_DOMAIN} {
+	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32
+	respond @blocked "Forbidden" 403
+
+	reverse_proxy 127.0.0.1:4096 {
+		# Terminal UI streams over SSE + websockets (Caddy upgrades
+		# automatically). Flush everything; no read/write timeout —
+		# an idle coding session must not be killed mid-thought.
+		flush_interval -1
+		transport http {
+			dial_timeout 10s
+			response_header_timeout 60s
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options    "nosniff"
+		Referrer-Policy           "no-referrer"
+		-Server
+	}
+}
+# ── Admin UI + management API ───────────────────────────────────────
+# Separate hostname, IP-gated, default-deny.
+#
+# Why separate: LiteLLM's management endpoints are authenticated by the
+# master key, but hosting them on the same origin as your tenant keys
+# means one leaked master key is a single HTTP request from total
+# compromise of every budget and key.
+{$ADMIN_DOMAIN} {
+	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32
+	respond @blocked "Forbidden" 403
+
+	reverse_proxy 127.0.0.1:4000 {
+		flush_interval -1
+		transport http {
+			dial_timeout 10s
+			response_header_timeout 300s
+			read_timeout 900s
+			write_timeout 900s
+			keepalive_interval 30s
+			keepalive_idle_conns_per_host 64
+		}
+	}
+}

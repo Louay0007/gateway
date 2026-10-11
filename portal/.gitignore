@@ -1,0 +1,12 @@
+node_modules/
+.next/
+out/
+dist/
+*.log
+.env
+.env.local
+.env.*.local
+.DS_Store
+tsconfig.tsbuildinfo
+playwright-report/
+test-results/

@@ -1,0 +1,24 @@
+# Build context exclusions.
+#
+# Without this, `docker build ./portal` ships node_modules (hundreds of MB,
+# and host-specific binaries) into the daemon, and .env files follow the
+# repo to whatever registry builds the image. .dockerignore is the second
+# line of defence after .gitignore for exactly that reason.
+
+node_modules
+.next
+.git
+
+# Never bake credentials into a layer. `make deploy` excludes .env from
+# rsync too, but a local `docker build` has no such protection.
+.env
+.env.*
+!.env.example
+
+*.tsbuildinfo
+next-env.d.ts
+
+# Tests and type definitions are not runtime inputs.
+tests
+playwright-report
+test-results
