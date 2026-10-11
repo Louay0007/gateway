@@ -43,11 +43,14 @@ curl -sS -X POST 'http://127.0.0.1:4000/key/generate' \
         \"metadata\":       { \"owner\": \"${USER_ID}\" }
       }" | jq '{key, key_name, max_budget, budget_duration, models, expires}'
 
-echo
-echo "Test it before handing it out:"
+# The JSON above is the ONLY thing on stdout, so callers can pipe it
+# straight into jq / json.load. Human guidance goes to stderr instead —
+# trailing text on stdout makes every downstream parse fail on "Extra data".
 FIRST_MODEL=$(printf '%s' "$MODELS" | cut -d, -f1)
-cat <<EOF
-  curl -s https://\${API_DOMAIN}/v1/chat/completions \\
+cat >&2 <<EOF
+
+Test it before handing it out:
+  curl -s https://${API_DOMAIN}/v1/chat/completions \\
     -H "Authorization: Bearer <KEY>" \\
     -H 'Content-Type: application/json' \\
     -d '{"model":"${FIRST_MODEL}","messages":[{"role":"user","content":"hi"}]}'

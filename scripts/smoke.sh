@@ -7,7 +7,11 @@
 set -uo pipefail
 
 API="${API_DOMAIN:-api.yourdomain.com}"
-BASE="https://$API"
+# Public URL through the edge (Caddy) on the VPS. Locally there is no edge
+# proxy — LiteLLM is reached directly on loopback — so allow BASE to be
+# overridden. Set SMOKE_BASE=http://127.0.0.1:4000 to run the suite without
+# Caddy; leaving it unset preserves the production path (https://$API).
+BASE="${SMOKE_BASE:-https://$API}"
 LOCAL="http://127.0.0.1:4000"
 KEY="${1:-${TENANT_KEY:-}}"
 MODEL="${SMOKE_MODEL:-fast}"
