@@ -18,53 +18,10 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { getSpendLogs, type SpendLogRow } from '@/lib/litellm/client';
+import { getSpendLogs, extractUsage, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
 
 const PRICE_VERSION = '2026-10-11';   // bump when prices/models.yaml changes
-
-interface NormalisedUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheWrite5m: number;
-  cacheWrite1h: number;
-  cacheRead: number;
-  ttlBreakdownMissing: boolean;
-}
-
-/**
- * Map LiteLLM's response usage fields onto the four billable classes.
- * Handles both OpenAI-shaped and Anthropic-shaped field names, because the
- * gateway serves both wire formats and the logs reflect whichever the
- * client used.
- */
-function normaliseUsage(u: SpendLogRow['usage']): NormalisedUsage {
-  const input        = u?.prompt_tokens ?? 0;
-  const output       = u?.completion_tokens ?? 0;
-  const creationTot  = u?.cache_creation_input_tokens ?? 0;
-  const read         = u?.cache_read_input_tokens ?? 0;
-
-  const cc = u?.cache_creation ?? {};
-  let w5 = cc.ephemeral_5m_input_tokens ?? 0;
-  let w1 = cc.ephemeral_1h_input_tokens ?? 0;
-
-  // The merged field with no TTL breakdown. Fall back to the 5m rate and
-  // flag it — do NOT silently assume 5m.
-  let ttlBreakdownMissing = false;
-  if (creationTot > 0 && w5 === 0 && w1 === 0) {
-    w5 = creationTot;
-    ttlBreakdownMissing = true;
-  }
-
-  return {
-    inputTokens:     input,
-    outputTokens:    output,
-    cacheWrite5m:    w5,
-    cacheWrite1h:    w1,
-    cacheRead:       read,
-    ttlBreakdownMissing,
-  };
-}
 
 /**
  * Dedupe hash. Must be stable across retries AND unique per real request.
@@ -131,7 +88,7 @@ export async function collectUsage(opts?: {
     const orgId = await orgIdForRow(row);
     if (!orgId) { result.unmapped++; continue; }   // not ours; ignore
 
-    const u = normaliseUsage(row.usage);
+    const u = extractUsage(row);
     if (u.ttlBreakdownMissing) result.ttlMissing++;
 
     const upstream = row.spend ?? 0;

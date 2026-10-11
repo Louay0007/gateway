@@ -279,6 +279,11 @@ export interface SpendLogRow {
 /**
  * Spend logs for a window. The response shape varies by LiteLLM version
  * (bare array vs {data: []} vs {spend_logs: []}); normalise defensively.
+ *
+ * DATE FORMAT (verified against v1.103.1): the `/spend/logs/ui` endpoint
+ * REJECTS date-only `YYYY-MM-DD` with HTTP 400 — it requires a full
+ * `YYYY-MM-DD HH:MM:SS` datetime. Callers pass date-only; expand to the
+ * day boundaries here so the caller's simple contract holds.
  */
 export async function getSpendLogs(input: {
   startDate: string;   // YYYY-MM-DD
@@ -287,8 +292,8 @@ export async function getSpendLogs(input: {
   pageSize?: number;
 }): Promise<SpendLogRow[]> {
   const q = new URLSearchParams({
-    start_date: input.startDate,
-    end_date:   input.endDate,
+    start_date: `${input.startDate} 00:00:00`,
+    end_date:   `${input.endDate} 23:59:59`,
     page:       String(input.page ?? 1),
     page_size:  String(input.pageSize ?? 500),
   });
@@ -299,6 +304,111 @@ export async function getSpendLogs(input: {
 
   if (Array.isArray(raw)) return raw;
   return raw.data ?? raw.spend_logs ?? [];
+}
+
+/**
+ * Normalise a spend-log row into the four billable token classes.
+ *
+ * SHAPE VARIES BY VERSION — read defensively (this file's standing rule):
+ *   • v1.103.1 (verified): `prompt_tokens`/`completion_tokens`/`total_tokens`
+ *     at the ROW TOP LEVEL; cache detail under
+ *     `metadata.usage_object.prompt_tokens_details`
+ *     (`.cached_tokens` = cache READ, `.cache_write_tokens`/`.cache_creation_tokens`
+ *     = cache WRITE, merged, no TTL split).
+ *   • Anthropic-shaped logs: nested `row.usage` with
+ *     `cache_creation_input_tokens` (merged) and
+ *     `cache_creation.ephemeral_5m_input_tokens` / `.ephemeral_1h_input_tokens`
+ *     (the TTL split).
+ *
+ * TTL-AWARE PRICING (BLUEPRINT.md §8.3): `cache_creation_input_tokens` is a
+ * single merged field. Pricing it all at the 5-minute rate under-bills
+ * 1-hour-TTL workloads by ~19%. We read the ephemeral_5m / ephemeral_1h
+ * split when present and FLAG rows where it is absent (`ttlBreakdownMissing`)
+ * rather than silently assuming 5m.
+ */
+export function extractUsage(row: SpendLogRow): {
+  inputTokens: number;
+  outputTokens: number;
+  cacheWrite5m: number;
+  cacheWrite1h: number;
+  cacheRead: number;
+  ttlBreakdownMissing: boolean;
+} {
+  const anyRow = row as unknown as Record<string, unknown>;
+  const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+  // Nested OpenAI-style usage (older shapes) and nested metadata.usage_object.
+  const usageObj = (anyRow.usage ?? {}) as Record<string, unknown>;
+  const meta = anyRow.metadata as Record<string, unknown> | undefined;
+  const metaUsage = (meta?.usage_object ?? {}) as Record<string, unknown>;
+  const metaDetails = (metaUsage.prompt_tokens_details ?? {}) as Record<string, unknown>;
+
+  const pick = (...vals: unknown[]): number => {
+    for (const v of vals) if (num(v) > 0) return num(v);
+    return 0;
+  };
+
+  const inputTokens = pick(
+    anyRow.prompt_tokens, usageObj.prompt_tokens, metaUsage.prompt_tokens,
+  );
+  const outputTokens = pick(
+    anyRow.completion_tokens, usageObj.completion_tokens, metaUsage.completion_tokens,
+  );
+  const totalTokens = pick(
+    anyRow.total_tokens, usageObj.total_tokens, metaUsage.total_tokens,
+  ) || (inputTokens + outputTokens);
+
+  // ── Cache READ ────────────────────────────────────────────────────
+  // ONLY genuine cache-read signals. Reasoning tokens are NOT cache
+  // reads: step-5-preview is a reasoning model and reports non-zero
+  // `completion_tokens_details.reasoning_tokens`, which previously leaked
+  // in here as a phantom cache read and over-billed every reasoning call.
+  const cacheRead = pick(
+    metaDetails.cached_tokens,               // v1.103.1 OpenAI shape
+  ) || pick(
+    row.cache_read_input_tokens,             // Anthropic merged
+    (usageObj as Record<string, unknown>).cache_read_input_tokens,
+  );
+
+  // ── Cache WRITE + TTL split ───────────────────────────────────────
+  const cc = (usageObj.cache_creation ?? {}) as Record<string, unknown>;
+  let w5 = pick(
+    cc.ephemeral_5m_input_tokens,            // Anthropic TTL split (5m)
+    (usageObj as Record<string, unknown>).cache_creation?.ephemeral_5m_input_tokens,
+  );
+  let w1 = pick(
+    cc.ephemeral_1h_input_tokens,            // Anthropic TTL split (1h)
+    (usageObj as Record<string, unknown>).cache_creation?.ephemeral_1h_input_tokens,
+  );
+
+  // Merged cache-write total (no TTL split available in this shape):
+  //   • v1.103.1 OpenAI:  metadata…prompt_tokens_details.cache_write_tokens
+  //   • Anthropic merged: row.usage.cache_creation_input_tokens
+  const creationTot = pick(
+    metaDetails.cache_write_tokens,
+    metaDetails.cache_creation_tokens,
+    row.cache_creation_input_tokens,
+    (usageObj as Record<string, unknown>).cache_creation_input_tokens,
+  );
+
+  // If we have a merged total but no 5m/1h split, price it at the 5m rate
+  // AND flag it — never silently assume 5m.
+  let ttlBreakdownMissing = false;
+  if (creationTot > 0 && w5 === 0 && w1 === 0) {
+    w5 = creationTot;
+    ttlBreakdownMissing = true;
+  }
+
+  // `totalTokens` is informational here (the ledger already has row.spend);
+  // return it implicitly by not dropping it — kept out of the billable set
+  // but available for callers that sanity-check.
+  void totalTokens;
+
+  return {
+    inputTokens, outputTokens,
+    cacheWrite5m: w5, cacheWrite1h: w1, cacheRead,
+    ttlBreakdownMissing,
+  };
 }
 
 /**
