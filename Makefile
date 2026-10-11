@@ -142,6 +142,7 @@ deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	  --exclude '.env' --exclude '.git/' \
 	  --exclude 'backup-*.tar.gz' --exclude 'latency.csv' \
 	  --exclude 'portal/node_modules/' --exclude 'portal/.next/' \
+	  --exclude 'docker-compose.mock.yml' --exclude 'mock-upstream.log' \
 	  ./ "$${HOST}:$${DIR}/" && \
 	ssh -t "$${HOST}" "cd $${DIR} && if [ -f .env ]; then \
 	    make db-init && make db-migrate && \
@@ -164,3 +165,36 @@ verify-caddy: ## Validate the Caddyfile against the real caddy binary
 	  | grep -q 'Valid configuration' && echo "  Caddyfile OK"
 
 check-format: verify-config ## Alias
+
+# ── Local acceptance testing WITHOUT a real upstream key ───────────
+# Runs a fake Anthropic/OpenAI-compatible upstream on the host and points
+# litellm at it via host.docker.internal, so the full gateway data path
+# (dual-format, streaming, spend, budgets, SSRF-body reject) is
+# exercisable locally with zero spend. The override is LOCAL-ONLY and is
+# excluded from deploy (see rsync --exclude below) so it can never reach
+# the VPS.
+MOCK_PORT ?= 8787
+COMPOSE_MOCK := docker compose -f docker-compose.yml -f docker-compose.mock.yml
+
+mock-upstream: ## Run a fake upstream on the host (background; for smoke-local)
+	@pgrep -f 'mock-upstream.mjs' >/dev/null && { echo "  mock already running on :$(MOCK_PORT)"; exit 0; }
+	@nohup node scripts/mock-upstream.mjs >/tmp/mock-upstream.log 2>&1 &
+	@sleep 1
+	@curl -sS -m 5 http://127.0.0.1:$(MOCK_PORT)/health >/dev/null \
+	  && echo "  mock-upstream up on http://127.0.0.1:$(MOCK_PORT)" \
+	  || { echo "  FAILED to start mock-upstream — see /tmp/mock-upstream.log"; exit 1; }
+
+smoke-local: ## Bring up litellm against the local mock and print smoke instructions
+	@$(MAKE) --no-print-directory mock-upstream
+	@echo "  starting litellm against the mock (UPSTREAM_BASE_URL=http://host.docker.internal:$(MOCK_PORT))"
+	@$(COMPOSE_MOCK) up -d litellm
+	@sleep 6
+	@echo "  ✓ litellm restarted against mock. Run:"
+	@echo "      set -a; . ./.env; set +a; \\"
+	@echo "      KEY=\$$(./scripts/issue-key.sh local fast 5 30d | python3 -c 'import sys,json;print(json.load(sys.stdin)[\"key\"])'); \\"
+	@echo "      SMOKE_BASE=http://127.0.0.1:4000 ./scripts/smoke.sh \"\$$KEY\""
+
+real-upstream: ## Restart litellm against the real UPSTREAM_BASE_URL from .env
+	@$(COMPOSE) up -d litellm
+	@sleep 6
+	@echo "  ✓ litellm restarted against the real upstream"

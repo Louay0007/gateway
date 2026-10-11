@@ -32,6 +32,17 @@ model_list:
       timeout: 240
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # Explicit per-token cost, in USD. Derived from prices/models.yaml
+      # (input $2/MTok, output $10/MTok). Set on EVERY deployment, not
+      # just the anthropic/ one: LiteLLM's built-in cost map only knows
+      # anthropic/claude-*, so the openai/claude-* deployment below would
+      # otherwise price at $0 — silently no-op'ing budgets and under-
+      # billing the margin. This is the single source of truth both the
+      # gateway and portal read (portal PRICE_FILE = the same table).
+      input_cost_per_token: 0.000002
+      output_cost_per_token: 0.00001
+      cache_creation_input_token_cost: 0.0000025
+      cache_read_input_token_cost: 0.0000002
 
   - model_name: fast
     litellm_params:
@@ -42,6 +53,10 @@ model_list:
       timeout: 240
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000002
+      output_cost_per_token: 0.00001
+      cache_creation_input_token_cost: 0.0000025
+      cache_read_input_token_cost: 0.0000002
 
   - model_name: smart
     litellm_params:
@@ -55,6 +70,10 @@ model_list:
       timeout: 600
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000004
+      output_cost_per_token: 0.00002
+      cache_creation_input_token_cost: 0.000005
+      cache_read_input_token_cost: 0.0000002
 
   - model_name: smart
     litellm_params:
@@ -65,6 +84,10 @@ model_list:
       timeout: 600
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000004
+      output_cost_per_token: 0.00002
+      cache_creation_input_token_cost: 0.000005
+      cache_read_input_token_cost: 0.0000002
 
   - model_name: frontier
     litellm_params:
@@ -77,6 +100,10 @@ model_list:
       timeout: 600
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.00001
+      output_cost_per_token: 0.00005
+      cache_creation_input_token_cost: 0.0000125
+      cache_read_input_token_cost: 0.00000025
 
   - model_name: frontier
     litellm_params:
@@ -87,6 +114,10 @@ model_list:
       timeout: 600
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.00001
+      output_cost_per_token: 0.00005
+      cache_creation_input_token_cost: 0.0000125
+      cache_read_input_token_cost: 0.00000025
 
   # ─────────────────────────────────────────────────────────────────────
   # BLOCK B — UPSTREAM IS OPENAI-COMPATIBLE ONLY

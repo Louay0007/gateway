@@ -1,0 +1,17 @@
+# docker-compose.mock.yml — LOCAL-ONLY override for acceptance testing
+# without a real upstream key. Point litellm at a fake upstream on the
+# host via `make smoke-local`.
+#
+# NEVER deploy this file: `make deploy` rsyncs with an explicit
+# --exclude for it, so it cannot reach the VPS. It exists only so the
+# smoke suite can prove the gateway's data path locally with zero spend.
+services:
+  litellm:
+    environment:
+      # host.docker.internal is how a container reaches the host on Docker
+      # Desktop (macOS/Windows). extra_hosts below makes the name resolve.
+      UPSTREAM_BASE_URL: http://host.docker.internal:8787
+      # The mock ignores auth, but litellm requires a value here.
+      UPSTREAM_API_KEY: sk-mock-anything
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
