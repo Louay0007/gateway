@@ -7,7 +7,11 @@
 # fires again. Run this after any upgrade that adds a database, and it is
 # safe to run every time.
 set -euo pipefail
-cd /opt/gateway
+# Resolve the repo root from this script's location, not a hardcoded VPS
+# path — the same script must work locally (git clone) and on the VPS
+# (/opt/gateway). docker compose then finds docker-compose.yml there.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 if docker compose exec -T postgres psql -U litellm -d litellm -tAc \
      "SELECT 1 FROM pg_database WHERE datname='portal'" | grep -q 1; then

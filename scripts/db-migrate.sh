@@ -18,7 +18,11 @@
 # one statement per file for that reason).
 set -euo pipefail
 
-cd /opt/gateway
+# Resolve the repo root from this script's location, not a hardcoded VPS
+# path — the same script must work locally (git clone) and on the VPS
+# (/opt/gateway). docker compose then finds docker-compose.yml there.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR/.."
 
 MIGRATIONS=(portal/db/migrations/*.sql)
 if [ ! -e "${MIGRATIONS[0]}" ]; then

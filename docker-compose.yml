@@ -46,7 +46,7 @@ services:
     image: ghcr.io/berriai/litellm:${LITELLM_VERSION:-v1.103.1}
     restart: unless-stopped
     command:
-      - "--config=/app/config.yaml"
+      - "--config=/app/config/litellm.yaml"
       - "--num_workers=${NUM_WORKERS:-2}"
       - "--port=4000"
     environment:

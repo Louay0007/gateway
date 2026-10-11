@@ -17,6 +17,19 @@
 {$API_DOMAIN} {
 	encode zstd gzip
 
+	# ── Public-surface enforcement (DESIGN.md §4.1, smoke A-14/A-15) ──
+	# Default-deny management routes on the PUBLIC host. This is the edge
+	# boundary that keeps /key/generate, /spend, /config, /team, etc. off the
+	# internet while leaving them reachable on loopback and the portal's
+	# internal URL (where `make key`, smoke A-8, and the portal actually use
+	# them). LiteLLM publishes only on 127.0.0.1:4000, so a management route
+	# can only become public by coming through THIS vhost — deny it here.
+	# Ordered before the reverse_proxy so blocked paths never reach LiteLLM.
+	@mgmt path /key/* /key /user/* /user /team/* /team /organization/* \
+		/organization /model/* /model /spend/* /spend /config/* /config \
+		/global/* /global /customer/* /customer /budget/* /budget
+	respond @mgmt "Not found" 404
+
 	request_body {
 		max_size 10MB
 	}

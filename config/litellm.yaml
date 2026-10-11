@@ -215,15 +215,24 @@ general_settings:
   # (max_budget also gates this; enforce BOTH.)
 
   # ── Public surface ────────────────────────────────────────────────
-  # Only the endpoints DESIGN.md §4.1 specifies. Removes /key/generate,
-  # /spend/*, /config/* from the public API host entirely.
-  allowed_routes:
-    - "/v1/chat/completions"
-    - "/v1/responses"
-    - "/v1/messages"
-    - "/v1/messages/count_tokens"
-    - "/v1/models"
-    - "/health"
+  # DESIGN.md §4.1 restricts the PUBLIC API host to the inference routes
+  # only. That restriction is enforced at the Caddy edge (config/Caddyfile,
+  # API vhost `@mgmt` block), NOT here.
+  #
+  # Why not LiteLLM's global `allowed_routes`? It is an INSTANCE-WIDE
+  # switch, not a per-host one — it 403s the route for every caller,
+  # including the loopback callers that legitimately need management routes:
+  #   - `make key` / scripts/issue-key.sh  (mints tenant keys over 127.0.0.1:4000)
+  #   - scripts/smoke.sh A-8/A-14          (same)
+  #   - the portal's LITELLM_INTERNAL_URL  (http://litellm:4000)
+  # LiteLLM is bound to 127.0.0.1 only (docker-compose ports), so the ONLY
+  # way a management route becomes public is a request through Caddy — and
+  # that is exactly where the deny lives. Enforcing it globally here would
+  # break key-minting on the machine itself (smoke A-14/A-15) while buying no
+  # extra security, because nothing internal is public to begin with.
+  #
+  # Do NOT re-add `allowed_routes` here without also making the internal
+  # minting path work again — see smoke.sh A-8 and DESIGN.md §5.1.
 
   # ── Client IP attribution ─────────────────────────────────────────
   # DESIGN.md §6.1: no CDN by default, so the TCP peer IS the client IP

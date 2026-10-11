@@ -70,7 +70,11 @@ jobs-once: jobs ## Alias
 
 health: ## Check gateway, portal, jobs, Postgres and pricing wiring
 	@echo -n "  gateway health : "; \
-	  curl -sS -m 10 -o /dev/null -w '%{http_code}\n' $(LOCAL)/health || echo FAIL
+	  KEY=$$(grep '^LITELLM_MASTER_KEY=' .env | cut -d= -f2-); \
+	  code=$$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+	    -H "Authorization: Bearer $$KEY" $(LOCAL)/health 2>/dev/null); \
+	  if [ "$$code" = "200" ]; then echo "OK (200) — budgets ARE enforced"; \
+	  else echo "FAIL (got $$code) — check: docker compose logs litellm"; fi
 	@echo -n "  postgres       : "; \
 	  $(COMPOSE) exec -T postgres pg_isready -U litellm >/dev/null 2>&1 \
 	    && echo "ready — budgets ARE enforced" \
@@ -83,12 +87,9 @@ health: ## Check gateway, portal, jobs, Postgres and pricing wiring
 	    | grep -qx jobs && echo running || echo "NOT RUNNING"
 	@echo -n "  models priced  : "; \
 	  curl -sS -m 10 -H "Authorization: Bearer $$(grep '^LITELLM_MASTER_KEY=' .env | cut -d= -f2-)" \
-	    $(LOCAL)/v1/models 2>/dev/null | python3 -c \
-	    'import sys,json
-try:
-    d=json.load(sys.stdin); print(len(d.get("data",[])), "model(s)")
-except Exception: print("check Admin UI → Models → spend must be NON-ZERO")' 2>/dev/null \
-	  || echo "could not query"
+	    $(LOCAL)/v1/models 2>/dev/null \
+	    | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('data',[])), 'model(s)')" \
+	    || echo "check Admin UI -> Models -> spend must be NON-ZERO"
 
 key: ## Mint a tenant key  (make key ALIAS=acme MODELS=fast,smart BUDGET=50 DUR=30d)
 	@: "$${LITELLM_MASTER_KEY:?source .env first}"
