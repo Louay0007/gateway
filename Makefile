@@ -70,9 +70,8 @@ jobs-once: jobs ## Alias
 
 health: ## Check gateway, portal, jobs, Postgres and pricing wiring
 	@echo -n "  gateway health : "; \
-	  KEY=$$(grep '^LITELLM_MASTER_KEY=' .env | cut -d= -f2-); \
 	  code=$$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
-	    -H "Authorization: Bearer $$KEY" $(LOCAL)/health 2>/dev/null); \
+	    $(LOCAL)/health/readiness 2>/dev/null); \
 	  if [ "$$code" = "200" ]; then echo "OK (200) — budgets ARE enforced"; \
 	  else echo "FAIL (got $$code) — check: docker compose logs litellm"; fi
 	@echo -n "  postgres       : "; \

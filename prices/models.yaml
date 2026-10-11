@@ -1,38 +1,42 @@
 # Your price table. Reviewed monthly against the provider's live
 # pricing page. Do NOT hardcode values from documentation examples.
 #
-# Source for all rows below: official Claude Platform docs, Oct 2026
-# (models overview + per-model pages). Multipliers are stable:
-# write-5m = 1.25x, write-1h = 2.0x, cache-read = 0.10x — EXCEPT
-# Fable 5.1 (0.025x) and Opus 5.5 (0.05x). Those exceptions are priced
-# in below; do not "simplify" them back to 0.10x.
+# ── CURRENT UPSTREAM (dev): opencode Zen free tier ──────────────────
+# Active model: `fast` → openai/cl/cline-free/step-5-preview
+# The upstream is FREE, so the rates below are NOMINAL DEV RATES, not
+# real provider prices. They exist so the gateway's spend / budget /
+# rollup pipeline stays exercisable end-to-end (a $0 model makes every
+# budget a no-op and hides pipeline bugs). These values are mirrored,
+# per-token, in config/litellm.yaml's model_info — ONE table, TWO
+# consumers (portal resolvePrice + scripts/reconcile.sh). Keep them in
+# sync, and zero them before any real billing relies on this table.
+#
+# resolvePrice() matches by stripping the provider prefix and matching
+# the bare model (`step-5-preview`) by prefix, so this key must be the
+# bare upstream model name.
 models:
-  claude-sonnet-5:
-    input_per_mtok:          2.00
-    cache_write_5m_per_mtok: 2.50
-    cache_write_5m_note:     1.25x input
-    cache_write_1h_per_mtok: 4.00
-    cache_write_1h_note:     2.0x input
-    cache_read_per_mtok:     0.20
-    cache_read_note:         0.10x input
-    output_per_mtok:         10.00
+  step-5-preview:
+    input_per_mtok:          0.30
+    cache_write_5m_per_mtok: 0.375
+    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
+    cache_write_1h_per_mtok: 0.60
+    cache_write_1h_note:     2.0x input (nominal)
+    cache_read_per_mtok:     0.03
+    cache_read_note:         0.10x input (nominal)
+    output_per_mtok:         1.20
 
-  claude-opus-5-5:
-    input_per_mtok:          4.00
-    cache_write_5m_per_mtok: 5.00
-    cache_write_1h_per_mtok: 8.00
-    cache_read_per_mtok:     0.20
-    cache_read_note:         0.05x input (per-model exception)
-    output_per_mtok:         20.00
-
-  claude-fable-5-1:
-    input_per_mtok:          10.00
-    cache_write_5m_per_mtok: 12.50
-    cache_write_1h_per_mtok: 20.00
-    cache_read_per_mtok:     0.25
-    cache_read_note:         0.025x input (per-model exception)
-    output_per_mtok:         50.00
-
+# ── When the real Anthropic models return, restore rows like these ──
+# (kept commented as the reference shape; multipliers are stable:
+#  write-5m = 1.25x, write-1h = 2.0x, cache-read = 0.10x, EXCEPT
+#  Fable 5.1 (0.025x) and Opus 5.5 (0.05x)).
+#
+#   claude-sonnet-5:
+#     input_per_mtok:          2.00
+#     cache_write_5m_per_mtok: 2.50
+#     cache_write_1h_per_mtok: 4.00
+#     cache_read_per_mtok:     0.20
+#     output_per_mtok:         10.00
+#
 # Long-context tiers price differently above a context threshold.
 # Add them explicitly rather than approximating.
 #

@@ -40,10 +40,18 @@ export async function GET(): Promise<Response> {
   const [database, gateway] = await Promise.all([
     probe('database', () => db.execute(sql`SELECT 1`)),
     probe('gateway', () =>
-      fetch(`${LITELLM_BASE}/health`, {
-        headers: { Authorization: `Bearer ${process.env.LITELLM_MASTER_KEY ?? ''}` },
-        signal: AbortSignal.timeout(5_000),
+      // /health/readiness, NOT /health. In current LiteLLM, the plain
+      // /health route is authenticated and its post-auth check stalls
+      // against a slow/flaky upstream (it timed out under load here),
+      // which would couple portal liveness to upstream health and report
+      // a healthy gateway as down. /health/readiness is the cheap,
+      // unauthenticated "proxy is initialised and can serve" signal —
+      // exactly what a healthcheck needs. Upstream reachability is the
+      // gateway's own concern, surfaced on the admin host, not the
+      // portal's liveness.
+      fetch(`${LITELLM_BASE}/health/readiness`, {
         cache: 'no-store',
+        signal: AbortSignal.timeout(5_000),
       }).then((r) => {
         if (!r.ok) throw new Error(`gateway ${r.status}`);
       }),

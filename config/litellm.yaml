@@ -1,123 +1,50 @@
 # ═══════════════════════════════════════════════════════════════════════
-#  LiteLLM gateway configuration — dual-format (OpenAI + Anthropic)
+#  LiteLLM gateway configuration
 #
-#  Determine which block below applies by running:
-#      ./scripts/probe-upstream.sh
+#  Active deployment: SINGLE opencode upstream (openai-compatible).
+#  /v1/chat/completions is native; /v1/messages is translated.
+#  Determine upstream wire format with:  ./scripts/probe-upstream.sh
 #  See DESIGN.md §4 for the reasoning behind each choice.
 # ═══════════════════════════════════════════════════════════════════════
 
 model_list:
   # ─────────────────────────────────────────────────────────────────────
-  # BLOCK A — UPSTREAM SUPPORTS BOTH FORMATS NATIVELY  (recommended)
+  # SINGLE UPSTREAM — opencode Zen free tier via the abc-tunnel proxy.
   # ═════════════════════════════════════════════════════════════════════
-  # Same upstream registered twice under one model_name. LiteLLM forms a
-  # model group and routes by endpoint:
-  #   /v1/chat/completions -> the openai/ deployment
-  #   /v1/messages         -> either, but the anthropic/ one is native
+  # ONE deployment. The tunnel is OpenAI-compatible at <base>/v1/
+  # chat/completions, so a single openai/ registration is all that is
+  # needed: LiteLLM POSTs to UPSTREAM_BASE_URL + /chat/completions.
   #
-  # The supported_endpoints opt-in (v1.92.0+) makes /v1/messages forward
-  # UNTRANSLATED. Without it LiteLLM translates and DROPS cache_control,
-  # which silently inflates cost ~10x on cached prefixes.
-
+  # /v1/messages still works — LiteLLM TRANSLATES it to chat/completions
+  # for this upstream (lossy: Anthropic cache_control is dropped). The
+  # tunnel ALSO speaks native /v1/messages, but a second same-named
+  # anthropic/ deployment is deliberately NOT registered: LiteLLM's
+  # endpoint-based routing picked the anthropic/ one for a
+  # /v1/chat/completions call and POSTed to the BARE base URL
+  # (.../v1 with no path) → upstream 405. One deployment removes the
+  # ambiguity entirely. See DESIGN.md §4.
+  #
+  # COST IS NOMINAL (dev only): the upstream is FREE, so real cost is $0.
+  # These non-zero rates exist only so the gateway's spend/budget/rollup
+  # pipeline stays exercisable end-to-end. prices/models.yaml carries the
+  # same values (one table, two consumers — resolvePrice + reconcile.sh).
+  # Zero them before any real billing relies on this table.
   - model_name: fast
     litellm_params:
-      model: anthropic/claude-sonnet-5
+      model: openai/cl/cline-free/step-5-preview
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
-      # Fail fast on hangs. A healthy fast-model step completes in
-      # seconds (LATENCY.md §6.2: ~7s for 500 tokens); 240s is generous
-      # but bounds the worst case — a late failure is the most expensive
-      # event in the system (LATENCY.md §5.3). Resolution order:
-      # request < deployment < router < litellm_settings.request_timeout.
       timeout: 240
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      # Explicit per-token cost, in USD. Derived from prices/models.yaml
-      # (input $2/MTok, output $10/MTok). Set on EVERY deployment, not
-      # just the anthropic/ one: LiteLLM's built-in cost map only knows
-      # anthropic/claude-*, so the openai/claude-* deployment below would
-      # otherwise price at $0 — silently no-op'ing budgets and under-
-      # billing the margin. This is the single source of truth both the
-      # gateway and portal read (portal PRICE_FILE = the same table).
-      input_cost_per_token: 0.000002
-      output_cost_per_token: 0.00001
-      cache_creation_input_token_cost: 0.0000025
-      cache_read_input_token_cost: 0.0000002
-
-  - model_name: fast
-    litellm_params:
-      model: openai/claude-sonnet-5
-      api_base: os.environ/UPSTREAM_BASE_URL
-      api_key: os.environ/UPSTREAM_API_KEY
-      cache_control_ttl: true
-      timeout: 240
-    model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      input_cost_per_token: 0.000002
-      output_cost_per_token: 0.00001
-      cache_creation_input_token_cost: 0.0000025
-      cache_read_input_token_cost: 0.0000002
-
-  - model_name: smart
-    litellm_params:
-      model: anthropic/claude-opus-5-5
-      api_base: os.environ/UPSTREAM_BASE_URL
-      api_key: os.environ/UPSTREAM_API_KEY
-      # Adaptive thinking, default medium. TTFA spans seconds to ~1 min
-      # at high effort (LATENCY.md §3.2). 600s matches
-      # litellm_settings.request_timeout; do not lower this without also
-      # lowering the reasoning effort you allow on `smart`.
-      timeout: 600
-    model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      input_cost_per_token: 0.000004
-      output_cost_per_token: 0.00002
-      cache_creation_input_token_cost: 0.000005
-      cache_read_input_token_cost: 0.0000002
-
-  - model_name: smart
-    litellm_params:
-      model: openai/claude-opus-5-5
-      api_base: os.environ/UPSTREAM_BASE_URL
-      api_key: os.environ/UPSTREAM_API_KEY
-      cache_control_ttl: true
-      timeout: 600
-    model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      input_cost_per_token: 0.000004
-      output_cost_per_token: 0.00002
-      cache_creation_input_token_cost: 0.000005
-      cache_read_input_token_cost: 0.0000002
-
-  - model_name: frontier
-    litellm_params:
-      model: anthropic/claude-fable-5-1
-      api_base: os.environ/UPSTREAM_BASE_URL
-      api_key: os.environ/UPSTREAM_API_KEY
-      # Adaptive thinking ALWAYS ON, default high, comparative latency
-      # "Slower" (Anthropic model table). Slowest class we serve — 600s
-      # ceiling, and gate this alias behind the top plan tier only.
-      timeout: 600
-    model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      input_cost_per_token: 0.00001
-      output_cost_per_token: 0.00005
-      cache_creation_input_token_cost: 0.0000125
-      cache_read_input_token_cost: 0.00000025
-
-  - model_name: frontier
-    litellm_params:
-      model: openai/claude-fable-5-1
-      api_base: os.environ/UPSTREAM_BASE_URL
-      api_key: os.environ/UPSTREAM_API_KEY
-      cache_control_ttl: true
-      timeout: 600
-    model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      input_cost_per_token: 0.00001
-      output_cost_per_token: 0.00005
-      cache_creation_input_token_cost: 0.0000125
-      cache_read_input_token_cost: 0.00000025
+      # Nominal dev rates — mirror prices/models.yaml exactly (per-token).
+      # input $0.30/MTok, output $1.20/MTok; cache at the standard
+      # multipliers (write-5m 1.25x, write-1h 2.0x, read 0.10x). Non-zero
+      # only to keep the spend pipeline exercisable; real upstream is free.
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_creation_input_token_cost: 0.000000375
+      cache_read_input_token_cost: 0.00000003
 
   # ─────────────────────────────────────────────────────────────────────
   # BLOCK B — UPSTREAM IS OPENAI-COMPATIBLE ONLY
