@@ -29,7 +29,25 @@ RUN npm ci
 # ── builder ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 WORKDIR /app
+
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# db/index.ts validates DATABASE_URL at MODULE EVALUATION time and throws
+# if it is absent, and Next's page-data collection imports the route
+# graph during the build. Every page that touches the database is
+# `force-dynamic`, so nothing is actually queried here — but without a
+# value the build dies at "/api/auth/[...nextauth]".
+#
+# This placeholder is a build-time constant, never a secret, and it never
+# opens a connection: the postgres client constructs its pool lazily.
+# Credentials are deliberately omitted — a DSN carrying a literal password
+# is the shape scripts/scrub-check.sh exists to keep out of a public repo,
+# and an unconnectable URL needs none to satisfy the guard below.
+# If a page ever DOES query the database during the build, it fails with a
+# connection error — which is the correct outcome, not something this
+# value conceals.
+ENV DATABASE_URL=postgresql://127.0.0.1:5432/build
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

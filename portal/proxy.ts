@@ -46,6 +46,10 @@ function hasSessionCookie(req: NextRequest): boolean {
   return SESSION_COOKIES.some((name) => req.cookies.has(name));
 }
 
+function isApiPath(pathname: string): boolean {
+  return pathname === '/api' || pathname.startsWith('/api/');
+}
+
 export default function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
@@ -53,6 +57,20 @@ export default function proxy(req: NextRequest) {
     (p) => p === '/' ? pathname === '/' : pathname.startsWith(p),
   );
   if (isPublic) return NextResponse.next();
+
+  // API routes are NOT gated here.
+  //
+  // This gate exists to save pointless page renders, but an API caller
+  // cannot follow a redirect to an HTML sign-in page: it expects
+  // `{ error: { code, message } }` (IMPLEMENTATION.md §3), and a fetch()
+  // handed a sign-in page fails to parse it as JSON — turning "your
+  // session expired" into an opaque parse error, and a POST redirected by
+  // 307 into a GET against a page that should never receive it.
+  //
+  // Every API route authorizes itself and answers 401 in-band via
+  // requireActiveOrg()/requireStaff(). That check is real; this one is a
+  // hint.
+  if (isApiPath(pathname)) return NextResponse.next();
 
   // Anything not public requires a session. Absence is enough to
   // redirect — presence is proven later, not here.
