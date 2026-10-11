@@ -216,6 +216,18 @@ export async function requireActiveOrg(): Promise<{
   userId: string;
   role: OrgRole;
 }> {
+  // Distinguish "not signed in" from "signed in, but no organization".
+  //
+  // Without this check, an anonymous request falls through to the empty
+  // membership list below and is answered 403 "No organization" — wrong
+  // on both counts. A client cannot tell that it should re-authenticate,
+  // and the message describes the server's data model rather than the
+  // requester's problem.
+  const user = await currentUser();
+  if (!user) {
+    throw new AuthzError('Not signed in', 'unauthorized', 401);
+  }
+
   const memberships = await listMemberships();
   const first = memberships[0];
   if (!first) {
