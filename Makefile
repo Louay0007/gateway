@@ -157,6 +157,33 @@ verify-config: ## Validate config files parse
 	  ['docker-compose.yml','config/litellm.yaml','prices/models.yaml']];print('  YAML OK')"
 	@for f in scripts/*.sh; do bash -n "$$f" && echo "  OK $$f"; done
 
+# ── Offline-capable image builds ────────────────────────────────────
+# The build needs `node:22-alpine`. On a network that can reach
+# public.ecr.aws but not auth.docker.io (Docker Hub's TOKEN service —
+# registry-1.docker.io itself answers fine, which makes it look like a
+# transient pull failure), the pull dies with
+#   "failed to fetch anonymous token ... auth.docker.io: i/o timeout".
+# public.ecr.aws/docker/library/* is AWS's official mirror of the same
+# images and is usually reachable when auth.docker.io is not. Tagging it
+# under the Docker Hub name lets every `docker compose build` find the
+# base image locally, unchanged.
+#
+# The `# syntax=docker/dockerfile:1` directive is also a Docker Hub pull,
+# and it has been REMOVED from portal/Dockerfile so builds do not depend
+# on that host at all; BuildKit's built-in frontend handles everything
+# this Dockerfile uses.
+docker-mirror: ## Pull base images from AWS's Docker Hub mirror (use when auth.docker.io is blocked)
+	@for img in node:22-alpine; do \
+	  if docker image inspect "$$img" >/dev/null 2>&1; then \
+	    echo "  have $$img"; \
+	  else \
+	    echo "  pulling public.ecr.aws/docker/library/$$img"; \
+	    docker pull "public.ecr.aws/docker/library/$$img" && \
+	    docker tag "public.ecr.aws/docker/library/$$img" "$$img" || \
+	    echo "  FAILED $$img — needs auth.docker.io reachable"; \
+	  fi; \
+	done
+
 verify-caddy: ## Validate the Caddyfile against the real caddy binary
 	@docker run --rm \
 	  -e API_DOMAIN=$$(grep '^API_DOMAIN=' .env 2>/dev/null | cut -d= -f2-) \
