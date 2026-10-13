@@ -31,6 +31,8 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { collectUsage, rollupUsage } from '@/lib/jobs/collect-usage';
 import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
+import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
+import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
 import { log } from '@/lib/log';
 
 /** A lock older than this is assumed to belong to a dead process. */
@@ -46,11 +48,13 @@ interface Job {
 }
 
 /**
- * Schedule table — IMPLEMENTATION.md §4. The three jobs that exist today
- * are here; `push_meters` (Phase 7), `expire_trials`, `reconcile_costs`
- * and `detect_anomalies` (Phase 5) join as they land. Their rows already
- * exist in `job_runs` from migration 0001, so adding one here is the only
- * change needed to activate it.
+ * Schedule table — IMPLEMENTATION.md §4.
+ *
+ * Five jobs run in the MVP: the metering trio (collect, rollup,
+ * reconcile), the subscription rollover (expire_subscriptions), and the
+ * ops alerting pass (send_alerts). A job is active only when it is BOTH
+ * registered here AND present in `job_runs` (migration 0004 seeds the
+ * ledger rows) — adding one later is those two lines, nothing else.
  */
 const JOBS: readonly Job[] = [
   { name: 'collect_usage', everyMs: 5 * 60_000, run: () => collectUsage() },
@@ -59,6 +63,16 @@ const JOBS: readonly Job[] = [
     name: 'reconcile_entitlements',
     everyMs: 60 * 60_000,
     run: () => reconcileEntitlements(),
+  },
+  {
+    name: 'expire_subscriptions',
+    everyMs: 5 * 60_000,
+    run: () => expireSubscriptions(),
+  },
+  {
+    name: 'send_alerts',
+    everyMs: 15 * 60_000,
+    run: () => sendOpsAlerts(),
   },
 ];
 

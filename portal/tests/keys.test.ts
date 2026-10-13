@@ -118,7 +118,7 @@ function fakeStore(over: Partial<FakeStore> = {}): FakeStore {
 }
 
 interface FakeGateway extends KeyGateway {
-  calls: { generate: GatewayGenerateInput[]; revoke: string[] };
+  calls: { generate: GatewayGenerateInput[]; revoke: string[]; info: string[] };
   generateThrows: boolean;
   revokeThrows: boolean;
   issuedKey: string;
@@ -126,7 +126,11 @@ interface FakeGateway extends KeyGateway {
 
 function fakeGateway(over: Partial<FakeGateway> = {}): FakeGateway {
   const self = {
-    calls: { generate: [] as GatewayGenerateInput[], revoke: [] as string[] },
+    calls: {
+      generate: [] as GatewayGenerateInput[],
+      revoke: [] as string[],
+      info: [] as string[],
+    },
     generateThrows: false,
     revokeThrows: false,
     issuedKey: PLAINTEXT,
@@ -136,16 +140,19 @@ function fakeGateway(over: Partial<FakeGateway> = {}): FakeGateway {
       if (self.generateThrows) throw new Error('LiteLLM /key/generate → 500');
       return {
         key: self.issuedKey,
-        keyName: 'litellm-key-name',
+        // The shape the live gateway actually returns: key_name is a
+        // display mask, the token id is the only usable identifier.
+        keyName: 'sk-...mask',
         token: 'litellm-token-hash',
         expires: null,
       };
     },
-    async revoke(keyName: string) {
-      self.calls.revoke.push(keyName);
+    async revoke(token: string) {
+      self.calls.revoke.push(token);
       if (self.revokeThrows) throw new Error('LiteLLM /key/delete → 503');
     },
-    async info() {
+    async info(token: string) {
+      self.calls.info.push(token);
       return { lastUsed: null, models: ['fast'] };
     },
   } as FakeGateway;
@@ -267,6 +274,23 @@ describe('role matrix (IMPLEMENTATION.md §1.2)', () => {
 // ───────────────────────────────────────────────────────────────────────
 
 describe('createApiKey', () => {
+  it('refuses to mint a key before a subscription exists (the paywall)', async () => {
+    // No plan resolves ⇒ no live subscription. This is the state every
+    // brand-new account is in (no free tier), so the answer must be the
+    // paywall — a 402 with words the dashboard can act on — not a 500
+    // that looks like our fault.
+    const store = fakeStore({ keyPlan: null });
+
+    await expectCode(
+      createApiKey(CREATE, deps(store, fakeGateway())),
+      'payment_required',
+    );
+    const error = await createApiKey(CREATE, deps(store, fakeGateway())).catch((e) => e);
+    expect(error.status).toBe(402);
+    expect(store.rows).toHaveLength(0);
+    expect(store.audits).toHaveLength(0);
+  });
+
   it('returns the plaintext exactly once and persists only hash + prefix', async () => {
     const store = fakeStore();
     const gateway = fakeGateway();
@@ -402,7 +426,7 @@ describe('createApiKey', () => {
     const gateway = fakeGateway();
 
     await expectCode(createApiKey(CREATE, deps(store, gateway)), 'internal');
-    expect(gateway.calls.revoke).toEqual(['litellm-key-name']);
+    expect(gateway.calls.revoke).toEqual(['litellm-token-hash']);
   });
 });
 
@@ -440,7 +464,9 @@ describe('revokeApiKey', () => {
       deps(store, gateway),
     );
 
-    expect(gateway.calls.revoke).toEqual(['litellm-key-name']);
+    // The token id, never the display mask: /key/delete answers 404 to
+    // "sk-...mask", which is the bug this assertion pins.
+    expect(gateway.calls.revoke).toEqual(['litellm-token-hash']);
     expect(store.rows[0]!.revokedAt).not.toBeNull();
     expect(result.id).toBe('key-1');
     expect(store.audits[0]!.action).toBe('key.revoked');
@@ -516,11 +542,11 @@ describe('revokeApiKey', () => {
       { organizationId: 'org-1', userId: 'user-1', role: 'admin', keyId: 'key-1' },
       deps(store, allowed),
     );
-    expect(allowed.calls.revoke).toEqual(['litellm-key-name']);
+    expect(allowed.calls.revoke).toEqual(['litellm-token-hash']);
   });
 
-  it('refuses a row with no gateway key name instead of faking a revoke', async () => {
-    const store = await seedKey({ litellmKeyName: null });
+  it('refuses a row with no gateway token instead of faking a revoke', async () => {
+    const store = await seedKey({ litellmKeyHash: null });
     await expectCode(
       revokeApiKey(
         { organizationId: 'org-1', userId: 'user-1', role: OWNER, keyId: 'key-1' },
@@ -583,6 +609,22 @@ describe('listApiKeys', () => {
 
     expect(keys).toHaveLength(1);
     expect(keys[0]!.lastUsedAt).toBeNull();
+  });
+
+  it('enriches by gateway token id, never the display mask', async () => {
+    const store = fakeStore();
+    const gateway = fakeGateway();
+    await createApiKey(CREATE, deps(store, gateway));
+
+    const { keys } = await listApiKeys(
+      { organizationId: 'org-1', userId: 'user-1' },
+      deps(store, gateway),
+    );
+
+    // /key/info answers 404 to "sk-...mask"; asking with the mask would
+    // silently leave the models column empty on every list.
+    expect(gateway.calls.info).toEqual(['litellm-token-hash']);
+    expect(keys[0]!.models).toEqual(['fast']);
   });
 
   it('excludes revoked keys', async () => {

@@ -117,13 +117,35 @@ services:
 
       LITELLM_LOG: ERROR
 
-      # Phase 6+. Empty now; the webhook route stays uninstalled until
-      # STRIPE_WEBHOOK_SECRET is real, so it cannot accept unsigned events.
-      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
-      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      # Billing. Provider-agnostic: `dev` runs the simulated payment
+      # (BILLING_DEV_SECRET mirrors the jobs service so the callback
+      # signature verifies identically from either side); `d17` is the
+      # real PSP once finalised. See lib/billing/types.ts.
+      BILLING_PROVIDER: ${BILLING_PROVIDER:-dev}
+      BILLING_DEV_SECRET: ${BILLING_DEV_SECRET:?set in .env}
+
+      # Email. Password reset lives here (lib/auth/reset.ts); receipts
+      # for the real payment provider reuse the same transport.
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-dev}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-Gateway <noreply@localhost>}
+      OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
+
+      # D17 manual payments (La Poste Tunisienne) — the customer pages
+      # and the admin queue both run in this container.
+      D17_RECEIVER_PHONE: ${D17_RECEIVER_PHONE:-}
+      PAYMENT_WINDOW_HOURS: ${PAYMENT_WINDOW_HOURS:-24}
+      AUTH_NUMBER_REGEX: ${AUTH_NUMBER_REGEX:-^[A-Za-z0-9]{4,32}$}
+      D17_USD_TND_RATE: ${D17_USD_TND_RATE:-3.1}
+      D17_UPLOADS_DIR: /app/data/d17-uploads
+      D17_REVIEW_THRESHOLD: ${D17_REVIEW_THRESHOLD:-3}
+      D17_REVIEW_WINDOW_MINUTES: ${D17_REVIEW_WINDOW_MINUTES:-60}
+      D17_MAX_PROOF_PER_HOUR: ${D17_MAX_PROOF_PER_HOUR:-5}
+
     volumes:
       - ./prices:/app/prices:ro
+      # D17 proof screenshots: outside the web root, staff-only reads.
+      - ./data/d17-uploads:/app/data/d17-uploads
     ports:
       # LOOPBACK ONLY. Caddy is the sole public entry point; publishing
       # this on 0.0.0.0 would serve the dashboard without TLS and without
@@ -155,8 +177,39 @@ services:
       LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:?set in .env}
       PRICE_FILE: /app/prices/models.yaml
       LITELLM_LOG: ERROR
+      # Billing (provider-agnostic; the dev provider needs the portal's
+      # origin for its simulator URL and the callback it drives).
+      BILLING_PROVIDER: ${BILLING_PROVIDER:-dev}
+      BILLING_DEV_SECRET: ${BILLING_DEV_SECRET:?set in .env}
+      APP_URL: http://127.0.0.1:3000
+      # Reach the portal over the compose network (not the host's
+      # loopback, which inside a container is the container itself).
+      PORTAL_INTERNAL_URL: http://portal:3000
+
+      # Email. Empty RESEND_API_KEY ⇒ the log transport (dev): reset
+      # links land in the job log. Set EMAIL_TRANSPORT=resend with a key
+      # for real delivery — lib/email is the only seam.
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-dev}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      MAIL_FROM: ${MAIL_FROM:-Gateway <noreply@localhost>}
+      OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
+
+      # D17 manual payments (La Poste Tunisienne). No API — a human
+      # verifies each transfer; these are the queue's settings.
+      D17_RECEIVER_PHONE: ${D17_RECEIVER_PHONE:-}
+      PAYMENT_WINDOW_HOURS: ${PAYMENT_WINDOW_HOURS:-24}
+      AUTH_NUMBER_REGEX: ${AUTH_NUMBER_REGEX:-^[A-Za-z0-9]{4,32}$}
+      D17_USD_TND_RATE: ${D17_USD_TND_RATE:-3.1}
+      D17_UPLOADS_DIR: /app/data/d17-uploads
+      D17_REVIEW_THRESHOLD: ${D17_REVIEW_THRESHOLD:-3}
+      D17_REVIEW_WINDOW_MINUTES: ${D17_REVIEW_WINDOW_MINUTES:-60}
+      D17_MAX_PROOF_PER_HOUR: ${D17_MAX_PROOF_PER_HOUR:-5}
     volumes:
       - ./prices:/app/prices:ro
+      # Proof screenshots live OUTSIDE the web root (the standalone
+      # bundle serves nothing from here) and are only ever read by the
+      # staff-only route after an authorization check.
+      - ./data/d17-uploads:/app/data/d17-uploads
     depends_on:
       postgres: { condition: service_healthy }
       litellm: { condition: service_started }

@@ -19,7 +19,7 @@
  *      most expensive possible bug in this system.
  */
 
-import { and, eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { entitlements, organizations, plans, subscriptions, auditLog } from '@/db/schema';
 import { updateTeamBudget, updateKeyLimits, listTeamKeys } from '@/lib/litellm/client';
@@ -45,45 +45,37 @@ export interface SyncResult {
   keysSynced: number;
 }
 
-/** The live subscription, per the partial unique index `subscriptions_one_live_idx`. */
-async function getLiveSubscription(orgId: string) {
-  const rows = await db
-    .select({ sub: subscriptions, plan: plans })
-    .from(subscriptions)
-    .innerJoin(plans, eq(plans.id, subscriptions.planId))
-    .where(
-      and(
-        eq(subscriptions.organizationId, orgId),
-        eq(subscriptions.status, 'active'),
-      ),
-    )
-    .limit(1);
-  return rows[0] ?? null;
-}
-
 /**
- * Resolve the live subscription including trialing/paused.
+ * The org's subscription, WHATEVER its status.
  *
- * `subscriptions_one_live_idx` covers ('trialing','active','past_due',
- * 'paused'); this mirrors that predicate exactly. Kept as a separate
- * function from getLiveSubscription so the index definition and the query
- * that depends on it stay in one place.
+ * The cut statuses (canceled, unpaid, incomplete) are deliberately NOT
+ * in the `subscriptions_one_live_idx` predicate — that index guarantees
+ * at most one LIVE row. But a cut has to be pushed through the normal
+ * path (team AND every key) for it to actually take effect, so
+ * resolving only live rows made cancellation unenforceable:
+ * `cancelSubscription` flips the status to 'canceled', the sync then
+ * found nothing to resolve, answered "no live subscription", and the
+ * keys kept the old plan's budget. The money-path proof
+ * (`make verify-metering`) is what caught it.
+ *
+ * The billing service keeps exactly one subscription row per org for
+ * its lifetime (mutated in place), so "the row" is unambiguous here.
+ * For legacy multi-row orgs, prefer a live row, then the most recently
+ * updated — never a canceled row over an active one.
  */
-async function resolveLive(orgId: string) {
-  const rows = await db.execute(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (await import('drizzle-orm')).sql`
-      SELECT s.id, s.status, p.id AS plan_id, p.code AS plan_code,
-             p.included_spend_cents, p.hard_cap_cents, p.rpm_limit,
-             p.tpm_limit, p.max_concurrent_requests, p.models,
-             p.max_keys, p.max_seats, p.rate_multiplier_bps, p.trial_days
-        FROM subscriptions s
-        JOIN plans p ON p.id = s.plan_id
-       WHERE s.organization_id = ${orgId}
-         AND s.status IN ('trialing','active','past_due','paused')
-       LIMIT 1
-    `,
-  ) as unknown as {
+async function resolveSubscription(orgId: string) {
+  const rows = (await db.execute(sql`
+    SELECT s.id, s.status, p.id AS plan_id, p.code AS plan_code,
+           p.included_spend_cents, p.hard_cap_cents, p.rpm_limit,
+           p.tpm_limit, p.max_concurrent_requests, p.models,
+           p.max_keys, p.max_seats, p.rate_multiplier_bps, p.trial_days
+      FROM subscriptions s
+      JOIN plans p ON p.id = s.plan_id
+     WHERE s.organization_id = ${orgId}
+     ORDER BY (s.status IN ('trialing','active','past_due','paused')) DESC,
+              s.updated_at DESC
+     LIMIT 1
+  `)) as unknown as {
     id: string; status: string; plan_id: string; plan_code: string;
     included_spend_cents: number; hard_cap_cents: number | null;
     rpm_limit: number | null; tpm_limit: number | null;
@@ -118,12 +110,16 @@ export async function syncOrganizationEntitlements(
   organizationId: string,
   reason: string,
 ): Promise<SyncResult> {
-  const live = await resolveLive(organizationId);
+  const live = await resolveSubscription(organizationId);
   if (!live) {
-    // No live subscription is itself a cut condition — an org with only a
-    // canceled subscription must not keep access.
-    await forceCut(organizationId, reason, 'no live subscription');
-    return { ok: false, error: 'no live subscription', effect: 'cut', budgetUsd: CUT_BUDGET, keysSynced: 0 };
+    // No subscription row at all — the paywall state of a brand-new
+    // account. Cut anything the gateway still has, and stop: there is
+    // no plan to cache an entitlement against (`entitlements.plan_id`
+    // is NOT NULL), so the ABSENCE of the row is the dashboard's
+    // signal, and the reconciler iterates entitlement rows, not orgs,
+    // so it will not spin on this.
+    await forceCut(organizationId, reason, 'no subscription');
+    return { ok: false, error: 'no subscription', effect: 'cut', budgetUsd: CUT_BUDGET, keysSynced: 0 };
   }
 
   const effect = effectForStatus(live.status);
@@ -195,7 +191,9 @@ export async function syncOrganizationEntitlements(
     const keys = await listTeamKeys(org.litellmTeamId);
     for (const k of keys) {
       try {
-        await updateKeyLimits(k.key_name, {
+        // k.token — LiteLLM's token id. The display mask ("sk-...")
+        // answers 404 and would mark every org's sync failed.
+        await updateKeyLimits(k.token, {
           models: effect === 'cut' ? [] : spec.models,
           maxBudget: budgetUsd,
           budgetDuration: spec.budgetDuration,
@@ -205,7 +203,7 @@ export async function syncOrganizationEntitlements(
         });
         keysSynced++;
       } catch (e) {
-        failures.push(`key ${k.key_name}: ${String(e)}`);
+        failures.push(`key ${k.token}: ${String(e)}`);
       }
     }
   }
@@ -236,11 +234,13 @@ export async function syncOrganizationEntitlements(
 }
 
 /**
- * Cut access for an org that has no resolvable plan.
+ * Cut access for an org with no resolvable subscription row.
  *
- * Separate from the main path because it must work even when the
- * subscription rows are missing or inconsistent — an org suspended by
- * staff, for example.
+ * Separate from the main path because it must work when the
+ * subscription rows are missing or inconsistent entirely (an org
+ * suspended by staff, or one at the paywall). Team AND keys: a team-only
+ * cut leaves any minted key spending under its own budget, which for
+ * this path means a leftover credential on a deleted plan.
  */
 async function forceCut(organizationId: string, reason: string, error: string): Promise<void> {
   const org = await db.query.organizations.findFirst({
@@ -248,13 +248,30 @@ async function forceCut(organizationId: string, reason: string, error: string): 
   });
   if (!org?.litellmTeamId) return;
 
+  const failures: string[] = [];
+
   try {
     await updateTeamBudget(org.litellmTeamId, {
       maxBudgetUsd: CUT_BUDGET,
       budgetDuration: '30d',
     });
   } catch (e) {
-    log.error('force cut failed', { organizationId, error: String(e) });
+    failures.push(`team: ${String(e)}`);
+  }
+
+  for (const k of await listTeamKeys(org.litellmTeamId)) {
+    try {
+      await updateKeyLimits(k.token, {
+        models: [],
+        maxBudget: CUT_BUDGET,
+        budgetDuration: '30d',
+        rpmLimit: null,
+        tpmLimit: null,
+        maxParallelRequests: null,
+      });
+    } catch (e) {
+      failures.push(`key ${k.token}: ${String(e)}`);
+    }
   }
 
   await db.insert(auditLog).values({
@@ -263,4 +280,8 @@ async function forceCut(organizationId: string, reason: string, error: string): 
     organizationId,
     after: { reason, error, budgetUsd: CUT_BUDGET },
   });
+
+  if (failures.length) {
+    log.error('force cut: some limits could not be pushed', { organizationId, error: failures.join('; ') });
+  }
 }

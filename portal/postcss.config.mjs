@@ -1,16 +1,17 @@
 /**
- * PostCSS configuration.
+ * PostCSS — Tailwind v4.
  *
- * Required for Tailwind to actually process `@tailwind` directives. Without
- * this file Next.js runs PostCSS with its defaults, leaves the directives
- * unprocessed, and every utility class silently renders as nothing.
- *
- * Tailwind is pinned to 3.x — that is the PostCSS plugin line. Tailwind v4
- * uses a different, Vite-native pipeline and would need this file removed.
+ * v4 is a single PostCSS plugin and CSS-first configuration: no
+ * tailwind.config.ts, no autoprefixer (v4 handles vendor prefixing),
+ * and the theme lives in app/globals.css. The shadcn "base-nova"
+ * preset and every registry component expect this setup — v3-only
+ * variants (`bg-linear-to-*`, `has-data-[...]`) are native there.
  */
-export default {
+
+const config = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    '@tailwindcss/postcss': {},
   },
 };
+
+export default config;

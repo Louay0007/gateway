@@ -14,6 +14,7 @@
  */
 
 import { AuthzError } from '@/lib/auth/authorize';
+import { BillingError } from '@/lib/billing';
 import { KeyServiceError } from '@/lib/keys/types';
 import { log } from '@/lib/log';
 
@@ -24,7 +25,8 @@ export type ApiErrorCode =
   | 'conflict'
   | 'validation'
   | 'upstream'
-  | 'internal';
+  | 'internal'
+  | 'payment_required';
 
 const STATUS: Record<ApiErrorCode, number> = {
   unauthorized: 401,
@@ -34,6 +36,7 @@ const STATUS: Record<ApiErrorCode, number> = {
   validation: 400,
   upstream: 502,
   internal: 500,
+  payment_required: 402,
 };
 
 const GENERIC: Partial<Record<ApiErrorCode, string>> = {
@@ -60,6 +63,9 @@ export function errorResponse(error: unknown): Response {
     return jsonError(error.code, error.message);
   }
   if (error instanceof KeyServiceError) {
+    return jsonError(error.code, error.message);
+  }
+  if (error instanceof BillingError) {
     return jsonError(error.code, error.message);
   }
 

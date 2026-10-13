@@ -24,6 +24,8 @@ import {
   type OrgRole,
 } from '@/db/schema';
 import { auth } from '@/auth';
+import { log } from '@/lib/log';
+import { sessionIsFresh } from '@/lib/auth/session-freshness';
 
 export class AuthzError extends Error {
   constructor(
@@ -41,8 +43,32 @@ export async function currentUser() {
   const session = await auth();
   if (!session?.user?.email) return null;
 
-  return userByEmail(session.user.email);
+  const user = await userByEmail(session.user.email);
+  if (!user) return null;
+
+  // ── Session freshness ──────────────────────────────────────────────
+  // A JWT is self-contained, so a password change cannot "revoke" it by
+  // deleting a row — the cookie an attacker copied keeps working for
+  // `maxAge` (7 days). The token carries the `password_changed_at` it was
+  // minted with (see auth.ts); comparing it against the live row is what
+  // makes a password change actually log other devices out.
+  //
+  // A token with NO stamp predates migration 0006 and is treated as stale:
+  // one forced re-login on deploy, rather than leaving an unbounded set of
+  // tokens that no credential change can ever invalidate.
+  if (!sessionIsFresh(session.user.passwordChangedAt, user.passwordChangedAt)) {
+    log.warn('auth: session predates the last password change — rejected', {
+      identity: user.email,
+    });
+    return null;
+  }
+
+  return user;
 }
+
+// Re-exported so existing callers keep importing it from here.
+export { sessionIsFresh };
+
 
 /**
  * Look up the domain mirror row for an email.
@@ -171,6 +197,27 @@ export async function requireStaff(required: StaffRole = 'read_only') {
     throw new AuthzError('Insufficient staff role', 'forbidden', 403);
   }
   return staff;
+}
+
+/**
+ * The caller's staff role, or null.
+ *
+ * `requireStaff()` throws, which is right for a route and wrong for a
+ * layout or a page that must render a decision instead of an error. This
+ * is the same lookup, non-throwing, so a nav can hide `/admin/d17` from
+ * customers instead of offering a link that answers 403.
+ *
+ * Still resolved from `staff_users` alone. It never falls back to an org
+ * role, because a staff account must not be able to act as a customer.
+ */
+export async function currentStaffRole(): Promise<StaffRole | null> {
+  const session = await auth();
+  if (!session?.user?.email) return null;
+
+  const staff = await db.query.staffUsers.findFirst({
+    where: eq(staffUsers.email, session.user.email),
+  });
+  return staff ? (staff.role as StaffRole) : null;
 }
 
 // ───────────────────────────────────────────────────────────────────────

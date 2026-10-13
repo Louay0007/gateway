@@ -104,6 +104,22 @@
 {$PORTAL_DOMAIN} {
 	encode zstd gzip
 
+	# D17 proof submissions carry an OPTIONAL screenshot. SCREENSHOT_MAX_BYTES
+	# is 3MB (lib/billing/d17-config.ts) and the customer-facing copy in
+	# three languages says "3 Mo maximum" — so the 2MB control-plane ceiling
+	# below would answer 413 to a screenshot we told them to upload.
+	#
+	# Scoped to the one path on purpose: the portal never handles model
+	# payloads, and widening the whole vhost to admit 4MB of anything is how
+	# a control plane becomes a file-drop endpoint. 4MB = the 3MB cap plus
+	# multipart framing, so an over-size upload is still refused by the
+	# application with a readable error rather than by the edge.
+	route /api/checkout/d17/proof* {
+		request_body {
+			max_size 4MB
+		}
+	}
+
 	request_body {
 		# 2MB. The portal takes JSON and form posts; the gateway's 10MB
 		# limit is for prompts. This is a tighter ceiling on a control

@@ -30,11 +30,29 @@ export class LiteLLMError extends Error {
 }
 
 async function call<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${LITELLM_BASE}${path}`, {
-    ...init,
-    headers: { ...authHeaders(), ...(init.headers ?? {}) },
-    signal: AbortSignal.timeout(30_000),
-  });
+  let res: Response;
+  try {
+    res = await fetch(`${LITELLM_BASE}${path}`, {
+      ...init,
+      headers: { ...authHeaders(), ...(init.headers ?? {}) },
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (e) {
+    // "TypeError: fetch failed" on its own is undiagnosable — the cause
+    // (ECONNREFUSED, EAI_AGAIN, ECONNRESET mid-startup) is what tells you
+    // whether the gateway is down, unreachable, or still booting.
+    const cause =
+      e instanceof Error && e.cause
+        ? ` (${(e.cause as { code?: string; message?: string }).code ?? ''} ${
+            (e.cause as { message?: string }).message ?? String(e.cause)
+          })`.trimEnd() + ')'
+        : '';
+    throw new LiteLLMError(
+      `LiteLLM ${path} unreachable: ${e instanceof Error ? e.message : String(e)}${cause}`,
+      0,
+      null,
+    );
+  }
 
   const text = await res.text();
   let body: unknown;
@@ -108,8 +126,13 @@ export interface KeyLimits {
 
 export interface IssuedKey {
   key: string;             // PLAINTEXT — return to the caller exactly once
+  /**
+   * DISPLAY MASK ("sk-...w9Sg"), NOT an identifier: neither /key/delete
+   * nor /key/info accepts it (both 404). Keep it for humans; use `token`
+   * for every gateway operation.
+   */
   key_name: string;
-  token: string;           // LiteLLM's internal token hash
+  token: string;           // LiteLLM's token id (hash) — the only identifier that works
   team_id?: string;
   expires?: string;
   max_budget?: number;
@@ -152,14 +175,20 @@ export async function generateKey(input: {
   return key;
 }
 
+/**
+ * Push limits onto an existing key.
+ *
+ * `token` is LiteLLM's token id (hash). /key/update answers 404 to the
+ * display mask — see deleteKey().
+ */
 export async function updateKey(
-  keyName: string,
+  token: string,
   limits: KeyLimits,
 ): Promise<void> {
   await call('/key/update', {
     method: 'POST',
     body: JSON.stringify({
-      key:                   keyName,
+      key:                   token,
       models:                limits.models,
       max_budget:            limits.maxBudget,
       budget_duration:       limits.budgetDuration,
@@ -178,20 +207,25 @@ export async function updateKey(
 export const updateKeyLimits = updateKey;
 
 /**
- * Every key under a team.
+ * Every key under a team, by token id.
  *
  * Entitlement sync must push to each key individually: a partial failure
  * that moved three of four keys leaves one key on the old plan, and the
  * customer keeps access they no longer pay for. See PLATFORM.md §5.
+ *
+ * `token`, not `key_name`: /key/list returns the token ids (hashes) as
+ * plain strings. Reading `.key_name` off those strings silently produced
+ * an empty list for every team — so no per-key limit was ever pushed and
+ * every reconcile reported "0 keys synced" while looking healthy. The
+ * hash is also the only identifier /key/update accepts (404 otherwise).
  */
-export async function listTeamKeys(teamId: string): Promise<{ key_name: string }[]> {
-  const raw = await call<{ keys?: { key_name?: string }[] }>(
+export async function listTeamKeys(teamId: string): Promise<{ token: string }[]> {
+  const raw = await call<{ keys?: string[] }>(
     `/key/list?team_id=${encodeURIComponent(teamId)}`,
   );
   return (raw.keys ?? [])
-    .map((k) => k.key_name)
-    .filter((n): n is string => Boolean(n))
-    .map((key_name) => ({ key_name }));
+    .filter((t): t is string => typeof t === 'string' && t.length > 0)
+    .map((token) => ({ token }));
 }
 
 /** Update the team model allowlist. */
@@ -221,23 +255,57 @@ export async function updateTeam(teamId: string, input: {
   });
 }
 
-/** Soft revoke — LiteLLM keeps the record so usage history survives. */
-export async function deleteKey(keyName: string): Promise<void> {
+/**
+ * Soft revoke — LiteLLM keeps the record so usage history survives.
+ *
+ * `token` is LiteLLM's token id (the hash), NOT the `key_name` display
+ * mask from /key/generate: `/key/delete` answers 404 to the mask, which
+ * is how this used to be called — every revoke failed and the portal
+ * showed a key as revoked that still worked upstream. Verified against
+ * the live gateway: delete/info accept the hash only.
+ */
+export async function deleteKey(token: string): Promise<void> {
   await call('/key/delete', {
     method: 'POST',
-    body: JSON.stringify({ keys: [keyName] }),
+    body: JSON.stringify({ keys: [token] }),
   });
 }
 
-export async function getKeyInfo(keyName: string): Promise<{
+/**
+ * Read a key's live state from the gateway.
+ *
+ * The response is `{key: <hash>, info: {...}}` — the key's fields are
+ * nested under `info`. Reading the top level returns nulls for
+ * everything, which is how the dashboard's last-used and models columns
+ * stayed silently empty: a shape bug with no error, just empty cells.
+ */
+export async function getKeyInfo(token: string): Promise<{
   spend: number;
   max_budget: number | null;
   models?: string[];
   rpm_limit?: number;
   tpm_limit?: number;
-  last_used?: string | null;
+  last_active?: string | null;
 }> {
-  return call(`/key/info?key=${encodeURIComponent(keyName)}`);
+  const raw = await call<Record<string, unknown>>(
+    `/key/info?key=${encodeURIComponent(token)}`,
+  );
+  const info = (raw.info ?? raw) as Record<string, unknown>;
+
+  const num = (v: unknown): number | undefined =>
+    v === null || v === undefined || v === '' ? undefined : Number(v);
+
+  return {
+    spend: num(info.spend) ?? 0,
+    max_budget:
+      info.max_budget === null || info.max_budget === undefined
+        ? null
+        : Number(info.max_budget),
+    models: Array.isArray(info.models) ? (info.models as string[]) : undefined,
+    rpm_limit: num(info.rpm_limit),
+    tpm_limit: num(info.tpm_limit),
+    last_active: typeof info.last_active === 'string' ? info.last_active : null,
+  };
 }
 
 export async function getUserSpend(userId: string): Promise<{ spend: number }> {
@@ -258,6 +326,10 @@ export interface SpendLogRow {
   team_id?: string;
   spend?: number;
   request_id?: string;
+  /**
+   * 'success' | 'failure' — a STRING. There is no HTTP status anywhere in
+   * the row; see statusCodeForRow().
+   */
   status?: string;
   endpoint?: string;
   model_info?: Record<string, unknown>;
@@ -272,6 +344,14 @@ export interface SpendLogRow {
       ephemeral_1h_input_tokens?: number;
     };
   };
+  metadata?: {
+    usage_object?: Record<string, unknown>;
+    /** Present on failure rows. Names the entity whose limit was hit. */
+    error_information?: {
+      error_budget_entity_id?: string | null;
+      error_rate_limit_type?: string | null;
+    } | null;
+  } | null;
   cache_hit_rate?: number;
   startTimeSeconds?: number;
 }
@@ -366,20 +446,14 @@ export function extractUsage(row: SpendLogRow): {
   const cacheRead = pick(
     metaDetails.cached_tokens,               // v1.103.1 OpenAI shape
   ) || pick(
-    row.cache_read_input_tokens,             // Anthropic merged
+    anyRow.cache_read_input_tokens,           // Anthropic merged (defensive)
     (usageObj as Record<string, unknown>).cache_read_input_tokens,
   );
 
   // ── Cache WRITE + TTL split ───────────────────────────────────────
   const cc = (usageObj.cache_creation ?? {}) as Record<string, unknown>;
-  let w5 = pick(
-    cc.ephemeral_5m_input_tokens,            // Anthropic TTL split (5m)
-    (usageObj as Record<string, unknown>).cache_creation?.ephemeral_5m_input_tokens,
-  );
-  let w1 = pick(
-    cc.ephemeral_1h_input_tokens,            // Anthropic TTL split (1h)
-    (usageObj as Record<string, unknown>).cache_creation?.ephemeral_1h_input_tokens,
-  );
+  let w5 = pick(cc.ephemeral_5m_input_tokens);            // Anthropic TTL split (5m)
+  let w1 = pick(cc.ephemeral_1h_input_tokens);            // Anthropic TTL split (1h)
 
   // Merged cache-write total (no TTL split available in this shape):
   //   • v1.103.1 OpenAI:  metadata…prompt_tokens_details.cache_write_tokens
@@ -387,7 +461,7 @@ export function extractUsage(row: SpendLogRow): {
   const creationTot = pick(
     metaDetails.cache_write_tokens,
     metaDetails.cache_creation_tokens,
-    row.cache_creation_input_tokens,
+    anyRow.cache_creation_input_tokens,
     (usageObj as Record<string, unknown>).cache_creation_input_tokens,
   );
 
@@ -409,6 +483,42 @@ export function extractUsage(row: SpendLogRow): {
     cacheWrite5m: w5, cacheWrite1h: w1, cacheRead,
     ttlBreakdownMissing,
   };
+}
+
+/**
+ * Map a spend-log row onto the ledger's integer `status_code`.
+ *
+ * WHY THIS EXISTS. LiteLLM's spend log carries NO HTTP status. The row's
+ * `status` is the string 'success' | 'failure' — and casting that string
+ * into an integer column ('success'::int) throws 22P02, which killed the
+ * entire collector pass the moment the first mapped organization existed.
+ * The bug was invisible while usage_records was empty because unmapped
+ * rows are skipped before the cast.
+ *
+ * The mapping lives here, beside extractUsage, because that is where the
+ * rest of the row's shape knowledge lives:
+ *
+ *   success → 200
+ *   failure → 429 when the rejection was a budget/rate-limit rejection
+ *             (error_information names the budget entity), NULL otherwise.
+ *
+ * NULL rather than a guessed 500: LiteLLM does not say which code it
+ * returned, and reporting a customer who hit their own cap as a server
+ * fault is a support ticket nobody can debug. A NULL means "we know it
+ * failed, not which way".
+ */
+export function statusCodeForRow(row: SpendLogRow): number | null {
+  if (row.status === 'success') return 200;
+  if (row.status === 'failure') {
+    const err = row.metadata?.error_information;
+    if (err) {
+      const budgetEntity = (err.error_budget_entity_id ?? '').length > 0;
+      const rateLimit = (err.error_rate_limit_type ?? '').length > 0;
+      if (budgetEntity || rateLimit) return 429;
+    }
+    return null;
+  }
+  return null;
 }
 
 /**

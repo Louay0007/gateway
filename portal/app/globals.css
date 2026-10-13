@@ -1,110 +1,215 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * Design tokens + theme — Tailwind v4, CSS-first.
+ *
+ * Structure (the shadcn v4 convention, self-contained on purpose — no
+ * dependency on a registry package's stylesheet):
+ *
+ *   @import "tailwindcss"        the framework: preflight, utilities,
+ *                                and the v4 variants (`has-data-*`,
+ *                                `bg-linear-*`) the registry blocks use
+ *   @custom-variant dark         makes `dark:` follow the class that
+ *                                next-themes puts on <html>
+ *   :root / .dark                the two token sets
+ *   @theme inline                  maps tokens to utilities, so
+ *                                `bg-background`, `border-border`,
+ *                                `text-muted-foreground` and friends
+ *                                exist at all — without it Tailwind v4
+ *                                rejects `@apply border-border`
+ *
+ * Change a token and every component — registry or hand-written —
+ * follows. Overtime the palette is neutral on purpose: the hero block
+ * paints over it, and the product chrome should stay quiet.
+ */
+
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
 
 /*
- * Light/dark via CSS variables so Tailwind classes stay semantic
- * (bg-surface, text-fg) and the palette is defined once.
+ * Light-surface scope.
+ *
+ * The marketing, pricing and auth routes paint a FIXED WHITE canvas with
+ * hardcoded `bg-white` and `text-black`/`text-gray-*` utilities — a
+ * deliberate choice (auth pages are a task, not a pitch; see
+ * components/auth/auth-shell.tsx). But `<html>` still carries whatever
+ * class next-themes put there, so a customer who picked the DARK theme in
+ * the dashboard and then opened `/` got white-on-white text: `--foreground`
+ * resolved to the dark set (lab 98 ≈ near-white) inside a page painting
+ * white. Measured on /pricing: the error heading and its button were
+ * present in the DOM, `innerText`-visible and fully opaque, and invisible
+ * on screen.
+ *
+ * `.light-surface` re-declares the light tokens for its subtree, so the
+ * fixed-white surfaces keep their intended contrast whatever `<html>`
+ * says. It is a SCOPE, not a theme switch: the dashboard does not use it,
+ * and the `dark:` variants still work above it.
+ *
+ * Declared after the dark block on purpose — a later, closer declaration
+ * wins over one inherited from an ancestor.
  */
-:root {
-  --surface:          #ffffff;
-  --surface-raised:   #f8fafc;
-  --surface-sunken:   #f1f5f9;
-  --edge:             #e2e8f0;
-  --fg:               #0f172a;
-  --fg-muted:         #475569;
-  --fg-subtle:        #94a3b8;
-  --accent:           #4f46e5;
-  --accent-fg:        #ffffff;
-  --ok:               #059669;
-  --warn:             #d97706;
-  --danger:           #dc2626;
-  --font-sans:        ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+:root,
+.light-surface {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.205 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.922 0 0);
+  --input: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface:          #0b1120;
-    --surface-raised:   #111827;
-    --surface-sunken:   #020617;
-    --edge:             #1e293b;
-    --fg:               #e2e8f0;
-    --fg-muted:         #94a3b8;
-    --fg-subtle:        #64748b;
-    --accent:           #6366f1;
-    --accent-fg:        #ffffff;
-    --ok:               #10b981;
-    --warn:             #f59e0b;
-    --danger:           #ef4444;
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0% / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+  /*
+   * The whole-app type stack.
+   *
+   * `-apple-system` first, so Apple visitors render the REAL SF Pro
+   * (San Francisco) from their own machine — no download, no licence
+   * issue, exactly what an Apple-native product should look like.
+   * Inter (self-hosted by next/font, SIL OFL) carries everyone else;
+   * it is the open typeface designed as SF Pro's stand-in, with SF's
+   * tall x-height and neutral grotesque character.
+   *
+   * Mono follows the same rule: SF Mono / Menlo come from the system,
+   * with the common non-Apple monos as the fallback chain.
+   */
+  --font-sans: -apple-system, BlinkMacSystemFont, var(--font-inter), "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+
+  /*
+   * Hero entrance — a CSS animation, not a JS-driven one.
+   *
+   * The motion-library approach this replaced rendered the hero at
+   * `opacity: 0` on the server and relied on an IntersectionObserver to
+   * animate it in. When that observer does not fire (or hydration
+   * fails), the visitor gets an EMPTY hero: invisible text, no error.
+   * A stylesheet animation has no such dependency — it runs with
+   * JavaScript disabled, which is exactly the guarantee an above-the-
+   * fold hero needs. `both` holds the final state, so there is no flash
+   * of the pre-animation state either way.
+   */
+  --animate-hero-rise: hero-rise 0.7s cubic-bezier(0.21, 0.47, 0.32, 0.98) both;
+
+  @keyframes hero-rise {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
 }
 
 @layer base {
-  html { color-scheme: light dark; }
+  * {
+    @apply border-border outline-ring/50;
+  }
 
   body {
-    background-color: var(--surface);
-    color: var(--fg);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
+    @apply bg-background text-foreground;
   }
 
-  /*
-   * Every numeric cell in the portal uses tabular figures. Columns of
-   * spend and token counts must align vertically or they are unreadable.
-   */
-  .tnum { font-variant-numeric: tabular-nums; }
-
-  /* Visible focus for keyboard users; suppressed for mouse clicks only. */
-  :focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      transition-duration: 0.01ms !important;
-    }
-  }
-}
-
-@layer components {
-  .card {
-    @apply rounded-lg border border-[var(--edge)] bg-[var(--surface-raised)];
-  }
-
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-md px-3 py-2
-           text-sm font-medium transition-colors disabled:opacity-50
-           disabled:pointer-events-none;
-  }
-  .btn-primary {
-    @apply btn bg-[var(--accent)] text-[var(--accent-fg)] hover:opacity-90;
-  }
-  .btn-secondary {
-    @apply btn border border-[var(--edge)] bg-[var(--surface)] hover:bg-[var(--surface-sunken)];
-  }
-  .btn-danger {
-    @apply btn bg-[var(--danger)] text-white hover:opacity-90;
-  }
-
-  .label {
-    @apply block text-sm font-medium text-fg-muted mb-1.5;
-  }
-
-  .input {
-    @apply w-full rounded-md border border-[var(--edge)] bg-[var(--surface)]
-           px-3 py-2 text-sm text-fg
-           placeholder:text-fg-subtle
-           focus:border-[var(--accent)] focus:outline-none
-           disabled:opacity-60;
-  }
-
-  .error-text {
-    @apply text-sm text-[var(--danger)];
-  }
-  .hint-text {
-    @apply text-sm text-fg-muted;
+  html {
+    @apply font-sans;
   }
 }

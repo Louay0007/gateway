@@ -95,10 +95,14 @@ export async function createApiKey(
 
   const plan = await store.planForOrg(input.organizationId);
   if (!plan) {
+    // No live subscription resolves to no plan — that is the paywall,
+    // not a server fault. With no free tier a brand-new account lands
+    // here until it subscribes (lib/billing), and the dashboard sends
+    // the user to plan selection from this exact response.
     throw new KeyServiceError(
-      'No active plan is attached to this organization.',
-      'internal',
-      500,
+      'Choose a plan to create API keys.',
+      'payment_required',
+      402,
     );
   }
 
@@ -172,11 +176,13 @@ export async function createApiKey(
     // The credential exists upstream with nothing local describing it.
     // Revoke before surfacing the failure.
     try {
-      await gateway.revoke(issued.keyName);
+      // The token id, not the display mask — this cleanup path must
+      // actually delete the orphaned credential.
+      await gateway.revoke(issued.token);
     } catch (cleanup) {
       log.error('key create: orphan cleanup failed — MANUAL ACTION REQUIRED', {
         organizationId: input.organizationId,
-        keyName: issued.keyName,
+        keyPrefix,
         error: cleanup instanceof Error ? cleanup.message : String(cleanup),
       });
     }
@@ -249,9 +255,9 @@ export async function revokeApiKey(
     );
   }
 
-  if (!key.litellmKeyName) {
-    // A row without a gateway name cannot be revoked upstream. Fail loudly
-    // rather than flipping local state to a lie.
+  if (!key.litellmKeyHash) {
+    // A row without the gateway token id cannot be revoked upstream. Fail
+    // loudly rather than flipping local state to a lie.
     throw new KeyServiceError(
       'This key is not registered with the gateway and cannot be revoked automatically.',
       'internal',
@@ -260,11 +266,13 @@ export async function revokeApiKey(
   }
 
   try {
-    await gateway.revoke(key.litellmKeyName);
+    // The token id, never the display mask: /key/delete answers 404 to
+    // "sk-...w9Sg", which is how this call used to fail.
+    await gateway.revoke(key.litellmKeyHash);
   } catch (e) {
     log.error('key revoke: gateway refused', {
       organizationId: input.organizationId,
-      keyName: key.litellmKeyName,
+      keyId: key.id,
       error: e instanceof Error ? e.message : String(e),
     });
     throw new KeyServiceError(
@@ -307,9 +315,12 @@ export async function listApiKeys(
       let models: string[] | null = null;
       let lastUsedAt = toIso(row.lastUsedAt);
 
-      if (row.litellmKeyName) {
+      if (row.litellmKeyHash) {
         try {
-          const info = await deps.gateway.info(row.litellmKeyName);
+          // Token id, not the display mask — /key/info answers 404 to the
+          // mask, and enrichment is best-effort so the failure would be
+          // silent (two columns stuck on "unknown").
+          const info = await deps.gateway.info(row.litellmKeyHash);
           if (info.models.length) models = info.models;
           lastUsedAt = info.lastUsed ?? lastUsedAt;
         } catch {

@@ -24,7 +24,7 @@
 
 import NextAuth, { type DefaultSession, type NextAuthConfig } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { z } from 'zod';
 
 import { db } from '@/db';
@@ -39,10 +39,25 @@ declare module 'next-auth' {
       id: string;
       email: string;
       name?: string | null;
+      /**
+       * When the password was last changed, as copied into this token at
+       * sign-in. `lib/auth/authorize.ts` compares it against the live row
+       * on every request and rejects a mismatch — which is the ONLY way a
+       * JWT session can be invalidated, since a self-contained token cannot
+       * be revoked by deleting a row. See migration 0006.
+       */
+      passwordChangedAt: string | null;
     } & DefaultSession['user'];
   }
   interface User {
     emailVerified?: Date | null;
+    /**
+     * ISO string, not a Date: this value is carried in a JWT, and the
+     * augmentation must agree with `Session['user']` — the two are
+     * intersected, so `Date` here and `string` there produces
+     * `Date & string` and nothing is assignable.
+     */
+    passwordChangedAt?: string | null;
   }
 }
 
@@ -148,9 +163,26 @@ export const authConfig = {
             id:       authCredentials.userId,
             password: authCredentials.password,
             name:     authUsers.name,
+            // Read at the SAME moment as the hash: the stamp and the
+            // credential must be consistent, or a password changed in a
+            // parallel request would mint a token whose stamp is already
+            // stale.
+            passwordChangedAt: users.passwordChangedAt,
           })
           .from(authCredentials)
           .innerJoin(authUsers, eq(authUsers.id, authCredentials.userId))
+          // LEFT, not INNER: this join only supplies `password_changed_at`.
+          // An INNER join would silently make sign-in depend on the domain
+          // mirror row existing, which breaks any account created before
+          // 0002_auth_local.sql — the `onConflictDoNothing` upsert below
+          // exists precisely to backfill those, and it would never get the
+          // chance to run because sign-in would already have failed.
+          // A missing row yields NULL, and `sessionIsFresh` accepts a NULL
+          // row stamp (nothing to invalidate against).
+          .leftJoin(
+            users,
+            and(eq(users.authProvider, 'authjs'), eq(users.authId, authCredentials.userId)),
+          )
           .where(eq(authUsers.email, email))
           .limit(1);
 
@@ -182,7 +214,12 @@ export const authConfig = {
           .values({ authProvider: 'authjs', authId: found.id, email, name: found.name })
           .onConflictDoNothing({ target: users.email });
 
-        return { id: found.id, email, name: found.name ?? undefined };
+        return {
+          id: found.id,
+          email,
+          name: found.name ?? undefined,
+          passwordChangedAt: found.passwordChangedAt?.toISOString() ?? null,
+        };
       },
     }),
   ],
@@ -195,11 +232,16 @@ export const authConfig = {
      * request Auth.js passes the existing token. Writing `token.sub` and
      * `token.email` here (not in every request) is what keeps the callback
      * cheap and the token stable.
+     *
+     * `passwordChangedAt` is copied for the same reason, and it is what
+     * `lib/auth/authorize.ts` checks on every request to invalidate a
+     * session whose password has since changed.
      */
     async jwt({ token, user }) {
       if (user) {
         token.sub = user.id;
         token.email = user.email;
+        token.pwdAt = user.passwordChangedAt ?? null;
       }
       return token;
     },
@@ -207,19 +249,23 @@ export const authConfig = {
     /**
      * Materialise the session for server components.
      *
-     * Trimmed to id/email/name — anything left here is visible to every
-     * component that renders on a request. NOTE: this is identity only,
-     * NOT authorization. `requireOrgMembership` / `requireStaff` re-check
-     * the database on every protected action.
+     * Trimmed to id/email/name + the validity stamp — anything left here
+     * is visible to every component that renders on a request. NOTE: this
+     * is identity only, NOT authorization. `requireOrgMembership` /
+     * `requireStaff` re-check the database on every protected action, and
+     * the stamp comparison below is what revokes a stale session.
      */
     async session({ session, token, user }) {
       if (user) {
         session.user.id = user.id;
         session.user.email = user.email ?? '';
+        session.user.passwordChangedAt = user.passwordChangedAt ?? null;
       } else {
         // JWT path: `user` is undefined on subsequent requests.
         session.user.id = token.sub ?? '';
         session.user.email = typeof token.email === 'string' ? token.email : '';
+        session.user.passwordChangedAt =
+          typeof token.pwdAt === 'string' ? token.pwdAt : null;
       }
       return session;
     },

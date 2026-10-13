@@ -2,11 +2,13 @@
 
 import { AuthError } from 'next-auth';
 import { redirect } from 'next/navigation';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { hashPassword, validatePassword } from '@/lib/auth/password';
+import { validatePassword } from '@/lib/auth/password';
+import { createLocalUser } from '@/lib/auth/create-user';
 import { signIn } from '@/auth';
 import { db } from '@/db';
-import { authUsers, authCredentials, users } from '@/db/schema';
+import { authUsers } from '@/db/schema';
 
 export interface SignUpState {
   error?: string;
@@ -54,31 +56,17 @@ export async function signUpAction(
   // Reject an email that already has an identity without leaking that it
   // does — the generic copy covers both "taken" and "rate-limited".
   const existing = await db.query.authUsers.findFirst({
-    where: (await import('drizzle-orm')).eq(authUsers.email, email),
+    where: eq(authUsers.email, email),
   });
   if (existing) {
     return { error: 'That email cannot be registered. If you already have an account, sign in instead.' };
   }
 
-  const hash = await hashPassword(password);
-  const userId = crypto.randomUUID();
-
-  await db.transaction(async (tx) => {
-    await tx.insert(authUsers).values({
-      id: userId,
-      name: name || null,
-      email,
-      emailVerified: null,   // no mail transport yet; Phase 6 adds verification
-    });
-    await tx.insert(authCredentials).values({ userId, password: hash });
-    // Domain mirror (authoritative for product logic).
-    await tx.insert(users).values({
-      authProvider: 'authjs',
-      authId: userId,
-      email,
-      name: name || null,
-    });
-  });
+  // The identity + credentials + domain mirror transaction itself lives
+  // in lib/auth/create-user.ts, so any other caller that needs a real
+  // account (scripts/verify-metering.ts) runs the same code as this form.
+  // The session below resolves by email + password, so no id is needed.
+  await createLocalUser({ email, name: name || null, password });
 
   try {
     await signIn('credentials', {

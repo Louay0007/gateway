@@ -52,7 +52,7 @@ export const orgRole       = pgEnum('org_role',      ['owner', 'admin', 'develop
 export const planInterval  = pgEnum('plan_interval', ['month', 'year']);
 export const subStatus     = pgEnum('sub_status',    ['trialing', 'active', 'past_due', 'canceled', 'unpaid', 'paused', 'incomplete']);
 export const syncStatus    = pgEnum('sync_status',   ['pending', 'synced', 'failed']);
-export const auditActor    = pgEnum('audit_actor',   ['user', 'system', 'stripe']);
+export const auditActor    = pgEnum('audit_actor',   ['user', 'system', 'provider']);
 
 // ───────────────────────────────────────────────────────────────────────
 //  users — domain mirror. Authoritative for ALL product logic.
@@ -65,6 +65,14 @@ export const users = pgTable('users', {
   authId:       text('auth_id').notNull(),
   email:        text('email').notNull(),
   name:         text('name'),
+  /**
+   * Stamped on every credential change. Copied into the JWT at sign-in and
+   * compared on every authenticated request (lib/auth/authorize.ts), which
+   * is how a password change or reset invalidates sessions that were
+   * already issued — Auth.js v5 cannot revoke a JWT, so freshness is the
+   * only lever. See migration 0006.
+   */
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }).notNull().defaultNow(),
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:    timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -124,7 +132,7 @@ export const plans = pgTable('plans', {
   description:           text('description'),
   public:                boolean('public').notNull().default(true),
   sortOrder:             integer('sort_order').notNull().default(0),
-  stripePriceId:         text('stripe_price_id').unique(),
+  providerPriceId:      text('provider_price_id').unique(),
   priceCents:            integer('price_cents').notNull().default(0),
   interval:              planInterval('interval').notNull().default('month'),
   includedSpendCents:    integer('included_spend_cents').notNull().default(0),
@@ -148,14 +156,14 @@ export const subscriptions = pgTable('subscriptions', {
   organizationId:       uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   planId:               uuid('plan_id').notNull().references(() => plans.id),
   status:               subStatus('status').notNull(),
-  stripeCustomerId:     text('stripe_customer_id'),
-  stripeSubscriptionId: text('stripe_subscription_id').unique(),
+  providerCustomerId:   text('provider_customer_id'),
+  providerSubscriptionId: text('provider_subscription_id').unique(),
   currentPeriodStart:   timestamp('current_period_start', { withTimezone: true }),
   currentPeriodEnd:     timestamp('current_period_end', { withTimezone: true }),
   cancelAtPeriodEnd:    boolean('cancel_at_period_end').notNull().default(false),
   trialEnd:             timestamp('trial_end', { withTimezone: true }),
-  lastStripeEventId:    text('last_stripe_event_id'),
-  lastStripeEventAt:    timestamp('last_stripe_event_at', { withTimezone: true }),
+  lastProviderEventId:  text('last_provider_event_id'),
+  lastProviderEventAt:  timestamp('last_provider_event_at', { withTimezone: true }),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -195,6 +203,63 @@ export const apiKeys = pgTable('api_keys', {
 }, (t) => ({
   orgIdx:           index('api_keys_org_idx').on(t.organizationId),
   litellmNameIdx:   uniqueIndex('api_keys_litellm_name_idx').on(t.litellmKeyName),
+}));
+
+/** Ops alerting dedupe: one row, the last state we mailed about. */
+export const systemAlerts = pgTable('system_alerts', {
+  name:       text('name').primaryKey(),
+  lastState:  text('last_state').notNull(),
+  lastSentAt: timestamp('last_sent_at', { withTimezone: true }),
+});
+
+/**
+ * Manual D17 payments (La Poste Tunisienne) — a verification queue.
+ *
+ * There is no D17 merchant API, so a row here is a CLAIM of payment the
+ * way a bank transfer claim always was: the customer states they paid,
+ * an admin confirms it against the D17 app, and only then does the
+ * subscription activate. See lib/billing/d17.ts.
+ */
+export const d17PaymentStatus = pgEnum('d17_payment_status', [
+  'pending_payment',
+  'proof_submitted',
+  'paid',
+  'rejected',
+  'expired',
+]);
+
+export const paymentsD17 = pgTable('payments_d17', {
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  subscriptionId:       uuid('subscription_id').notNull().unique().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  organizationId:       uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+
+  amountMillimes:       integer('amount_millimes').notNull(),
+  currency:             text('currency').notNull().default('TND'),
+  usdAmountCents:       integer('usd_amount_cents').notNull(),
+  fxRate:               numeric('fx_rate', { precision: 10, scale: 4 }).notNull(),
+
+  /** Normalized (trimmed, uppercased). UNIQUE: one transfer pays one subscription. */
+  authorizationNumber:  text('authorization_number').unique(),
+  senderPhone:          text('sender_phone'),
+  screenshotPath:       text('screenshot_path'),
+  status:               d17PaymentStatus('status').notNull().default('pending_payment'),
+
+  submittedAt:          timestamp('submitted_at', { withTimezone: true }),
+  verifiedAt:           timestamp('verified_at', { withTimezone: true }),
+  verifiedBy:           text('verified_by'),
+  rejectReason:         text('reject_reason'),
+  flaggedReview:        boolean('flagged_review').notNull().default(false),
+
+  ip:                   text('ip'),
+  userAgent:            text('user_agent'),
+
+  expiresAt:            timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  queueIdx:    index('payments_d17_queue_idx').on(t.submittedAt),
+  senderIdx:   index('payments_d17_sender_idx').on(t.senderPhone, t.submittedAt),
+  expiryIdx:   index('payments_d17_expiry_idx').on(t.expiresAt),
 }));
 
 // Append-only ledger. Every dashboard number must be derivable from here.
@@ -240,14 +305,14 @@ export const usagePeriods = pgTable('usage_periods', {
   cacheReadTokens:   bigint('cache_read_tokens', { mode: 'number' }).notNull().default(0),
   costUpstreamUsd:   numeric('cost_upstream_usd', { precision: 14, scale: 8 }).notNull().default('0'),
   costCustomerUsd:   numeric('cost_customer_usd', { precision: 14, scale: 8 }).notNull().default('0'),
-  stripeMeteredAt:   timestamp('stripe_metered_at', { withTimezone: true }),
+  providerMeteredAt: timestamp('provider_metered_at', { withTimezone: true }),
   updatedAt:         timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   pk: primaryKey({ columns: [t.organizationId, t.billingPeriod] }),
 }));
 
-// Webhook replay safety: the event id is the dedupe key.
-export const stripeEvents = pgTable('stripe_events', {
+// Provider webhook replay safety: the event id is the dedupe key.
+export const billingEvents = pgTable('billing_events', {
   id:          text('id').primaryKey(),
   type:        text('type').notNull(),
   receivedAt:  timestamp('received_at', { withTimezone: true }).notNull().defaultNow(),
@@ -255,7 +320,7 @@ export const stripeEvents = pgTable('stripe_events', {
   attempts:    integer('attempts').notNull().default(0),
   lastError:   text('last_error'),
 }, (t) => ({
-  unprocessedIdx: index('stripe_events_unprocessed_idx').on(t.receivedAt),
+  unprocessedIdx: index('billing_events_unprocessed_idx').on(t.receivedAt),
 }));
 
 export const auditLog = pgTable('audit_log', {

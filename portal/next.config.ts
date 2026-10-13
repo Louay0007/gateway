@@ -15,6 +15,13 @@ const nextConfig: NextConfig = {
 
   reactStrictMode: true,
 
+  // Next 16 blocks cross-origin dev requests by default, and the portal
+  // is reached as both `localhost` (AUTH_URL) and `127.0.0.1` (local
+  // curls, headless checks). Without this the dev server refuses
+  // /_next/* requests from the other host, which breaks hot reload —
+  // and, worse, leaves a half-loaded bundle that fails to hydrate.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
+
   // Production error pages must never leak stack traces, key material, or
   // Stripe objects to the client (IMPLEMENTATION.md §3).
   productionBrowserSourceMaps: false,
@@ -29,15 +36,6 @@ const nextConfig: NextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'Referrer-Policy',    value: 'no-referrer' },
           { key: 'X-Frame-Options',    value: 'DENY' },
-        ],
-      },
-      {
-        // The sign-in page must never be framed (clickjacking on a
-        // credential form) and must not be cached by intermediaries.
-        source: '/sign-in',
-        headers: [
-          { key: 'X-Frame-Options', value: 'DENY' },
-          { key: 'Cache-Control',    value: 'no-store' },
         ],
       },
     ];

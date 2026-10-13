@@ -37,17 +37,24 @@ export const gateway: KeyGateway = {
     };
   },
 
-  async revoke(keyName: string): Promise<void> {
+  /**
+   * `token` is LiteLLM's token id (hash) — the only identifier its key
+   * routes accept. The `key_name` that /key/generate returns is a display
+   * mask ("sk-...w9Sg") and answers 404; see deleteKey() in client.ts.
+   */
+  async revoke(token: string): Promise<void> {
     // LiteLLM soft-deletes, so usage history attached to the key survives
     // the revoke — which is exactly what `usage_records.api_key_id`
     // (ON DELETE SET NULL) is designed for.
-    await deleteKey(keyName);
+    await deleteKey(token);
   },
 
-  async info(keyName: string) {
-    const info = await getKeyInfo(keyName);
+  async info(token: string) {
+    const info = await getKeyInfo(token);
     return {
-      lastUsed: info.last_used ?? null,
+      // `last_active` is the field the gateway actually returns; there is
+      // no `last_used` in the /key/info payload.
+      lastUsed: info.last_active ?? null,
       models: info.models ?? [],
     };
   },

@@ -18,7 +18,7 @@
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
-import { getSpendLogs, extractUsage, type SpendLogRow } from '@/lib/litellm/client';
+import { getSpendLogs, extractUsage, statusCodeForRow, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
 
 const PRICE_VERSION = '2026-10-11';   // bump when prices/models.yaml changes
@@ -100,9 +100,40 @@ export async function collectUsage(opts?: {
 
     const hash = dedupeHash(row);
 
+    // Attribute the request to the key and the member that made it.
+    // The gateway's token hash is the join key — the identifier that
+    // survived the display-mask/token confusions (lib/litellm/client.ts).
+    // Both are nullable on purpose: a spend row whose key was deleted
+    // keeps its money but loses its attribution, and an org-scoped key
+    // (no per-member pin) has no member to name. Two indexed lookups on
+    // a 15-minute window are cheaper than the backfill this replaces.
+    let apiKeyId: string | null = null;
+    if (row.api_key) {
+      const found = await db.execute(sql`
+        SELECT id FROM api_keys
+         WHERE organization_id = ${orgId}::uuid
+           AND litellm_key_hash = ${row.api_key}
+         LIMIT 1
+      `);
+      apiKeyId = (found as unknown as { id: string }[])[0]?.id ?? null;
+    }
+
+    let memberUserId: string | null = null;
+    if (row.user_id) {
+      const found = await db.execute(sql`
+        SELECT u.id
+          FROM organization_members m
+          JOIN users u ON u.id = m.user_id
+         WHERE m.organization_id = ${orgId}::uuid
+           AND m.litellm_user_id = ${row.user_id}
+         LIMIT 1
+      `);
+      memberUserId = (found as unknown as { id: string }[])[0]?.id ?? null;
+    }
+
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (
-        organization_id, api_key_id, occurred_at, billing_period,
+        organization_id, api_key_id, member_user_id, occurred_at, billing_period,
         model, route, upstream_key_hash,
         input_tokens, output_tokens,
         cache_write_5m_tokens, cache_write_1h_tokens, cache_read_tokens,
@@ -112,7 +143,8 @@ export async function collectUsage(opts?: {
       )
       SELECT
         ${orgId}::uuid,
-        NULL,
+        ${apiKeyId}::uuid,
+        ${memberUserId}::uuid,
         ${row.startTime ?? now.toISOString()}::timestamptz,
         date_trunc('month', ${row.startTime ?? now.toISOString()}::timestamptz)::date,
         ${row.model ?? 'unknown'},
@@ -121,7 +153,7 @@ export async function collectUsage(opts?: {
         ${u.inputTokens}, ${u.outputTokens},
         ${u.cacheWrite5m}, ${u.cacheWrite1h}, ${u.cacheRead},
         NULL,
-        NULLIF(${row.status ?? ''}, '')::int,
+        ${statusCodeForRow(row)},
         ${upstream}, ${customer},
         ${PRICE_VERSION},
         ${hash}
@@ -161,6 +193,20 @@ async function multiplierForOrg(orgId: string): Promise<{ multiplierBps: number 
  * twice silently doubles a customer's bill, and you cannot tell from the
  * dashboard which number is wrong.
  */
+/**
+ * Rebuild `usage_periods` from the ledger.
+ *
+ * Rebuilt, never incremented: an increment run twice silently doubles a
+ * bill (PLATFORM.md §8.2).
+ *
+ * Orgs with usage but NO live subscription are skipped. Their spend is
+ * real and stays in `usage_records` — the source of truth — but a
+ * rollup row is an attribution of that spend to a PLAN, and there is no
+ * plan to attribute it to (a canceled account, or one that never
+ * subscribed). Without the guard the subselects below return NULL and
+ * the NOT NULL plan_id aborts the whole pass — one stale org would stop
+ * every dashboard from updating.
+ */
 export async function rollupUsage(): Promise<void> {
   await db.execute(sql`
     INSERT INTO usage_periods (
@@ -188,6 +234,11 @@ export async function rollupUsage(): Promise<void> {
       SUM(u.cost_customer_usd),
       now()
     FROM usage_records u
+    WHERE EXISTS (
+      SELECT 1 FROM subscriptions s
+       WHERE s.organization_id = u.organization_id
+         AND s.status IN ('trialing','active','past_due','paused')
+    )
     GROUP BY u.organization_id, u.billing_period
     ON CONFLICT (organization_id, billing_period) DO UPDATE SET
       requests            = EXCLUDED.requests,

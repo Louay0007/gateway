@@ -29,3 +29,8 @@ test-results/
 # Editor/agent workspace markers. Machine-local identity, not project
 # content, and this repository is public.
 .freebuff/
+
+# ── Local data (never commit) ─────────────────────────────────────────
+# D17 proof screenshots: user-uploaded images. Local/dev only until the
+# VPS path is set; they are served read-only to staff, never publicly.
+data/

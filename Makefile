@@ -8,7 +8,8 @@ LOCAL := http://127.0.0.1:4000
 .DEFAULT_GOAL := help
 .PHONY: help init probe up down restart logs ps health key report \
         reconcile smoke latency backup restore pull deploy verify-config \
-        check-format verify-caddy db-init db-migrate jobs jobs-once
+        check-format verify-caddy db-init db-migrate jobs jobs-once \
+        verify-metering verify-d17 backup-drill
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -125,6 +126,9 @@ restore: ## Restore both databases from an archive (make restore FILE=backup-…
 	@test -n "$(FILE)" || { echo "set FILE=backup-<stamp>.tar.gz"; exit 1; }
 	./scripts/restore.sh "$(FILE)"
 
+backup-drill: ## Prove a restore works: dump → scratch DB → sanity checks → drop
+	./scripts/backup-drill.sh
+
 pull: ## Pull a new gateway image (review release notes first)
 	$(COMPOSE) pull litellm caddy
 
@@ -176,12 +180,17 @@ MOCK_PORT ?= 8787
 COMPOSE_MOCK := docker compose -f docker-compose.yml -f docker-compose.mock.yml
 
 mock-upstream: ## Run a fake upstream on the host (background; for smoke-local)
-	@pgrep -f 'mock-upstream.mjs' >/dev/null && { echo "  mock already running on :$(MOCK_PORT)"; exit 0; }
-	@nohup node scripts/mock-upstream.mjs >/tmp/mock-upstream.log 2>&1 &
-	@sleep 1
-	@curl -sS -m 5 http://127.0.0.1:$(MOCK_PORT)/health >/dev/null \
-	  && echo "  mock-upstream up on http://127.0.0.1:$(MOCK_PORT)" \
-	  || { echo "  FAILED to start mock-upstream — see /tmp/mock-upstream.log"; exit 1; }
+	@if pgrep -f 'mock-upstream.mjs' >/dev/null; then \
+	  echo "  mock already running on :$(MOCK_PORT)"; \
+	else \
+	  nohup node scripts/mock-upstream.mjs >/tmp/mock-upstream.log 2>&1 & \
+	  sleep 1; \
+	  if curl -sS -m 5 http://127.0.0.1:$(MOCK_PORT)/health >/dev/null 2>&1; then \
+	    echo "  mock-upstream up on http://127.0.0.1:$(MOCK_PORT)"; \
+	  else \
+	    echo "  FAILED to start mock-upstream — see /tmp/mock-upstream.log"; exit 1; \
+	  fi; \
+	fi
 
 smoke-local: ## Bring up litellm against the local mock and print smoke instructions
 	@$(MAKE) --no-print-directory mock-upstream
@@ -194,6 +203,46 @@ smoke-local: ## Bring up litellm against the local mock and print smoke instruct
 	@echo "      SMOKE_BASE=http://127.0.0.1:4000 ./scripts/smoke.sh \"\$$KEY\""
 
 real-upstream: ## Restart litellm against the real UPSTREAM_BASE_URL from .env
-	@$(COMPOSE) up -d litellm
+	$(COMPOSE) up -d litellm
 	@sleep 6
 	@echo "  ✓ litellm restarted against the real upstream"
+
+# ── Metering proof ────────────────────────────────────────────────────
+# Proves the whole billing path against a live stack with zero spend:
+# signup → org + LiteLLM team → minted key → real requests until the
+# budget ceiling bites → the gateway's spend ledger → the collector →
+# usage_records with correct tokens and cost → rollup → revoke.
+# Uses the mock upstream so the proof is deterministic and repeatable
+# (`make verify-metering` as often as you like), then restores litellm
+# to the upstream in .env when it finishes.
+verify-d17: ## Prove the manual D17 payment path (duplicate, expiry, double-approve, staff gate)
+	@$(COMPOSE) build jobs
+	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/verify-d17.ts
+
+verify-metering: ## Prove metering end-to-end (usage_records, cost, dedupe, revoke)
+	@$(MAKE) --no-print-directory mock-upstream
+	@echo "  pointing litellm at the local mock (deterministic, zero spend)"
+	@$(COMPOSE_MOCK) up -d litellm
+	@echo "  waiting for litellm readiness..."
+	@for i in $$(seq 1 40); do \
+	  code=$$(curl -sS -m 5 -o /dev/null -w '%{http_code}' $(LOCAL)/health/readiness 2>/dev/null || true); \
+	  if [ "$$code" = "200" ]; then echo "  litellm ready"; break; fi; \
+	  if [ "$$i" = "40" ]; then echo "  litellm not ready — aborting"; exit 1; fi; \
+	  sleep 2; \
+	done
+	@$(COMPOSE) build jobs
+	@# --no-deps is load-bearing: `docker compose run` reconciles the
+	@# dependencies of the service against the compose files it is given.
+	@# Run with the base file while litellm is deliberately pointed at the
+	@# mock override, compose would RECREATE litellm back to the .env
+	@# upstream mid-run and the proof would dial a restarting gateway.
+	@status=0; $(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/verify-metering.ts || status=$$?; \
+	  $(COMPOSE) up -d litellm; \
+	  for i in $$(seq 1 40); do \
+	    code=$$(curl -sS -m 5 -o /dev/null -w '%{http_code}' $(LOCAL)/health/readiness 2>/dev/null || true); \
+	    [ "$$code" = "200" ] && break; sleep 2; \
+	  done; \
+	  echo "  ✓ litellm restored to the upstream from .env"; \
+	  exit $$status

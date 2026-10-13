@@ -32,7 +32,20 @@ export type KeyErrorCode =
   | 'conflict'
   | 'validation'
   | 'upstream'
-  | 'internal';
+  | 'internal'
+  | 'payment_required';
+
+/** HTTP status per code. `payment_required` is the paywall: no live plan. */
+export const KEY_ERROR_STATUS: Record<KeyErrorCode, number> = {
+  unauthorized: 401,
+  forbidden: 403,
+  not_found: 404,
+  conflict: 409,
+  validation: 400,
+  upstream: 502,
+  internal: 500,
+  payment_required: 402,
+};
 
 export class KeyServiceError extends Error {
   constructor(
@@ -133,7 +146,13 @@ export interface GatewayGenerateInput {
 export interface GatewayGenerateResult {
   /** PLAINTEXT — return to the caller exactly once, then forget it. */
   key: string;
+  /**
+   * DISPLAY MASK ("sk-...w9Sg") for humans. NOT an identifier: the
+   * gateway's delete/info/update routes all answer 404 to it. Anything
+   * that must find the key upstream uses `token`.
+   */
   keyName: string;
+  /** LiteLLM's token id (hash). The only identifier that works upstream. */
   token: string;
   expires: string | null;
 }
@@ -145,8 +164,9 @@ export interface GatewayKeyInfo {
 
 export interface KeyGateway {
   generate(input: GatewayGenerateInput): Promise<GatewayGenerateResult>;
-  revoke(keyName: string): Promise<void>;
-  info(keyName: string): Promise<GatewayKeyInfo>;
+  /** `token` is LiteLLM's token id — never the display mask. */
+  revoke(token: string): Promise<void>;
+  info(token: string): Promise<GatewayKeyInfo>;
 }
 
 // ───────────────────────────────────────────────────────────────────────

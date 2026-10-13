@@ -1,48 +1,41 @@
-import { redirect } from 'next/navigation';
-import { auth } from '@/auth';
-import SignInForm from './SignInForm';
+import type { Metadata } from "next";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { AuthShell } from "@/components/auth/auth-shell";
+import { SignInForm } from "@/components/auth/sign-in-form";
 
-export const metadata = { title: 'Sign in' };
-export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: "Sign in" };
 
+/**
+ * /sign-in — signed-in visitors bounce to /dashboard (an authed user has
+ * no business on the sign-in form). callbackUrl passes through only when
+ * it is a same-site relative path; the server action re-validates.
+ */
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string; error?: string }>;
+  searchParams: Promise<{ callbackUrl?: string }>;
 }) {
-  // Already signed in? Skip the form.
   const session = await auth();
-  if (session?.user) redirect('/dashboard');
-
-  const { next } = await searchParams;
-
-  /*
-   * `next` is attacker-influenced. Validate it is a same-site relative
-   * path, otherwise /sign-in?next=https://evil.example becomes an open
-   * redirect that launders trust through our own domain.
-   */
-  const callbackUrl =
-    next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
-
+  if (session?.user) redirect("/dashboard");
+  const params = await searchParams;
+  const raw = params.callbackUrl ?? "/dashboard";
+  const callbackUrl = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
   return (
-    <main className="min-h-dvh grid place-items-center px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Sign in</h1>
-          <p className="hint-text mt-2">
-            Access your keys, usage, and billing.
-          </p>
-        </div>
-
-        <SignInForm callbackUrl={callbackUrl} />
-
-        <p className="hint-text mt-6 text-center">
-          No account yet?{' '}
-          <a href="/sign-up" className="text-[var(--accent)] hover:underline">
+    <AuthShell
+      title="Welcome back"
+      subtitle="Sign in to manage your keys and usage."
+      footer={
+        <>
+          No account yet?{" "}
+          <Link href="/sign-up" className="text-black underline-offset-4 hover:underline">
             Create one
-          </a>
-        </p>
-      </div>
-    </main>
+          </Link>
+        </>
+      }
+    >
+      <SignInForm callbackUrl={callbackUrl} />
+    </AuthShell>
   );
 }
