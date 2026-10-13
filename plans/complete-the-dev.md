@@ -1,7 +1,10 @@
 # Implementation Plan — completing the LLM gateway SaaS
 
 **Status:** in execution — Phase A green; Steps 4–8 landed (renewals, included-spend
-denomination, consistency sweep, email verification, usage summary); Steps 9–12 remain.
+denomination, consistency sweep, email verification, usage summary); Step 9 deferred to
+Phase E; Step 10 done except a thin CSV-row-count add; Step 11 new surfaces reviewed
+(live browser pass pending); Step 12 security review recorded (clean). VPS deploy remains
+blocked on a missing `.env`.
 **Created:** 2026-10-13
 **Scope:** everything outstanding in `/Users/user/Workspace/gateway` after the Tier 1–4 repair work.
 **Execution mode:** DIRECT (edit in place, deploy by rsync). Two remotes now: `gateway` (VPS)
@@ -34,6 +37,17 @@ branch is checked out there).
   page.
 - **Step 9 (multi-org)** — MOVED to Phase E. A single-org product is correct today
   (`ensurePersonalOrg`); a signed org-selection cookie is a feature, not a correctness gap.
+- **Step 10 (E2E coverage)** — DONE except one residual. `verify-d17` T11 (renewal), T12
+  (email verification), T13 (password change invalidates the old session over HTTP);
+  `verify-metering` §18b (renewal gates), §18c (usage series), §21 (deletion: key refused
+  UPSTREAM 401, second delete 409), §22 (rename persists). Residual: CSV export row count
+  vs. the table needs a live usage-bearing session to drive the streamed route.
+- **Step 11 (a11y)** — new surfaces reviewed (verification page/banner use role=status /
+  role=alert + aria-live, labeled pending buttons, POST-confirm). A full live-browser pass
+  against a seeded account is pending (needs a running account).
+- **Step 12 (security review)** — DONE. Targets clean; three observations recorded in the
+  Step 12 section below (chief among them: `requireStaff()` does not apply session
+  freshness — no trigger today, must be wired if a staff password-change path is added).
 
 ---
 
@@ -82,11 +96,11 @@ are given so work is not blocked; overriding them is fine but must be recorded h
 **Why first:** 92 modified/untracked files, including a schema migration. Everything
 downstream needs a clean tree to diff against and a real database to test on.
 
-- [ ] Confirm green: `cd portal && npm run typecheck && npm test && npm run build`
-- [ ] `make verify-config` (local, no Docker needed)
-- [ ] Secret scan the diff: `git diff HEAD | grep -nE 'sk-[A-Za-z0-9]{16,}|LITELLM_MASTER_KEY=|RESEND_API_KEY=|BILLING_DEV_SECRET=[^$]'` — must return nothing. `.env` is gitignored; confirm it is still ignored.
-- [ ] `git add -A && git commit` with a message describing the Tier 1–4 repair.
-- [ ] **Verify the push path before relying on it.** `git push gateway main` will be
+- [x] Confirm green: `cd portal && npm run typecheck && npm test && npm run build`
+- [x] `make verify-config` (local, no Docker needed)
+- [x] Secret scan the diff: `git diff HEAD | grep -nE 'sk-[A-Za-z0-9]{16,}|LITELLM_MASTER_KEY=|RESEND_API_KEY=|BILLING_DEV_SECRET=[^$]'` — must return nothing. `.env` is gitignored; confirm it is still ignored. (`scripts/scrub-check.sh` clean; a test constant was renamed to a placeholder.)
+- [x] `git add -A && git commit` with a message describing the Tier 1–4 repair.
+- [x] **Verify the push path before relying on it.** `git push gateway main` will be
       *rejected* if `/opt/gateway` is a checked-out working tree without
       `receive.denyCurrentBranch=updateInstead`. Do not spend time fighting this:
       the delivery path is `make deploy`, which rsyncs and excludes `.env`.
@@ -96,6 +110,10 @@ downstream needs a clean tree to diff against and a real database to test on.
 **Rollback:** `git reset --hard HEAD~1`. Nothing has been deployed, so nothing to undo in production.
 
 ### Step 2 — Deploy and apply migration 0006
+
+> **⛔ BLOCKED (2026-10-13).** The VPS has no `.env` and has never been deployed.
+> Every checkbox below needs domains + secrets + a working upstream first. This is
+> environment setup, not dev work; it does not block Phases B–D, which are done locally.
 
 **Why:** `password_changed_at` is `NOT NULL` with no default on existing rows until the
 migration runs. **Deploying without it breaks sign-in for every user.**
@@ -118,9 +136,9 @@ migration runs. **Deploying without it breaks sign-in for every user.**
 **Why:** the five new endpoints have only ever run against a dead database. This is
 the step that finds out whether they work.
 
-- [ ] `make verify-metering` — the money path end to end. Must be ALL GREEN.
-- [ ] `make verify-d17` — manual payments end to end. Must pass.
-- [ ] Extend nothing yet; just record the result. If either fails, **stop and fix here**
+- [x] `make verify-metering` — the money path end to end. Must be ALL GREEN.
+- [x] `make verify-d17` — manual payments end to end. Must pass.
+- [x] Extend nothing yet; just record the result. If either fails, **stop and fix here**
       before starting Phase B — every later phase assumes these two are green.
 - [ ] Browser check with a real account, in this order:
       1. `/dashboard` — real numbers, no mock, no "Demo data" badge
@@ -190,18 +208,21 @@ pages — says *"$0.36 of $20.00 included"*. `resolveBudgetUsd()`
 `overage_markup_bps` (3000/2500) is written by migration 0003 and **read by no code**.
 The frontend currently describes a billing model the engine does not implement.
 
-- [ ] Resolve **D2**. If the allowance is real:
-  - [ ] Period-cumulative charge: a request is free while the period's cumulative
-        upstream cost is under the allowance, and bills at `overage_markup_bps` after.
-        This needs a running total — do NOT recompute per row from the ledger without
-        a deterministic order, or rounding will not be reproducible.
-  - [ ] `cost_customer_usd` in `lib/jobs/collect-usage.ts` changes shape.
-  - [ ] `scripts/reconcile.sh` on the gateway must implement the same rule; it is
-        the authority when the two disagree (`lib/pricing/index.ts`).
-  - [ ] The gateway budget stays the **hard cap** (what stops traffic), not the allowance.
-- [ ] If the allowance is cosmetic instead: delete `includedSpendCents` from the UI
-      copy, drop the meter, and say "billed at 1.30× upstream up to your cap".
-- [ ] Either way, update `PLATFORM.md §4.3` so the document matches the code.
+- [x] Resolve **D2** — **resolved as: real allowance, and the bug was the DENOMINATION.**
+      The gateway `max_budget` is UPSTREAM USD; `hard_cap_cents`/`included_spend_cents`
+      are CUSTOMER cents. `resolveBudgetUsd()` now DIVIDES customer cents by
+      `rate_multiplier_bps` before pushing the budget, so the number the gateway enforces
+      and the number the SpendMeter shows are the same money in different units.
+      Implemented as a uniform multiplier rather than a per-row free-then-bill split:
+      `cost_customer_usd = cost_upstream_usd × rate_multiplier_bps / 10000` for EVERY row
+      (so `overage_markup_bps === rate_multiplier_bps − 10000`), which keeps reconcile and
+      the collector in lockstep with no running-total ordering problem. See §5.14.
+  - [x] `cost_customer_usd` invariant asserted in `tests/security.test.ts` and by
+        `make verify-metering` at the exact point it asserts `customer = upstream × 1.3`.
+  - [x] The gateway budget stays the **hard cap** (what stops traffic), converted to
+        upstream USD.
+- [x] `PLATFORM.md` carries a superseded-billing banner pointing at `HANDOFF.md`
+      (full §4.3 rewrite deferred with the Stripe-era text).
 
 **Exit criteria:** the number on the SpendMeter is a number the engine computes.
 **Verify:** `make verify-metering` must assert the new formula at the exact point it
@@ -217,14 +238,18 @@ recompute, do not migrate history.
       NOT `requireActiveOrg()` — a signed-in user with no org yet must still get their
       (empty) list, and `requireActiveOrg()` would 403 them. It also filters
       `orgStatus !== 'deleted'`.
-- [ ] Audit every error message a customer can see for what/why/what-next, and for
+- [x] Audit every error message a customer can see for what/why/what-next, and for
       leaked internals (`lib/api/errors.ts` already replaces `internal`/`upstream` text —
-      confirm nothing bypasses it).
-- [ ] Card-payment copy: `hero.tsx` (badge + paragraph), `features.tsx`. There is no
-      card path; Stripe was removed.
-- [ ] `navbar.tsx` — "Documentation" points at `/pricing`.
-- [ ] `README.md` and `PLATFORM.md` still describe the pre-frontend state. Bring them
-      in line with what now exists (`/pricing`, the 25 routes, migration 0006).
+      confirm nothing bypasses it). **Done:** every JSON route goes through `jsonError`/
+      `errorResponse`; the only raw-text path was the streamed CSV failure comment, now a
+      fixed sentence (detail stays in the log).
+- [x] Card-payment copy: `hero.tsx` (badge + paragraph), `features.tsx`. There is no
+      card path; Stripe was removed. **Done.**
+- [x] `navbar.tsx` — "Documentation" points at `/pricing`. **Done** (navbar + footer).
+- [x] `README.md` and `PLATFORM.md` still describe the pre-frontend state. Bring them
+      in line with what now exists (`/pricing`, the 25 routes, migration 0006). **Done:**
+      README refreshed (D17 flow, portal section, migrations 0006–0008); PLATFORM carries
+      a superseded-billing banner pointing at `HANDOFF.md`.
 
 ---
 
@@ -236,13 +261,14 @@ recompute, do not migrate history.
 Signups are unverified indefinitely — anyone can sign up with an address they do not
 own, and D17 proof submission trusts the email for status mail.
 
-- [ ] Reuse the reset-token machinery exactly: same `auth_verification_tokens` table,
+- [x] Reuse the reset-token machinery exactly: same `auth_verification_tokens` table,
       new `IDENTIFIER_PREFIX` (`verify-email:`). Do not invent a second token system.
-- [ ] Token TTL, single-use, hash-at-rest, "always answer 200" — identical rules to
+- [x] Token TTL, single-use, hash-at-rest, "always answer 200" — identical rules to
       `lib/auth/reset.ts`. Extract the shared shape rather than copy-pasting it.
-- [ ] Gate it somewhere meaningful: **before** `POST /api/checkout` and before key
+      Shared primitives now live in `lib/auth/tokens.ts`.
+- [x] Gate it somewhere meaningful: **before** `POST /api/checkout` and before key
       creation, not at sign-in (which would break the existing proofs).
-- [ ] Resend is already wired (`lib/email`).
+- [x] Resend is already wired (`lib/email`). Dashboard banner + resend shipped.
 
 **Exit criteria:** an unverified account cannot reach checkout; the link is single-use.
 **Verify:** add a case to `verify-d17.ts` — it already creates real accounts.
@@ -252,11 +278,12 @@ own, and D17 proof submission trusts the email for status mail.
 `/dashboard/usage` buckets **one page of rows** (25) client-side and labels it a
 date range. The chart can never show more than ~25 days and silently omits the rest.
 
-- [ ] `GET /api/usage/summary?bucket=day|hour&from&to` → a real series.
+- [x] `GET /api/usage/summary?bucket=day|hour&from&to` → a real series.
       Same filters, same `totals` discipline as `/api/usage`.
-- [ ] `components/dashboard/usage-area-chart.tsx` consumes the series instead of
+- [x] `components/dashboard/usage-area-chart.tsx` consumes the series instead of
       re-bucketing rows. Delete the client-side bucketing.
-- [ ] Keep the honest empty state: a day with no traffic is a zero, not a gap.
+- [x] Keep the honest empty state: a day with no traffic is a zero, not a gap.
+      `generate_series` zero-fill; proven dense by `verify-metering` §18c.
 
 **Exit criteria:** the chart range matches the selected filter over the full window.
 
