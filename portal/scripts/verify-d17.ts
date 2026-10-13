@@ -670,6 +670,38 @@ async function main(): Promise<void> {
     secondUse.reason,
   );
 
+  // ── T13: a password change kills every existing session ─────────────
+  section('T13 password change invalidates existing sessions');
+  const sTag = randomBytes(4).toString('hex');
+  const sEmail = `session-${sTag}@verify.invalid`;
+  const sOld = randomBytes(18).toString('base64url');
+  const sNew = randomBytes(18).toString('base64url');
+  await createLocalUser({ email: sEmail, name: 'Session User', password: sOld });
+
+  const oldCookie = await signInAsCustomer(portal, sEmail, sOld);
+  const before = await fetch(`${portal}/api/orgs`, {
+    headers: { Cookie: oldCookie },
+  });
+  check('a signed-in session reaches an authenticated route (200)', before.status === 200, `${before.status}`);
+
+  const changeRes = await fetch(`${portal}/api/profile/password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Cookie: oldCookie },
+    body: JSON.stringify({ currentPassword: sOld, newPassword: sNew }),
+  });
+  const changeBody = (await changeRes.json().catch(() => ({}))) as { reauthenticate?: boolean };
+  check('the password change succeeds', changeRes.status === 200, `${changeRes.status}`);
+  check('the response tells the client to re-authenticate', changeBody.reauthenticate === true);
+
+  // The cookie that made the change is now stale: sessionIsFresh compares
+  // the token's stamp to the live row and refuses a token minted before it.
+  const after = await fetch(`${portal}/api/orgs`, { headers: { Cookie: oldCookie } });
+  check('the OLD session is rejected after the change (401)', after.status === 401, `${after.status}`);
+
+  const newCookie = await signInAsCustomer(portal, sEmail, sNew);
+  const fresh = await fetch(`${portal}/api/orgs`, { headers: { Cookie: newCookie } });
+  check('a session minted AFTER the change works (200)', fresh.status === 200, `${fresh.status}`);
+
   // ── Summary ─────────────────────────────────────────────────────────
   process.stdout.write(
     `\n── summary\n` +
@@ -677,7 +709,8 @@ async function main(): Promise<void> {
       `  approved       ${recon.totals.count} payment(s), ${formatTndMillimes(recon.totals.totalMillimes)} DT\n` +
       `  coverage       amount, submit, duplicate, amount-tamper, double-approve,\n` +
       `                  staff gate, expiry, reject/resubmit, screenshot, CSV,\n` +
-      `                  renewal (window/one-open/roll-forward), email verification\n`,
+      `                  renewal (window/one-open/roll-forward), email verification,\n` +
+      `                  password-change session invalidation\n`,
   );
 
   if (failures.length) {

@@ -40,6 +40,7 @@
  *                                    (server-bucketed, zero-filled, guard)
  *  19. cancelSubscription()        — immediate cut (429 budget)
  *  20. revokeKey()                 — upstream-first revoke → 401/403
+ *  21. deleteAccount()             — cut off BEFORE cleanup; second delete 409
  *
  * WHY A SCRIPT AND NOT A UNIT TEST: every seam here is deliberately
  * injectable, and tests/keys.test.ts drives them with fakes. This proof
@@ -83,6 +84,7 @@ import {
   usageHistorySeries,
 } from '@/lib/billing';
 import { devSignBody } from '@/lib/billing/dev';
+import { deleteAccount } from '@/lib/account/service';
 import { KeyServiceError } from '@/lib/keys/types';
 
 // ───────────────────────────────────────────────────────────────────────
@@ -858,6 +860,87 @@ async function main(): Promise<void> {
     `status ${afterRevoke.status}`,
   );
 
+  // ── 21. Account deletion — cut off BEFORE cleanup ────────────────────
+  section('21. account deletion (order: cut off, then clean up)');
+  // A THROWAWAY account, so the main org's evidence above survives. The
+  // ordering is the non-negotiable part: a failed gateway call must never
+  // leave a live key, so the customer is cut off first and cleanup is best
+  // effort after.
+  const delTag = randomBytes(4).toString('hex');
+  const delEmail = `delete-${delTag}@verify.invalid`;
+  const delPassword = randomBytes(18).toString('base64url');
+  const { domainUserId: delUserId } = await createLocalUser({
+    email: delEmail,
+    name: 'Delete Me',
+    password: delPassword,
+  });
+  const delOrg = await ensurePersonalOrg(delUserId);
+  const [delOrgInit] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, delOrg.organizationId));
+
+  const delCheckout = await beginCheckout(delOrg.organizationId, 'starter', delUserId);
+  const delBody = JSON.stringify({
+    event_id: `evt_${delTag}_activated`,
+    kind: 'subscription.activated',
+    organization_id: delOrg.organizationId,
+    subscription_id: delCheckout.intent.subscriptionId,
+    plan_code: 'starter',
+    period_end: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString(),
+  });
+  const delActivated = await fetch(`${PORTAL_URL}/api/billing/callback`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-billing-signature': devSignBody(delBody),
+    },
+    body: delBody,
+  });
+  check('the throwaway account activates', delActivated.status === 200, `${delActivated.status}`);
+
+  const { key: delKey } = await createKey({
+    organizationId: delOrg.organizationId,
+    userId: delUserId,
+    role: 'owner',
+    name: 'to-be-deleted',
+    models: ['fast'],
+  });
+
+  const delResult = await deleteAccount({
+    organizationId: delOrg.organizationId,
+    userId: delUserId,
+    confirmSlug: delOrgInit!.slug,
+  });
+  check('deletion reports the key it revoked', delResult.revokedKeys >= 1, JSON.stringify(delResult));
+
+  const [delOrgAfter] = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, delOrg.organizationId));
+  check('the org is marked deleted', delOrgAfter?.status === 'deleted', delOrgAfter?.status);
+
+  const [delSub] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.id, delCheckout.intent.subscriptionId));
+  check('the subscription is cancelled', delSub?.status === 'canceled', delSub?.status);
+
+  const [delKeyRow] = await db.select().from(apiKeys).where(eq(apiKeys.id, delKey.id));
+  check('the key is revoked locally (no live key survives a delete)', Boolean(delKeyRow?.revokedAt));
+
+  let secondDeleteConflict = false;
+  try {
+    await deleteAccount({
+      organizationId: delOrg.organizationId,
+      userId: delUserId,
+      confirmSlug: delOrgInit!.slug,
+    });
+  } catch (e) {
+    secondDeleteConflict = (e as { code?: string }).code === 'conflict';
+  }
+  check('a second delete is refused (already deleted)', secondDeleteConflict);
+
   // ── Summary ──────────────────────────────────────────────────────────
   const totalUpstream = ledger.reduce((a, r) => a + Number(r.costUpstreamUsd), 0);
   const totalCustomer = ledger.reduce((a, r) => a + Number(r.costCustomerUsd), 0);
@@ -869,7 +952,7 @@ async function main(): Promise<void> {
       `  ledger rows    ${ledgerAfter.length} (${successRows.length} success, ${otherRows.length} rejected)\n` +
       `  upstream cost  $${totalUpstream.toFixed(8)} total\n` +
       `  customer cost  $${totalCustomer.toFixed(8)} total (starter × ${multiplier})\n` +
-      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401)\n` +
+      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401) → delete-account\n` +
       `  left behind    user ${email}, org, team, ledger rows (evidence — nothing deleted)\n`,
   );
 
