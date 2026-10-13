@@ -118,6 +118,18 @@ export async function updateProfile(input: {
 /**
  * Change your own password while signed in.
  *
+ * `userId` is the **domain mirror** id (`users.id`) — what
+ * `currentUser()` returns and what every product surface passes. The
+ * credential row is keyed by the AUTH identity (`auth_users.id`), which is
+ * a *different* uuid held in `users.auth_id`.
+ *
+ * That distinction is not cosmetic: passing `users.id` straight into
+ * `auth_credentials.user_id` finds no row, `stored` is null, and
+ * `verifyPassword` correctly refuses — which presents as "your current
+ * password is not correct" for the rightful owner, every time, with no
+ * other symptom. Caught only by driving the real endpoint against a real
+ * account; no unit test on this path would have seen it.
+ *
  * Requires the CURRENT password. Without it, this endpoint is a
  * privilege-escalation primitive: anyone who walks up to an unlocked
  * browser, or steals a cookie, could lock the real owner out of their own
@@ -142,10 +154,21 @@ export async function changePassword(input: {
   currentPassword: string;
   newPassword: string;
 }): Promise<{ changedAt: string }> {
+  // Domain mirror → auth identity. One hop, and the only place in the
+  // codebase where those two id spaces meet.
+  const domain = await db.query.users.findFirst({
+    where: eq(users.id, input.userId),
+    columns: { id: true, authId: true, authProvider: true },
+  });
+  if (!domain || domain.authProvider !== 'authjs') {
+    throw new AccountError('Account not found.', 'not_found', 404);
+  }
+  const authId = domain.authId;
+
   const rows = await db
     .select({ password: authCredentials.password })
     .from(authCredentials)
-    .where(eq(authCredentials.userId, input.userId))
+    .where(eq(authCredentials.userId, authId))
     .limit(1);
 
   const stored = rows[0]?.password ?? null;
@@ -182,7 +205,7 @@ export async function changePassword(input: {
   await db.transaction(async (tx) => {
     await tx
       .insert(authCredentials)
-      .values({ userId: input.userId, password: hash, updatedAt: changedAt })
+      .values({ userId: authId, password: hash, updatedAt: changedAt })
       .onConflictDoUpdate({
         target: authCredentials.userId,
         set: { password: hash, updatedAt: changedAt },
