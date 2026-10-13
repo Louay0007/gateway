@@ -63,6 +63,29 @@ export interface UsagePageResponse {
   };
 }
 
+export type UsageBucket = "day" | "hour";
+
+export interface UsageSeriesPoint {
+  /** Bucket start, ISO-8601 UTC. */
+  bucket: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  costCustomerUsd: number;
+  costUpstreamUsd: number;
+}
+
+/** `GET /api/usage/summary` — a dense, server-bucketed series. */
+export interface UsageSeriesResponse {
+  bucket: UsageBucket;
+  from: string;
+  to: string;
+  /** One point per bucket in [from, to]; zero where there was no traffic. */
+  points: UsageSeriesPoint[];
+  totals: UsagePageResponse["totals"];
+}
+
 export interface OrgListItem {
   id: string;
   name: string;

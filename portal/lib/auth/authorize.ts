@@ -26,17 +26,13 @@ import {
 import { auth } from '@/auth';
 import { log } from '@/lib/log';
 import { sessionIsFresh } from '@/lib/auth/session-freshness';
+import { AuthzError } from '@/lib/auth/errors';
 
-export class AuthzError extends Error {
-  constructor(
-    message: string,
-    readonly code: 'unauthorized' | 'forbidden' | 'not_found',
-    readonly status: number,
-  ) {
-    super(message);
-    this.name = 'AuthzError';
-  }
-}
+// Re-exported so existing `import { AuthzError } from '@/lib/auth/authorize'`
+// callers keep working. The class lives in lib/auth/errors.ts (pure) so
+// non-Next consumers — the proof runner — can import it without dragging in
+// next/navigation.
+export { AuthzError };
 
 /** The authenticated portal user, or null. */
 export async function currentUser() {

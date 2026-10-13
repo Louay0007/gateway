@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { validatePassword } from '@/lib/auth/password';
 import { createLocalUser } from '@/lib/auth/create-user';
+import { sendVerificationEmail } from '@/lib/auth/verify-email';
 import { signIn } from '@/auth';
 import { db } from '@/db';
 import { authUsers } from '@/db/schema';
@@ -66,7 +67,18 @@ export async function signUpAction(
   // in lib/auth/create-user.ts, so any other caller that needs a real
   // account (scripts/verify-metering.ts) runs the same code as this form.
   // The session below resolves by email + password, so no id is needed.
-  await createLocalUser({ email, name: name || null, password });
+  const { userId } = await createLocalUser({ email, name: name || null, password });
+
+  // Send the confirmation link BEFORE the automatic sign-in, and never let
+  // a mail failure fail the signup: the account exists, and the dashboard
+  // offers a resend. A signup that 500s because an email provider blinked
+  // is a lost customer for no reason.
+  try {
+    await sendVerificationEmail(userId);
+  } catch {
+    // sendVerificationEmail already logs its own failure; the resend
+    // button on the dashboard is the recovery path.
+  }
 
   try {
     await signIn('credentials', {

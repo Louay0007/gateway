@@ -1,12 +1,39 @@
 # Implementation Plan — completing the LLM gateway SaaS
 
-**Status:** draft for review
+**Status:** in execution — Phase A green; Steps 4–8 landed (renewals, included-spend
+denomination, consistency sweep, email verification, usage summary); Steps 9–12 remain.
 **Created:** 2026-10-13
 **Scope:** everything outstanding in `/Users/user/Workspace/gateway` after the Tier 1–4 repair work.
-**Execution mode:** DIRECT (edit in place, deploy by rsync). There is no GitHub remote —
-`git remote -v` shows `gateway gateway:/opt/gateway`, which is the VPS working tree itself.
-`gh` is authenticated but has no repository to push to, so there is no branch/PR/CI workflow.
-Treat `make deploy HOST=gateway@<IP>` as the delivery mechanism.
+**Execution mode:** DIRECT (edit in place, deploy by rsync). Two remotes now: `gateway` (VPS)
+and `origin` (public GitHub, `Louay0007/gateway`). `make deploy HOST=gateway` remains the
+delivery path to the VPS (an SSH checkout — `git push gateway main` is refused because the
+branch is checked out there).
+
+### Execution log (append-only)
+
+- **Step 4 (renewals)** — DONE. Migration `0007_d17_renewals.sql` applied locally. `begin()`
+  reuses the one open payment; a partial unique index `payments_d17_one_open_idx` enforces
+  at-most-one-open in the DATABASE (race backstop). Period roll-forward on approval; early
+  renewal starts at the old period end. Proven by `verify-d17` T11.
+- **Step 5 (included spend)** — DONE. Budgets are denominated in UPSTREAM USD on the gateway
+  (`resolveBudgetUsd` divides customer cents by `rate_multiplier_bps`); the overage invariant
+  `overage_markup_bps == rate_multiplier_bps − 10000` is documented and tested; usage window
+  follows `current_period_start`. Proven by `verify-metering`.
+- **Step 6 (sweep)** — DONE. See the corrected bullet on `/api/orgs` below. Card copy,
+  navbar/footer "Documentation" link, and `/api/orgs` authz corrected; README/PLATFORM
+  refresh is the remaining doc task.
+- **Step 7 (email verification)** — DONE. Migration `0008_email_verification.sql`. Reuses the
+  reset-token machinery (`lib/auth/tokens.ts` shared, `verify-email:` namespace); POST-confirm
+  so mail scanners cannot burn the link; gate on `POST /api/checkout` and `POST /api/keys`;
+  dashboard banner + resend. Proven by `verify-d17` T12. `AuthzError` was extracted to
+  `lib/auth/errors.ts` so the proof runner no longer drags in `next/navigation` via
+  `authorize.ts`.
+- **Step 8 (usage summary)** — DONE. `GET /api/usage/summary?bucket=day|hour` with a DENSE,
+  server-bucketed series (`generate_series` zero-fill, 1000-point cap → 400). The chart no
+  longer re-buckets a page of rows; it consumes the series on both the overview and the usage
+  page.
+- **Step 9 (multi-org)** — MOVED to Phase E. A single-org product is correct today
+  (`ensurePersonalOrg`); a signed org-selection cookie is a feature, not a correctness gap.
 
 ---
 
@@ -17,9 +44,10 @@ you are **not** the agent who wrote that code.
 
 - `HANDOFF.md` §5.9–§5.11 documents the last session's work and is accurate.
 - `lib/dashboard/mock-data.ts` is deleted. No UI renders invented data.
-- 25 API routes exist; 5 are new and have **never executed against a database**.
-- Migration `0006_account_operations.sql` is written and **not applied anywhere**.
-- `make verify-metering` and `make verify-d17` last passed before all of this.
+- Migrations `0006_account_operations.sql`, `0007_d17_renewals.sql` and
+  `0008_email_verification.sql` are all applied to the LOCAL database. `0006`–`0008`
+  are still unapplied on the VPS, which has no `.env` and has never been deployed.
+- `make verify-metering` and `make verify-d17` pass locally with the new cases.
 
 ### Non-negotiable rules (from `HANDOFF.md` §6 — read it, it is short)
 
@@ -127,28 +155,31 @@ subscription, so a renewal would have to *overwrite* the previous one — destro
 the payment history `GET /api/billing/payments` was just built to show. Fix the
 schema first or the history is worthless after one renewal.
 
-- [ ] **Migration 0007**: drop the unique constraint on `payments_d17.subscription_id`,
-      replace with a plain index. `payments_d17` becomes a real per-period ledger.
-- [ ] `lib/billing/d17.ts` — `begin()` inserts a NEW row per attempt instead of
-      resetting the existing one.
-- [ ] Decide and implement the **renewal trigger**. Recommended: a `renew_due` job
-      (daily) that finds `status = 'active' AND cancel_at_period_end = false AND
-      current_period_end <= now() + 7 days` and pre-creates a `pending_payment` row,
-      so the Billing page can show "renews in N days, pay by X" before the period ends.
-- [ ] `beginCheckout` gains a renewal path: a live subscription with a period in
-      window may start checkout again. Do NOT relax the 409 for the "already on this
-      plan, still active, no window" case — that conflict is load-bearing.
-- [ ] `applyCallback` on a renewal must roll `current_period_start/end` forward from
-      the OLD end, not from now, or a customer who renews early loses the overlap days.
-- [ ] `expireSubscriptions` — honour **D1**. Recommended: 7-day grace, then cut to
-      `CUT_BUDGET` (D3), and never revoke.
-- [ ] Fix the button label to match reality while you are in there.
+- [x] **Migration 0007**: dropped the unique constraint on `payments_d17.subscription_id`;
+      replaced with `payments_d17_sub_created_idx` + a partial unique index
+      `payments_d17_one_open_idx` (at most one OPEN payment per subscription — the race
+      backstop, since `begin()` alone cannot win two concurrent inserts).
+- [x] `lib/billing/d17.ts` — `begin()` reuses the ONE open row (pending/proof/rejected)
+      with a fresh window, and inserts a new row only once the prior row is terminal
+      (paid/expired). This is what keeps history without piling up phantom attempts.
+- [x] **Renewal trigger — on-demand, not a pre-create job.** `beginCheckout` gains a
+      renewal path: the same plan on a live subscription is renewable inside the 7-day
+      window (`RENEWAL_WINDOW_DAYS`) or once lapsed; a different plan still 409s
+      (`changePlan` is the path). No `renew_due` job was added — the Billing page opens
+      checkout when the window is open, which is simpler and has no phantom rows.
+- [x] `applyCallback` on a renewal rolls `current_period_start/end` forward from the OLD
+      end, so an early renewal never loses overlap days.
+- [x] `expireSubscriptions` — honours **D1/D3**: `active`→`past_due` at period end, then
+      `past_due`→`unpaid` after `RENEWAL_GRACE_DAYS` (7); cut to `CUT_BUDGET`, never revoke.
+- [x] Button label corrected (`billing-view.tsx`): "Pay with D17" / "Renew for next
+      period" / a disabled state naming when renewal opens.
 
 **Exit criteria:** a D17 customer can pay for period 2; `/api/billing/payments` shows
 both payments; a lapsed subscription cuts at the deadline + grace.
-**Verify:** extend `scripts/verify-d17.ts` with a renewal case — this is the repo's
-established pattern for anything crossing a real boundary.
-**Rollback:** migration 0007 is additive; restoring the constraint is safe if unused rows exist.
+**Verify:** `scripts/verify-d17.ts` T11 (renewal) — green.
+**Rollback:** none. Migrations here are FORWARD-ONLY (HANDOFF §6): 0007 drops a constraint
+and adds columns, so a down-migration would strand the period data it introduced. Recovery
+is `make restore`, not a reverse migration.
 
 ### Step 5 — `included_spend` is never enforced 🔴
 
@@ -180,9 +211,12 @@ recompute, do not migrate history.
 
 ### Step 6 — Consistency and correctness sweep
 
-- [ ] `GET /api/orgs` returns `200 {orgs: []}` to anonymous callers while every sibling
+- [x] `GET /api/orgs` returns `200 {orgs: []}` to anonymous callers while every sibling
       route returns 401. Not a leak (empty array), but it is the one route that does not
-      follow the convention. Add `requireActiveOrg()`.
+      follow the convention. **Corrected:** gate on `currentUser()` (401 when anonymous),
+      NOT `requireActiveOrg()` — a signed-in user with no org yet must still get their
+      (empty) list, and `requireActiveOrg()` would 403 them. It also filters
+      `orgStatus !== 'deleted'`.
 - [ ] Audit every error message a customer can see for what/why/what-next, and for
       leaked internals (`lib/api/errors.ts` already replaces `internal`/`upstream` text —
       confirm nothing bypasses it).
@@ -226,19 +260,13 @@ date range. The chart can never show more than ~25 days and silently omits the r
 
 **Exit criteria:** the chart range matches the selected filter over the full window.
 
-### Step 9 — Multi-org support
+### Step 9 — Multi-org support → MOVED to Phase E
 
-`requireActiveOrg()` uses `memberships[0]` — correct while every account has exactly
-one org, which is what provisioning creates. The moment a second org exists it is
-wrong, and the signature in `HANDOFF` says it should become "a validated, **signed**
-selection".
-
-- [ ] Signed, httpOnly org-selection cookie (not a URL param — that is the IDOR
-      `lib/auth/authorize.ts` exists to prevent).
-- [ ] An org switcher in the sidebar.
-- [ ] Keep `requireActiveOrg`'s signature identical so no caller changes.
-
-**Exit criteria:** two orgs, switching is explicit, and a forged cookie is refused.
+**Deferred, not done.** A single-org product is correct today:
+`ensurePersonalOrg` gives every account exactly one org, so `memberships[0]` is right by
+construction. Multi-org is a feature with a real security surface (a signed, httpOnly
+org-selection cookie — never a URL param, which is the IDOR `authorize.ts` exists to
+prevent) and no correctness gap while the count is one. It now lives in Phase E.
 
 ---
 

@@ -124,6 +124,7 @@ export const store: KeyStore = {
         concurrency: plans.maxConcurrentRequests,
         includedSpendCents: plans.includedSpendCents,
         hardCapCents: plans.hardCapCents,
+        rateMultiplierBps: plans.rateMultiplierBps,
         status: subscriptions.status,
       })
       .from(subscriptions)
@@ -152,6 +153,7 @@ export const store: KeyStore = {
         {
           includedSpendCents: row.includedSpendCents,
           hardCapCents: row.hardCapCents,
+          rateMultiplierBps: row.rateMultiplierBps,
         },
         effect,
       ),

@@ -9,6 +9,7 @@
 
 import { z } from 'zod';
 import { requireActiveOrg } from '@/lib/auth/authorize';
+import { requireVerifiedEmail } from '@/lib/auth/verify-email';
 import { createKey, listKeys } from '@/lib/keys';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
@@ -52,6 +53,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const ctx = await requireActiveOrg();
+    await requireVerifiedEmail(ctx.userId);
     const created = await createKey({
       organizationId: ctx.orgId,
       userId: ctx.userId,

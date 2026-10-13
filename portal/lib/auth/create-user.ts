@@ -27,6 +27,13 @@ export interface CreateLocalUserInput {
   name?: string | null;
   /** Plaintext. Hashed here; never stored, logged, or returned. */
   password: string;
+  /**
+   * Stamp the account verified at creation. Used by proof scripts that
+   * provision their own accounts and drive the billing lib directly, and
+   * by any future SSO path. The signup form leaves it false so the emailed
+   * link is the only way to verify.
+   */
+  emailVerified?: boolean;
 }
 
 export interface CreateLocalUserResult {
@@ -58,13 +65,15 @@ export async function createLocalUser(
 
   const hash = await hashPassword(input.password);
   const userId = crypto.randomUUID();
+  const verifiedAt = input.emailVerified ? new Date() : null;
 
   const domainUserId = await db.transaction(async (tx) => {
     await tx.insert(authUsers).values({
       id: userId,
       name: input.name ?? null,
       email,
-      emailVerified: null,   // no mail transport yet; Phase 6 adds verification
+      // NULL until the emailed link is opened (lib/auth/verify-email.ts).
+      emailVerified: verifiedAt,
     });
     await tx.insert(authCredentials).values({ userId, password: hash });
     // Domain mirror (authoritative for product logic).
@@ -75,6 +84,7 @@ export async function createLocalUser(
         authId: userId,
         email,
         name: input.name ?? null,
+        emailVerifiedAt: verifiedAt,
       })
       .returning({ id: users.id });
     if (!mirror) throw new Error('createLocalUser: domain mirror insert returned no row');

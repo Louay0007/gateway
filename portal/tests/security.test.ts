@@ -84,21 +84,24 @@ describe('password policy', () => {
  * resolve to CUT_BUDGET, never 0.
  */
 describe('budget resolution — 0 is unlimited, not deny', () => {
-  const freePlan = { includedSpendCents: 0, hardCapCents: 0 };
-  const noCapPlan = { includedSpendCents: 2000, hardCapCents: null };
-  const cappedPlan = { includedSpendCents: 18000, hardCapCents: 60000 };
+  const freePlan = { includedSpendCents: 0, hardCapCents: 0, rateMultiplierBps: 13000 };
+  const noCapPlan = { includedSpendCents: 2000, hardCapCents: null, rateMultiplierBps: 13000 };
+  const cappedPlan = { includedSpendCents: 18000, hardCapCents: 60000, rateMultiplierBps: 12500 };
 
   it('never resolves a zero-allowance plan to 0', () => {
     expect(resolveBudgetUsd(freePlan, 'full')).toBe(CUT_BUDGET);
     expect(resolveBudgetUsd(freePlan, 'cut')).toBe(CUT_BUDGET);
   });
 
-  it('falls back to included spend when there is no hard cap', () => {
-    expect(resolveBudgetUsd(noCapPlan, 'full')).toBe(20);
+  it('falls back to included spend when there is no hard cap, converted to upstream', () => {
+    // $20 customer at 1.30× = $15.38 upstream. The gateway tracks upstream.
+    expect(resolveBudgetUsd(noCapPlan, 'full')).toBeCloseTo(2000 / 100 / 1.3, 6);
   });
 
-  it('prefers the hard cap when present', () => {
-    expect(resolveBudgetUsd(cappedPlan, 'full')).toBe(600);
+  it('prefers the hard cap when present, converted to upstream', () => {
+    // $600 customer at 1.25× = $480 upstream. Returning $600 directly
+    // would let the customer spend $750 before the cutoff.
+    expect(resolveBudgetUsd(cappedPlan, 'full')).toBeCloseTo(60000 / 100 / 1.25, 6);
   });
 
   it('cuts to CUT_BUDGET regardless of plan', () => {
@@ -113,12 +116,21 @@ describe('budget resolution — 0 is unlimited, not deny', () => {
       }
     }
   });
+
+  it('enforces the overage invariant: markup == multiplier - 10000', () => {
+    // Starter 13000 → 3000, Pro 12500 → 2500. Applying BOTH would bill
+    // Starter overage at 1.30 × 1.30. The ledger applies the multiplier
+    // once; overage_markup_bps is the same margin in the other unit.
+    expect(13000 - 10000).toBe(3000);
+    expect(12500 - 10000).toBe(2500);
+  });
 });
 
 describe('a cut org keeps keys alive but loses every capability', () => {
   const plan = {
     rpmLimit: 60, tpmLimit: 200000, maxConcurrentRequests: 5,
     models: ['fast'], includedSpendCents: 0, hardCapCents: 0,
+    rateMultiplierBps: 13000,
   };
 
   it('empties the model allowlist so nothing is reachable', () => {

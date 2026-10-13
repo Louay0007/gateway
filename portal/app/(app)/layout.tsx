@@ -9,7 +9,10 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { currentStaffRole } from "@/lib/auth/authorize";
+import { currentStaffRole, currentUser } from "@/lib/auth/authorize";
+import { isEmailVerified } from "@/lib/auth/verify-email";
+import { ResendVerification } from "@/components/auth/verify-email-forms";
+import { MailWarning } from "lucide-react";
 
 /**
  * The shell reads the session (to decide which nav entries to offer), so
@@ -46,6 +49,12 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // whether the link is offered at all.
   const isStaff = (await currentStaffRole()) !== null;
 
+  // Unverified accounts keep read access but cannot create keys or start a
+  // subscription (the routes enforce it). This banner is how they learn
+  // that, and how they recover if the first mail was lost.
+  const user = await currentUser();
+  const verified = user ? await isEmailVerified(user.id) : true;
+
   return (
     <TooltipProvider delay={400}>
       <SidebarProvider>
@@ -59,7 +68,30 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <SidebarInset id="main-content" className="min-w-0">
           <SiteHeader />
           <ShellIdentityProvider>
-            <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">{children}</div>
+            <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+              {!verified ? (
+                <div
+                  role="status"
+                  className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex items-start gap-3">
+                    <MailWarning className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden />
+                    <div>
+                      <p className="text-sm font-medium text-black">Confirm your email address</p>
+                      <p className="mt-0.5 text-sm text-gray-700">
+                        You can browse, but creating an API key or starting a
+                        subscription needs a confirmed address — it is where we
+                        send payment updates.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 sm:w-64">
+                    <ResendVerification />
+                  </div>
+                </div>
+              ) : null}
+              {children}
+            </div>
           </ShellIdentityProvider>
         </SidebarInset>
       </SidebarProvider>

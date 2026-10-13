@@ -153,7 +153,10 @@ export async function GET(request: Request): Promise<Response> {
       } catch (e) {
         // The status line is long gone — the response committed as 200
         // when the stream opened. A comment row is the only signal left,
-        // so make it unmistakable.
+        // so make it unmistakable. The RAW message stays in the log: this
+        // file is a customer download, and an internal error string (a
+        // table or column name from the driver) is not something to hand
+        // them. They get the count and what to do; we get the detail.
         const msg = e instanceof Error ? e.message : String(e);
         log.error('usage export: stream failed', {
           organizationId: ctx.orgId,
@@ -161,7 +164,9 @@ export async function GET(request: Request): Promise<Response> {
           total,
           error: msg,
         });
-        send(`# ERROR: export failed after ${written} of ${total} rows — ${msg}\r\n`);
+        send(
+          `# ERROR: export failed after ${written} of ${total} rows — please retry; if it keeps failing, contact support.\r\n`,
+        );
       } finally {
         controller.close();
       }

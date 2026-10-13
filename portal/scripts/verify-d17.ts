@@ -43,9 +43,17 @@ import './env.mjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { db, sql as pg } from '@/db';
-import { auditLog, organizations, paymentsD17, subscriptions } from '@/db/schema';
+import { auditLog, authVerificationTokens, organizations, paymentsD17, subscriptions } from '@/db/schema';
 import { createLocalUser } from '@/lib/auth/create-user';
 import { ensurePersonalOrg } from '@/lib/auth/provision';
+import {
+  consumeVerificationToken,
+  isEmailVerified,
+  requireVerifiedEmail,
+  sendVerificationEmail,
+} from '@/lib/auth/verify-email';
+import { hashToken } from '@/lib/auth/tokens';
+import { verifyIdentifierFor } from '@/lib/auth/verify-tokens';
 import { beginCheckout } from '@/lib/billing';
 import { D17ProofError, submitD17Proof } from '@/lib/billing/d17-proof';
 import {
@@ -113,8 +121,12 @@ async function startCheckout(planCode = 'starter') {
 }
 
 async function loadPayment(subscriptionId: string) {
+  // Newest first. Since 0007 a subscription has one row per renewal, so an
+  // unordered findFirst would return an arbitrary period's row — the bug
+  // this helper would otherwise hide from the proof.
   return db.query.paymentsD17.findFirst({
     where: eq(paymentsD17.subscriptionId, subscriptionId),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
   });
 }
 
@@ -490,13 +502,182 @@ async function main(): Promise<void> {
     queue.every((r) => !['paid', 'rejected'].includes(r.status)),
   );
 
+  // ── T11: renewal — window, at-most-one-open, period roll-forward ────
+  section('T11 renewal (window, one open payment, period roll-forward)');
+  // buyerA is active with a one-month period from T5. A checkout far from
+  // period end must be refused: re-checkout is a RENEWAL, not a way to
+  // stack subscriptions, and plan changes go through change-plan.
+  await db
+    .update(subscriptions)
+    .set({ currentPeriodEnd: new Date(Date.now() + 40 * 24 * 3600_000), updatedAt: new Date() })
+    .where(eq(subscriptions.id, buyerA.subscriptionId));
+
+  let outsideBlocked = false;
+  try {
+    await beginCheckout(buyerA.organizationId, 'starter', buyerA.domainUserId, 'd17');
+  } catch (e) {
+    outsideBlocked = (e as { code?: string }).code === 'conflict';
+  }
+  check('a checkout far from the period end is refused (conflict)', outsideBlocked);
+
+  // Pull the end inside the 7-day renewal window.
+  const renewalBase = new Date(Date.now() + 3 * 24 * 3600_000);
+  await db
+    .update(subscriptions)
+    .set({ currentPeriodEnd: renewalBase, updatedAt: new Date() })
+    .where(eq(subscriptions.id, buyerA.subscriptionId));
+
+  const renewal = await beginCheckout(buyerA.organizationId, 'starter', buyerA.domainUserId, 'd17');
+  check(
+    'the renewal reuses the same subscription row (no stack)',
+    renewal.intent.subscriptionId === buyerA.subscriptionId,
+    renewal.intent.subscriptionId,
+  );
+
+  // A second checkout while the first is still open must REUSE it, not
+  // create a rival payment for the same period (the design hole 0007's
+  // partial unique index closes).
+  await beginCheckout(buyerA.organizationId, 'starter', buyerA.domainUserId, 'd17');
+  let rowsForA = await db
+    .select()
+    .from(paymentsD17)
+    .where(eq(paymentsD17.subscriptionId, buyerA.subscriptionId));
+  const openForA = rowsForA.filter((r) =>
+    ['pending_payment', 'proof_submitted', 'rejected'].includes(r.status),
+  );
+  check('exactly one open payment exists after re-checkout', openForA.length === 1, `${openForA.length}`);
+
+  const [stillActive] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.id, buyerA.subscriptionId));
+  check('the live subscription stayed active across checkout', stillActive?.status === 'active', stillActive?.status);
+
+  // Approve the renewal: the new period must start at the OLD end, so an
+  // early renewal never loses the paid-for overlap days.
+  const renewalPayment = openForA[0]!;
+  await submitD17Proof({
+    subscriptionId: buyerA.subscriptionId,
+    organizationId: buyerA.organizationId,
+    authorizationNumber: `AUTH${randomBytes(4).toString('hex').toUpperCase()}`,
+    senderPhone: '20555001',
+    screenshot: null,
+    ip,
+    userAgent: 'verify-d17',
+    lang: 'fr',
+  });
+  const renewalApproval = await approveD17Payment('verify-staff', renewalPayment.id);
+  check('the renewal payment approves', renewalApproval.ok === true, JSON.stringify(renewalApproval));
+
+  const [renewed] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.id, buyerA.subscriptionId));
+  check(
+    'early renewal starts at the OLD period end (no lost days)',
+    Boolean(renewed?.currentPeriodStart) &&
+      Math.abs(renewed!.currentPeriodStart!.getTime() - renewalBase.getTime()) < 1000,
+    `${renewed?.currentPeriodStart?.toISOString()}`,
+  );
+  check(
+    'the period advanced a month from the old end',
+    Boolean(renewed?.currentPeriodEnd) &&
+      renewed!.currentPeriodEnd!.getTime() - renewalBase.getTime() > 27 * 24 * 3600_000,
+    `${renewed?.currentPeriodEnd?.toISOString()}`,
+  );
+
+  rowsForA = await db
+    .select()
+    .from(paymentsD17)
+    .where(eq(paymentsD17.subscriptionId, buyerA.subscriptionId));
+  const paidForA = rowsForA.filter((r) => r.status === 'paid');
+  check(
+    'both the first payment and the renewal are kept as paid history',
+    paidForA.length === 2,
+    `${paidForA.length} paid row(s)`,
+  );
+  check(
+    'no open payment remains after approval',
+    rowsForA.every((r) => !['pending_payment', 'proof_submitted', 'rejected'].includes(r.status)),
+  );
+
+  // ── T12: email verification (gate + single-use token) ───────────────
+  section('T12 email verification');
+  const vTag = randomBytes(4).toString('hex');
+  const vEmail = `verify-${vTag}@verify.invalid`;
+  const vPassword = randomBytes(18).toString('base64url');
+  const { userId: vAuthId, domainUserId: vDomainId } = await createLocalUser({
+    email: vEmail,
+    name: 'Verify Me',
+    password: vPassword,
+  });
+
+  check('a fresh account is NOT verified', (await isEmailVerified(vDomainId)) === false);
+  let gateRefused = false;
+  try {
+    await requireVerifiedEmail(vDomainId);
+  } catch (e) {
+    gateRefused = (e as { status?: number }).status === 403;
+  }
+  check('the key/checkout gate refuses an unverified account (403)', gateRefused);
+
+  const sent = await sendVerificationEmail(vAuthId);
+  check('a confirmation email is actually sent', sent.sent === true, JSON.stringify(sent));
+
+  // A password-reset token must not be usable to verify an address.
+  const resetRaw = randomBytes(32).toString('base64url');
+  await db.insert(authVerificationTokens).values({
+    identifier: `password-reset:${vEmail}`,
+    token: hashToken(resetRaw),
+    expires: new Date(Date.now() + 3600_000),
+  });
+  const wrongNs = await consumeVerificationToken(resetRaw);
+  check(
+    'a password-reset token cannot verify an email',
+    wrongNs.ok === false && wrongNs.reason === 'not_for_verification',
+    wrongNs.reason,
+  );
+
+  // A real verification token, inserted directly (the raw value only ever
+  // exists in the mail, which the log transport prints, not returns).
+  const verifyRaw = randomBytes(32).toString('base64url');
+  await db.insert(authVerificationTokens).values({
+    identifier: verifyIdentifierFor(vEmail),
+    token: hashToken(verifyRaw),
+    expires: new Date(Date.now() + 3600_000),
+  });
+  const firstUse = await consumeVerificationToken(verifyRaw);
+  check(
+    'the verification token is accepted',
+    firstUse.ok === true && firstUse.email === vEmail,
+    JSON.stringify(firstUse),
+  );
+  check('the domain row is now verified', (await isEmailVerified(vDomainId)) === true);
+
+  let gatePasses = false;
+  try {
+    await requireVerifiedEmail(vDomainId);
+    gatePasses = true;
+  } catch {
+    gatePasses = false;
+  }
+  check('the gate now passes for the verified account', gatePasses);
+
+  const secondUse = await consumeVerificationToken(verifyRaw);
+  check(
+    'the verification token is single-use',
+    secondUse.ok === false && secondUse.reason === 'invalid_token',
+    secondUse.reason,
+  );
+
   // ── Summary ─────────────────────────────────────────────────────────
   process.stdout.write(
     `\n── summary\n` +
       `  accounts       4 buyers (${buyerA.email}, ${buyerB.email}, …)\n` +
       `  approved       ${recon.totals.count} payment(s), ${formatTndMillimes(recon.totals.totalMillimes)} DT\n` +
       `  coverage       amount, submit, duplicate, amount-tamper, double-approve,\n` +
-      `                  staff gate, expiry, reject/resubmit, screenshot, CSV\n`,
+      `                  staff gate, expiry, reject/resubmit, screenshot, CSV,\n` +
+      `                  renewal (window/one-open/roll-forward), email verification\n`,
   );
 
   if (failures.length) {

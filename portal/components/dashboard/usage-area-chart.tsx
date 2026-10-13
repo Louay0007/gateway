@@ -19,47 +19,48 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import type { UsageRowView } from "@/lib/api/types";
+import type { UsageSeriesPoint } from "@/lib/api/types";
 
 /**
- * UsageAreaChart — requests and tokens over time.
+ * UsageAreaChart — requests and tokens over time, from a REAL series.
  *
  * Two series separated by FORM, not luminance: requests is a dashed stroke
- * with no fill, tokens is a filled gradient area. That survives both
- * themes and colour blindness, which a hue difference does not.
+ * with no fill, tokens is a filled gradient area. That survives both themes
+ * and colour blindness, which a hue difference does not.
  *
- * THE CHART IS FED BY REAL LEDGER ROWS NOW. The previous version called
- * `buildSeries(30)` — a deterministic but invented weekday rhythm with a
- * launch spike — because `/api/subscription` returns period totals, not a
- * day-bucketed series. Inventing a trend on a billing dashboard is the
- * worst kind of placeholder: it is indistinguishable from real data to
- * anyone glancing at it.
+ * IT NO LONGER BUCKETS ANYTHING. The previous version received one page of
+ * ledger rows (25), grouped them by day in the browser, and printed that
+ * page's min/max as a date range. It could never show more than a page of
+ * days, and a quiet day simply disappeared — the chart drew a lie by
+ * omission with no error anywhere.
  *
- * Rows arrive newest-first and ungrouped, so they are bucketed by day here
- * and labelled with what the data actually covers. `emptyNote` is shown
- * when there is nothing to plot, and says why — a daily summary endpoint
- * (`/api/usage?bucket=day`) is the correct follow-up rather than more
- * client-side arithmetic.
+ * The points now arrive from `GET /api/usage/summary`, already bucketed and
+ * already dense: every bucket in the window is present, and a day with no
+ * traffic is an explicit zero. The range label is the SERVER's window, not
+ * the extent of whatever rows happened to arrive, so it describes the data
+ * the customer selected rather than the data that fit in a page.
  */
 export function UsageAreaChart({
-  rows = [],
+  points = [],
+  bucket = "day",
+  rangeLabel,
   emptyNote,
 }: {
-  rows?: UsageRowView[];
+  points?: UsageSeriesPoint[];
+  bucket?: "day" | "hour";
+  /** The server's resolved window, e.g. "Oct 1 → Oct 31". */
+  rangeLabel?: string | null;
   emptyNote?: string;
 }) {
-  const data = useMemo(() => {
-    if (rows.length === 0) return [];
-    const byDay = new Map<string, { date: string; requests: number; tokens: number }>();
-    for (const row of rows) {
-      const day = row.occurredAt.slice(0, 10);
-      const entry = byDay.get(day) ?? { date: day, requests: 0, tokens: 0 };
-      entry.requests += 1;
-      entry.tokens += row.inputTokens + row.outputTokens;
-      byDay.set(day, entry);
-    }
-    return [...byDay.values()].sort((a, b) => a.date.localeCompare(b.date));
-  }, [rows]);
+  const data = useMemo(
+    () =>
+      points.map((p) => ({
+        date: p.bucket,
+        requests: p.requests,
+        tokens: p.inputTokens + p.outputTokens,
+      })),
+    [points],
+  );
 
   // chart-2/chart-3 sit mid-scale in both themes; chart-1 (87% lightness)
   // disappears on white.
@@ -68,10 +69,22 @@ export function UsageAreaChart({
     tokens: { label: "Tokens", color: "var(--chart-2)" },
   } satisfies ChartConfig;
 
-  const rangeLabel =
-    data.length > 0
-      ? `${data[0]!.date} → ${data[data.length - 1]!.date}`
-      : null;
+  const perLabel = bucket === "hour" ? "hour" : "day";
+  const fmtTick = (value: string) =>
+    bucket === "hour"
+      ? new Date(value).toLocaleTimeString("en-US", {
+          hour: "numeric",
+          timeZone: "UTC",
+        })
+      : new Date(value).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          timeZone: "UTC",
+        });
+
+  // A series of all zeros is honest but not useful to plot — show the empty
+  // state instead, while still naming the window that was checked.
+  const allZero = data.every((d) => d.requests === 0 && d.tokens === 0);
 
   return (
     <Card>
@@ -79,15 +92,15 @@ export function UsageAreaChart({
         <CardTitle>Traffic</CardTitle>
         <CardDescription>
           {rangeLabel
-            ? `Requests and tokens per day · ${rangeLabel}`
-            : "Requests and tokens per day, from your ledger"}
+            ? `Requests and tokens per ${perLabel} · ${rangeLabel}`
+            : `Requests and tokens per ${perLabel}, from your ledger`}
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {data.length === 0 ? (
+        {data.length === 0 || allZero ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
             <p className="text-sm text-muted-foreground">
-              No requests to plot yet.
+              No requests in this window.
             </p>
             {emptyNote ? (
               <p className="max-w-sm text-xs text-muted-foreground">{emptyNote}</p>
@@ -113,13 +126,7 @@ export function UsageAreaChart({
                 axisLine={false}
                 tickMargin={8}
                 minTickGap={24}
-                tickFormatter={(value: string) =>
-                  new Date(value).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    timeZone: "UTC",
-                  })
-                }
+                tickFormatter={fmtTick}
               />
               <YAxis
                 yAxisId="left"
@@ -140,11 +147,18 @@ export function UsageAreaChart({
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) =>
-                      new Date(String(value)).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        timeZone: "UTC",
-                      })
+                      bucket === "hour"
+                        ? new Date(String(value)).toLocaleString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            timeZone: "UTC",
+                          })
+                        : new Date(String(value)).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                            timeZone: "UTC",
+                          })
                     }
                   />
                 }

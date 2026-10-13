@@ -187,6 +187,24 @@ export async function approveD17Payment(
     })
     .where(and(eq(paymentsD17.id, paymentId), ne(paymentsD17.status, 'paid')));
 
+  // Correct this payment's period to the ACTUAL rolled subscription
+  // period. At begin() time the period was provisional (old end or now);
+  // approval is when the real start/end are known. Without this the
+  // history would show the guess, not the period the customer paid for.
+  const rolled = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.id, payment.subscriptionId),
+  });
+  if (rolled?.currentPeriodStart && rolled?.currentPeriodEnd) {
+    await db
+      .update(paymentsD17)
+      .set({
+        periodStart: rolled.currentPeriodStart,
+        periodEnd: rolled.currentPeriodEnd,
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentsD17.id, paymentId));
+  }
+
   await appendAudit({
     actorType: 'user',
     actorId: staffId,

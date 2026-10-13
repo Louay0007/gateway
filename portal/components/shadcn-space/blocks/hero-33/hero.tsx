@@ -72,7 +72,7 @@ const Hero33 = () => {
               variant="outline"
               className="h-7 w-fit rounded-full px-3 py-1 text-sm font-normal border-black text-black"
             >
-              D17 & card payments · now live
+              D17 payments · now live
             </Badge>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-medium tracking-tight text-black">
               One API for every model, priced for the way Tunisia pays
@@ -83,7 +83,7 @@ const Hero33 = () => {
             <p className="text-base sm:text-lg text-black">
               OpenAI- and Anthropic-compatible endpoints, spend ceilings that
               stop surprises, and instant keys — subscribe with a D17 transfer
-              or a card, and start calling in minutes.
+              and start calling in minutes.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button

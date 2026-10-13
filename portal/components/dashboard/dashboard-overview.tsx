@@ -17,8 +17,13 @@ import { OverviewKeysPanel } from "@/components/dashboard/overview-keys-panel";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import { useApi } from "@/lib/api/use-api";
-import type { KeyView, SubscriptionBundle, UsagePageResponse } from "@/lib/api/types";
-import { centsUsd, compact, relativeTime, usd } from "@/lib/dashboard/format";
+import type {
+  KeyView,
+  SubscriptionBundle,
+  UsagePageResponse,
+  UsageSeriesResponse,
+} from "@/lib/api/types";
+import { centsUsd, compact, rangeLabel, relativeTime, usd } from "@/lib/dashboard/format";
 
 /**
  * /dashboard — the overview, live.
@@ -28,16 +33,16 @@ import { centsUsd, compact, relativeTime, usd } from "@/lib/dashboard/format";
  * than widen the bundle — which every other caller would then pay for —
  * the list comes from `GET /api/keys`, the same call the keys page makes.
  *
- * The chart is the honest exception: `/api/subscription` returns period
- * totals, not a day-bucketed series, so the chart falls back to the
- * ledger's first page rather than inventing 30 points. It says so in its
- * own description instead of drawing a plausible-looking fiction. A real
- * `/api/usage/summary?bucket=day` is the correct follow-up.
+ * The chart is fed by `GET /api/usage/summary`, a real server-bucketed,
+ * dense series (Step 8). It used to bucket the first page of ledger rows
+ * client-side and label that page's extent a "date range", which could
+ * never show more than a page of days and hid quiet days entirely.
  */
 export function DashboardOverview() {
   const bundle = useApi<SubscriptionBundle>("/api/subscription");
   const keysApi = useApi<{ keys: KeyView[] }>("/api/keys");
   const recent = useApi<UsagePageResponse>("/api/usage?page=1&pageSize=8");
+  const series = useApi<UsageSeriesResponse>("/api/usage/summary?bucket=day");
 
   const b = bundle.data;
   const plan = b?.plan ?? null;
@@ -134,8 +139,10 @@ export function DashboardOverview() {
       </div>
 
       <UsageAreaChart
-        rows={recent.data?.rows ?? []}
-        emptyNote="Traffic chart lands with the daily usage-summary endpoint."
+        points={series.data?.points ?? []}
+        bucket={series.data?.bucket ?? "day"}
+        rangeLabel={rangeLabel(series.data?.from, series.data?.to)}
+        emptyNote="Once your key makes its first call, the daily trend appears here."
       />
 
       <div className="grid gap-6 lg:grid-cols-2">

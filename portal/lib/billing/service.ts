@@ -110,6 +110,29 @@ function currentPeriod(): { start: string; end: string } {
 }
 
 /**
+ * Usage window for an org: the SUBSCRIPTION period when one exists,
+ * calendar month otherwise.
+ *
+ * `billing_period` on the ledger is date_trunc('month', occurred_at) — a
+ * CALENDAR month. A D17 subscription starting on the 20th spans two
+ * buckets, and one bucket can hold two periods. For allowance math
+ * ("$X of $20 included") the grouping key must be the period the customer
+ * paid for (current_period_start → current_period_end), not the month the
+ * wall clock says. The rollup keeps calendar buckets (it is a chart
+ * accelerator); the bundle — the number a customer is shown — uses the
+ * subscription window.
+ */
+function usageWindowFor(
+  subscription: { currentPeriodStart: Date | null; currentPeriodEnd: Date | null } | null,
+): { start: Date; end: Date } {
+  if (subscription?.currentPeriodStart && subscription?.currentPeriodEnd) {
+    return { start: subscription.currentPeriodStart, end: subscription.currentPeriodEnd };
+  }
+  const p = currentPeriod();
+  return { start: new Date(p.start), end: new Date(p.end) };
+}
+
+/**
  * Everything the dashboard renders, derived from the ledger.
  *
  * PLATFORM.md §8.2: "Every number shown must be derivable from
@@ -145,7 +168,15 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       where: eq(entitlements.organizationId, organizationId),
     }),
     (async () => {
-      const period = currentPeriod();
+      // Window first: subscription period when known, calendar fallback.
+      // The window must be known before the query, but planStateFor runs
+      // concurrently above — so load the subscription row here too. One
+      // extra indexed lookup is cheaper than attributing spend to the
+      // wrong period.
+      const subRow = await loadSubscription(organizationId);
+      const window = usageWindowFor(
+        subRow ? { currentPeriodStart: subRow.currentPeriodStart, currentPeriodEnd: subRow.currentPeriodEnd } : null,
+      );
       const [row] = await db
         .select({
           requests: sql<number>`count(*)`,
@@ -159,7 +190,8 @@ export async function subscriptionBundle(organizationId: string): Promise<{
         .where(
           and(
             eq(usageRecords.organizationId, organizationId),
-            sql`${usageRecords.billingPeriod} = date_trunc('month', now())::date`,
+            sql`${usageRecords.occurredAt} >= ${window.start.toISOString()}::timestamptz`,
+            sql`${usageRecords.occurredAt} < ${window.end.toISOString()}::timestamptz`,
           ),
         );
       return {
@@ -169,6 +201,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
         cacheReadTokens: Number(row?.cacheReadTokens ?? 0),
         costUpstreamUsd: Number(row?.costUpstreamUsd ?? 0),
         costCustomerUsd: Number(row?.costCustomerUsd ?? 0),
+        window,
       };
     })(),
     db
@@ -196,8 +229,21 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     entitlement: ent
       ? { status: ent.status, syncedAt: ent.syncedAt?.toISOString() ?? null, lastError: ent.lastError }
       : null,
-    period: currentPeriod(),
-    usage,
+    // The period the usage window actually covers: subscription period
+    // when known, calendar fallback. This is what the SpendMeter's "of
+    // $20 included" is measured against — not always the calendar month.
+    period: {
+      start: usage.window.start.toISOString(),
+      end: usage.window.end.toISOString(),
+    },
+    usage: {
+      requests: usage.requests,
+      inputTokens: usage.inputTokens,
+      outputTokens: usage.outputTokens,
+      cacheReadTokens: usage.cacheReadTokens,
+      costUpstreamUsd: usage.costUpstreamUsd,
+      costCustomerUsd: usage.costCustomerUsd,
+    },
     limits: plan,
     keys: { active: Number(activeKeys[0]?.count ?? 0), max: plan?.maxKeys ?? null },
   };
@@ -211,6 +257,20 @@ function periodEndFromNow(): Date {
   const end = new Date();
   end.setUTCMonth(end.getUTCMonth() + 1);
   return end;
+}
+
+/**
+ * Renewal window: a live subscription may start checkout again when its
+ * period ends within this many days, or has already lapsed (grace).
+ * Outside the window the same-plan 409 stands.
+ */
+export const RENEWAL_WINDOW_DAYS = 7;
+
+function isRenewable(sub: typeof subscriptions.$inferSelect): boolean {
+  if (!sub.currentPeriodEnd) return true; // no period yet — treat as renewable
+  const now = new Date();
+  const windowStart = new Date(sub.currentPeriodEnd.getTime() - RENEWAL_WINDOW_DAYS * 86400000);
+  return now >= windowStart;
 }
 
 async function planByCode(planCode: string) {
@@ -231,6 +291,14 @@ async function planByCode(planCode: string) {
  * the org has exactly one subscription row across its lifetime. A second
  * live row would violate `subscriptions_one_live_idx`, and a row per
  * attempt would leave canceled debris for the admin tooling to sweep.
+ *
+ * RENEWALS (0007): a live subscription on the SAME plan may start checkout
+ * again when its period ends within RENEWAL_WINDOW_DAYS or has already
+ * lapsed. Outside the window the 409 stands — an "already subscribed"
+ * customer clicking checkout mid-period has a stale page, not a renewal.
+ * A live subscription on a DIFFERENT plan still 409s: that path is
+ * `changePlan`, not checkout. The one-row-per-org invariant is preserved:
+ * renewal reuses the same row, rolling its period forward on activation.
  */
 export async function beginCheckout(
   organizationId: string,
@@ -246,35 +314,31 @@ export async function beginCheckout(
   if (existing) {
     const live = ['active', 'past_due', 'paused'].includes(existing.status);
     if (live) {
-      if (existing.planId === plan.id) {
+      if (existing.planId !== plan.id) {
+        throw new BillingError(
+          'conflict',
+          'You already have an active subscription — change your plan instead of checking out again.',
+        );
+      }
+      // Same plan, live: only a renewal in window may proceed.
+      if (!isRenewable(existing)) {
         throw new BillingError('conflict', 'You are already subscribed to this plan.');
       }
-      throw new BillingError(
-        'conflict',
-        'You already have an active subscription — change your plan instead of checking out again.',
-      );
+      // In window: fall through to provider.begin, which creates a new
+      // payment row for the next period (d17.ts reuses an open row if one
+      // is already alive, so double-clicking checkout cannot pile up).
     }
   }
 
   const now = new Date();
-  const sub = existing
+  const isRenewal = Boolean(
+    existing &&
+      ['active', 'past_due', 'paused'].includes(existing.status) &&
+      existing.planId === plan.id,
+  );
+
+  const sub = !existing
     ? (
-        await db
-          .update(subscriptions)
-          .set({
-            planId: plan.id,
-            status: 'incomplete',
-            providerCustomerId: existing.providerCustomerId,
-            providerSubscriptionId: null,
-            currentPeriodStart: null,
-            currentPeriodEnd: null,
-            cancelAtPeriodEnd: false,
-            updatedAt: now,
-          })
-          .where(eq(subscriptions.id, existing.id))
-          .returning()
-      )[0]
-    : (
         await db
           .insert(subscriptions)
           .values({
@@ -284,7 +348,25 @@ export async function beginCheckout(
             updatedAt: now,
           })
           .returning()
-      )[0];
+      )[0]
+    : isRenewal
+      ? existing
+      : (
+          await db
+            .update(subscriptions)
+            .set({
+              planId: plan.id,
+              status: 'incomplete',
+              providerCustomerId: existing.providerCustomerId,
+              providerSubscriptionId: null,
+              currentPeriodStart: null,
+              currentPeriodEnd: null,
+              cancelAtPeriodEnd: false,
+              updatedAt: now,
+            })
+            .where(eq(subscriptions.id, existing.id))
+            .returning()
+        )[0];
 
   if (!sub) throw new BillingError('internal', 'Could not start checkout.');
 
@@ -352,13 +434,43 @@ export async function applyCallback(event: ProviderEvent): Promise<{
     const before = { status: sub.status, planCode: plan.code };
 
     if (event.kind === 'subscription.activated') {
-      const periodEnd = event.periodEnd ? new Date(event.periodEnd) : periodEndFromNow();
+      // Period roll-forward, not "now + 1mo" blindly. A renewal approved
+      // before the old period ends must start at the OLD end (early renewal
+      // keeps its overlap days); a lapsed renewal starts now. Using now in
+      // both cases would silently steal up to RENEWAL_WINDOW_DAYS from
+      // every customer who pays early — the exact customers who pay on time.
+      // An explicit event.periodEnd (dev provider, tests) wins when present.
+      const now = new Date();
+      let start: Date;
+      let end: Date;
+      if (event.periodEnd) {
+        end = new Date(event.periodEnd);
+        start = sub.currentPeriodStart ?? now;
+        // If the event carries only an end (dev flow), derive start as
+        // end minus one month rather than now, so early/late both read
+        // correctly.
+        if (!sub.currentPeriodStart || sub.status === 'incomplete') {
+          start = new Date(end.getTime());
+          start.setUTCMonth(start.getUTCMonth() - 1);
+        }
+      } else if (
+        sub.currentPeriodEnd &&
+        sub.currentPeriodEnd > now &&
+        ['active', 'past_due', 'paused'].includes(sub.status)
+      ) {
+        start = sub.currentPeriodEnd;
+        end = new Date(start.getTime());
+        end.setUTCMonth(end.getUTCMonth() + 1);
+      } else {
+        start = now;
+        end = periodEndFromNow();
+      }
       await db
         .update(subscriptions)
         .set({
           status: 'active',
-          currentPeriodStart: new Date(),
-          currentPeriodEnd: periodEnd,
+          currentPeriodStart: start,
+          currentPeriodEnd: end,
           cancelAtPeriodEnd: false,
           lastProviderEventId: event.id,
           lastProviderEventAt: new Date(),
@@ -861,5 +973,188 @@ export async function usageHistory(
       costCustomerUsd: Number(agg?.cost_customer ?? 0),
       costUpstreamUsd: Number(agg?.cost_upstream ?? 0),
     },
+  };
+}
+
+// ───────────────────────────────────────────────────────────────────────
+//  usageHistorySeries — the real, dense, server-bucketed series
+// ───────────────────────────────────────────────────────────────────────
+
+export type UsageBucket = 'day' | 'hour';
+
+export interface UsageSeriesPoint {
+  /** Bucket start, ISO-8601 UTC. */
+  bucket: string;
+  requests: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  costCustomerUsd: number;
+  costUpstreamUsd: number;
+}
+
+export interface UsageSeriesQuery {
+  bucket?: UsageBucket;
+  from?: string;
+  to?: string;
+  model?: string;
+  apiKeyId?: string;
+}
+
+export interface UsageSeries {
+  bucket: UsageBucket;
+  /** The resolved window, ISO-8601 UTC, aligned to bucket boundaries. */
+  from: string;
+  to: string;
+  /** Dense: one point per bucket in [from, to], zero where there was no traffic. */
+  points: UsageSeriesPoint[];
+  totals: {
+    requests: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    costCustomerUsd: number;
+    costUpstreamUsd: number;
+  };
+}
+
+/** Hard cap on returned points, so `bucket=hour` cannot request a year. */
+export const MAX_SERIES_POINTS = 1000;
+/** Default window when the caller sends none: the last 30 days, by day. */
+export const DEFAULT_SERIES_DAYS = 30;
+
+function truncUtcToBucket(d: Date, bucket: UsageBucket): Date {
+  const x = new Date(d.getTime());
+  x.setUTCMinutes(0, 0, 0);
+  if (bucket === 'day') x.setUTCHours(0, 0, 0);
+  return x;
+}
+
+/**
+ * A real bucketed series over the caller's ledger.
+ *
+ * WHY THIS EXISTS. The dashboard chart used to bucket the 25 rows of ONE
+ * page client-side and print the min/max of that page as a "date range".
+ * It could never show more than a page of days, and a quiet day simply did
+ * not appear — the chart drew a lie by omission with no error.
+ *
+ * Two rules make it honest:
+ *   1. The series is DENSE. Every bucket between `from` and `to` is present;
+ *      a day with no traffic is an explicit zero, not a missing point.
+ *   2. The window and the filters are the SAME ones `/api/usage` uses, so
+ *      the chart and the table can never describe different data.
+ *
+ * `generate_series` is the density mechanism: it emits the bucket spine in
+ * Postgres and LEFT JOINs the traffic onto it, so the zero-fill is a
+ * database fact rather than client arithmetic.
+ */
+export async function usageHistorySeries(
+  organizationId: string,
+  query: UsageSeriesQuery,
+): Promise<UsageSeries | { error: 'range_too_large' }> {
+  const bucket: UsageBucket = query.bucket === 'hour' ? 'hour' : 'day';
+
+  const now = new Date();
+  const to = truncUtcToBucket(query.to ? new Date(query.to) : now, bucket);
+  const from = truncUtcToBucket(
+    query.from ? new Date(query.from) : new Date(now.getTime() - DEFAULT_SERIES_DAYS * 86_400_000),
+    bucket,
+  );
+
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from > to) {
+    return { error: 'range_too_large' };
+  }
+
+  const stepMs = bucket === 'hour' ? 3_600_000 : 86_400_000;
+  const pointCount = Math.floor((to.getTime() - from.getTime()) / stepMs) + 1;
+  if (pointCount > MAX_SERIES_POINTS) {
+    // An hour-bucketed year is 8760 points; refuse rather than truncate,
+    // because a silent cut-off is the same lie the old chart told.
+    return { error: 'range_too_large' };
+  }
+
+  const conditions: SQL[] = [sql`u.organization_id = ${organizationId}::uuid`];
+  if (query.model) conditions.push(sql`u.model = ${query.model}`);
+  if (query.apiKeyId && UUID_RE.test(query.apiKeyId)) {
+    conditions.push(sql`u.api_key_id = ${query.apiKeyId}::uuid`);
+  }
+  const where = sql.join(conditions, sql` AND `);
+
+  // date_trunc needs a literal unit, not a bound parameter (`date_trunc($1,…)`
+  // is legal but the planner cannot use a bucket-aligned index); the value
+  // is drawn from a closed set, never from user input.
+  const unit = bucket === 'day' ? 'day' : 'hour';
+  const step = bucket === 'day' ? '1 day' : '1 hour';
+
+  const raw = (await db.execute(sql`
+    WITH filtered AS (
+      SELECT date_trunc(${unit}, u.occurred_at) AS bucket,
+             u.input_tokens,
+             u.output_tokens,
+             u.cache_read_tokens,
+             u.cost_customer_usd,
+             u.cost_upstream_usd
+        FROM usage_records u
+       WHERE ${where}
+    )
+    SELECT gs AS bucket,
+           count(f.bucket)::int                          AS requests,
+           coalesce(sum(f.input_tokens), 0)::bigint      AS input_tokens,
+           coalesce(sum(f.output_tokens), 0)::bigint     AS output_tokens,
+           coalesce(sum(f.cache_read_tokens), 0)::bigint AS cache_read_tokens,
+           coalesce(sum(f.cost_customer_usd), 0)         AS cost_customer,
+           coalesce(sum(f.cost_upstream_usd), 0)         AS cost_upstream
+      FROM generate_series(${from.toISOString()}::timestamptz,
+                           ${to.toISOString()}::timestamptz,
+                           ${step}::interval) AS gs
+      LEFT JOIN filtered f ON f.bucket = gs
+     GROUP BY gs
+     ORDER BY gs
+  `)) as unknown as {
+    bucket: Date | string;
+    requests: number;
+    input_tokens: string;
+    output_tokens: string;
+    cache_read_tokens: string;
+    cost_customer: string;
+    cost_upstream: string;
+  }[];
+
+  const points: UsageSeriesPoint[] = raw.map((r) => ({
+    bucket:
+      r.bucket instanceof Date
+        ? r.bucket.toISOString()
+        : new Date(String(r.bucket)).toISOString(),
+    requests: Number(r.requests ?? 0),
+    inputTokens: Number(r.input_tokens ?? 0),
+    outputTokens: Number(r.output_tokens ?? 0),
+    cacheReadTokens: Number(r.cache_read_tokens ?? 0),
+    costCustomerUsd: Number(r.cost_customer ?? 0),
+    costUpstreamUsd: Number(r.cost_upstream ?? 0),
+  }));
+
+  return {
+    bucket,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    points,
+    totals: points.reduce(
+      (acc, p) => ({
+        requests: acc.requests + p.requests,
+        inputTokens: acc.inputTokens + p.inputTokens,
+        outputTokens: acc.outputTokens + p.outputTokens,
+        cacheReadTokens: acc.cacheReadTokens + p.cacheReadTokens,
+        costCustomerUsd: acc.costCustomerUsd + p.costCustomerUsd,
+        costUpstreamUsd: acc.costUpstreamUsd + p.costUpstreamUsd,
+      }),
+      {
+        requests: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        costCustomerUsd: 0,
+        costUpstreamUsd: 0,
+      },
+    ),
   };
 }

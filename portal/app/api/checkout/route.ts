@@ -15,6 +15,7 @@
 
 import { z } from 'zod';
 import { requireActiveOrg, roleAtLeast } from '@/lib/auth/authorize';
+import { requireVerifiedEmail } from '@/lib/auth/verify-email';
 import { beginCheckout } from '@/lib/billing';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
@@ -41,6 +42,9 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const ctx = await requireActiveOrg();
+    // Unverified address: the D17 flow mails payment status here, so a
+    // customer who cannot receive mail cannot complete a payment safely.
+    await requireVerifiedEmail(ctx.userId);
     // Owner only: this is a billing commitment.
     if (!roleAtLeast(ctx.role, 'owner')) {
       return jsonError('forbidden', 'Only the account owner can subscribe.');

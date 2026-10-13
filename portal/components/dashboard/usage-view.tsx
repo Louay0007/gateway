@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import {
   ErrorState,
   NoResultsState,
@@ -38,8 +39,13 @@ import {
   RefreshingBar,
 } from "@/components/dashboard/states";
 import { useApi } from "@/lib/api/use-api";
-import type { KeyView, SubscriptionBundle, UsagePageResponse } from "@/lib/api/types";
-import { compact, dateTime, usdPrecise } from "@/lib/dashboard/format";
+import type {
+  KeyView,
+  SubscriptionBundle,
+  UsagePageResponse,
+  UsageSeriesResponse,
+} from "@/lib/api/types";
+import { compact, dateTime, rangeLabel, usdPrecise } from "@/lib/dashboard/format";
 
 const PAGE_SIZE = 25;
 
@@ -99,6 +105,27 @@ export function UsageView() {
   }, [page, range, model, keyId]);
 
   const usage = useApi<UsagePageResponse>(`/api/usage?${query}`);
+
+  /**
+   * The chart series — the SAME window and filters as the table, bucketed
+   * in the database. The chart used to re-bucket one page of rows in the
+   * browser, which meant a range never wider than a page and quiet days
+   * silently missing. `bucket=day` throughout: the UI's smallest window is
+   * 7 days, and hour buckets are for a future drill-down.
+   */
+  const summaryQuery = React.useMemo(() => {
+    const q = new URLSearchParams();
+    q.set("bucket", "day");
+    const days = Number(range) || 30;
+    const to = new Date();
+    const from = new Date(to.getTime() - days * 86_400_000);
+    q.set("from", from.toISOString());
+    q.set("to", to.toISOString());
+    if (model !== "all") q.set("model", model);
+    if (keyId !== "all") q.set("apiKeyId", keyId);
+    return q.toString();
+  }, [range, model, keyId]);
+  const series = useApi<UsageSeriesResponse>(`/api/usage/summary?${summaryQuery}`);
 
   /**
    * The export's query string — the filters WITHOUT the pagination, since
@@ -190,6 +217,17 @@ export function UsageView() {
           icon={Coins}
         />
       </div>
+
+      <UsageAreaChart
+        points={series.data?.points ?? []}
+        bucket={series.data?.bucket ?? "day"}
+        rangeLabel={rangeLabel(series.data?.from, series.data?.to)}
+        emptyNote={
+          filtered
+            ? "Nothing matched these filters in the selected window."
+            : "Once your key makes its first call, the daily trend appears here."
+        }
+      />
 
       <Card>
         <CardHeader>

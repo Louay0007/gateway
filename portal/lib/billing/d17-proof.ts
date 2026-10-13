@@ -44,6 +44,7 @@ import {
 import { appendAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
+import { loadOpenD17Payment } from './d17';
 import { recordSubmission } from './d17-ratelimit';
 import { log } from '@/lib/log';
 import {
@@ -145,13 +146,12 @@ async function recentProofsFromPhone(
 export async function submitD17Proof(
   input: SubmitProofInput,
 ): Promise<SubmitProofResult> {
-  // ── 1. The payment must exist for THIS subscription ────────────────
-  const payment = await db.query.paymentsD17.findFirst({
-    where: and(
-      eq(paymentsD17.subscriptionId, input.subscriptionId),
-      eq(paymentsD17.organizationId, input.organizationId),
-    ),
-  });
+  // ── 1. The OPEN payment for THIS subscription ────────────────────
+  // Must be the latest open row (pending/proof/rejected), newest first —
+  // not just any row for the subscription. Since 0007 there can be many
+  // rows per subscription (one per renewal); a bare subscription lookup
+  // would file this period's proof against last month's paid row.
+  const payment = await loadOpenD17Payment(input.subscriptionId, input.organizationId);
   if (!payment) {
     throw new D17ProofError('not_found', 'no_payment');
   }

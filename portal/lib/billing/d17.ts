@@ -25,7 +25,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { plans, paymentsD17, subscriptions } from '@/db/schema';
 import { log } from '@/lib/log';
@@ -57,41 +57,76 @@ export const d17BillingProvider: BillingProvider = {
     });
     if (!plan) throw new Error(`d17: plan ${input.planCode} not found`);
 
+    const sub = await db.query.subscriptions.findFirst({
+      where: eq(subscriptions.id, input.subscriptionId),
+    });
+    if (!sub) throw new Error(`d17: subscription ${input.subscriptionId} not found`);
+
     const rate = usdTndRate();
     const millimes = amountTndMillimes(plan.priceCents, rate);
     const expiresAt = paymentDeadline();
 
-    // One payment row per subscription for its lifetime: a re-checkout
-    // resets the same row (new amount, new window, back to
-    // pending_payment) rather than piling up attempts.
-    const existing = await db.query.paymentsD17.findFirst({
-      where: eq(paymentsD17.subscriptionId, input.subscriptionId),
-    });
+    // Which period this payment covers. For a first purchase there is no
+    // period yet — provisional now → now+1mo, corrected on approval. For a
+    // renewal the payment covers the NEXT period: old end → old end+1mo,
+    // or now → now+1mo if already lapsed. The approval corrects it to the
+    // actual rolled period, so early renewal never loses overlap days.
+    const now = new Date();
+    const base = sub.currentPeriodEnd && sub.currentPeriodEnd > now
+      ? sub.currentPeriodEnd
+      : now;
+    const periodStart = sub.currentPeriodStart ?? now;
+    const periodEnd = new Date(base.getTime());
+    periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1);
 
-    const payment = existing
-      ? (
-          await db
-            .update(paymentsD17)
-            .set({
-              amountMillimes: millimes,
-              usdAmountCents: plan.priceCents,
-              fxRate: String(rate),
-              authorizationNumber: null,
-              senderPhone: null,
-              screenshotPath: null,
-              status: 'pending_payment',
-              submittedAt: null,
-              verifiedAt: null,
-              verifiedBy: null,
-              rejectReason: null,
-              flaggedReview: false,
-              expiresAt,
-              updatedAt: new Date(),
-            })
-            .where(eq(paymentsD17.id, existing.id))
-            .returning()
-        )[0]
-      : (
+    // At most one OPEN payment per subscription. A re-checkout while a
+    // pending/proof/rejected row is still alive reuses it (fresh window,
+    // same row) rather than piling up attempts that expire into phantom
+    // history rows. Paid/expired rows are terminal — a new attempt after
+    // them inserts a new row, which is what makes renewals and history
+    // possible (0007).
+    //
+    // The partial unique index `payments_d17_one_open_idx` is the RACE-SAFE
+    // backstop: two simultaneous checkouts both see no open row, both
+    // insert, and the loser gets 23505. We then re-select and take the
+    // update path, so the customer sees one payment, not two.
+    const openFields = {
+      amountMillimes: millimes,
+      usdAmountCents: plan.priceCents,
+      fxRate: String(rate),
+      authorizationNumber: null,
+      senderPhone: null,
+      screenshotPath: null,
+      status: 'pending_payment' as const,
+      submittedAt: null,
+      verifiedAt: null,
+      verifiedBy: null,
+      rejectReason: null,
+      flaggedReview: false,
+      expiresAt,
+      periodStart,
+      periodEnd,
+      updatedAt: new Date(),
+    };
+
+    async function openRow() {
+      return db.query.paymentsD17.findFirst({
+        where: and(
+          eq(paymentsD17.subscriptionId, input.subscriptionId),
+          inArray(paymentsD17.status, ['pending_payment', 'proof_submitted', 'rejected'] as never),
+        ),
+        orderBy: (t, { desc }) => [desc(t.createdAt)],
+      });
+    }
+
+    const existingOpen = await openRow();
+    let payment = existingOpen
+      ? (await db.update(paymentsD17).set(openFields).where(eq(paymentsD17.id, existingOpen.id)).returning())[0]
+      : undefined;
+
+    if (!payment) {
+      try {
+        payment = (
           await db
             .insert(paymentsD17)
             .values({
@@ -101,10 +136,23 @@ export const d17BillingProvider: BillingProvider = {
               usdAmountCents: plan.priceCents,
               fxRate: String(rate),
               expiresAt,
+              periodStart,
+              periodEnd,
               currency: 'TND',
             })
             .returning()
         )[0];
+      } catch (e) {
+        // Unique violation on the one-open partial index: another request
+        // won the insert. Re-read and update that row instead.
+        if ((e as { code?: string }).code !== '23505') throw e;
+        const raced = await openRow();
+        if (!raced) throw e;
+        payment = (
+          await db.update(paymentsD17).set(openFields).where(eq(paymentsD17.id, raced.id)).returning()
+        )[0];
+      }
+    }
 
     if (!payment) throw new Error('d17: could not create the payment row');
 
@@ -131,13 +179,36 @@ export const d17BillingProvider: BillingProvider = {
   },
 };
 
-/** Load the payment row for a subscription (the instruction page reads this). */
+/** Load the LATEST payment row for a subscription (the instruction page reads this).
+ *
+ * Newest-first by created_at, explicitly. Before 0007 there was exactly
+ * one row per subscription so any lookup order worked; after 0007 a bare
+ * findFirst with no orderBy returns an ARBITRARY prior period's row — a
+ * renewing customer would see last month's "paid" while the current period
+ * is unpaid. Every caller that renders "the payment" must use this, never
+ * an unordered lookup.
+ */
 export async function loadD17Payment(subscriptionId: string) {
+  return db.query.paymentsD17.findFirst({
+    where: eq(paymentsD17.subscriptionId, subscriptionId),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+  });
+}
+
+/** The latest OPEN payment (pending/proof/rejected), if any. Proof
+ * submission must target this row, not just the latest row: after a
+ * renewal the latest row may be a new pending_payment while an older
+ * proof_submitted is still awaiting review, and filing proof against the
+ * wrong row would orphan the transfer.
+ */
+export async function loadOpenD17Payment(subscriptionId: string, organizationId: string) {
   return db.query.paymentsD17.findFirst({
     where: and(
       eq(paymentsD17.subscriptionId, subscriptionId),
-      // A re-checkout replaces the row; there is only ever one per sub.
+      eq(paymentsD17.organizationId, organizationId),
+      inArray(paymentsD17.status, ['pending_payment', 'proof_submitted', 'rejected'] as never),
     ),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
   });
 }
 

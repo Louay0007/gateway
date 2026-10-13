@@ -63,5 +63,13 @@ export {
   planStateFor,
   listPlans,
   usageHistory,
+  usageHistorySeries,
 } from './service';
-export type { UsageHistoryQuery, UsageRowView } from './service';
+export type {
+  UsageHistoryQuery,
+  UsageRowView,
+  UsageBucket,
+  UsageSeries,
+  UsageSeriesPoint,
+  UsageSeriesQuery,
+} from './service';

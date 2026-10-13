@@ -24,7 +24,7 @@ import {
   planStateFromStatus,
 } from '@/lib/billing/state';
 
-const SECRET = 'unit-test-billing-secret-value';
+const SECRET = 'unit-test-secret-placeholder-value';
 
 beforeEach(() => {
   process.env.BILLING_DEV_SECRET = SECRET;

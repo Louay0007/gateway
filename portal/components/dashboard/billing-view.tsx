@@ -93,6 +93,23 @@ export function BillingView() {
       })
     : null;
 
+  // Mirrors server isRenewable(): live + same plan is renewable when the
+  // period ends within 7 days or has lapsed. The button must not promise
+  // what POST /api/checkout will 409.
+  const isRenewableNow = (() => {
+    if (!b?.subscription || !hasPlan) return true; // paywall: checkout always allowed
+    if (!['active', 'past_due', 'paused'].includes(b.subscription.status)) return true;
+    if (!b.subscription.currentPeriodEnd) return true;
+    const end = new Date(b.subscription.currentPeriodEnd).getTime();
+    return Date.now() >= end - 7 * 86400000;
+  })();
+  const renewalOpensLabel = b?.subscription?.currentPeriodEnd
+    ? new Date(new Date(b.subscription.currentPeriodEnd).getTime() - 7 * 86400000).toLocaleDateString(
+        "en-US",
+        { month: "long", day: "numeric", timeZone: "UTC" },
+      )
+    : null;
+
   function refresh() {
     bundle.reload();
     catalog.reload();
@@ -330,16 +347,20 @@ export function BillingView() {
                     hardCapCents={plan.hardCapCents}
                   />
                   {/*
-                    The included/overage copy is intentionally NOT here.
-                    `resolveBudgetUsd` sends ONE number to the gateway —
-                    `hard_cap_cents`, falling back to `included_spend_cents` —
-                    so there is no two-tier allowance in the code yet. Claiming
-                    one on this page would be the frontend promising something
-                    the billing engine does not implement.
+                    Pricing truth (0007): customer cost = upstream ×
+                    multiplier for EVERY row. The $20 included is a discount
+                    pool in customer dollars — the first $20 of customer
+                    cost each period is covered by the base price. Overage
+                    bills at the same multiplier (overage_markup_bps ==
+                    rate_multiplier_bps - 10000 by invariant), and the
+                    gateway stops traffic when customer cost would exceed
+                    the hard cap (enforced as hardCap/multiplier upstream).
                   */}
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Usage bills at {(plan.rateMultiplierBps / 10000).toFixed(2)}×
-                    upstream cost. The gateway stops traffic at{" "}
+                    First {centsUsd(plan.includedSpendCents)} of usage each
+                    period is included. Beyond that, usage bills at{" "}
+                    {(plan.rateMultiplierBps / 10000).toFixed(2)}× upstream
+                    cost. The gateway stops traffic at{" "}
                     {centsUsd(plan.hardCapCents ?? 0)} for this period.
                   </p>
                 </div>
@@ -422,16 +443,27 @@ export function BillingView() {
                     variant="outline"
                     size="sm"
                     className="mt-1"
-                    disabled={busy !== null}
+                    disabled={busy !== null || !isRenewableNow}
+                    title={
+                      !isRenewableNow
+                        ? `Renewal opens ${renewalOpensLabel} — 7 days before your period ends.`
+                        : undefined
+                    }
                     onClick={() => void beginCheckout(plan.code, "d17")}
                   >
                     <CreditCard />
-                    {busy ? "Opening checkout…" : hasPlan ? "Renew or add a payment" : "Pay with D17"}
+                    {busy
+                      ? "Opening checkout…"
+                      : hasPlan
+                        ? isRenewableNow
+                          ? "Renew for next period"
+                          : `Renews ${renews ?? "next period"} — renewal opens later`
+                        : "Pay with D17"}
                   </Button>
                   <p className="text-xs text-muted-foreground">
-                    Transfer the amount shown at checkout, then submit the
-                    authorization number. Activation is manual and usually
-                    confirmed within hours.
+                    {hasPlan && !isRenewableNow
+                      ? `Your current period is paid until ${renews}. The renewal button unlocks 7 days before it ends — early renewal keeps your overlap days.`
+                      : "Transfer the amount shown at checkout, then submit the authorization number. Activation is manual and usually confirmed within hours."}
                   </p>
                 </CardContent>
               </Card>

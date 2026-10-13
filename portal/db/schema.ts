@@ -31,6 +31,7 @@ import {
   bigserial,
   customType,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm';
 
 /**
  * BYTEA column. drizzle-orm/pg-core does not export a `bytea` builder in
@@ -73,6 +74,13 @@ export const users = pgTable('users', {
    * only lever. See migration 0006.
    */
   passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * When the address was proven, or NULL while unverified. Set by
+   * lib/auth/verify-email.ts when the emailed link is opened. The checkout
+   * and key-creation gates read this; NULL means "cannot pay yet".
+   * Grandfathered rows are stamped by migration 0008.
+   */
+  emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
   createdAt:    timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:    timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
@@ -230,7 +238,10 @@ export const d17PaymentStatus = pgEnum('d17_payment_status', [
 
 export const paymentsD17 = pgTable('payments_d17', {
   id:                   uuid('id').primaryKey().defaultRandom(),
-  subscriptionId:       uuid('subscription_id').notNull().unique().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  // NOT unique since 0007: one row per renewal attempt, newest first.
+  // `begin()` reuses an open row rather than piling up attempts; history
+  // shows paid rows plus the latest open one.
+  subscriptionId:       uuid('subscription_id').notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
   organizationId:       uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
 
   amountMillimes:       integer('amount_millimes').notNull(),
@@ -256,10 +267,19 @@ export const paymentsD17 = pgTable('payments_d17', {
   expiresAt:            timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // Which subscription period this payment covers (0007). Provisional at
+  // creation, corrected on approval. NULL for pre-0007 rows.
+  periodStart:          timestamp('period_start', { withTimezone: true }),
+  periodEnd:            timestamp('period_end', { withTimezone: true }),
 }, (t) => ({
   queueIdx:    index('payments_d17_queue_idx').on(t.submittedAt),
   senderIdx:   index('payments_d17_sender_idx').on(t.senderPhone, t.submittedAt),
   expiryIdx:   index('payments_d17_expiry_idx').on(t.expiresAt),
+  subCreatedIdx: index('payments_d17_sub_created_idx').on(t.subscriptionId, t.createdAt),
+  subStatusIdx:  index('payments_d17_sub_status_idx').on(t.subscriptionId, t.status),
+  oneOpenIdx:    uniqueIndex('payments_d17_one_open_idx')
+    .on(t.subscriptionId)
+    .where(sql`status IN ('pending_payment', 'proof_submitted', 'rejected')`),
 }));
 
 // Append-only ledger. Every dashboard number must be derivable from here.

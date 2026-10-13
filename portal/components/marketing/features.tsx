@@ -31,7 +31,7 @@ const features = [
   {
     icon: Wallet,
     title: 'Pay the way Tunisia pays',
-    body: 'Subscribe with a D17 transfer (La Poste) or a card. D17 payments are verified by a human within hours, not by a webhook.',
+    body: 'Subscribe with a D17 transfer (La Poste). D17 payments are verified by a human within hours, not by a webhook.',
   },
   {
     icon: Zap,

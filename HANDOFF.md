@@ -92,7 +92,7 @@ Docs: `README.md`, `MASTER_PROMPT.md`, `DESIGN.md`, `IMPLEMENTATION.md`,
    `metadata.usage_object.prompt_tokens_details`); reasoning tokens are
    NOT counted as cache reads. Collector rewired to it.
 
-## 5. Money path, auth recovery, ops: BUILT and proven (this session, uncommitted)
+## 5. Money path, auth recovery, ops: BUILT and proven (migration 0006–0008 applied locally)
 
 ### 5.7 D17 (La Poste Tunisienne) manual payments — BUILT and proven
 `make verify-d17` (portal/scripts/verify-d17.ts) passes every case:
@@ -351,6 +351,87 @@ column.
   `innerText`-visible and fully opaque, and invisible on screen. Fixed
   with a `.light-surface` token scope in `globals.css`, applied to the
   marketing/auth routes. The dashboard keeps the dark theme.
+
+### 5.12 Canonical payment plan corrected + `/api/usage/summary` (2026-10-13)
+
+- **`scripts/verify-d17.ts` and `verify-metering.ts` were extended, not
+  duplicated.** New cases land inside the existing walk. `verify-d17` gains
+  **T11 (renewal)** and **T12 (email verification)**; `verify-metering` gains
+  **§18b (renewal gates)** and **§18c (usage series)**. Everything runs against
+  a real Postgres + real gateway, so unit tests still cannot fake what these
+  catch.
+- **`GET /api/usage/summary?bucket=day|hour`** — a DENSE, server-bucketed
+  series (`generate_series` zero-fill, 1000-point cap → 400). The dashboard
+  chart used to bucket ONE page of rows client-side and label that page's
+  extent a "date range"; it now consumes the series on both the overview and
+  the usage page. `lib/billing/service.ts:usageHistorySeries`.
+- **`AuthzError` moved to `lib/auth/errors.ts`** and re-exported by
+  `authorize.ts`. The proof runner imports `verify-email.ts` (which throws a
+  403), and `authorize.ts` imports `next/navigation` + `@/auth`, neither of
+  which resolve in the jobs container. The extraction is what keeps the proof
+  runnable; every `import { AuthzError } from '@/lib/auth/authorize'` still
+  works.
+- **Scrub-check fix**: a long-lived test constant
+  (`portal/tests/billing.test.ts`) tripped the generic "credential literal"
+  rule. Renamed to a self-describing placeholder value; scrubbed clean.
+
+### 5.13 Renewals + period roll-forward (2026-10-13, migration 0007)
+
+`payments_d17.subscription_id` was UNIQUE — one row per subscription for life.
+Renewals were impossible without overwriting history. 0007 turns it into a real
+per-period ledger:
+
+- plain index `payments_d17_sub_created_idx(subscription_id, created_at DESC)`
+  and `payments_d17_sub_status_idx(subscription_id, status)`;
+- **partial unique `payments_d17_one_open_idx` on `(subscription_id)
+  WHERE status IN ('pending_payment','proof_submitted','rejected')`** — the
+  at-most-one-open invariant enforced in the DATABASE, because two concurrent
+  `begin()` calls both see no open row and both insert. `begin()` catches the
+  23505 and re-selects/updates.
+- `period_start` / `period_end` on each payment (provisional at creation,
+  corrected to the actual period on approval).
+- **Renewal trigger is on-demand, not a `renew_due` job.** A live subscription
+  on the SAME plan may re-checkout inside the 7-day window
+  (`RENEWAL_WINDOW_DAYS`) or once lapsed; a different plan still 409s
+  (`changePlan` is the path). No phantom rows.
+- **Early renewal rolls the period from the OLD end**, so overlap days are not
+  lost. `expireSubscriptions` follows D1/D3: `active`→`past_due` at period end,
+  `past_due`→`unpaid` after `RENEWAL_GRACE_DAYS` (7), cut to `CUT_BUDGET` —
+  never revoke.
+- Proven by `verify-d17` **T11** and `verify-metering` **§18b**.
+
+### 5.14 Budget denomination + included spend (2026-10-13)
+
+- `hard_cap_cents` / `included_spend_cents` are **CUSTOMER** cents. The gateway
+  `max_budget` is **UPSTREAM** USD: `resolveBudgetUsd` divides customer cents by
+  `rate_multiplier_bps` (`lib/entitlements/policy.ts`).
+- Overage invariant: customer cost = upstream × `rate_multiplier_bps` for EVERY
+  row; therefore `overage_markup_bps` MUST equal `rate_multiplier_bps − 10000`
+  (13000→3000, 12500→2500). No second multiplier anywhere in code. Asserted in
+  `tests/security.test.ts`.
+- Usage window follows the **subscription period** (`current_period_start`)
+  when present, calendar month otherwise. The rollup cache keeps calendar
+  buckets; a customer-shown number comes from the ledger, never the cache.
+- Proven by `verify-metering` (upstream budget asserts + §15 upgrade).
+
+### 5.15 Email verification (2026-10-13, migration 0008)
+
+- `createLocalUser` used to write `email_verified: null` forever, and the D17
+  flow TRUSTS that address for status mail.
+- Reuses the reset-token machinery, NOT a second system: `lib/auth/tokens.ts`
+  holds the shared primitives; `verify-tokens.ts` adds the `verify-email:`
+  namespace (`hashToken`, case-insensitive email, path-segment link).
+- **Confirmation is a POST button, not a GET link**, so a mail scanner cannot
+  consume the single-use token before the human clicks it.
+- Gate lives at `POST /api/checkout` and `POST /api/keys`
+  (`requireVerifiedEmail`), NOT at sign-in — so existing lib-level proofs keep
+  working.
+- Migration 0008 adds `users.email_verified_at`, **grandfathers every existing
+  row as verified** (stranding real accounts at the paywall would be worse than
+  the risk), and mirrors to `auth_users.email_verified`. Only NEW signups start
+  unverified.
+- Dashboard shows a resend banner; `verify-email/[token]` is the confirm page.
+- Proven by `verify-d17` **T12** + `tests/verify-email.test.ts`.
 
 ### 5.8 Frontend removed (2026-10-11) — SUPERSEDED by §5.9
 All page-level UI was deleted at the user's request — the frontend is

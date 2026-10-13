@@ -23,7 +23,7 @@ admin console.
 |---|---|
 | **[IMPLEMENTATION.md](IMPLEMENTATION.md)** | Build plan: roles, features, API contract, infra, phases 0–9 |
 | **[MASTER_PROMPT.md](MASTER_PROMPT.md)** | Paste to the VPS AI: mission, conventions, git/GitHub to `louuuu007` |
-| **[PLATFORM.md](PLATFORM.md)** | **Start here if building the SaaS.** Business models, pricing economics, schema, Stripe integration |
+| **[PLATFORM.md](PLATFORM.md)** | **Start here if building the SaaS.** Business models, pricing economics, schema, billing (D17 manual transfer) |
 | **[LATENCY.md](LATENCY.md)** | What the provider's "24 ms" means; agentic latency scenarios; SLA guidance |
 | **[DESIGN.md](DESIGN.md)** | Locked tech choices, dual-format design, 17 acceptance tests |
 | [BLUEPRINT.md](BLUEPRINT.md) | Analysis: legal, cost accounting, threat model, runbook |
@@ -31,7 +31,8 @@ admin console.
 ## Stack
 
 **Gateway:** Caddy (TLS) → LiteLLM Proxy v1.103.1 → PostgreSQL 16 + Redis 7
-**Portal:** Next.js 16 + TypeScript + Drizzle + Auth.js (self-hosted) + Stripe Billing/Meters
+**Portal:** Next.js 16 + TypeScript + Drizzle + Auth.js (self-hosted) + D17 manual
+transfer (La Poste Tunisienne) — there is no card path; Stripe was removed.
 
 Docker Compose, single VPS. Gateway infra ~$5/mo, with portal ~$12/mo.
 
@@ -50,10 +51,11 @@ always use their full allowance. [PLATFORM.md §4.3](PLATFORM.md#43-unit-economi
 
 ## Quick start
 
-Local machine = editor + git. VPS = the only place the stack runs.
-`make verify-config` is the one check that runs locally; everything else
-runs against the VPS (latency numbers measured anywhere else are fiction —
-see LATENCY.md §9).
+Local machine = editor + git. The stack also runs locally for proofs
+(`make verify-metering`, `make verify-d17`), but the VPS is the only place it
+serves traffic. `make verify-config` is the one check that runs without
+containers; latency numbers measured anywhere but the VPS are fiction — see
+LATENCY.md §9.
 
 ```bash
 # ── local ─────────────────────────────────────────────────────
@@ -75,14 +77,6 @@ make smoke KEY=sk-...              # 17-test acceptance suite
 ```
 
 ## Why the probe comes first
-
-If your upstream is **OpenAI-compatible only**, LiteLLM must *translate*
-`/v1/messages` requests — and its own docs confirm this **drops
-`cache_control`**. Prompt caching then silently fails, and a cache-read token
-that should cost 0.1× is billed at 1×. That's a ~10× cost increase on repeated
-prefixes, with nothing in the logs indicating a problem.
-
-`make probe` tells you which situation you're in before you build on it.
 
 If your upstream is **OpenAI-compatible only**, LiteLLM must *translate*
 `/v1/messages` requests — and its own docs confirm this **drops
@@ -141,18 +135,29 @@ gate.
 
 ## Portal
 
+The portal is a Next.js app under `portal/` — **26 API routes** covering auth,
+orgs, keys, usage, billing, D17 payments, admin, profile and account deletion.
+Payments are **manual D17 transfers** verified by staff: the customer submits a
+proof, staff approve it, and the subscription activates. There is no card path.
+
 ```bash
 cd portal
 npm install
-psql "$DATABASE_URL" -f db/migrations/0001_init.sql
-npm run db:migrate
-npm run jobs:once          # one pass of the usage collector
-npm run dev
+npm run typecheck                    # tsc --noEmit
+npx vitest run                       # unit tests (120)
+npm run build                        # next build (standalone)
+
+# Migrations are forward-only and applied from the repo root:
+make db-migrate                      # applies 0001..0008, once each
 ```
 
-Implementation order matters — phases 4 (entitlements) and 6 (webhooks) are
-where "customer paid but has no access" and "customer paid twice" bugs live.
-Both are silent. [PLATFORM.md §12](PLATFORM.md#12-implementation-plan).
+Current schema migrations: `0006_account_operations` (session invalidation),
+`0007_d17_renewals` (per-period payment history, renewals), `0008_email_verification`.
+
+Implementation order matters — entitlements and payment activation are where
+"customer paid but has no access" and "customer paid twice" bugs live. Both are
+silent. See [PLATFORM.md §12](PLATFORM.md#12-implementation-plan) and the
+authoritative current-state notes in [HANDOFF.md](HANDOFF.md).
 
 ## Before serving third parties
 

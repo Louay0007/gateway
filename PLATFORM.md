@@ -1,9 +1,27 @@
 # Platform Design — Multi-tenant LLM SaaS
 
-**Status:** Locked architecture + implementation plan.
-**Date:** 2026-10-11
+**Status:** Architecture + implementation plan (design document).
+**Date:** 2026-10-11 (this document); billing path amended 2026-10-13.
 **Builds on:** `DESIGN.md` (gateway) and `BLUEPRINT.md` (analysis/legal).
 **Supersedes:** nothing. Adds the control plane that `DESIGN.md` assumed absent.
+
+> **⚠️ Current-state note (2026-10-13) — read `HANDOFF.md` for what is actually built.**
+>
+> The **payment path is manual D17 transfer (La Poste Tunisienne), NOT Stripe.**
+> Stripe was removed: the gateway runs in a market where card processing is not
+> available, so a customer transfers to a D17 wallet, uploads a proof, and staff
+> approve it. Every Stripe reference below (§2.2, §6, the `stripe_*` columns,
+> `stripe_events`, Stripe Meters) describes the ORIGINAL design and is
+> **superseded** by:
+>
+> - `portal/lib/billing/d17*.ts` — checkout, proof intake, staff approval;
+> - migration `0005_d17_payments.sql` (+ `0007_d17_renewals.sql`) — the real
+>   payment tables (`payments_d17`, `billing_events`);
+> - `HANDOFF.md` — the authoritative description of the shipped surface;
+> - `plans/complete-the-dev.md` — the completed execution log.
+>
+> The economics, tenancy model, schema shape, and enforcement architecture in
+> this document still hold; only the provider integration section is stale.
 
 ---
 

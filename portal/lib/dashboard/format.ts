@@ -91,3 +91,15 @@ export function relativeTime(iso: string | null): string {
   if (days < 30) return `${days}d ago`;
   return shortDate(iso);
 }
+
+/**
+ * "Oct 1 → Oct 31" — a chart window label from two ISO bounds.
+ *
+ * Uses the WINDOW the server resolved, not the first/last point that
+ * happened to arrive, so a quiet range still reads as the range the
+ * customer selected rather than collapsing to nothing.
+ */
+export function rangeLabel(from?: string | null, to?: string | null): string | null {
+  if (!from || !to) return null;
+  return `${shortDate(from)} → ${shortDate(to)}`;
+}

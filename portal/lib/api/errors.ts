@@ -13,7 +13,7 @@
  * sentence it can act on.
  */
 
-import { AuthzError } from '@/lib/auth/authorize';
+import { AuthzError } from '@/lib/auth/errors';
 import { BillingError } from '@/lib/billing';
 import { KeyServiceError } from '@/lib/keys/types';
 import { log } from '@/lib/log';

@@ -11,10 +11,15 @@
  * policy module that can be imported anywhere can be verified anywhere.
  */
 
-/** Budget shape used by the resolver — the two columns it reads. */
+/** Budget shape used by the resolver — the three columns it reads. */
 export interface BudgetColumns {
   includedSpendCents: number;
   hardCapCents: number | null;
+  /** e.g. 13000 for 1.30×. Required since 0007: the gateway budget is
+   * denominated in UPSTREAM dollars (LiteLLM tracks row.spend), while
+   * hard/included caps are CUSTOMER cents (what the customer agreed to).
+   * Omitting it would over-grant by the multiplier. */
+  rateMultiplierBps: number;
 }
 
 /**
@@ -54,23 +59,42 @@ export function effectForStatus(status: string): Effect {
 }
 
 /**
- * Resolve an org's spend ceiling, in USD.
+ * Resolve an org's spend ceiling, in UPSTREAM USD for the gateway.
+ *
+ * Denomination is the whole subject — get it wrong and the cap is fiction:
+ *
+ *   - `hardCapCents` / `includedSpendCents` are CUSTOMER cents (what the
+ *     plan promises: "$100 hard cap", "$20 included").
+ *   - LiteLLM's `max_budget` tracks UPSTREAM spend (`row.spend`, what the
+ *     provider charged us), not customer cost.
+ *   - Customer cost = upstream × multiplier (collect-usage.ts, the margin).
+ *
+ * So a $100 customer cap at 1.30× is $76.92 upstream. Returning $100
+ * directly would let the customer spend $130 before the cutoff — the
+ * exact overshoot this function exists to prevent.
  *
  * Rules, in order:
  *   1. A cut always wins → CUT_BUDGET.
- *   2. Use the hard cap if the plan has one; that is the ceiling the
- *      customer agreed to.
- *   3. Otherwise use the included allowance as the ceiling.
- *   4. If the result is zero (free plan, or an unset allowance), return
- *      CUT_BUDGET — never 0. PLATFORM.md §9.1: "A free signup must not be
- *      able to spend your money."
+ *   2. Use the hard cap if the plan has one, converted to upstream.
+ *   3. Otherwise use the included allowance, converted the same way.
+ *   4. If the result is zero, return CUT_BUDGET — never 0.
+ *
+ * OVERAGE (`overage_markup_bps`) is deliberately NOT a second multiplier
+ * here. Customer cost is upstream × rate_multiplier for EVERY row,
+ * included or over. `overage_markup_bps` must equal
+ * `rate_multiplier_bps - 10000` (30% → 3000bps → 1.30×, matching the
+ * 13000 multiplier); it is the same margin in the other unit, kept for
+ * display and for the day overage gets its own price. Applying both would
+ * bill Starter overage at 1.30 × 1.30. Enforced by test, not by hope.
  */
 export function resolveBudgetUsd(plan: BudgetColumns, effect: Effect): number {
   if (effect === 'cut') return CUT_BUDGET;
 
+  const m = plan.rateMultiplierBps > 0 ? plan.rateMultiplierBps / 10000 : 1;
   const capCents = plan.hardCapCents ?? plan.includedSpendCents;
-  const usd = capCents / 100;
-  return usd > 0 ? usd : CUT_BUDGET;
+  const usdCustomer = capCents / 100;
+  const usdUpstream = usdCustomer / m;
+  return usdUpstream > 0 ? usdUpstream : CUT_BUDGET;
 }
 
 /**
@@ -89,6 +113,7 @@ export function resolveLimits(
     models: string[];
     includedSpendCents: number;
     hardCapCents: number | null;
+    rateMultiplierBps: number;
   },
   effect: Effect,
 ): {
@@ -99,7 +124,11 @@ export function resolveLimits(
   maxBudgetUsd: number;
 } {
   const maxBudgetUsd = resolveBudgetUsd(
-    { includedSpendCents: plan.includedSpendCents, hardCapCents: plan.hardCapCents },
+    {
+      includedSpendCents: plan.includedSpendCents,
+      hardCapCents: plan.hardCapCents,
+      rateMultiplierBps: plan.rateMultiplierBps,
+    },
     effect,
   );
 

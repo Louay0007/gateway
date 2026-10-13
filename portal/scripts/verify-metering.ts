@@ -36,6 +36,8 @@
  *                                    ends the account is cut (429)
  *  18. re-subscribe                — the same subscription row
  *                                    reactivates and the key works
+ *  18c. usageHistorySeries()       — the chart's series is real and DENSE
+ *                                    (server-bucketed, zero-filled, guard)
  *  19. cancelSubscription()        — immediate cut (429 budget)
  *  20. revokeKey()                 — upstream-first revoke → 401/403
  *
@@ -63,7 +65,7 @@ import './env.mjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { db, sql as pg } from '@/db';
-import { apiKeys, entitlements, organizations, usagePeriods, usageRecords, users } from '@/db/schema';
+import { apiKeys, entitlements, organizations, subscriptions, usagePeriods, usageRecords, users } from '@/db/schema';
 import { createLocalUser } from '@/lib/auth/create-user';
 import { ensurePersonalOrg } from '@/lib/auth/provision';
 import { createKey, revokeKey } from '@/lib/keys';
@@ -78,6 +80,7 @@ import {
   changePlan,
   planStateFor,
   subscriptionBundle,
+  usageHistorySeries,
 } from '@/lib/billing';
 import { devSignBody } from '@/lib/billing/dev';
 import { KeyServiceError } from '@/lib/keys/types';
@@ -347,8 +350,10 @@ async function main(): Promise<void> {
   );
 
   // The plan's ceiling is enforced where it matters: on the gateway key.
-  // Starter's hard cap is $100 — read it back from the key itself rather
-  // than spending a hundred dollars to prove the limiter works.
+  // Starter's hard cap is $100 CUSTOMER — the gateway tracks UPSTREAM, so
+  // the key carries $100/1.30 = $76.92. Asserting 100 here would re-encode
+  // the bug resolveBudgetUsd had (returning customer dollars as an
+  // upstream budget, letting the customer spend $130 before the cutoff).
   const [keyRowForInfo] = await db
     .select({ litellmKeyHash: apiKeys.litellmKeyHash })
     .from(apiKeys)
@@ -358,9 +363,10 @@ async function main(): Promise<void> {
   } else {
     const { getKeyInfo } = await import('@/lib/litellm/client');
     const info = await getKeyInfo(keyRowForInfo.litellmKeyHash);
+    const expectedUpstream = 100 / 1.3;
     check(
-      `gateway key carries the plan's $100 budget (got ${info.max_budget})`,
-      info.max_budget === 100,
+      `gateway key carries the plan's cap as upstream ($${expectedUpstream.toFixed(2)}, got ${info.max_budget})`,
+      Math.abs((info.max_budget ?? 0) - expectedUpstream) < 0.01,
       `max_budget=${info.max_budget}`,
     );
     check(
@@ -572,9 +578,9 @@ async function main(): Promise<void> {
     where: eq(entitlements.organizationId, org.id),
   });
   check(
-    'gateway-side limits moved to the pro budget ($600)',
+    'gateway-side limits moved to the pro budget ($480 upstream = $600 customer)',
     proEnt?.status === 'synced' &&
-      Number((proEnt.effective as { maxBudgetUsd?: number })?.maxBudgetUsd) === 600,
+      Math.abs(Number((proEnt.effective as { maxBudgetUsd?: number })?.maxBudgetUsd) - 600 / 1.25) < 0.01,
     proEnt ? `status=${proEnt.status} budget=${(proEnt.effective as { maxBudgetUsd?: number })?.maxBudgetUsd}` : 'no entitlement row',
   );
 
@@ -598,7 +604,7 @@ async function main(): Promise<void> {
   check(
     'limits are untouched while the period runs',
     entScheduled?.status === 'synced' &&
-      Number((entScheduled.effective as { maxBudgetUsd?: number })?.maxBudgetUsd) === 600,
+      Math.abs(Number((entScheduled.effective as { maxBudgetUsd?: number })?.maxBudgetUsd) - 600 / 1.25) < 0.01,
     entScheduled ? `budget=${(entScheduled.effective as { maxBudgetUsd?: number })?.maxBudgetUsd}` : 'no entitlement row',
   );
   const duringGrace = await infer(plaintext);
@@ -703,6 +709,113 @@ async function main(): Promise<void> {
     }
   }
 
+  // ── 18b. Renewal gates — the 409 that must stand, and the one that must not
+  section('18b. renewal checkout gates (same plan, live subscription)');
+  // Outside the window (period 30d out): same-plan checkout must 409.
+  // This conflict is load-bearing — without it, "already subscribed" has
+  // no meaning and the dashboard's Renew button cannot trust the server.
+  let earlyRenewalBlocked = false;
+  try {
+    await beginCheckout(org.id, 'starter', domainUserId);
+  } catch (e) {
+    // beginCheckout throws BillingError('conflict', ...). Accept either the
+    // typed code or the message, so a refactor of the class cannot make
+    // this guard silently pass.
+    earlyRenewalBlocked =
+      (e as { code?: string }).code === 'conflict' ||
+      (e instanceof Error && /already subscribed/i.test(e.message));
+  }
+  check(
+    'same-plan checkout outside the window is still 409',
+    earlyRenewalBlocked,
+    'expected conflict',
+  );
+
+  // Move the period end into the 7-day window and retry: renewal must open.
+  await db
+    .update(subscriptions)
+    .set({ currentPeriodEnd: new Date(Date.now() + 3 * 24 * 3600 * 1000), updatedAt: new Date() })
+    .where(eq(subscriptions.id, restarted.intent.subscriptionId));
+  let renewalOpened = false;
+  let renewalIntent: { checkoutUrl: string } | null = null;
+  try {
+    const r = await beginCheckout(org.id, 'starter', domainUserId);
+    renewalOpened = true;
+    renewalIntent = r.intent;
+  } catch {
+    renewalOpened = false;
+  }
+  check(
+    'same-plan checkout inside the 7-day window opens (renewal)',
+    renewalOpened && Boolean(renewalIntent?.checkoutUrl),
+    renewalOpened ? 'opened' : 'still 409 inside window',
+  );
+  // Subscription must still be active with its period intact — renewal
+  // checkout must NOT flip a live row to incomplete (that would cut access
+  // before the new payment clears).
+  const stillLive = await planStateFor(org.id);
+  check(
+    'renewal checkout leaves the live subscription untouched',
+    stillLive.state === 'active',
+    stillLive.state,
+  );
+  // Restore the period for the steps that follow (immediate cancel does
+  // not depend on it, but leave no manipulated dates behind).
+  await db
+    .update(subscriptions)
+    .set({ currentPeriodEnd: new Date(Date.now() + 30 * 24 * 3600 * 1000), updatedAt: new Date() })
+    .where(eq(subscriptions.id, restarted.intent.subscriptionId));
+
+  // ── 18c. Usage series — the chart's data is a REAL, dense series ─────
+  section('18c. usage series (server-bucketed, densely zero-filled)');
+  // The chart used to bucket ONE PAGE of rows client-side and print that
+  // page's extent as a "date range". This asserts the replacement: a real
+  // database series over an explicit window, every bucket present.
+  const seriesWinMs = 7 * 24 * 3600 * 1000;
+  const seriesTo = new Date();
+  const seriesFrom = new Date(seriesTo.getTime() - seriesWinMs);
+  const series = await usageHistorySeries(org.id, {
+    bucket: 'day',
+    from: seriesFrom.toISOString(),
+    to: seriesTo.toISOString(),
+  });
+  if ('error' in series) {
+    check('the series returns data, not a range error', false, series.error);
+  } else {
+    // Dense: trunc(from) .. trunc(to) inclusive is exactly 8 day buckets.
+    check(
+      'the series is DENSE — every day bucket in the window is present',
+      series.points.length === 8,
+      `${series.points.length} points`,
+    );
+    check(
+      'a quiet day is an explicit zero, not a missing point',
+      series.points.some((p) => p.requests === 0),
+    );
+    check(
+      'the series totals are internally consistent with its points',
+      series.totals.requests === series.points.reduce((n, p) => n + p.requests, 0) &&
+        series.totals.requests >= 1,
+      `${series.totals.requests} request(s)`,
+    );
+    // The window label comes from the SERVER's resolved bounds, so it can
+    // never collapse to "the extent of whatever rows arrived".
+    check(
+      'the series echoes the resolved window it actually aggregated over',
+      series.from <= series.to && new Date(series.from) <= seriesFrom,
+    );
+  }
+  // An oversized request is a hard refusal, not a silently truncated line.
+  const tooLarge = await usageHistorySeries(org.id, {
+    bucket: 'hour',
+    from: new Date(Date.now() - 400 * 24 * 3600 * 1000).toISOString(),
+    to: new Date().toISOString(),
+  });
+  check(
+    'an hour bucket over a year is refused (range_too_large), not truncated',
+    'error' in tooLarge && tooLarge.error === 'range_too_large',
+  );
+
   // ── 19. Immediate cancel — the other half of the pair ────────────────
   section('19. immediate cancel (cut now, keys preserved)');
   const cancelResult = await cancelSubscription(org.id, domainUserId);
@@ -756,7 +869,7 @@ async function main(): Promise<void> {
       `  ledger rows    ${ledgerAfter.length} (${successRows.length} success, ${otherRows.length} rejected)\n` +
       `  upstream cost  $${totalUpstream.toFixed(8)} total\n` +
       `  customer cost  $${totalCustomer.toFixed(8)} total (starter × ${multiplier})\n` +
-      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → cancel(now) → revoke(401)\n` +
+      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401)\n` +
       `  left behind    user ${email}, org, team, ledger rows (evidence — nothing deleted)\n`,
   );
 

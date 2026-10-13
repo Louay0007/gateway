@@ -17,27 +17,16 @@
  *      the token cannot be redirected off-site by a crafted request.
  */
 
-import { createHash } from 'node:crypto';
+import { appOrigin, hashToken, scopedIdentifier, TOKEN_BYTES } from './tokens';
+
+export { hashToken, TOKEN_BYTES };
 
 export const TOKEN_TTL_MINUTES = 30;
-export const TOKEN_BYTES = 32;
 export const IDENTIFIER_PREFIX = 'password-reset:';
 
 /** `password-reset:<email>` — the token row's identifier. */
 export function identifierFor(email: string): string {
-  return `${IDENTIFIER_PREFIX}${email.toLowerCase()}`;
-}
-
-/**
- * sha256 of the raw token. What the database stores; the raw value only
- * ever exists in the email (and, in dev, the log transport's output).
- */
-export function hashToken(raw: string): string {
-  return createHash('sha256').update(raw, 'utf8').digest('hex');
-}
-
-function appOrigin(): string {
-  return (process.env.APP_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
+  return scopedIdentifier(IDENTIFIER_PREFIX, email);
 }
 
 /**
