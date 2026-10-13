@@ -41,6 +41,7 @@
  *  19. cancelSubscription()        — immediate cut (429 budget)
  *  20. revokeKey()                 — upstream-first revoke → 401/403
  *  21. deleteAccount()             — cut off BEFORE cleanup; second delete 409
+ *  22. updateProfile()             — the rename persists (re-read proves it)
  *
  * WHY A SCRIPT AND NOT A UNIT TEST: every seam here is deliberately
  * injectable, and tests/keys.test.ts drives them with fakes. This proof
@@ -84,7 +85,7 @@ import {
   usageHistorySeries,
 } from '@/lib/billing';
 import { devSignBody } from '@/lib/billing/dev';
-import { deleteAccount } from '@/lib/account/service';
+import { deleteAccount, updateProfile } from '@/lib/account/service';
 import { KeyServiceError } from '@/lib/keys/types';
 
 // ───────────────────────────────────────────────────────────────────────
@@ -899,13 +900,15 @@ async function main(): Promise<void> {
   });
   check('the throwaway account activates', delActivated.status === 200, `${delActivated.status}`);
 
-  const { key: delKey } = await createKey({
+  const { key: delKey, plaintext: delPlaintext } = await createKey({
     organizationId: delOrg.organizationId,
     userId: delUserId,
     role: 'owner',
     name: 'to-be-deleted',
     models: ['fast'],
   });
+  const delKeyBefore = await infer(delPlaintext);
+  check('the throwaway key works before deletion', delKeyBefore.status === 200, `${delKeyBefore.status}`);
 
   const delResult = await deleteAccount({
     organizationId: delOrg.organizationId,
@@ -929,6 +932,16 @@ async function main(): Promise<void> {
   const [delKeyRow] = await db.select().from(apiKeys).where(eq(apiKeys.id, delKey.id));
   check('the key is revoked locally (no live key survives a delete)', Boolean(delKeyRow?.revokedAt));
 
+  // The cut-off must reach the GATEWAY, not just our table: the revoked
+  // credential is refused upstream. This is the invariant the ordering
+  // exists to protect.
+  const delKeyAfter = await infer(delPlaintext);
+  check(
+    `the deleted account's key is refused UPSTREAM (got ${delKeyAfter.status})`,
+    delKeyAfter.status === 401 || delKeyAfter.status === 403,
+    `status ${delKeyAfter.status}`,
+  );
+
   let secondDeleteConflict = false;
   try {
     await deleteAccount({
@@ -941,6 +954,20 @@ async function main(): Promise<void> {
   }
   check('a second delete is refused (already deleted)', secondDeleteConflict);
 
+  // ── 22. Profile rename — the write must actually persist ─────────────
+  section('22. profile rename persists');
+  // The settings page used to say "saved" and reload to the SAME value,
+  // because there was nothing behind the button. This asserts the write
+  // lands and survives a re-read, on the account that is still live.
+  const newName = `Renamed ${Math.random().toString(36).slice(2, 8)}`;
+  await updateProfile({ userId: domainUserId, name: newName });
+  const [renamed] = await db.select().from(users).where(eq(users.id, domainUserId));
+  check(
+    'the new display name is what the database returns',
+    renamed?.name === newName,
+    `${renamed?.name}`,
+  );
+
   // ── Summary ──────────────────────────────────────────────────────────
   const totalUpstream = ledger.reduce((a, r) => a + Number(r.costUpstreamUsd), 0);
   const totalCustomer = ledger.reduce((a, r) => a + Number(r.costCustomerUsd), 0);
@@ -952,7 +979,7 @@ async function main(): Promise<void> {
       `  ledger rows    ${ledgerAfter.length} (${successRows.length} success, ${otherRows.length} rejected)\n` +
       `  upstream cost  $${totalUpstream.toFixed(8)} total\n` +
       `  customer cost  $${totalCustomer.toFixed(8)} total (starter × ${multiplier})\n` +
-      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401) → delete-account\n` +
+      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401) → delete-account → rename\n` +
       `  left behind    user ${email}, org, team, ledger rows (evidence — nothing deleted)\n`,
   );
 

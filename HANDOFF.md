@@ -358,10 +358,11 @@ column.
   duplicated.** New cases land inside the existing walk. `verify-d17` gains
   **T11 (renewal)**, **T12 (email verification)** and **T13 (password change
   invalidates every existing session, proven over HTTP)**; `verify-metering`
-  gains **§18b (renewal gates)**, **§18c (usage series)** and **§21
-  (account deletion: cut off first, cleanup best-effort, second delete 409)**.
-  Everything runs against a real Postgres + real gateway, so unit tests still
-  cannot fake what these catch.
+  gains **§18b (renewal gates)**, **§18c (usage series)**, **§21 (account
+  deletion: cut off first, the deleted key is refused UPSTREAM 401, cleanup
+  best-effort, second delete 409)** and **§22 (profile rename persists on
+  re-read)**. Everything runs against a real Postgres + real gateway, so unit
+  tests still cannot fake what these catch.
 - **`GET /api/usage/summary?bucket=day|hour`** — a DENSE, server-bucketed
   series (`generate_series` zero-fill, 1000-point cap → 400). The dashboard
   chart used to bucket ONE page of rows client-side and label that page's

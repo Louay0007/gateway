@@ -278,13 +278,19 @@ Unit tests cannot see a gateway that answers with an unexpected shape, a budget 
 does not stop, or a session that does not die. That is what
 `scripts/verify-*.ts` are for — follow the existing pattern, not a new framework.
 
-- [ ] `verify-metering.ts` — add: profile rename persists; change-password **kills the
-      session** (re-fetch `/api/subscription` with the old cookie and assert 401);
-      delete-account on a throwaway org (keys then 401 upstream, `requireOrgMembership`
-      404s); CSV export row count equals the table; payment history reflects an approval.
-- [ ] `verify-d17.ts` — add: renewal (Step 4), email-verification gate (Step 7).
-- [ ] `deleteAccount` ordering is the one that must not regress: the customer must be
-      cut off BEFORE cleanup, so a failed gateway call can never leave a live key.
+- [x] `verify-metering.ts` — add: profile rename persists (§22); change-password **kills the
+      session** (done in `verify-d17` T13, over HTTP: old cookie → 401, new sign-in → 200);
+      delete-account on a throwaway org (§21: org → deleted, subscription → canceled, key
+      revoked locally AND refused upstream 401, second delete 409); payment history reflects
+      an approval (covered by `verify-d17` T5 + T11 — two paid rows kept).
+- [x] `verify-d17.ts` — add: renewal (Step 4, T11), email-verification gate (Step 7, T12),
+      password-change session invalidation (T13).
+- [x] `deleteAccount` ordering is the one that must not regress: the customer must be
+      cut off BEFORE cleanup, so a failed gateway call can never leave a live key
+      (proven by §21 — the deleted key is refused upstream, not merely marked here).
+- [ ] Residual: CSV export row count equals the table. The export is HTTP-streamed and
+      needs a live usage-bearing session; §18c already proves the shared series source is
+      internally consistent, so this is a thin add when a live account is available.
 
 ### Step 11 — Accessibility and responsive pass, against real data
 
@@ -293,6 +299,12 @@ live account: three empty states distinguished, loading never blanks visible con
 every error says what to do, 44px touch targets, focus visible, `prefers-reduced-motion`,
 and the dashboard at 375px.
 
+New surfaces reviewed this cycle (2026-10-13): the verification page + dashboard banner
+use `role="status"`/`role="alert"` with `aria-live`, labeled submit buttons with pending
+states, and a POST confirmation button (good for both a11y and scanners). A full live
+pass with a real browser session against a seeded account is still **pending** — it needs
+a running account and is the natural first task on the next live session.
+
 ### Step 12 — Security review
 
 Fresh-eyes pass over what was added this cycle. Highest-value targets:
@@ -300,6 +312,28 @@ Fresh-eyes pass over what was added this cycle. Highest-value targets:
 `/api/admin/d17/*` (staff gates), CSV formula injection, and the session-freshness
 comparison (a sign flip is either "everyone logged out hourly" or "a compromised
 account is unrecoverable").
+
+Reviewed 2026-10-13 — clean, with three documented observations:
+
+- `/api/account/delete` — owner-gate at the route, self-scoped (no body id, so IDOR is
+  unrepresentable), slug confirmation, cut-off-first ordering.
+- `/api/usage/export` — org-scoped by `requireActiveOrg`; `csvCell` prefix-guards
+  `= + - @ tab CR` BEFORE RFC-4180 quoting; streamed with `MAX_ROWS`; the failure path
+  now writes a fixed sentence, never raw internal driver text (fixed this cycle).
+- `/api/admin/d17/*` — every route `requireStaff` at least privilege
+  (`approve`/`reject` = `admin`, list/export = `support`, screenshot = `read_only`);
+  the screenshot filename comes from the DB row and is charset-validated (no traversal).
+- session-freshness — fails closed, compared as epoch ms (not text), wired into
+  `currentUser()` so every customer route enforces it.
+- **Observation (low):** `requireStaff()` does NOT apply the freshness check, so a
+  stolen STAFF token survives a staff password change for the token's `maxAge`. Staff
+  live in `staff_users` with no in-portal password-change path today, so there is no
+  trigger — but if one is added, staff session invalidation must be wired the same way.
+- **Observation (informational):** the CSV failure path commits as HTTP 200 (the stream
+  is already open), so the signal is an in-file comment row, not a status code. By design;
+  the header can't be changed after the body starts.
+- **Observation (informational):** `payments_d17` history is immutable from the customer
+  side; only staff endpoints write status, and both `approve`/`reject` are audit-logged.
 
 ---
 
