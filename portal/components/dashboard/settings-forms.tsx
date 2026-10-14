@@ -127,7 +127,13 @@ function ProfileCard() {
 
         <div className="grid gap-2">
           <Label htmlFor="profile-email">Email</Label>
-          <Input id="profile-email" disabled readOnly placeholder="Your sign-in address" />
+          {/* readOnly, not disabled: the field is informational (email is
+              changed by an operator), and a disabled Input dims to 50%
+              opacity, which dropped this placeholder to 1.64:1 — the
+              remaining Lighthouse color-contrast failure on this page. A
+              readOnly field stays non-editable but keeps full-contrast,
+              selectable text. */}
+          <Input id="profile-email" readOnly placeholder="Your sign-in address" />
           <p className="text-xs text-muted-foreground">
             Email changes are handled by an operator. It is the identity your
             session resolves to, and changing it would detach your usage history.

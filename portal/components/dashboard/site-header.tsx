@@ -28,6 +28,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -180,7 +181,9 @@ function AccountStatusMenu() {
         }
       />
       <DropdownMenuContent align="end" className="w-80">
-        <DropdownMenuLabel>Account status</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Account status</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <dl className="grid gap-2 px-2 py-1.5 text-sm">
           {facts.map((f) => (
@@ -221,10 +224,12 @@ function HeaderUserMenu({ onNavigate }: { onNavigate: () => void }) {
         }
       />
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="grid gap-0.5 font-normal">
-          <span className="text-sm font-medium">{org?.name ?? "Account"}</span>
-          <span className="text-xs text-muted-foreground">{role ? `Role: ${role}` : ""}</span>
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="grid gap-0.5 font-normal">
+            <span className="text-sm font-medium">{org?.name ?? "Account"}</span>
+            <span className="text-xs text-muted-foreground">{role ? `Role: ${role}` : ""}</span>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={onNavigate}>Account settings</DropdownMenuItem>
         <DropdownMenuSeparator />

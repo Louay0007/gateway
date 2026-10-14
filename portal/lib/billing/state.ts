@@ -48,6 +48,8 @@ export interface PlanSummary {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
+  /** Free-trial length in days. 0 = no trial. (0009) */
+  trialDays: number;
 }
 
 /** Project a plan row onto the customer-safe shape. */
@@ -65,6 +67,7 @@ export function summarizePlan(row: {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
+  trialDays?: number;
 }): PlanSummary {
   return {
     code: row.code,
@@ -80,6 +83,7 @@ export function summarizePlan(row: {
     maxKeys: row.maxKeys,
     rateMultiplierBps: row.rateMultiplierBps,
     models: row.models,
+    trialDays: row.trialDays ?? 0,
   };
 }
 
@@ -91,6 +95,7 @@ export type BillingErrorCode =
   | 'validation'
   | 'not_found'
   | 'conflict'
+  | 'forbidden'
   | 'upstream'
   | 'internal'
   | 'payment_required';
@@ -99,6 +104,7 @@ const ERROR_STATUS: Record<BillingErrorCode, number> = {
   validation: 400,
   not_found: 404,
   conflict: 409,
+  forbidden: 403,
   upstream: 502,
   internal: 500,
   payment_required: 402,

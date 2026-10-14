@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { redirect } from "next/navigation";
 
 import { AppSidebar } from "@/components/dashboard/app-sidebar";
 import { ShellIdentityProvider } from "@/components/dashboard/shell-identity";
@@ -10,6 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { currentStaffRole, currentUser } from "@/lib/auth/authorize";
+import { ensureSessionReady } from "@/lib/auth/provision";
 import { isEmailVerified } from "@/lib/auth/verify-email";
 import { ResendVerification } from "@/components/auth/verify-email-forms";
 import { MailWarning } from "lucide-react";
@@ -39,9 +41,10 @@ export const dynamic = "force-dynamic";
  *   TooltipProvider wraps SidebarProvider — the sidebar's collapsed rail
  *   renders its labels through tooltips, which throw without a provider.
  *
- * UI-only stage: the shell renders the mock session. The real build
- * gates this layout on requireActiveOrg() and feeds the same components
- * from /api/subscription.
+ * The shell resolves identity and staff role on the server and provisions
+ * the caller's personal org before rendering, then hands the same
+ * components to every product page. Client panels fetch their own data
+ * from the /api routes.
  */
 export default async function AppLayout({ children }: { children: ReactNode }) {
   // Resolved on the server so the sidebar can hide staff-only destinations.
@@ -53,7 +56,22 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // subscription (the routes enforce it). This banner is how they learn
   // that, and how they recover if the first mail was lost.
   const user = await currentUser();
-  const verified = user ? await isEmailVerified(user.id) : true;
+
+  // Every page in this group is product surface. Without this gate an
+  // anonymous request rendered the full shell anyway — sidebar, header,
+  // account menu — and every client fetch answered 401, so /dashboard sat
+  // on "Loading…" forever instead of sending the visitor to sign in.
+  if (!user) redirect("/sign-in");
+
+  // Provision the personal org on the first authenticated render, BEFORE
+  // the client shell fires its parallel /api/orgs + /api/subscription
+  // reads: those routes can only answer once a membership exists, and
+  // doing it here keeps a cold first load from racing itself into two
+  // orgs. Request-scoped via cache(), so a page that reads memberships
+  // shares this one run rather than provisioning twice.
+  await ensureSessionReady(user.id);
+
+  const verified = await isEmailVerified(user.id);
 
   return (
     <TooltipProvider delay={400}>

@@ -2,9 +2,12 @@
 
 **Status:** in execution — Phase A green; Steps 4–8 landed (renewals, included-spend
 denomination, consistency sweep, email verification, usage summary); Step 9 deferred to
-Phase E; Step 10 done except a thin CSV-row-count add; Step 11 new surfaces reviewed
-(live browser pass pending); Step 12 security review recorded (clean). VPS deploy remains
-blocked on a missing `.env`.
+Phase E; Step 10 DONE (all residuals closed, incl. CSV row count); Step 11 DONE (live
+Lighthouse pass: every dashboard surface, /admin, and the signed-out auth pages score
+accessibility 1.0 in BOTH themes); Step 12 security review recorded (clean). **Phase E
+dev features LANDED (2026-10-14, migration 0009): trials, anomaly alerts, admin console —
+all proven by `verify-metering` §23–§27.** VPS deploy remains blocked on a missing `.env`
+(out of scope).
 **Created:** 2026-10-13
 **Scope:** everything outstanding in `/Users/user/Workspace/gateway` after the Tier 1–4 repair work.
 **Execution mode:** DIRECT (edit in place, deploy by rsync). Two remotes now: `gateway` (VPS)
@@ -37,17 +40,52 @@ branch is checked out there).
   page.
 - **Step 9 (multi-org)** — MOVED to Phase E. A single-org product is correct today
   (`ensurePersonalOrg`); a signed org-selection cookie is a feature, not a correctness gap.
-- **Step 10 (E2E coverage)** — DONE except one residual. `verify-d17` T11 (renewal), T12
+- **Step 10 (E2E coverage)** — DONE. `verify-d17` T11 (renewal), T12
   (email verification), T13 (password change invalidates the old session over HTTP);
   `verify-metering` §18b (renewal gates), §18c (usage series), §21 (deletion: key refused
-  UPSTREAM 401, second delete 409), §22 (rename persists). Residual: CSV export row count
-  vs. the table needs a live usage-bearing session to drive the streamed route.
-- **Step 11 (a11y)** — new surfaces reviewed (verification page/banner use role=status /
-  role=alert + aria-live, labeled pending buttons, POST-confirm). A full live-browser pass
-  against a seeded account is pending (needs a running account).
+  UPSTREAM 401, second delete 409), §22 (rename persists). The CSV residual is closed by
+  §26: an HTTP-authenticated session drives `GET /api/usage/export`, and the streamed body's
+  data-row count is asserted equal to the `X-Row-Count` header AND to `usageHistory().total`
+  — the export and the table are one source of truth.
+- **Step 11 (a11y)** — DONE (live browser pass completed 2026-10-14). `browser.lighthouse`
+  (axe-backed) run against `/`, `/dashboard`, `/dashboard/{keys,usage,billing,settings}`,
+  `/admin`, and the signed-out `/sign-in`, `/sign-up`, `/reset-password`: **accessibility
+  1.0, zero failures, in both light and dark.** Fixes that closed it: reduced-motion global
+  rule; labeled icon-only controls; the sidebar theme toggle's accessible name now contains
+  its visible label; `--muted-foreground` 0.556→0.54 (muted-surface AA); `--destructive`
+  0.577→0.51 (the soft destructive button's red-on-its-own-10%-tint was 4.37:1 — note alpha
+  composites in sRGB, so a 10% tint of a red cannot clear 4.5:1 at the shadcn default);
+  `SidebarGroupLabel` `sidebar-foreground/70`→`/85` (2.97:1 on the light sidebar);
+  `TabsTrigger` inactive `foreground/60`→`muted-foreground`; the disabled profile-email
+  field became readOnly (the 50% disabled dim left its placeholder at 1.64:1). Also added
+  the `(app)` **anonymous redirect**: an unauthenticated request used to render the full
+  shell and stall on "Loading…" because every client fetch answered 401 — it now 307s to
+  `/sign-in`.
 - **Step 12 (security review)** — DONE. Targets clean; three observations recorded in the
   Step 12 section below (chief among them: `requireStaff()` does not apply session
   freshness — no trigger today, must be wired if a staff password-change path is added).
+- **Phase E (deferred dev features)** — LANDED (2026-10-14). Migration
+  `0009_trials_anomalies_admin.sql` applied locally (credit_notes; job_runs rows
+  `expire_trials` + `detect_anomalies`; `plans.trial_days = 7` for starter; an
+  `organizations.active/suspended` index).
+  - **Trials:** Starter-only, 7 days, one per org (enforced by the append-only
+    `subscription.trial_started` audit row — `trialEligibility` reads the audit, so it
+    cannot be reset). Goes straight to `trialing` with the period = the trial; grants FULL;
+    no phantom payment row. `expire_trials` flips an elapsed trial to `unpaid` (CUT, never
+    revoked). `lib/billing/service.ts: startTrial / trialEligibility`; `POST /api/billing/trial`.
+  - **Anomaly alerts:** `detect_anomalies` (4 detectors: mule phone, rejected-proof burst,
+    hard-cap breach, oversized request; per-finding dedupe in `system_alerts`; ≤2 mails/pass;
+    recovery deletes the row). Auth-number reuse intentionally NOT a detector (UNIQUE
+    constraint is the enforcement). `lib/jobs/anomaly-alerts.ts`.
+  - **Admin console:** `/admin` (staff-only) — suspend / reactivate (REAL: flows through
+    `syncOrganizationEntitlements`, which CUTs a non-active org; reconciler widened to
+    `suspended`), manual entitlements retry, credit notes (`credit_notes`). Roles:
+    suspend/reactivate/credit = `admin`; list/retry = `support`. `lib/billing/admin-console.ts`;
+    `POST /api/admin/orgs/[id]/{suspend,reactivate,sync}`, `POST /api/admin/credits`,
+    `GET /api/admin/orgs`.
+  - **Proven** by `verify-metering` §23 (trial + one-per-org + expiry), §24 (admin powers),
+    §25 (anomaly scan + dedupe + recovery), §26 (CSV row count), §27 (trial expiry); plus
+    `tests/billing.test.ts` (`forbidden`→403, `summarizePlan().trialDays`).
 
 ---
 

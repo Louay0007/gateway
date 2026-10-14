@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -162,7 +163,11 @@ function ThemeToggle({ collapsed }: { collapsed: boolean }) {
         <SidebarMenuButton
           tooltip={dark ? "Light mode" : "Dark mode"}
           onClick={() => setTheme(dark ? "light" : "dark")}
-          aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
+          // The accessible name MUST contain the visible label ("Light" /
+          // "Dark") or axe flags a label-content-name mismatch: a screen
+          // reader user hears a name that shares no word with what is on
+          // screen. Keep the visible word and append the action.
+          aria-label={dark ? "Dark theme — switch to light mode" : "Light theme — switch to dark mode"}
         >
           {mounted && dark ? <Moon /> : <Sun />}
           <span>{dark ? "Dark" : "Light"}</span>
@@ -202,10 +207,12 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
         }
       />
       <DropdownMenuContent side={isMobile ? "bottom" : "right"} align="end" className="w-56">
-        <DropdownMenuLabel className="grid gap-0.5 font-normal">
-          <span className="text-sm font-medium">{org?.name ?? "Account"}</span>
-          <span className="text-xs text-muted-foreground">{role ? `Role: ${role}` : ""}</span>
-        </DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="grid gap-0.5 font-normal">
+            <span className="text-sm font-medium">{org?.name ?? "Account"}</span>
+            <span className="text-xs text-muted-foreground">{role ? `Role: ${role}` : ""}</span>
+          </DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
           <UserRound />

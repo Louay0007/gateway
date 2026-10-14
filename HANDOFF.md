@@ -436,6 +436,45 @@ per-period ledger:
 - Dashboard shows a resend banner; `verify-email/[token]` is the confirm page.
 - Proven by `verify-d17` **T12** + `tests/verify-email.test.ts`.
 
+### 5.16 Trials, anomaly alerts, admin console (2026-10-14, migration 0009)
+
+The last three deferred dev features, now built and proven.
+
+- **Trials.** Starter offers a 7-day trial (`plans.trial_days = 7`); Pro keeps
+  `0` on purpose — a trial runs at the plan's FULL included spend, and Pro's
+  ~$144 upstream grant is too large to switch on without a business decision.
+  One trial per org, enforced by the append-only `subscription.trial_started`
+  AUDIT row (`trialEligibility` reads the audit, not a mutable column, so the
+  limit cannot be reset). The subscription goes straight to `trialing` with
+  `current_period_start → trial_end`, so period-based surfaces need no special
+  case; `STATUS_EFFECT.trialing = 'full'` means a trial exercises the real
+  product. No payment row is invented. `expire_trials` flips an elapsed trial
+  to `unpaid` — CUT, never revoked (D3).
+- **Anomaly alerts.** `detect_anomalies` (job row restored) watches the
+  customers, not the system: (1) one sender phone across several orgs; (2) a
+  rejected-proof burst (≥3 in 24h); (3) a hard-cap breach — which MUST be
+  impossible and is therefore a live money leak; (4) a single oversized
+  request (≥ $25 customer). Authorization-number reuse is deliberately NOT a
+  detector — `payments_d17.authorization_number` is UNIQUE, so the constraint
+  is already the enforcement. Dedupe is per-finding in `system_alerts`
+  (`anomaly:<kind>:<key>`); at most two mails per pass (new/changed +
+  recovery). A cleared condition deletes its row.
+- **Admin console.** `/admin` (staff-only, standalone `<main>` like
+  `/admin/d17`) lists every non-deleted org and offers suspend / reactivate,
+  a manual entitlement retry, and credit notes. Suspension is REAL: it flows
+  through `syncOrganizationEntitlements`, which reads `organizations.status`
+  and CUTs a non-active org (the reconciler now includes `suspended` too), so
+  a suspended org is refused checkout/trial (403 `forbidden`) AND its gateway
+  budget is cut. `credit_notes` is the record of a manual refund, because D17
+  has no refund API. Roles: suspend/reactivate/credit = `admin`; list/retry =
+  `support`.
+- Routes: `POST /api/billing/trial`; `GET /api/admin/orgs`;
+  `POST /api/admin/orgs/[id]/{suspend,reactivate,sync}`;
+  `POST /api/admin/credits`. Service in `lib/billing/admin-console.ts`.
+- Proven by `verify-metering` **§23–§27** (trial eligibility + one-per-org +
+  expiry; suspend→CUT / reactivate→FULL / retry / credit); `tests/billing.test.ts`
+  adds `forbidden`→403 and `summarizePlan().trialDays`.
+
 ### 5.8 Frontend removed (2026-10-11) — SUPERSEDED by §5.9
 All page-level UI was deleted at the user's request — the frontend is
 being built fresh. Gone: `app/page.tsx`, `globals.css`, `sign-in/`,

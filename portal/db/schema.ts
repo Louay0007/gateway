@@ -221,6 +221,28 @@ export const systemAlerts = pgTable('system_alerts', {
 });
 
 /**
+ * Staff-recorded goodwill credits / refunds (0009, admin console).
+ *
+ * D17 has no refund API, so a refund is a manual transfer the ops team
+ * makes by hand; this table is the record of it, tied to the org so the
+ * ledger explains why money moved. Append-only — like audit_log, nothing
+ * updates or deletes a row here. Amount is SIGNED: negative = refunded to
+ * the customer, positive = credit applied against their next bill.
+ */
+export const creditNotes = pgTable('credit_notes', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  amountCents:    integer('amount_cents').notNull(),
+  currency:       text('currency').notNull().default('TND'),
+  reason:         text('reason').notNull(),
+  /** staff_users.id of the operator who recorded it. Never a customer id. */
+  createdBy:      text('created_by').notNull(),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx: index('credit_notes_org_idx').on(t.organizationId, t.createdAt),
+}));
+
+/**
  * Manual D17 payments (La Poste Tunisienne) — a verification queue.
  *
  * There is no D17 merchant API, so a row here is a CLAIM of payment the

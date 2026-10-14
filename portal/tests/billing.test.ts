@@ -22,6 +22,7 @@ import {
 import {
   BillingError,
   planStateFromStatus,
+  summarizePlan,
 } from '@/lib/billing/state';
 
 const SECRET = 'unit-test-secret-placeholder-value';
@@ -129,9 +130,37 @@ describe('BillingError', () => {
     expect(new BillingError('validation', 'no').status).toBe(400);
     expect(new BillingError('conflict', 'no').status).toBe(409);
     expect(new BillingError('not_found', 'no').status).toBe(404);
+    // A suspended account is refused the money path (0009 admin console).
+    expect(new BillingError('forbidden', 'suspended').status).toBe(403);
     expect(new BillingError('upstream', 'no').status).toBe(502);
     expect(new BillingError('internal', 'no').status).toBe(500);
     // The paywall is a real status code, not a 500 pretending.
     expect(new BillingError('payment_required', 'choose a plan').status).toBe(402);
+  });
+});
+
+describe('summarizePlan — trial terms (0009)', () => {
+  const base = {
+    code: 'starter',
+    name: 'Starter',
+    description: null,
+    priceCents: 2000,
+    interval: 'month',
+    includedSpendCents: 2000,
+    hardCapCents: 4000,
+    rpmLimit: 60,
+    tpmLimit: 100000,
+    maxConcurrentRequests: 5,
+    maxKeys: 2,
+    rateMultiplierBps: 13000,
+    models: ['gpt-4o-mini'],
+  };
+
+  it('projects trialDays when the plan carries it', () => {
+    expect(summarizePlan({ ...base, trialDays: 7 }).trialDays).toBe(7);
+  });
+
+  it('defaults trialDays to 0 rather than undefined (no trial)', () => {
+    expect(summarizePlan(base).trialDays).toBe(0);
   });
 });

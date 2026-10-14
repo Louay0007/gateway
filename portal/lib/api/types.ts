@@ -27,6 +27,7 @@ export interface SubscriptionBundle {
     status: string;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
+    trialEnd: string | null;
     cancelAtPeriodEnd: boolean;
   } | null;
   entitlement: {
@@ -34,6 +35,14 @@ export interface SubscriptionBundle {
     syncedAt: string | null;
     lastError: string | null;
   } | null;
+  /** Free-trial availability (0009). */
+  trial: {
+    eligible: boolean;
+    reason?: string;
+    trialDays: number;
+    planCode?: string;
+    endsAt: string | null;
+  };
   period: { start: string; end: string };
   usage: {
     requests: number;

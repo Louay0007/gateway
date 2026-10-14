@@ -11,6 +11,7 @@ import {
   Receipt,
   RefreshCw,
   ShieldCheck,
+  Sparkles,
   TriangleAlert,
 } from "lucide-react";
 
@@ -129,6 +130,27 @@ export function BillingView() {
     router.push(result.data.checkoutUrl);
   }
 
+  async function startTrial(planCode: string) {
+    setBusy("trial");
+    const result = await apiSend<{ trialEnd: string }>("/api/billing/trial", {
+      body: { planCode },
+    });
+    setBusy(null);
+
+    if ("error" in result) {
+      toast.error(result.error.message);
+      return;
+    }
+    refresh();
+    const end = new Date(result.data.trialEnd).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    toast.success(`Free trial started. Full access until ${end}.`);
+  }
+
   async function changePlan(planCode: string) {
     setBusy("change");
     const result = await apiSend<{ plan: unknown }>(
@@ -206,6 +228,18 @@ export function BillingView() {
         <PaywallState
           cta={
             <div className="flex flex-wrap justify-center gap-2">
+              {b.trial.eligible && b.trial.planCode ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy !== null}
+                  onClick={() => void startTrial(b.trial.planCode!)}
+                >
+                  {busy === "trial"
+                    ? "Starting…"
+                    : `Start ${b.trial.trialDays}-day free trial`}
+                </Button>
+              ) : null}
               {plans.map((p) => (
                 <Button
                   key={p.code}
@@ -219,6 +253,23 @@ export function BillingView() {
             </div>
           }
         />
+      ) : null}
+
+      {b.subscription?.status === "trialing" ? (
+        <Card className="border-primary/40 bg-primary/5">
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <Sparkles className="size-5 text-primary" />
+            <p className="text-sm">
+              <span className="font-medium">Free trial.</span>{" "}
+              {b.subscription.trialEnd
+                ? `Full access until ${new Date(b.subscription.trialEnd).toLocaleDateString(
+                    "en-US",
+                    { month: "long", day: "numeric", timeZone: "UTC" },
+                  )} — subscribe before then to keep it.`
+                : "Subscribe before it ends to keep full access."}
+            </p>
+          </CardContent>
+        </Card>
       ) : null}
 
       {justPaid ? (

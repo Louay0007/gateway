@@ -400,7 +400,12 @@ function SidebarGroupLabel({
     props: mergeProps<"div">(
       {
         className: cn(
-          "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/70 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
+          // a11y (Step 11): the group label ("Platform", "Account") sits on
+          // the sidebar surface. `sidebar-foreground/70` composited to
+          // ~2.97:1 in light mode — the single failure Lighthouse reported on
+          // /dashboard/settings. /85 keeps the labels visibly lighter than the
+          // nav items while clearing 4.5:1 (light ~5.1:1, dark ~14:1).
+          "flex h-8 shrink-0 items-center rounded-md px-2 text-xs font-medium text-sidebar-foreground/85 ring-sidebar-ring outline-hidden transition-[margin,opacity] duration-200 ease-linear group-data-[collapsible=icon]:-mt-8 group-data-[collapsible=icon]:opacity-0 focus-visible:ring-2 [&>svg]:size-4 [&>svg]:shrink-0",
           className
         ),
       },

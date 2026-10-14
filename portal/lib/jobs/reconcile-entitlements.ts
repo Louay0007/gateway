@@ -45,7 +45,7 @@ export async function reconcileEntitlements(): Promise<ReconcileEntitlementsResu
     SELECT e.organization_id
       FROM entitlements e
       JOIN organizations o ON o.id = e.organization_id
-     WHERE o.status = 'active'
+     WHERE o.status IN ('active', 'suspended')
        AND (
          (e.status IN ('pending', 'failed')
             AND e.next_retry_at <= now())

@@ -27,6 +27,7 @@ import { auth } from '@/auth';
 import { log } from '@/lib/log';
 import { sessionIsFresh } from '@/lib/auth/session-freshness';
 import { AuthzError } from '@/lib/auth/errors';
+import { ensureSessionReady } from '@/lib/auth/provision';
 
 // Re-exported so existing `import { AuthzError } from '@/lib/auth/authorize'`
 // callers keep working. The class lives in lib/auth/errors.ts (pure) so
@@ -88,6 +89,17 @@ export async function userByEmail(email: string) {
 export const listMemberships = cache(async () => {
   const user = await currentUser();
   if (!user) return [];
+
+  // Every authenticated account owns a personal org from its first product
+  // request (lib/auth/provision.ts). Provisioning is triggered HERE, at the
+  // single choke point every membership read already funnels through
+  // (/api/orgs directly; /api/subscription, /api/keys, /api/usage and the
+  // billing pages via requireActiveOrg). Without it a brand-new account had
+  // no membership, so its OWN dashboard answered 403 "No organization" and
+  // rendered empty until it manually created something — which nothing in
+  // the signup flow asks it to do. Cached per request, so this and the
+  // shell layout's call collapse to one run.
+  await ensureSessionReady(user.id);
 
   return db
     .select({

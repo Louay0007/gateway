@@ -62,10 +62,25 @@
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  /* a11y (Step 11): 0.556 put muted-foreground at only 4.34:1 on the
+     muted/secondary/accent surface (oklch 0.97) — below the 4.5:1 AA
+     floor for body text, and exactly what Lighthouse flagged on the
+     dashboard's ⌘K badge and avatar. For neutrals oklch L is the cube
+     root of luminance (Y = L³), so 0.54 lifts the pair to 4.64:1 on
+     muted and 5.06:1 on background while staying visually all but
+     identical. Dark mode (0.708 on 0.269) already cleared 5.8:1. */
+  --muted-foreground: oklch(0.54 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* a11y (Step 11): the soft destructive button is `bg-destructive/10
+     text-destructive`, so its text sits on a 10% tint of ITSELF over the
+     card. Alpha composites in sRGB, so that tint lands at ~#fbe6e6, and the
+     red can then never clear the 4.5:1 AA floor — the shadcn default
+     oklch(0.577) measured 4.37:1, the one failure Lighthouse reported on
+     /dashboard/settings. 0.51 (~red-700) puts the text at ~4.8:1 on the tint
+     and ~5.8:1 on plain white, so error text and the `bg-destructive/5`
+     alert cards only get easier too. Dark mode keeps its own token below. */
+  --destructive: oklch(0.51 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
@@ -211,5 +226,28 @@
 
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * Reduced motion (WCAG 2.3.3 / the Step 11 a11y pass).
+ *
+ * The app ships one entrance animation (hero-rise, above) and a handful
+ * of utility animations from the component library — spinners, pulse
+ * skeletons, dialog/menu fade-zoom. A visitor who has asked the OS for
+ * less motion should not receive any of them. This is the standard,
+ * global mitigation: it collapses durations to ~0 (so animations land on
+ * their final frame instead of vanishing) and neutralises smooth scrolling.
+ * Loaders that freeze are still announced by the role=status / aria-live
+ * text beside them, so no information is lost.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

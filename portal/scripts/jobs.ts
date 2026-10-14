@@ -32,7 +32,9 @@ import { db } from '@/db';
 import { collectUsage, rollupUsage } from '@/lib/jobs/collect-usage';
 import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
 import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
+import { expireTrials } from '@/lib/jobs/expire-trials';
 import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
+import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
 import { log } from '@/lib/log';
 
 /** A lock older than this is assumed to belong to a dead process. */
@@ -50,11 +52,13 @@ interface Job {
 /**
  * Schedule table — IMPLEMENTATION.md §4.
  *
- * Five jobs run in the MVP: the metering trio (collect, rollup,
- * reconcile), the subscription rollover (expire_subscriptions), and the
- * ops alerting pass (send_alerts). A job is active only when it is BOTH
- * registered here AND present in `job_runs` (migration 0004 seeds the
- * ledger rows) — adding one later is those two lines, nothing else.
+ * Seven jobs run: the metering trio (collect, rollup, reconcile), the two
+ * subscription clocks (expire_subscriptions for periods, expire_trials
+ * for free trials), the ops alerting pass (send_alerts), and the
+ * customer-shaped anomaly scan (detect_anomalies). A job is active only
+ * when it is BOTH registered here AND present in `job_runs` (migrations
+ * 0004/0009 seed the ledger rows) — adding one later is those two lines,
+ * nothing else.
  */
 const JOBS: readonly Job[] = [
   { name: 'collect_usage', everyMs: 5 * 60_000, run: () => collectUsage() },
@@ -70,9 +74,19 @@ const JOBS: readonly Job[] = [
     run: () => expireSubscriptions(),
   },
   {
+    name: 'expire_trials',
+    everyMs: 5 * 60_000,
+    run: () => expireTrials(),
+  },
+  {
     name: 'send_alerts',
     everyMs: 15 * 60_000,
     run: () => sendOpsAlerts(),
+  },
+  {
+    name: 'detect_anomalies',
+    everyMs: 30 * 60_000,
+    run: () => detectAnomalies(),
   },
 ];
 

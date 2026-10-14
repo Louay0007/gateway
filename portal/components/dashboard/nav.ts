@@ -28,6 +28,12 @@ export const navMain: NavItem[] = [
 export const navSecondary: NavItem[] = [
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   {
+    title: "Admin",
+    href: "/admin",
+    icon: ShieldCheck,
+    staffOnly: true,
+  },
+  {
     title: "D17 queue",
     href: "/admin/d17",
     icon: ShieldCheck,

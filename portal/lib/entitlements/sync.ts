@@ -122,7 +122,17 @@ export async function syncOrganizationEntitlements(
     return { ok: false, error: 'no subscription', effect: 'cut', budgetUsd: CUT_BUDGET, keysSynced: 0 };
   }
 
-  const effect = effectForStatus(live.status);
+  // Fetch the org once, BEFORE deciding the effect. Suspension is an
+  // account-level gate, not a subscription state: a suspended org is cut
+  // no matter how healthy its subscription looks. Doing this after the
+  // push (the old shape) would have pushed full limits onto an org staff
+  // had just suspended — the exact drift the reconciler exists to catch.
+  const org = await db.query.organizations.findFirst({
+    where: eq(organizations.id, organizationId),
+  });
+  const suspended = org !== undefined && org !== null && org.status !== 'active';
+
+  const effect: Effect = suspended ? 'cut' : effectForStatus(live.status);
   const budgetUsd = resolveBudgetUsd(
     {
       includedSpendCents: live.included_spend_cents,
@@ -169,10 +179,6 @@ export async function syncOrganizationEntitlements(
         nextRetryAt: new Date(),
       },
     });
-
-  const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, organizationId),
-  });
 
   const failures: string[] = [];
   let keysSynced = 0;
@@ -228,7 +234,7 @@ export async function syncOrganizationEntitlements(
     actorType: 'system',
     action: 'entitlements.synced',
     organizationId,
-    after: { effect, reason, plan: live.plan_code, budgetUsd, keysSynced },
+    after: { effect, reason, plan: live.plan_code, budgetUsd, keysSynced, suspended },
   });
 
   return { ok: true, effect, budgetUsd, keysSynced };

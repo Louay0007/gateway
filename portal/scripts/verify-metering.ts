@@ -42,6 +42,17 @@
  *  20. revokeKey()                 — upstream-first revoke → 401/403
  *  21. deleteAccount()             — cut off BEFORE cleanup; second delete 409
  *  22. updateProfile()             — the rename persists (re-read proves it)
+ *  23. startTrial()                — starter-only, 7 days, one per org,
+ *                                    grants FULL while trialing (0009)
+ *  24. admin console               — suspend→CUT / reactivate→FULL,
+ *                                    manual retry, credit notes (0009)
+ *  25. detectAnomalies()           — mule phone, rejected burst, cap
+ *                                    breach, oversized request; dedupe
+ *                                    and recovery (0009)
+ *  26. GET /api/usage/export       — the streamed CSV writes exactly the
+ *                                    rows its X-Row-Count declares
+ *  27. expireTrials()              — an elapsed trial goes unpaid + CUT,
+ *                                    never canceled/revoked (0009)
  *
  * WHY A SCRIPT AND NOT A UNIT TEST: every seam here is deliberately
  * injectable, and tests/keys.test.ts drives them with fakes. This proof
@@ -67,7 +78,7 @@ import './env.mjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { and, eq, sql } from 'drizzle-orm';
 import { db, sql as pg } from '@/db';
-import { apiKeys, entitlements, organizations, subscriptions, usagePeriods, usageRecords, users } from '@/db/schema';
+import { apiKeys, auditLog, entitlements, organizations, paymentsD17, subscriptions, systemAlerts, usagePeriods, usageRecords, users } from '@/db/schema';
 import { createLocalUser } from '@/lib/auth/create-user';
 import { ensurePersonalOrg } from '@/lib/auth/provision';
 import { createKey, revokeKey } from '@/lib/keys';
@@ -81,10 +92,22 @@ import {
   cancelSubscription,
   changePlan,
   planStateFor,
+  startTrial,
   subscriptionBundle,
+  trialEligibility,
+  usageHistory,
   usageHistorySeries,
 } from '@/lib/billing';
 import { devSignBody } from '@/lib/billing/dev';
+import {
+  listAdminOrgs,
+  listCreditNotes,
+  recordCreditNote,
+  retryEntitlementSync,
+  setOrganizationStatus,
+} from '@/lib/billing/admin-console';
+import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
+import { expireTrials } from '@/lib/jobs/expire-trials';
 import { deleteAccount, updateProfile } from '@/lib/account/service';
 import { KeyServiceError } from '@/lib/keys/types';
 
@@ -133,6 +156,36 @@ async function infer(plaintext: string): Promise<{ status: number; body: any }> 
     /* non-JSON error body — status is what we assert on */
   }
   return { status: res.status, body };
+}
+
+/**
+ * Sign in through the real Auth.js credentials flow and return the session
+ * cookie, ready to be sent as a `Cookie:` header. Mirrors the helper in
+ * verify-d17: the cookie is `__Secure-` prefixed (browsers only send it
+ * over HTTPS), so setting the header explicitly is what lets this run
+ * against the loopback portal.
+ */
+async function signInAsCustomer(
+  portalUrl: string,
+  email: string,
+  password: string,
+): Promise<string> {
+  const csrfRes = await fetch(`${portalUrl}/api/auth/csrf`);
+  const { csrfToken } = (await csrfRes.json()) as { csrfToken: string };
+  const cookies = csrfRes.headers.getSetCookie().map((c) => c.split(';')[0]!).join('; ');
+
+  const res = await fetch(`${portalUrl}/api/auth/callback/credentials`, {
+    method: 'POST',
+    redirect: 'manual',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', Cookie: cookies },
+    body: new URLSearchParams({ csrfToken, email, password }),
+  });
+
+  return res.headers
+    .getSetCookie()
+    .map((c) => c.split(';')[0]!)
+    .filter((c) => c.includes('session-token'))
+    .join('; ');
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -968,6 +1021,344 @@ async function main(): Promise<void> {
     `${renamed?.name}`,
   );
 
+  // ── 23. Free trial — start it, then prove the one-per-org rule ───────
+  section('23. free trial (startTrial — starter-only, one per org, audit-backed)');
+  // A dedicated org: a trial needs an org that has never subscribed.
+  const trialEmail = `trial-${runTag}@verify.invalid`;
+  const trialUser = await createLocalUser({ email: trialEmail, name: 'Trial Proof', password });
+  const trialProvisioned = await ensurePersonalOrg(trialUser.domainUserId);
+  const trialOrgId = trialProvisioned.organizationId;
+
+  const eligBefore = await trialEligibility(trialOrgId);
+  check(
+    'a fresh org is eligible for the 7-day trial',
+    eligBefore.eligible && eligBefore.trialDays === 7 && eligBefore.planCode === 'starter',
+    JSON.stringify(eligBefore),
+  );
+
+  await startTrial(trialOrgId, 'starter', trialUser.domainUserId);
+  const [trialSub] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.organizationId, trialOrgId));
+  check(
+    'startTrial opens the subscription in trialing',
+    trialSub?.status === 'trialing',
+    trialSub?.status ?? 'none',
+  );
+  const trialWindowDays = trialSub?.trialEnd
+    ? Math.round((trialSub.trialEnd.getTime() - Date.now()) / 86_400_000)
+    : -1;
+  check('the trial window is 7 days', trialWindowDays === 7, `${trialWindowDays}d`);
+  check(
+    'the period IS the trial (periodEnd == trialEnd)',
+    trialSub?.trialEnd != null &&
+      trialSub?.currentPeriodEnd?.getTime() === trialSub.trialEnd.getTime(),
+    `${trialSub?.currentPeriodEnd?.toISOString()} vs ${trialSub?.trialEnd?.toISOString()}`,
+  );
+
+  const trialState = await planStateFor(trialOrgId);
+  check('trialing resolves to full access in the dashboard', trialState.state === 'active', trialState.state);
+
+  const trialEnt = await db.query.entitlements.findFirst({
+    where: eq(entitlements.organizationId, trialOrgId),
+  });
+  check(
+    'trialing grants FULL at the gateway (a trial exercises the product)',
+    (trialEnt?.effective as { effect?: string })?.effect === 'full',
+    JSON.stringify(trialEnt?.effective),
+  );
+
+  const eligAfter = await trialEligibility(trialOrgId);
+  check(
+    'the trial cannot be started twice (the audit row is the ledger)',
+    !eligAfter.eligible && eligAfter.reason === 'trial_used',
+    JSON.stringify(eligAfter),
+  );
+  let secondTrialRefused = false;
+  try {
+    await startTrial(trialOrgId, 'starter', trialUser.domainUserId);
+  } catch (e) {
+    secondTrialRefused = (e as { code?: string }).code === 'conflict';
+  }
+  check('a second startTrial is refused with a conflict', secondTrialRefused);
+  check(
+    'Pro offers no trial (its ~$144 grant is a business decision, not a default)',
+    (await trialEligibility(trialOrgId, 'pro')).reason === 'no_trial_plan',
+  );
+
+  // ── 24. Admin console — the three manual staff powers ────────────────
+  section('24. admin console (suspend / reactivate / retry / credit)');
+  const STAFF = 'verify-staff';
+
+  const suspended = await setOrganizationStatus(STAFF, trialOrgId, 'suspended');
+  const orgAfterSuspend = await db.query.organizations.findFirst({
+    where: eq(organizations.id, trialOrgId),
+  });
+  check('suspend writes the org status', orgAfterSuspend?.status === 'suspended', orgAfterSuspend?.status);
+  check(
+    'suspend pushes a real CUT to the gateway',
+    suspended.ok && suspended.syncOk === true && suspended.effect === 'cut',
+    JSON.stringify(suspended),
+  );
+
+  let suspendedCheckoutRefused = false;
+  try {
+    await beginCheckout(trialOrgId, 'starter', trialUser.domainUserId);
+  } catch (e) {
+    suspendedCheckoutRefused = (e as { code?: string }).code === 'forbidden';
+  }
+  check('a suspended org is refused the money path (403 forbidden)', suspendedCheckoutRefused);
+
+  const suspendedAgain = await setOrganizationStatus(STAFF, trialOrgId, 'suspended');
+  check(
+    'suspending an already-suspended org is a no-op (idempotent)',
+    suspendedAgain.ok && suspendedAgain.alreadyApplied === true,
+    JSON.stringify(suspendedAgain),
+  );
+
+  const reactivatedOrg = await setOrganizationStatus(STAFF, trialOrgId, 'active');
+  const entReactivated = await db.query.entitlements.findFirst({
+    where: eq(entitlements.organizationId, trialOrgId),
+  });
+  check(
+    'reactivate restores FULL access',
+    reactivatedOrg.ok &&
+      reactivatedOrg.syncOk === true &&
+      (entReactivated?.effective as { effect?: string })?.effect === 'full',
+    JSON.stringify(reactivatedOrg),
+  );
+
+  const retried = await retryEntitlementSync(STAFF, trialOrgId);
+  check(
+    'manual entitlement retry reports the pushed effect',
+    retried.ok && retried.syncOk === true && retried.effect === 'full',
+    JSON.stringify(retried),
+  );
+
+  const credit = await recordCreditNote(STAFF, {
+    organizationId: trialOrgId,
+    amountCents: -2000,
+    currency: 'TND',
+    reason: 'verify: goodwill refund',
+  });
+  check(
+    'a credit note is recorded with its staff author',
+    credit.ok && Boolean(credit.id),
+    JSON.stringify(credit),
+  );
+  const creditList = await listCreditNotes(trialOrgId);
+  check(
+    'the credit note is listed for the org',
+    creditList.length === 1 &&
+      creditList[0]?.amountCents === -2000 &&
+      creditList[0]?.createdBy === STAFF,
+    JSON.stringify(creditList[0]),
+  );
+  const zeroCredit = await recordCreditNote(STAFF, {
+    organizationId: trialOrgId,
+    amountCents: 0,
+    reason: 'nothing',
+  });
+  check('a zero-amount credit note is refused', zeroCredit.ok === false && zeroCredit.error === 'amount_required');
+  const adminRoster = await listAdminOrgs();
+  check('the admin roster includes the org it just acted on', adminRoster.some((o) => o.id === trialOrgId));
+
+  // ── 25. Anomaly scan — the money-risk signals ────────────────────────
+  section('25. anomaly scan (detect_anomalies — mule phone, burst, cap, big request)');
+  const anomalyDay = new Date().toISOString().slice(0, 10);
+  const phone = `+2160000${runTag.slice(0, 6)}`;
+  const [mainSub] = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.organizationId, org.id));
+
+  // (a) mule phone: one number, two orgs. `proof_submitted` is an open
+  // state, but neither subscription holds another open payment, so the
+  // one-open-payment index is satisfied — the synthetic rows are legal.
+  await db.insert(paymentsD17).values([
+    {
+      subscriptionId: mainSub!.id,
+      organizationId: org.id,
+      amountMillimes: 1000,
+      usdAmountCents: 100,
+      fxRate: '3.1000',
+      authorizationNumber: `ANOM-A-${runTag}`,
+      senderPhone: phone,
+      status: 'proof_submitted',
+      expiresAt: new Date(),
+    },
+    {
+      subscriptionId: trialSub!.id,
+      organizationId: trialOrgId,
+      amountMillimes: 1000,
+      usdAmountCents: 100,
+      fxRate: '3.1000',
+      authorizationNumber: `ANOM-B-${runTag}`,
+      senderPhone: phone,
+      status: 'proof_submitted',
+      expiresAt: new Date(),
+    },
+  ]);
+
+  // (b) rejected-proof burst: three rejections in 24h on the trial org.
+  for (let i = 0; i < 3; i++) {
+    await db.insert(auditLog).values({
+      actorType: 'system',
+      action: 'd17.rejected',
+      organizationId: trialOrgId,
+      after: { synthetic: true, i },
+    });
+  }
+
+  // (c) hard-cap breach: the trialing trial org spent past its cap for
+  // the period (starter caps at $100). (d) a single oversized request.
+  await db.insert(usageRecords).values([
+    {
+      organizationId: trialOrgId,
+      occurredAt: new Date(),
+      billingPeriod: anomalyDay,
+      model: 'fast',
+      route: 'chat',
+      // Starter's hard cap is $100 (10000¢); spend $150 so the breach
+      // is unambiguous — the limiter was supposed to stop this.
+      costUpstreamUsd: '115',
+      costCustomerUsd: '150',
+      dedupeHash: `anom-cap-${runTag}`,
+    },
+    {
+      organizationId: org.id,
+      occurredAt: new Date(),
+      billingPeriod: anomalyDay,
+      model: 'fast',
+      route: 'chat',
+      costUpstreamUsd: '100',
+      costCustomerUsd: '130',
+      dedupeHash: `anom-big-${runTag}`,
+    },
+  ]);
+  const [bigUsage] = await db
+    .select({ id: usageRecords.id })
+    .from(usageRecords)
+    .where(eq(usageRecords.dedupeHash, `anom-big-${runTag}`));
+
+  const alertExists = async (name: string): Promise<boolean> =>
+    Boolean(await db.query.systemAlerts.findFirst({ where: eq(systemAlerts.name, name) }));
+
+  const scan1 = await detectAnomalies();
+  check(
+    'the scan flags one phone paying for two orgs',
+    await alertExists(`anomaly:phone_reuse:${phone}`),
+    `findings=${scan1.findings}`,
+  );
+  check(
+    'the scan flags a rejected-proof burst',
+    await alertExists(`anomaly:rejected_burst:${trialOrgId}`),
+  );
+  check(
+    'the scan flags a hard-cap breach (the limiter did not hold)',
+    await alertExists(`anomaly:cap_breach:${trialOrgId}`),
+  );
+  check(
+    'the scan flags a single oversized request',
+    await alertExists(`anomaly:large_request:${bigUsage!.id}`),
+  );
+
+  const scan2 = await detectAnomalies();
+  check(
+    'a second scan is silent — an unchanged condition does not re-alert',
+    scan2.newOrChanged === 0 && scan2.recovered === 0,
+    JSON.stringify(scan2),
+  );
+
+  // Recovery WITHOUT deleting evidence: the two payments expire.
+  await db
+    .update(paymentsD17)
+    .set({ status: 'expired', updatedAt: new Date() })
+    .where(eq(paymentsD17.senderPhone, phone));
+  const scan3 = await detectAnomalies();
+  check(
+    'clearing the condition clears its alert (recovery, no delete)',
+    scan3.recovered >= 1 && !(await alertExists(`anomaly:phone_reuse:${phone}`)),
+    JSON.stringify(scan3),
+  );
+
+  // ── 26. Usage CSV export — the row count matches the table ───────────
+  section('26. usage CSV export (streamed rows == the table it mirrors)');
+  const cookie = await signInAsCustomer(PORTAL_URL, email, password);
+  check('the metering account signs in over HTTP', cookie.includes('session-token'));
+
+  const winFrom = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
+  const winTo = new Date(Date.now() + 60_000).toISOString();
+  const exportQuery = new URLSearchParams({ from: winFrom, to: winTo });
+  const csvRes = await fetch(`${PORTAL_URL}/api/usage/export?${exportQuery}`, {
+    headers: { Cookie: cookie },
+  });
+  const declared = Number(csvRes.headers.get('x-row-count'));
+  const csvBody = await csvRes.text();
+  check(
+    'the export answers 200 with an X-Row-Count header',
+    csvRes.status === 200 && Number.isFinite(declared),
+    `status ${csvRes.status} declared ${declared}`,
+  );
+
+  const csvLines = csvBody.replace(/^\uFEFF/, '').split('\r\n').filter((l) => l.length > 0);
+  const headerLine = csvLines[0] ?? '';
+  const dataLines = csvLines.slice(1);
+  check(
+    'the streamed body writes exactly the rows it counted',
+    dataLines.length === declared,
+    `declared=${declared} body=${dataLines.length}`,
+  );
+  const table = await usageHistory(org.id, { from: winFrom, to: winTo });
+  check(
+    'the export count equals the table total (one source of truth)',
+    declared === table.total && table.total >= 1,
+    `declared=${declared} table=${table.total}`,
+  );
+  check(
+    'the CSV header names the ledger columns',
+    headerLine.includes('occurred_at') && headerLine.includes('cost_customer_usd'),
+    headerLine.slice(0, 60),
+  );
+
+  // ── 27. Trial expiry — the job cuts, it does not revoke ──────────────
+  section('27. trial expiry (expireTrials — unpaid + cut, keys starved)');
+  await db
+    .update(subscriptions)
+    .set({
+      trialEnd: new Date(Date.now() - 1000),
+      currentPeriodEnd: new Date(Date.now() - 1000),
+      updatedAt: new Date(),
+    })
+    .where(eq(subscriptions.id, trialSub!.id));
+
+  const expiries = await expireTrials();
+  check('the job ends the elapsed trial', expiries.ended >= 1, JSON.stringify(expiries));
+
+  const endedSub = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.id, trialSub!.id),
+  });
+  check(
+    'the subscription lands in unpaid (cut, not canceled/revoked)',
+    endedSub?.status === 'unpaid',
+    endedSub?.status,
+  );
+  const endedEnt = await db.query.entitlements.findFirst({
+    where: eq(entitlements.organizationId, trialOrgId),
+  });
+  check(
+    'the gateway is pushed to CUT_BUDGET',
+    (endedEnt?.effective as { effect?: string })?.effect === 'cut',
+    JSON.stringify(endedEnt?.effective),
+  );
+  const eligPostTrial = await trialEligibility(trialOrgId);
+  check(
+    'the trial stays spent after it ends (one per org, forever)',
+    !eligPostTrial.eligible && eligPostTrial.reason === 'trial_used',
+    JSON.stringify(eligPostTrial),
+  );
+
   // ── Summary ──────────────────────────────────────────────────────────
   const totalUpstream = ledger.reduce((a, r) => a + Number(r.costUpstreamUsd), 0);
   const totalCustomer = ledger.reduce((a, r) => a + Number(r.costCustomerUsd), 0);
@@ -979,8 +1370,8 @@ async function main(): Promise<void> {
       `  ledger rows    ${ledgerAfter.length} (${successRows.length} success, ${otherRows.length} rejected)\n` +
       `  upstream cost  $${totalUpstream.toFixed(8)} total\n` +
       `  customer cost  $${totalCustomer.toFixed(8)} total (starter × ${multiplier})\n` +
-      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401) → delete-account → rename\n` +
-      `  left behind    user ${email}, org, team, ledger rows (evidence — nothing deleted)\n`,
+      `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401) → delete-account → rename → trial → admin(suspend/reactivate/credit) → anomaly-scan → csv-export → trial-expiry(cut)\n` +
+      `  left behind    users ${email} + ${trialEmail}, orgs + teams, ledger rows, synthetic anomaly rows (evidence — nothing deleted)\n`,
   );
 
   if (failures.length) {
