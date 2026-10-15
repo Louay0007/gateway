@@ -23,7 +23,7 @@ export default function DocsPage() {
           so it wins in this subtree) — otherwise the nav text renders
           white on this page's white canvas. */}
       <div className="light-surface">
-        <Navbar />
+        <Navbar tone="light" />
       </div>
       <main>
         <DocsContent />

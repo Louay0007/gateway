@@ -24,7 +24,14 @@ const navLinks = [
   { title: "Sign in", href: "/sign-in" },
 ];
 
-const Navbar = () => {
+const Navbar = ({ tone = "dark" }: { tone?: "dark" | "light" }) => {
+  const isDark = tone === "dark";
+  const navText = isDark ? "text-foreground" : "text-black";
+  const navMuted = isDark ? "text-foreground/70" : "text-black/70";
+  const navMutedHover = isDark ? "hover:text-foreground" : "hover:text-black";
+  const navActive = isDark ? "bg-foreground/20 text-foreground" : "bg-foreground/20 text-black";
+  const signinText = isDark ? "text-foreground" : "text-black";
+
   const [isSticky, setIsSticky] = useState(false);
 
   useEffect(() => {
@@ -36,7 +43,9 @@ const Navbar = () => {
   return (
     <nav
       className={cn(
-        "dark absolute inset-x-0 top-0 z-50 w-full transition-all duration-300",
+        isDark
+          ? "dark absolute inset-x-0 top-0 z-50 w-full transition-all duration-300"
+          : "absolute inset-x-0 top-0 z-50 w-full transition-all duration-300",
         isSticky
           ? "bg-background shadow-lg shadow-black/5 backdrop-blur-lg"
           : "bg-transparent",
@@ -49,7 +58,10 @@ const Navbar = () => {
           </a>
           <Separator
             orientation="vertical"
-            className="hidden h-6 my-auto lg:block bg-foreground/20"
+            className={cn(
+              "hidden h-6 my-auto lg:block",
+              isDark ? "bg-foreground/20" : "bg-black/10",
+            )}
           />
           <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map((link) => (
@@ -59,8 +71,9 @@ const Navbar = () => {
                 className={cn(
                   "rounded-full px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors",
                   link.isActive
-                    ? "bg-foreground/20 text-foreground"
-                    : "text-foreground/70 hover:text-foreground",
+                    ? navActive
+                    : navMuted,
+                  navMutedHover,
                 )}
               >
                 {link.title}
@@ -72,7 +85,7 @@ const Navbar = () => {
         <div className="hidden items-center gap-6 lg:flex">
           <a
             href="/sign-in"
-            className="whitespace-nowrap text-foreground transition-colors hover:text-foreground/80"
+            className={cn("whitespace-nowrap", signinText, "transition-colors")}
           >
             Sign in
           </a>
@@ -101,20 +114,22 @@ const Navbar = () => {
           <SheetContent
             side="right"
             showCloseButton={false}
-            className="dark flex flex-col gap-6 overflow-auto border-l border-border bg-background p-4 sm:p-6 no-scrollbar"
+            className={cn(
+              isDark ? "dark flex flex-col gap-6 overflow-auto border-l border-border bg-background p-4 sm:p-6 no-scrollbar" : "flex flex-col gap-6 overflow-auto border-l border-border bg-background p-4 sm:p-6 no-scrollbar",
+            )}
           >
             <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
 
             <SheetHeader className="flex-row items-center justify-between p-0">
-              <SheetClose
-                nativeButton={false}
-                render={
-                  <a href="#">
-                    <Logo />
-                  </a>
-                }
-              />
-              <SheetClose className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-foreground hover:bg-primary hover:text-primary-foreground cursor-pointer">
+              <SheetClose nativeButton={false} render={
+                <a href="#">
+                  <Logo />
+                </a>
+              } />
+              <SheetClose className={cn(
+                "flex h-9 w-9 items-center justify-center rounded-lg border cursor-pointer",
+                isDark ? "border-border text-foreground hover:bg-primary hover:text-primary-foreground" : "border-border text-black hover:bg-primary hover:text-primary-foreground",
+              )}>
                 <X size={16} className="shrink-0" />
               </SheetClose>
             </SheetHeader>
@@ -128,9 +143,9 @@ const Navbar = () => {
                     <a
                       href={link.href}
                       className={cn(
-                        "rounded-lg px-3 py-2 text-base font-normal hover:bg-primary/10 hover:text-foreground",
+                        "rounded-lg px-3 py-2 text-base font-normal hover:bg-primary/10",
                         link.isActive
-                          ? "bg-primary/20 text-foreground"
+                          ? isDark ? "bg-primary/20 text-foreground" : "bg-primary/20 text-black"
                           : "text-muted-foreground",
                       )}
                     >
@@ -147,7 +162,7 @@ const Navbar = () => {
                 render={
                   <a
                     href="/sign-in"
-                    className="text-foreground transition-colors hover:text-foreground/80"
+                    className={cn("transition-colors", signinText)}
                   >
                     Sign in
                   </a>
@@ -157,6 +172,15 @@ const Navbar = () => {
                 render={
                   <Button
                     render={<a href="/sign-up" />} nativeButton={false}
+                    className="group h-10 w-full rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
+                  >
+                    Get an API key
+                    <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
+                  </Button>
+                }
+              />
+            </div>
+          </SheetContent>
                     className="group h-10 w-full rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
                   >
                     Get an API key
