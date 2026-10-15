@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 
 import { CodeBlock } from "@/components/docs/code-block";
-import { ClaudeMark } from "@/components/docs/brand-marks";
+import { ClaudeLogo } from "@/components/docs/vendor-logos";
 import { Section } from "@/components/docs/docs-section";
 import { StepN } from "@/components/docs/docs-codex";
 import { CLAUDE_ENV, CLAUDE_SETTINGS } from "@/components/docs/docs-data";
@@ -19,9 +19,7 @@ export function ClaudeCodeSection() {
       body="Claude Code speaks the Anthropic messages shape, served natively. Point it at the Zaino base URL and hand it your zn-… key as the auth token."
     >
       <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-muted">
-          <ClaudeMark className="size-9 text-foreground" />
-        </span>
+        <ClaudeLogo />
         <span>
           <span className="block font-medium">Claude Code</span>
           <span className="mt-0.5 block font-mono text-xs text-muted-foreground">

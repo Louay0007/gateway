@@ -1,6 +1,6 @@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeBlock } from "@/components/docs/code-block";
-import { AnthropicMark, OpenAIMark } from "@/components/docs/brand-marks";
+import { AnthropicLogo, OpenAILogo } from "@/components/docs/vendor-logos";
 import { Section } from "@/components/docs/docs-section";
 import {
   anthropicSnippet,
@@ -30,7 +30,7 @@ export function OpenAISection({ model, base }: { model: string; base: string }) 
       }
     >
       <CompatCard
-        mark={<OpenAIMark className="size-9 text-foreground" />}
+        mark={<OpenAILogo />}
         name="OpenAI SDK"
         note="baseURL override only — no code changes beyond the key."
       />
@@ -76,7 +76,7 @@ export function AnthropicSection({ model, base }: { model: string; base: string 
       }
     >
       <CompatCard
-        mark={<AnthropicMark className="size-9 text-foreground" />}
+        mark={<AnthropicLogo />}
         name="Anthropic SDK"
         note="baseURL + key override — messages, tools, streaming."
       />
@@ -94,9 +94,7 @@ export function AnthropicSection({ model, base }: { model: string; base: string 
 function CompatCard({ mark, name, note }: { mark: React.ReactNode; name: string; note: string }) {
   return (
     <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
-      <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-muted">
-        {mark}
-      </span>
+      {mark}
       <span>
         <span className="block font-medium">{name}-compatible</span>
         <span className="mt-0.5 block text-sm text-muted-foreground">{note}</span>

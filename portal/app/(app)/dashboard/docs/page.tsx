@@ -11,16 +11,14 @@ export const metadata: Metadata = { title: "Docs" };
  */
 export default function DashboardDocsPage() {
   return (
-    <>
-      <div>
+    <div className="-m-4 sm:-m-6">
+      <div className="px-4 pt-4 sm:px-6 sm:pt-6">
         <h2 className="text-xl font-semibold tracking-tight">Docs</h2>
         <p className="text-sm text-muted-foreground">
           Snippets, tiers, and agent configs — copy-paste ready for your keys.
         </p>
       </div>
-      <div className="-m-4 sm:-m-6">
-        <DocsContent dashboard />
-      </div>
-    </>
+      <DocsContent dashboard />
+    </div>
   );
 }

@@ -7,24 +7,18 @@ import { cn } from "@/lib/utils";
 
 /**
  * Docs hero + table of contents — shared by public /docs and
- * /dashboard/docs. Copy is identical on both; only the CTA target
- * and canvas tone adapt (light marketing vs themed dashboard).
+ * /dashboard/docs. Flat background on both surfaces: no gradients,
+ * one canvas color per shell (white marketing, background dashboard).
  */
 export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
   return (
     <section
       className={cn(
-        "relative overflow-hidden border-b",
-        dashboard
-          ? "border-border bg-gradient-to-b from-primary/[0.07] via-background to-background"
-          : "border-gray-200/60 bg-white",
+        "border-b",
+        dashboard ? "border-border bg-background" : "border-gray-200/60 bg-white",
       )}
     >
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_80%_at_20%_0%,rgba(0,0,0,0.06),transparent_70%)]"
-      />
-      <div className="relative mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+      <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
         <Badge variant="outline" className="rounded-full">
           <BookOpen className="size-3" />
           Documentation

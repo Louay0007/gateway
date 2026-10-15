@@ -1,7 +1,7 @@
 import { AlertTriangle, Check } from "lucide-react";
 
 import { CodeBlock } from "@/components/docs/code-block";
-import { CodexMark } from "@/components/docs/brand-marks";
+import { OpenAILogo } from "@/components/docs/vendor-logos";
 import { Section } from "@/components/docs/docs-section";
 import { CODEX_RUN, CODEX_TOML, CONTEXT_WINDOW, MAX_OUTPUT_TOKENS } from "@/components/docs/docs-data";
 
@@ -18,13 +18,11 @@ export function CodexSection() {
       body="codex-cli 0.156 speaks the Responses API exclusively. The gateway translates it to chat before metering — reasoning deltas stay out of the answer text, streams always terminate, error statuses pass through."
     >
       <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
-        <span className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-muted">
-          <CodexMark className="size-9 text-foreground" />
-        </span>
+        <OpenAILogo />
         <span>
           <span className="block font-medium">Muse</span>
           <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
-            0.156.1 verified · wire_api = responses
+            0.156.1 verified · wire_api = responses · OpenAI CLI
           </span>
         </span>
       </div>
