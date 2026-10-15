@@ -1190,3 +1190,53 @@ why the registry fallback exists at all. And the backfill script's first
 version matched nothing because raw SQL returns `occurred_at` while the
 interface read `occurredAt` — every timestamp parsed as NaN. It now selects
 into the right names and says so in a comment.
+
+---
+
+### 5.31 The tables looked narrow — the bug was in the Tabs primitive (2026-10-15)
+
+The usage table left ~190px of dead space on the left and clustered its
+columns on the right. It looked like a table CSS problem, and two rounds of
+`colgroup` work made it *worse* (the flexible column absorbed the slack and
+widened the gap).
+
+**It was never the table.** Measured in the browser:
+
+    tabs root        display:flex   flex-direction: row    width 912px
+    child 1 (px-6)   width 179px   left 280px   ← the tab list
+    child 2 (panel)  width 740px   left 467px   ← the table, squeezed
+
+`components/ui/tabs.tsx` had:
+
+    "group/tabs flex gap-2 data-horizontal:flex-col"
+
+Tailwind's `data-horizontal:` shorthand expands to `[data-horizontal]`, but
+base-ui emits **`data-orientation="horizontal"`**. The variant never matched,
+so the root stayed `flex-row` and laid the tab list out BESIDE the panel
+instead of above it — the panel lost 179px, and the table inherited the loss.
+
+Worse, it was silent: `data-orientation` was present in the DOM, the tab list
+looked correct, and nothing errored. The same broken shorthand appeared 11
+more times as `group-data-horizontal/tabs:` in the same file (trigger heights,
+the underline pseudo-element, vertical-orientation rules) and in
+`components/ui/separator.tsx`, where it left separators with NO orientation
+styling at all.
+
+Fixed by using the attribute that actually exists —
+`data-[orientation=horizontal]:` and `group-data-[orientation=horizontal]/tabs:`
+— in both primitives. `usage-view.tsx` is currently the only consumer of Tabs,
+so the blast radius was one page, but Separator is shared.
+
+**Lesson worth keeping: measure the layout before editing the layout.** Two
+attempts at "fixing the table" moved pixels around without touching the cause,
+and both would have looked like reasonable work in review. One
+`getComputedStyle` on the ancestor chain answered it.
+
+The `colgroup` changes are kept because they are right on their own terms, but
+as **percentages summing to 100%**, not the `w-[148px]` fixed widths from the
+first attempt. Fixed pixel widths under-fill whenever the viewport is narrower
+than their sum, which is the same class of bug from the other direction.
+Verified after deploy: `flex-direction: column`, table width = card width =
+912px, columns `[119, 82, 82, 201, 109, 109, 119, 91]` summing to exactly 912.
+The "By model" panel lost its `px-6` for the same reason — it was 48px
+narrower than its sibling, so switching tabs visibly shifted the layout.

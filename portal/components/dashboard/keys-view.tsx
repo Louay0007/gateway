@@ -305,7 +305,21 @@ export function KeysView() {
               }
             />
           ) : (
-            <Table>
+            <Table className="table-fixed">
+              {/* Same contract as the requests table: the table always spans
+                  the full card width, the flexible column absorbs the rest,
+                  and long names truncate instead of stretching the layout. */}
+              {/* Percentages summing to 100% so the table always fills the
+                  card exactly, at any width. Models takes the largest share
+                  because it holds a variable number of badges. */}
+              <colgroup>
+                <col className="w-[19%]" />
+                <col className="w-[14%]" />
+                <col className="w-[27%]" />
+                <col className="w-[14%]" />
+                <col className="w-[14%]" />
+                <col className="w-[12%]" />
+              </colgroup>
               <TableHeader>
                 <TableRow>
                   <TableHead className="pl-6">Name</TableHead>
@@ -319,7 +333,10 @@ export function KeysView() {
               <TableBody>
                 {keys.map((key) => (
                   <TableRow key={key.id}>
-                    <TableCell className="pl-6 font-medium">
+                    <TableCell
+                      className="max-w-0 truncate pl-6 font-medium"
+                      title={key.name}
+                    >
                       {key.name}
                       {key.isOwn ? (
                         <Badge variant="outline" className="ml-2">

@@ -334,7 +334,7 @@ export function UsageView() {
               </TabsList>
             </div>
 
-            <TabsContent value="table" className="pt-4">
+            <TabsContent value="table" className="block w-full pt-4">
               {rows.length === 0 ? (
                 filtered ? (
                   <NoResultsState
@@ -353,7 +353,27 @@ export function UsageView() {
                   </div>
                 )
               ) : (
-                <Table>
+                <Table className="table-fixed">
+                  {/* Fixed column widths so the table always spans the full
+                      card width with space distributed deliberately: the Key
+                      column absorbs whatever is left, and numeric columns
+                      stay compact and right-aligned instead of drifting. */}
+                  {/* Percentages, not pixels: they always total 100% of the
+                      container at any width, so the table can never
+                      under-fill or overflow. Key takes the largest share
+                      because it is the only variable-width text; the numeric
+                      columns get enough room to sit right-aligned without
+                      their headers colliding with the values. */}
+                  <colgroup>
+                    <col className="w-[13%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[9%]" />
+                    <col className="w-[22%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[12%]" />
+                    <col className="w-[13%]" />
+                    <col className="w-[10%]" />
+                  </colgroup>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="pl-6">Time</TableHead>
@@ -376,7 +396,10 @@ export function UsageView() {
                           <Badge variant="secondary">{row.model}</Badge>
                         </TableCell>
                         <TableCell className="font-mono text-xs">{row.route}</TableCell>
-                        <TableCell className="text-muted-foreground">
+                        <TableCell
+                          className="max-w-0 truncate text-muted-foreground"
+                          title={row.keyName ?? "deleted key"}
+                        >
                           {row.keyName ?? <span className="text-xs">deleted key</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
@@ -426,7 +449,11 @@ export function UsageView() {
               ) : null}
             </TabsContent>
 
-            <TabsContent value="models" className="px-6 pt-4">
+            {/* No horizontal padding: this panel's table spans the card
+                edge-to-edge exactly like the Table tab. `px-6` here made it
+                48px narrower than its sibling, so switching tabs visibly
+                shifted the layout. */}
+            <TabsContent value="models" className="pt-4">
               <ModelBreakdown
                 rows={rows}
                 hint={
@@ -502,7 +529,16 @@ function ModelBreakdown({
   return (
     <div className="grid gap-3">
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
-      <Table>
+      <Table className="table-fixed">
+        {/* Percentages summing to 100%, matching the requests table. Model
+            holds an alias badge, so it gets the flexible share. */}
+        <colgroup>
+          <col className="w-[40%]" />
+          <col className="w-[15%]" />
+          <col className="w-[15%]" />
+          <col className="w-[15%]" />
+          <col className="w-[15%]" />
+        </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead>Model</TableHead>
