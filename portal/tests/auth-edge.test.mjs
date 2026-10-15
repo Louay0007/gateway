@@ -90,7 +90,25 @@ beforeAll(async () => {
     },
     stdio: 'ignore',
   });
-  await new Promise((r) => setTimeout(r, 900));
+  // Poll the edge's own health endpoint instead of sleeping a fixed 900ms.
+  // The sleep passed in isolation and failed intermittently when vitest ran
+  // files in parallel: the child had not finished importing its module graph,
+  // so every request below got ECONNREFUSED and the whole file reported as
+  // broken. That reads as a product regression and is not one.
+  const deadline = Date.now() + 15_000;
+  for (;;) {
+    const up = await new Promise((resolve) => {
+      const req = http.request(
+        { host: '127.0.0.1', port: edgePort, path: '/__edge/health', method: 'GET' },
+        (r) => { r.resume(); resolve(r.statusCode === 200); },
+      );
+      req.on('error', () => resolve(false));
+      req.end();
+    });
+    if (up) break;
+    if (Date.now() > deadline) throw new Error('auth-edge did not become ready');
+    await new Promise((r) => setTimeout(r, 100));
+  }
 });
 
 afterAll(() => {

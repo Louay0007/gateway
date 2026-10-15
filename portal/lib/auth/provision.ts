@@ -35,10 +35,14 @@ import { log } from '@/lib/log';
 export { slugify, slugCandidates } from '@/lib/org/slug';
 
 /**
- * Models a new org's team may serve. The only model the gateway deploys;
- * the subscribing plan's allowlist replaces this on activation.
+ * Models a new org's team may serve BEFORE it subscribes.
+ *
+ * All three aliases the gateway deploys, so a pre-activation team is not
+ * narrower than a paying one — the plan's allowlist (migration 0010) replaces
+ * this on activation, and a team that started with only `fast` would silently
+ * 403 the first time a customer tried `smart`.
  */
-const DEFAULT_MODELS = ['fast'];
+const DEFAULT_MODELS = ['fast', 'smart', 'frontier'];
 
 /**
  * Derive a unique, URL-safe slug from a display name.

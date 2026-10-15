@@ -85,11 +85,22 @@ total = 0.0
 unpriced = {}
 missing_ttl_split = 0
 
-# Tenant-facing alias -> resolved upstream model in prices/models.yaml.
-# The ledger's top-level `model` is usually the resolved name, but some
-# rows (older, or non-streaming) record the alias the key requested.
-# Both must price to the same row or the reconciliation under-counts.
-ALIAS = {"fast": "space-bunny"}
+# Tenant-facing alias -> a representative resolved upstream model in
+# prices/models.yaml.
+#
+# The ledger's top-level `model` is usually the resolved name, but some rows
+# (older, or non-streaming) record the alias the key requested. Both must
+# price to the same row or the reconciliation under-counts.
+#
+# Each alias maps to ONE representative deployment. That is safe only because
+# every deployment inside a tier carries IDENTICAL nominal rates (see
+# config/litellm.yaml) — so which deployment actually served a request cannot
+# change the money. Keep that invariant, or this becomes an under-count.
+ALIAS = {
+    "fast": "deepseek-v4.1-flash",
+    "smart": "space-bunny",
+    "frontier": "grok-4.6-liberated",
+}
 
 def usage_of(r):
     # Tokens live under metadata.usage_object in this LiteLLM version;

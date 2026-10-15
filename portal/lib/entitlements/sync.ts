@@ -22,7 +22,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { entitlements, organizations, plans, subscriptions, auditLog } from '@/db/schema';
-import { updateTeamBudget, updateKeyLimits, listTeamKeys } from '@/lib/litellm/client';
+import { updateTeamBudget, updateTeamModels, updateKeyLimits, listTeamKeys } from '@/lib/litellm/client';
 import {
   CUT_BUDGET,
   effectForStatus,
@@ -186,6 +186,7 @@ export async function syncOrganizationEntitlements(
   // ── 2. Push down. Every key individually — a partial failure must not
   //       leave one key on an old plan while its siblings moved.
   if (org?.litellmTeamId) {
+    const allowedModels = effect === 'cut' ? [] : spec.models;
     try {
       await updateTeamBudget(org.litellmTeamId, {
         maxBudgetUsd: budgetUsd,
@@ -195,13 +196,34 @@ export async function syncOrganizationEntitlements(
       failures.push(`team ${org.litellmTeamId}: ${String(e)}`);
     }
 
+    // The team's OWN model list, which was missing here and is load-bearing.
+    //
+    // LiteLLM resolves a key's effective access as the intersection of the
+    // key's models and its team's models. A team is created once, with
+    // DEFAULT_MODELS, and never had its models pushed again — so the team
+    // stayed at that original list forever. Every key inherited it, and a key
+    // minted for a WIDER plan silently lost those models: the key said
+    // {fast,smart}, the team said {fast}, the intersection was {fast}, and
+    // `smart` came back 403 "not available for this API key" — a message
+    // that blames the credential rather than the team.
+    //
+    // This stayed invisible while every plan allowed exactly ['fast'], which
+    // matched DEFAULT_MODELS by coincidence. It surfaces the moment a plan
+    // allowlist is wider than the team's creation-time default — which is
+    // what migration 0010 did.
+    try {
+      await updateTeamModels(org.litellmTeamId, allowedModels);
+    } catch (e) {
+      failures.push(`team ${org.litellmTeamId} models: ${String(e)}`);
+    }
+
     const keys = await listTeamKeys(org.litellmTeamId);
     for (const k of keys) {
       try {
         // k.token — LiteLLM's token id. The display mask ("sk-...")
         // answers 404 and would mark every org's sync failed.
         await updateKeyLimits(k.token, {
-          models: effect === 'cut' ? [] : spec.models,
+          models: allowedModels,
           maxBudget: budgetUsd,
           budgetDuration: spec.budgetDuration,
           rpmLimit: spec.rpm,
@@ -264,6 +286,18 @@ async function forceCut(organizationId: string, reason: string, error: string): 
     });
   } catch (e) {
     failures.push(`team: ${String(e)}`);
+  }
+
+  // Cut the TEAM's models too, not just each key's. The key-level cut alone
+  // is sufficient to deny access — effective access is the intersection, so
+  // an empty key list denies everything — but leaving the team carrying a
+  // live model list means a key added out of band inherits access that no
+  // entitlement backs. Re-subscribing restores it, because sync() now pushes
+  // team models on the way up.
+  try {
+    await updateTeamModels(org.litellmTeamId, []);
+  } catch (e) {
+    failures.push(`team models: ${String(e)}`);
   }
 
   for (const k of await listTeamKeys(org.litellmTeamId)) {

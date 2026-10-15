@@ -64,26 +64,236 @@ model_list:
   # NO pricing, so these are a documented PLACEHOLDER to keep the spend /
   # budget / rollup pipeline exercisable — replace with real numbers before
   # customer money depends on them. Mirrored in prices/models.yaml.
+  # THREE ALIASES, ELEVEN DEPLOYMENTS. `fast` / `smart` / `frontier` are the
+  # only names customers ever see (portal/lib/keys/policy.ts enforces aliases,
+  # never upstream ids). Every model behind them passed the same gate before
+  # being admitted — scripts/probe-upstream-models.sh: tool calling with valid
+  # arguments, the tool-result→answer turn, SSE framing, and /v1/messages.
+  #
+  # Several deployments share one alias ON PURPOSE. A single deployment under
+  # an alias is a 60-second outage on any failure: LiteLLM puts the failed
+  # deployment in cooldown and there is nothing to fall through to ("No
+  # deployments available … Try again in 60 seconds"). With 3–5 deployments,
+  # a rate-limited pool is skipped and the request is served by the next one.
+  #
+  # Every deployment in one tier shares the SAME nominal rates. That keeps the
+  # spend math deterministic no matter which deployment serves a request —
+  # verify-metering's expected-cost assertions depend on it.
+  #
+  # Upstream: https://api.howtofix.id/v1 (the provider's own docs give
+  # https://howtofix.id/v1, which 404s from nginx — `api.` is load-bearing).
+  # The upstream serves chat/completions + /v1/messages natively and 404s on
+  # /v1/responses, which the auth-edge translates (edge/responses-shim.mjs).
+  # `/v1/responses` is therefore absent from supported_endpoints everywhere:
+  # declaring an endpoint the upstream lacks makes LiteLLM forward into a 404.
+  #
+  # Nominal rates are NON-ZERO placeholders. The upstream is free and this
+  # provider publishes NO pricing, so tiered nominal rates keep the spend /
+  # budget / rollup pipeline exercisable AND make a `frontier` budget behave
+  # differently from a `fast` one. Replace with real numbers before customer
+  # money depends on them. Mirrored in prices/models.yaml (one table, two
+  # consumers). Tiers differ; deployments within a tier are identical.
+  #
+  # ── FAST ($0.15 in / $0.60 out per Mtok, nominal) ──
   - model_name: fast
+    litellm_params:
+      model: openai/deepseek-v4.1-flash
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      cache_creation_input_token_cost: 0.0000003
+      cache_read_input_token_cost: 0.000000015
+      # deepseek-v4.1-flash: DeepSeek speed variant.
+
+  - model_name: fast
+    litellm_params:
+      model: openai/mimo-v2.6-flash
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      cache_creation_input_token_cost: 0.0000003
+      cache_read_input_token_cost: 0.000000015
+      # mimo-v2.6-flash: MiMo speed variant.
+
+  - model_name: fast
+    litellm_params:
+      model: openai/nemotron-3.5-lightning
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      cache_creation_input_token_cost: 0.0000003
+      cache_read_input_token_cost: 0.000000015
+      # nemotron-3.5-lightning: Nemotron speed variant.
+
+  #
+  # ── SMART ($0.30 in / $1.20 out per Mtok, nominal) ──
+  - model_name: smart
     litellm_params:
       model: openai/space-bunny
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
-      # Free pools intermittently 429/5xx, and a coding agent has a small
-      # client-side retry budget — codex-cli gave up with "exceeded retry
-      # limit" mid-task. Retrying HERE turns a transient failure into latency
-      # the client never sees.
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
       num_retries: 6
       cooldown_time: 3
     model_info:
-      # Only what the upstream actually serves.
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      # NOMINAL placeholder — this provider publishes no pricing.
       input_cost_per_token: 0.0000003
       output_cost_per_token: 0.0000012
       cache_creation_input_token_cost: 0.0000006
       cache_read_input_token_cost: 0.00000003
+      # space-bunny: most-verified: tool loop, SSE, messages, Responses-via-shim all proven live.
+
+  - model_name: smart
+    litellm_params:
+      model: openai/cat-jam
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_creation_input_token_cost: 0.0000006
+      cache_read_input_token_cost: 0.00000003
+
+  - model_name: smart
+    litellm_params:
+      model: openai/big-pickle
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_creation_input_token_cost: 0.0000006
+      cache_read_input_token_cost: 0.00000003
+
+  - model_name: smart
+    litellm_params:
+      model: openai/mimo-v2.6
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_creation_input_token_cost: 0.0000006
+      cache_read_input_token_cost: 0.00000003
+      # mimo-v2.6: full MiMo, non-flash.
+
+  - model_name: smart
+    litellm_params:
+      model: openai/muse-spark-1.2-contributor
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_creation_input_token_cost: 0.0000006
+      cache_read_input_token_cost: 0.00000003
+      # muse-spark-1.2-contributor: previous Spark generation.
+
+  #
+  # ── FRONTIER ($0.60 in / $2.40 out per Mtok, nominal) ──
+  - model_name: frontier
+    litellm_params:
+      model: openai/grok-4.6-liberated
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000024
+      cache_creation_input_token_cost: 0.0000012
+      cache_read_input_token_cost: 0.00000006
+
+  - model_name: frontier
+    litellm_params:
+      model: openai/longcat-2.5-preview
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000024
+      cache_creation_input_token_cost: 0.0000012
+      cache_read_input_token_cost: 0.00000006
+      # longcat-2.5-preview: newest preview.
+
+  - model_name: frontier
+    litellm_params:
+      model: openai/muse-spark-1.3-contributor
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 240
+      # Free pools 429/5xx under load; retry HERE so a transient failure
+      # is latency the client never sees instead of a failed agent run.
+      num_retries: 6
+      cooldown_time: 3
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000024
+      cache_creation_input_token_cost: 0.0000012
+      cache_read_input_token_cost: 0.00000006
+      # muse-spark-1.3-contributor: current Spark generation.
+
   # ─────────────────────────────────────────────────────────────────────
   # BLOCK B — UPSTREAM IS OPENAI-COMPATIBLE ONLY
   # ═════════════════════════════════════════════════════════════════════

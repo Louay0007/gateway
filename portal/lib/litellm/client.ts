@@ -263,6 +263,35 @@ export async function updateTeam(teamId: string, input: {
 }
 
 /**
+ * Read a team's current configuration back from the gateway.
+ *
+ * Exists to make the key∩team model intersection OBSERVABLE. LiteLLM resolves
+ * a key's effective access as the intersection of the key's models and its
+ * team's models, so a key can be correctly scoped and still be denied — and
+ * the 403 says "not available for this API key", which points at the wrong
+ * object. Without reading the team back there is no way to tell those two
+ * cases apart from outside.
+ */
+export async function getTeamInfo(teamId: string): Promise<{
+  models?: string[];
+  maxBudget?: number | null;
+  teamAlias?: string | null;
+}> {
+  const res = await call('/team/info' + (() => {
+    const q = new URLSearchParams({ team_id: teamId }).toString();
+    return q ? `?${q}` : '';
+  })(), { method: 'GET' });
+  const rows = res as { team_info?: Record<string, unknown>[] | Record<string, unknown> };
+  const raw = Array.isArray(rows.team_info) ? rows.team_info[0] : rows.team_info;
+  const info = (raw ?? {}) as Record<string, unknown>;
+  return {
+    models: Array.isArray(info.models) ? (info.models as string[]) : undefined,
+    maxBudget: typeof info.max_budget === 'number' ? info.max_budget : null,
+    teamAlias: typeof info.team_alias === 'string' ? info.team_alias : null,
+  };
+}
+
+/**
  * Soft revoke — LiteLLM keeps the record so usage history survives.
  *
  * `token` is LiteLLM's token id (the hash), NOT the `key_name` display

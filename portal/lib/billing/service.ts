@@ -977,7 +977,10 @@ export interface UsageRowView {
 export interface UsageHistoryQuery {
   from?: string;
   to?: string;
-  /** Exact model match — `fast` is the only alias the gateway deploys. */
+  /**
+   * Exact alias match — `fast` / `smart` / `frontier`. These are the only
+   * names the gateway serves; upstream model ids are never recorded here.
+   */
   model?: string;
   /** A single key, for the "show me this key's traffic" affordance. */
   apiKeyId?: string;

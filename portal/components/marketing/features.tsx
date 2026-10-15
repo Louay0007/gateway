@@ -35,8 +35,8 @@ const features = [
   },
   {
     icon: Zap,
-    title: 'One fast model, zero cold starts',
-    body: 'A single tuned endpoint with streaming, retries, and cooldowns handled for you — no model routing to configure.',
+    title: 'Eleven models, three tiers, zero routing to configure',
+    body: 'Ask for fast, smart, or frontier. Every alias load-balances across several models behind it, so a rate-limited pool is skipped instead of failing your request — with streaming, retries and cooldowns handled for you.',
   },
 ];
 

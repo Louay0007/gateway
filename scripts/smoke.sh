@@ -116,9 +116,23 @@ if [ "${CREAD:-0}" -gt 0 ] 2>/dev/null; then
   ok "A-6  cache_creation=$CREAD  cache_read=$READ2"
   [ "${READ2:-0}" -gt 0 ] && ok "A-6b cache hit on repeat — caching works end-to-end" \
     || bad "A-6b no cache read on identical repeat" "cache_control may be stripped upstream"
-else
+elif [ "${SMOKE_UPSTREAM_HAS_PROMPT_CACHE:-}" = "1" ]; then
   bad "A-6  cache_control not honoured" \
-      "cache_creation=$CREAD. If your upstream is OpenAI-only, LiteLLM is TRANSLATING /v1/messages and DROPPING cache_control — see DESIGN.md §4.2/§4.6."
+      "cache_creation=$CREAD. The upstream is declared prompt-cache capable, so this is a real regression."
+else
+  # Not a failure. An OpenAI-compatible upstream has no prompt-caching
+  # primitive, so LiteLLM translates /v1/messages and drops cache_control on
+  # the way through — the documented lossy path (DESIGN.md §4.2/§4.6 and the
+  # "BLOCK B" comment in config/litellm.yaml).
+  #
+  # Reporting it as a red cross trains people to ignore the smoke output,
+  # which is how a REAL A-6 regression would go unnoticed. Set
+  # SMOKE_UPSTREAM_HAS_PROMPT_CACHE=1 to make it a hard failure again once the
+  # upstream actually caches.
+  skip "A-6  cache_control not honoured — upstream has no prompt cache"
+  printf '     info  cache_creation=%s. OpenAI-compatible upstream: LiteLLM TRANSLATES\n' "${CREAD:-0}"
+  printf '           /v1/messages and drops cache_control. Expected, not a regression.\n'
+  printf '           Set SMOKE_UPSTREAM_HAS_PROMPT_CACHE=1 once the upstream caches.\n'
 fi
 
 # ════════════════════════════════════════════════════════════════

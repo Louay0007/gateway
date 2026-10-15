@@ -945,3 +945,161 @@ Two separate causes, both real:
 After both fixes `make verify-metering` passes end-to-end against the new
 `space-bunny` price row (2 requests, 2 ledger rows, $0.000108 upstream /
 $0.000140 customer at the 1.30× starter multiplier).
+
+---
+
+### 5.25 Three aliases over eleven deployments (2026-10-15)
+
+`fast` / `smart` / `frontier`, replacing the single `fast` alias. These names
+were never invented here — `portal/lib/keys/policy.ts` already documented them
+as the canonical aliases ("never upstream names"), and `scripts/smoke.sh`
+already expected `SMOKE_MODEL_RICH=smart`. The gateway was the only thing
+behind them.
+
+| alias | deployments | nominal rate |
+|---|---|---|
+| `fast` | 4 | $0.15 / $0.60 per Mtok |
+| `smart` | 4 | $0.30 / $1.20 |
+| `frontier` | 3 | $0.60 / $2.40 |
+
+Membership is by **measured latency**, not by brand name:
+
+- **fast** — `nemotron-3.5-lightning` (0.90s ttft) · `space-bunny` (1.13s) ·
+  `cat-jam` (1.51s) · `deepseek-v4.1-flash` (1.54s)
+- **smart** — `longcat-2.5-preview` (2.58s) · `mimo-v2.6` (3.12s) ·
+  `mimo-v2.6-flash` (3.82s) · `big-pickle` (4.05s)
+- **frontier** — `grok-4.6-liberated` (4.62s) ·
+  `muse-spark-1.3-contributor` (5.16s) · `muse-spark-1.2-contributor` (5.25s)
+
+(median of 5 streamed runs, `scripts/probe-latency.py`. Free shared pools, so
+this is one sample of a distribution, not a constant.)
+
+**Why latency and not quality — because quality could not be measured.**
+`scripts/probe-hard-tasks.py` first appeared to discriminate (a 6/6 at the top,
+4/6 at the bottom), which would have been a usable ranking. It was an artefact:
+two of its six checks used `^$` as a "forbidden" pattern, and with `re.M` that
+matches ANY text ending in a newline. Nearly every correct answer was scored
+WRONG. After fixing both checks, all eleven score 6/6 — a complete tie, twice
+over, on both the easy and the hard set.
+
+So: **these eleven models are not distinguishable by the probes that were
+built, and the tier split above is a latency ordering, not a quality
+ranking.** Do not read `frontier` as "best model" — it is the highest-priced
+tier and happens to contain the slowest models measured. A real quality
+ranking needs a real benchmark (SWE-bench Verified, say), not six regexes.
+
+**Several deployments per alias is the point, not decoration.** With ONE
+deployment under an alias, any failure is a 60-second outage: LiteLLM puts the
+failed deployment in cooldown and reports "No deployments available … Try
+again in 60 seconds" with nothing to fall through to. With 3–4, a rate-limited
+pool is skipped and the request is served by the next.
+
+Every deployment inside a tier carries **identical** rates, which keeps the
+spend math deterministic regardless of which deployment served a request —
+`verify-metering`'s expected-cost assertions and `reconcile.sh`'s alias map
+(one representative per alias) both depend on that invariant.
+
+---
+
+### 5.26 Bug: the TEAM's model list was never pushed (§5.25 exposed it)
+
+Symptom, on the VPS, with a correctly configured key:
+
+    key.models   = {fast,smart}   ← correct
+    team.models  = {fast}         ← stale
+    POST /v1/chat/completions {"model":"smart"} → 403
+      "The requested model 'smart' is not available for this API key"
+
+`GET /v1/models` returned `["fast","smart"]`, so the key looked perfect. The
+403 blames the API key, which sends the investigation at the wrong object.
+
+Cause: LiteLLM resolves a key's effective access as the **intersection** of
+the key's `models` and its **team's** `models`. `syncOrganizationEntitlements`
+pushed the team's *budget* (`updateTeamBudget`) but never the team's *models*
+— it only set models on each key. A team is created once with
+`DEFAULT_MODELS` and kept that list forever, so it permanently narrowed every
+key beneath it.
+
+This was invisible while every plan allowed exactly `['fast']`, which matched
+`DEFAULT_MODELS` by coincidence. **Widening a plan allowlist is what exposed
+it**, and it would have stayed hidden as long as no plan was ever wider than
+the creation-time default.
+
+Fix in `portal/lib/entitlements/sync.ts`:
+- `sync()` now calls `updateTeamModels(teamId, allowedModels)` — the function
+  already existed in `lib/litellm/client.ts` and had no callers.
+- `forceCut()` cuts the team's models too, so a key added out of band cannot
+  inherit access that no entitlement backs. Re-subscribing restores it,
+  because sync now pushes team models on the way up.
+- `DEFAULT_MODELS` in `lib/auth/provision.ts` is now all three aliases, so a
+  new org is no narrower before subscribing than after.
+
+New `getTeamInfo()` in `lib/litellm/client.ts`, because until the team can be
+read back there is no way to tell "key is mis-scoped" from "team is stale".
+
+`verify-metering` now asserts the **intersection**, not the two lists
+separately: every alias must survive `key ∩ team`. Asserting each list alone
+is what let this ship.
+
+Migration `0010_model_tiers.sql` also has to force every cached `entitlements`
+row due (`synced_at` back 2 hours), because `planForOrg()` reads the cached
+entitlement first and only falls back to the live subscription. Without that,
+widening `plans.models` changes nothing for an org that already has a cached
+entitlement, and the `reconcile-entitlements` backstop would leave them on the
+old allowlist for up to `BACKSTOP_INTERVAL_MINUTES` (60).
+
+---
+
+### 5.27 Config-drift guard: the two rate tables are now checked
+
+`config/litellm.yaml`'s `model_info` and `prices/models.yaml` are the same
+numbers in two files. They have drifted before, and the failure is silent and
+expensive in both directions — litellm.yaml higher means the gateway meters
+more than it bills (margin silently negative); lower means customers are
+overcharged against the advertised rate. Nothing at runtime compares them.
+
+`portal/tests/pricing-consistency.test.ts` (11 tests) parses both files from
+disk and fails on:
+- a deployment with no price row (spend silently unpriced)
+- an orphan price row for a model no deployment serves
+- **any per-token disagreement** between the two tables
+- a tier whose deployments disagree with each other (breaks reconcile.sh)
+- non-increasing tier rates (a tier that does not differentiate)
+- an alias declared in `supported_endpoints` the upstream lacks — the exact
+  §5.22 404 trap
+- a deployment with no `num_retries` / `cooldown_time`
+- a reconcile.sh alias that names a model no deployment serves, or misses one
+
+Verified non-vacuous: injecting a deliberate 0.3 → 0.9 drift into
+`prices/models.yaml` fails 3 of the 11.
+
+---
+
+### 5.28 Smoke A-6 was a false failure, and D17 is unconfigured (2026-10-15)
+
+**A-6 (`cache_control` on the Anthropic path) now skips instead of failing.**
+The upstream is OpenAI-compatible and has no prompt-caching primitive, so
+LiteLLM translates `/v1/messages` and drops `cache_control` — the documented
+lossy path (DESIGN.md §4.2/§4.6, "BLOCK B" in `config/litellm.yaml`). The
+suite was reporting it as a red ❌, which is how people learn to ignore smoke
+output and therefore how a REAL A-6 regression would slip through. It is now a
+`⏭` with an explanation. `SMOKE_UPSTREAM_HAS_PROMPT_CACHE=1` restores the hard
+failure for the day an upstream that actually caches.
+
+Full public-edge smoke through a real `zn-` key:
+**passed 8, failed 0, skipped 3** (A-6 no prompt cache; A-8/A-15 need
+`LITELLM_MASTER_KEY`, which is not on the Mac by design).
+
+**`make verify-d17` cannot run: `D17_RECEIVER_PHONE` is unset.** This is
+pre-existing and unrelated to anything above — the six `D17_*` keys were absent
+from `.env.example` entirely, so a fresh deploy hit a bare
+`D17_RECEIVER_PHONE is not configured` crash with no hint that the key was
+never documented. They are now documented in `.env.example`, with
+`D17_RECEIVER_PHONE` deliberately left to be filled in: it is a real La Poste
+payout number, and a placeholder default invites a deploy that looks
+configured and is not. **Set it (and the other five) before `verify-d17` will
+pass.** The dev billing provider ignores them all.
+
+Codex CLI 0.156.1 verified against `smart` as well as `fast` (multi-step:
+create `sum.js`, run it, report `42`). `[models.fast]`, `[models.smart]` and
+`[models.frontier]` are all declared in `~/.codex/config.toml`.

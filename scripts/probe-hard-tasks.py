@@ -56,8 +56,11 @@ TASKS = [
         "    temp = count\n"
         "    count = temp + 1\n\n"
         "Reply with the corrected increment function only.",
-        [r"with\s+lock"],
-        [r"^$"],
+        # Either the context-manager form or explicit acquire/release is a
+        # correct fix. The first version of this check accepted only
+        # `with lock` and scored acquire/release answers as failures.
+        [r"with\s+lock|lock\.acquire\s*\(\s*\)"],
+        [],
     ),
     (
         "concurrency-reasoning",
@@ -97,7 +100,11 @@ TASKS = [
         "    else:\n"
         "        return 'nonpos'\n",
         [r"def\s+handle"],
-        [r"^$"],
+        # Fail only if the model echoed the input back with the duplicated
+        # else-branch intact. (The first version of this check used `^$`,
+        # which matches any text ending in a newline and scored nearly
+        # everything as a failure.)
+        [r"else:\s*\n\s*return\s+'nonpos'"],
     ),
 ]
 

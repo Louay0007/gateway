@@ -139,6 +139,30 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const PORTAL_URL = process.env.PORTAL_INTERNAL_URL ?? 'http://portal:3000';
 
+/**
+ * Ask for a model on a given gateway key and return just the HTTP status.
+ *
+ * Used to prove a tier is actually SERVED rather than merely listed: the
+ * portal can report Pro while the team still carries the Starter allowlist,
+ * and only a live request distinguishes those. See §5.26.
+ */
+async function statusFor(plaintext: string, model: string): Promise<number> {
+  const res = await fetch(`${LITELLM_BASE}/v1/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${toGatewayKey(plaintext)}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: 'user', content: 'tier proof — reply with one word' }],
+      max_tokens: 64,
+    }),
+    signal: AbortSignal.timeout(120_000),
+  });
+  return res.status;
+}
+
 /** The gateway request every call below makes. */
 async function infer(plaintext: string): Promise<{ status: number; body: any }> {
   const res = await fetch(`${LITELLM_BASE}/v1/chat/completions`, {
@@ -367,12 +391,15 @@ async function main(): Promise<void> {
 
   // ── 7. Key — the key service, now unblocked ──────────────────────────
   section('7. key (lib/keys/service.ts — the mint path)');
+  // Starter's allowlist (migration 0010): fast + smart. `frontier` is
+  // Pro-only and is proven in section 15, at the upgrade — the only point
+  // where the plan actually grants it.
   const { key, plaintext } = await createKey({
     organizationId: org.id,
     userId: domainUserId,
     role: 'owner',
     name: 'metering proof',
-    models: ['fast'],
+    models: ['fast', 'smart'],
   });
   check(
     'credential minted in the customer format (redacted)',
@@ -389,6 +416,32 @@ async function main(): Promise<void> {
       /^sk-[A-Za-z0-9_-]{13,}$/.test(toGatewayKey(plaintext)),
     `gateway form prefix=${toGatewayKey(plaintext).slice(0, 8)}…`,
   );
+
+  // The allowlist is the only thing standing between a customer and a 403 on
+  // every request. Prove it still gates: an upstream model name, and a model
+  // no plan offers, must both be refused at mint time. A near-miss like
+  // `fast-tier` must be refused too — exact match only, or a typo becomes a
+  // key that 403s later with a message that blames the credential.
+  const planModels = activeState.plan?.models ?? [];
+  for (const bogus of ['space-bunny', 'fast-tier', 'fast ', 'FRONTIER', 'grok-4.6-liberated']) {
+    try {
+      await createKey({
+        organizationId: org.id,
+        userId: domainUserId,
+        role: 'owner',
+        name: `should-not-exist-${bogus}`,
+        models: [bogus],
+      });
+      check(`createKey refuses "${bogus}"`, false, 'it was accepted');
+    } catch (e) {
+      check(
+        `createKey refuses "${bogus}"`,
+        e instanceof KeyServiceError && e.code === 'validation',
+        e instanceof KeyServiceError ? e.code : String(e).slice(0, 80),
+      );
+    }
+  }
+  process.stdout.write(`  note  plan allowlist: ${JSON.stringify(planModels)}\n`);
 
   // The per-key push the activation could not do (no keys existed yet).
   const syncWithKey = await syncOrganizationEntitlements(org.id, 'verify-metering:key-push');
@@ -447,10 +500,53 @@ async function main(): Promise<void> {
       Math.abs((info.max_budget ?? 0) - expectedUpstream) < 0.01,
       `max_budget=${info.max_budget}`,
     );
+    // The plan's allowlist is now two aliases on Starter (migration 0010),
+    // so a key must carry BOTH — not just `fast`. A key scoped to one alias
+    // would 403 on the other, which is a support ticket, not a detail.
     check(
-      `gateway key is restricted to the plan's models (got ${JSON.stringify(info.models ?? [])})`,
-      JSON.stringify(info.models ?? []) === JSON.stringify(['fast']),
+      `gateway key carries the plan's aliases (got ${JSON.stringify(info.models ?? [])})`,
+      (info.models ?? []).includes('fast') && (info.models ?? []).includes('smart'),
+      `expected fast+smart, got ${JSON.stringify(info.models ?? [])}`,
     );
+  }
+
+  // ── 8b. The key∩team model intersection ──────────────────────────────
+  //
+  // LiteLLM resolves a key's effective access as the INTERSECTION of the
+  // key's models and its TEAM's models. A key can therefore be perfectly
+  // scoped and still be denied, and the 403 blames the API key — which sends
+  // the investigation at the wrong object.
+  //
+  // This exact bug shipped once: syncOrganizationEntitlements() pushed the
+  // team's BUDGET but never its MODELS, so every team kept the DEFAULT_MODELS
+  // it was created with forever. The key said {fast,smart}, the team said
+  // {fast}, the intersection was {fast}, and `smart` 403'd on a correctly
+  // configured key. It was invisible while every plan allowed exactly
+  // ['fast'], which matched the default by coincidence.
+  //
+  // So assert the intersection itself, not just the two lists separately.
+  {
+    const { getTeamInfo } = await import('@/lib/litellm/client');
+    if (!teamId) {
+      check('team readable from the gateway', false, 'organization has no litellmTeamId');
+    } else {
+      const team = await getTeamInfo(teamId);
+      const teamModels = team.models ?? [];
+      // Starter: fast + smart. `frontier` is asserted in section 15, where
+      // the upgrade grants it.
+      const keyModels = ['fast', 'smart'];
+      const effective = keyModels.filter((m) => teamModels.includes(m));
+      check(
+        `gateway TEAM carries the plan's aliases (got ${JSON.stringify(teamModels)})`,
+        keyModels.every((m) => teamModels.includes(m)),
+        `effective access would be ${JSON.stringify(effective)}`,
+      );
+      check(
+        'every alias survives the key∩team intersection',
+        effective.length === keyModels.length,
+        `effective=${JSON.stringify(effective)} key=${JSON.stringify(keyModels)} team=${JSON.stringify(teamModels)}`,
+      );
+    }
   }
 
   // ── 9. The gateway's own spend ledger must show the requests ─────────
@@ -495,9 +591,30 @@ async function main(): Promise<void> {
   const priceTable = await loadPriceTable();
   // The model string LiteLLM actually reports for the `fast` alias. Kept in
   // sync with config/litellm.yaml; resolvePrice strips the provider prefix and
-  // matches the bare `space-bunny` row.
-  const price = resolvePrice(priceTable, 'openai/space-bunny');
-  check('price table resolves the served model', Boolean(price), 'space-bunny not in prices/models.yaml');
+  // matches the bare `deepseek-v4.1-flash` row.
+  const price = resolvePrice(priceTable, 'openai/deepseek-v4.1-flash');
+  check('price table resolves the served model', Boolean(price), 'deepseek-v4.1-flash not in prices/models.yaml');
+
+  // All three aliases must be priced, not just the one this run exercised.
+  // A typo in a frontier row would leave every frontier request unpriced and
+  // invisible in the ledger — revenue that appears to be free usage.
+  const tierRates: Record<string, number> = {};
+  for (const [alias, probe] of [
+    ['fast', 'openai/deepseek-v4.1-flash'],
+    ['smart', 'openai/space-bunny'],
+    ['frontier', 'openai/grok-4.6-liberated'],
+  ] as const) {
+    const p = resolvePrice(priceTable, probe);
+    check(`price table resolves the \`${alias}\` alias`, Boolean(p), `${probe} not in prices/models.yaml`);
+    if (p) tierRates[alias] = p.input_per_mtok;
+  }
+  if (Object.keys(tierRates).length === 3) {
+    check(
+      `aliases are priced in increasing order (fast ${tierRates.fast} < smart ${tierRates.smart} < frontier ${tierRates.frontier})`,
+      tierRates.fast! < tierRates.smart! && tierRates.smart! < tierRates.frontier!,
+      JSON.stringify(tierRates),
+    );
+  }
 
   // Starter's multiplier (rate_multiplier_bps = 13000 → 1.30).
   const multiplier = (activeState.plan?.rateMultiplierBps ?? 13000) / 10_000;
@@ -664,6 +781,59 @@ async function main(): Promise<void> {
       Math.abs(Number((proEnt.effective as { maxBudgetUsd?: number })?.maxBudgetUsd) - 600 / 1.25) < 0.01,
     proEnt ? `status=${proEnt.status} budget=${(proEnt.effective as { maxBudgetUsd?: number })?.maxBudgetUsd}` : 'no entitlement row',
   );
+
+  // `frontier` is Pro-only, so the upgrade is the moment it must become
+  // reachable. Asserted at the GATEWAY, not against the portal's plan row:
+  // the portal could happily report Pro while the team still carries the
+  // Starter allowlist, and that is exactly the §5.26 failure. A green plan
+  // check proves nothing about what the gateway will actually serve.
+  {
+    const { getTeamInfo } = await import('@/lib/litellm/client');
+    const team = await getTeamInfo(teamId);
+    const teamModels = team.models ?? [];
+    check(
+      `the upgrade unlocks \`frontier\` on the team (team models: ${JSON.stringify(teamModels)})`,
+      teamModels.includes('frontier'),
+      'frontier is Pro-only; if it is missing here the team still carries the Starter allowlist',
+    );
+    check(
+      'the upgrade did not drop the aliases Starter already had',
+      teamModels.includes('fast') && teamModels.includes('smart'),
+      `team models: ${JSON.stringify(teamModels)}`,
+    );
+
+    // And the real thing: a live request against the Pro-only alias.
+    const frontierKey = await createKey({
+      organizationId: org.id,
+      userId: domainUserId,
+      role: 'owner',
+      name: 'frontier proof',
+      models: ['frontier'],
+    }).catch((e) => {
+      check('minting a frontier-only key succeeds on Pro', false, String(e).slice(0, 120));
+      return null;
+    });
+    if (frontierKey) {
+      check('minting a frontier-only key succeeds on Pro', true);
+      const status = await statusFor(frontierKey.plaintext, 'frontier');
+      check(
+        `a live request to \`frontier\` is served (http ${status})`,
+        status === 200,
+        `expected 200, got ${status} — a 403 here means the team still holds the Starter allowlist`,
+      );
+
+      // Revoke it immediately. The lifecycle drops back to Starter at the
+      // re-subscribe step, and Starter allows only 3 keys — a key left
+      // behind here would eat a slot and fail a later section for a reason
+      // that has nothing to do with what it claims to test.
+      await revokeKey({
+        organizationId: org.id,
+        keyId: frontierKey.key.id,
+        userId: domainUserId,
+        role: 'owner',
+      }).catch(() => {});
+    }
+  }
 
   // ── 16. Cancel at period end — the kind cancel ───────────────────────
   section('16. cancel at period end (access continues until the paid period ends)');
