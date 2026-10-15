@@ -731,3 +731,217 @@ T6 does to test the staff gate.
 - The minted test accounts/orgs/teams the proof leaves behind are
   evidence, not garbage — do not delete rows to "clean up"; the ledger
   rows are the billing record.
+
+---
+
+### 5.21 Upstream is now `space-bunny` via `api.howtofix.id` (2026-10-15)
+
+Replaces §5.20 (OpenRouter `poolside/laguna-s-2.1:free`). The 9Router hop
+tried before that was reverted — see "reverted" below.
+
+**Config.** `config/litellm.yaml` — one `fast` deployment:
+`model: openai/space-bunny`, `api_base`/`api_key` from
+`UPSTREAM_BASE_URL` / `UPSTREAM_API_KEY`. `prices/models.yaml` — one
+`space-bunny` row. `scripts/reconcile.sh` — `ALIAS = {"fast": "space-bunny"}`.
+`portal/scripts/verify-metering.ts` — price probe uses `openai/space-bunny`.
+
+**The URL in the provider's own docs is wrong.** `https://howtofix.id/v1/...`
+404s from nginx. The working base is **`https://api.howtofix.id/v1`** —
+`api.howtofix.id` is the only subdomain that resolves, and `https://howtofix.id/models`
+returning 200 is the SPA's HTML catch-all, not an API.
+
+**Verified live before wiring (not inferred):**
+
+| Capability | Result |
+|---|---|
+| `POST /v1/chat/completions` | real completions |
+| tool calling | `finish_reason: tool_calls`, well-formed `arguments` |
+| full agentic loop (call → tool result → answer) | works |
+| SSE streaming | correct framing — 36 `\n`, 18 `data:` frames, `[DONE]` |
+| `POST /v1/messages` | works, Anthropic-native, emits `thinking` blocks |
+| `POST /v1/responses` | **404 — NOT offered** |
+
+**The `/v1/responses` gap is the significant one.** codex-cli 0.156 dropped
+`wire_api = "chat"` and speaks Responses exclusively, and LiteLLM does *not*
+translate here — it forwards `/v1/responses` to the upstream, which 404s
+(verified through the gateway: `http=404 ... "Not found" ... Model Group=fast`).
+So **codex-cli cannot drive `space-bunny`**, which reverses the §5.20 Codex
+setup. `/v1/responses` is deliberately absent from `supported_endpoints`;
+declaring an endpoint the upstream lacks only moves the 404. Closing this
+needs a Responses→Chat shim (the auth-edge shape), not a config change.
+
+**Reasoning model.** `max_tokens: 90` returns empty content — every token goes
+to reasoning. Tiny `max_tokens` reads as silent failure; use ≥1024.
+
+**Cooldown is punishing.** A single failure (the `/v1/responses` 404) puts the
+only deployment in cooldown for **60s** — "No deployments available … Try again
+in 60 seconds" — despite `cooldown_time: 3`. With one deployment under the alias
+there is nothing to fall through to, so any failure is a 60s outage. Adding a
+second model to the `fast` group is the mitigation, not more retries.
+
+**Prices are NOMINAL, not real.** This provider's `/v1/models` carries **no
+`pricing` object** — only `id`, `object`, `created`, `owned_by`,
+`supported_endpoint_types` — and completions return no `usage.cost`. The rates
+($0.30 in / $1.20 out per Mtok) are a documented placeholder so the
+spend/budget/rollup pipeline stays exercisable. Replace before customer money
+depends on them.
+
+**Model id mismatch (harmless).** The catalogue lists `space-bunny`; responses
+report `"model":"space-bunny-free"`. Pricing resolves on the bare name LiteLLM
+logs, which is `space-bunny`.
+
+**Reverted — do not resurrect.** The 9Router integration is gone:
+`edge/normalise.mjs`, `portal/tests/upstream-normaliser.test.mjs`, the
+`upstream-edge` compose service, and litellm's `extra_hosts` are all removed;
+`edge/Dockerfile` is back to `CMD ["node","server.mjs"]` with one entry point.
+The orphan container `gateway-upstream-edge-1` was `docker rm -f`'d on the VPS
+afterwards — `docker compose ps` is clean. For the record, the normaliser was
+working when abandoned: 9Router wraps success bodies as
+`{"data":{…},"success":true}` **and** appends `\ndata: [DONE]\n\n` even to
+non-streaming responses, so `JSON.parse` throws "Extra data: line 2 column 1".
+It also mislabels non-streaming responses `text/event-stream`, so streaming must
+be detected by sniffing the first bytes for a `data:` prefix, never from the
+content-type. `https://api.howtofix.id/v1` needs none of this — plain OpenAI.
+
+---
+
+### 5.22 `/v1/responses` shim — Codex CLI works against space-bunny (2026-10-15)
+
+Closes the §5.21 blocker. codex-cli 0.156 speaks Responses only; the upstream
+404s on `/v1/responses`; LiteLLM forwards rather than translates. So the
+translation now happens **in the auth-edge process**, in front of LiteLLM.
+
+**Why at the edge and not as a separate service.** Metering. LiteLLM prices and
+logs `/v1/chat/completions`, which is the shape the upstream is actually called
+in. Translating in front of LiteLLM keeps the money path on the one endpoint
+LiteLLM already handles correctly, instead of inventing a second priced shape
+that would need its own rates, its own ledger mapping, and its own proof.
+
+**Files.**
+- `edge/responses-shim.mjs` — pure translator, no I/O. Importable and
+  testable without binding a port.
+- `edge/server.mjs` — intercepts `POST /v1/responses` only. Every other route
+  is the original pure proxy, byte-for-byte.
+- `edge/Dockerfile` — `COPY server.mjs responses-shim.mjs ./` (one entry point,
+  the shim is in-process).
+- `portal/tests/responses-shim.test.mjs` — 25 unit tests on the translation.
+- `portal/tests/responses-route.test.mjs` — 10 tests over real HTTP against the
+  shipped entry point.
+- Kill switch: `RESPONSES_SHIM=off` restores pure passthrough. Needed because a
+  future upstream that speaks Responses natively would make this dead weight.
+
+**Verified live through the public edge with a real `zn-` key:**
+`/v1/responses` non-streamed 200 · tool calling → `function_call` with
+`call_id` + parsed arguments · streaming 22 events, sequence
+`created → in_progress → output_item.added → reasoning_summary_text.delta →
+… → completed`, reassembling to `"1 2 3"`.
+
+**Verified with codex-cli 0.156.1 against the deployed gateway:**
+- prompt → `exec` tool call → tool result → correct answer
+- prompt → read `greet.js` → write `add.js` → run it → report `5`
+  (multi-step, and it matched the existing CommonJS module style)
+
+**`~/.codex/config.toml`.** `[models.fast]` added — `model_provider = "zaino"`,
+`model = "fast"`, `model_context_window = 262144`, `model_max_output_tokens =
+32768`. Without it codex prints "Model metadata for `fast` not found" and uses
+guessed fallback metadata. Backup: `~/.codex/config.toml.bak-before-shim-*`.
+
+Use: `codex -c model_provider=zaino -c model=fast`. The model override is
+required — codex otherwise sends the global default (`oc/step-5-preview-free`),
+which LiteLLM correctly rejects with 403.
+
+**Deliberate refusals, not silent drops.** These are the cases where quietly
+dropping an unsupported field would produce a 200 that looks fine while the
+model works from truncated context:
+- `previous_response_id` → **400** with an explanatory message. Codex uses
+  `store:false` and sends full `input` each turn, so this should not fire.
+- multimodal parts (`input_image`, `input_audio`) → dropped (upstream is
+  text-only; forwarding them would 400 mid-stream).
+- `reasoning` effort/summary → accepted and dropped.
+
+**Hard rules the implementation encodes** (each has a test):
+- Reasoning NEVER becomes visible text. `reasoning_content` maps to
+  `response.reasoning_summary_text.delta` on its own reasoning item; splicing
+  it into `output_text.delta` would put the model's scratchpad inside the
+  answer it is about to give.
+- A stream ALWAYS terminates on `response.completed`, including when the
+  upstream sent zero chunks. Otherwise a client blocks until its own timeout.
+- `finish()` is idempotent — an upstream that sends a terminal chunk and then
+  closes must not produce two `response.completed` events.
+- An upstream error keeps its status. A 429 becomes a 429, never a 200 with an
+  empty completion, which would make an agent believe the model answered.
+- Frames split on `\n\n`, never a bare newline, so a frame split across a TCP
+  segment is not corrupted. An unparseable frame is skipped, not fatal.
+- Refusals happen BEFORE the upstream call, so a rejected request never spends
+  a billable model call (asserted with a call counter in the route tests).
+
+**Cost:** the shim buffers the request body (capped at `MAX_BODY_BYTES`,
+32 MiB) because a Responses request must be parsed whole to be translated.
+Response bodies are never aggregated on the streaming path.
+
+---
+
+### 5.23 Model catalogue at api.howtofix.id — 15 models, 11 agentic (2026-10-15)
+
+Probed with `scripts/probe-upstream-models.sh` (capability) and
+`scripts/probe-coding-quality.py` / `scripts/probe-hard-tasks.py` (quality).
+
+**Capability.** Each model tested for tool calling, argument validity, the
+tool-result→answer turn, SSE framing, and `/v1/messages`.
+
+AGENTIC (all four checks pass):
+`space-bunny` · `cat-jam` · `deepseek-v4.1-flash` · `grok-4.6-liberated` ·
+`nemotron-3.5-lightning` · `mimo-v2.6-flash` · `mimo-v2.6` · `big-pickle` ·
+`longcat-2.5-preview` · `muse-spark-1.3-contributor` ·
+`muse-spark-1.2-contributor`
+
+Not qualified:
+- `step-5-preview` — `x429` on every call (rate limited, not broken)
+- `mimo-v2.5` — `x400` on every call
+- `claude-haiku-5.5`, `deepseek-v4-flash` — tool calling works but the
+  tool-result→answer turn fails (`loop=no`). An agent would stall after its
+  first tool call, which is worse than not supporting tools at all.
+
+**Quality — the 3/3 tie was the finding.** The first quality pass (reverse a
+string, fix an off-by-one, order-preserving dedupe) put ALL ELEVEN at 3/3.
+Three easy tasks do not discriminate; a tie is not a decision. Do not read
+"11/11 pass" as "these models are equivalent" — it means the probe was too
+weak. `scripts/probe-hard-tasks.py` exists because of that.
+
+**Cloudflare gotcha that fakes a total outage.** The provider sits behind
+Cloudflare, which returns **`error code: 1010`** (browser-signature ban) for
+Python's default `Python-urllib/3.x` User-Agent. Every model then looks like a
+hard 403. `curl` works. The Python probes now send an explicit
+`User-Agent: curl/8.7.1`; without it a provider-level block reads as
+"all 15 models are broken".
+
+---
+
+### 5.24 The mock upstream cannot reach itself from a container on Linux (2026-10-15)
+
+`make verify-metering` failed 9 checks on the VPS with
+`OpenAIException - Connection error`. Not a model or config problem: the mock
+was not running at all.
+
+Two separate causes, both real:
+
+1. **No `node` on the VPS host.** `make mock-upstream` shells out to `node`,
+   which exists only inside the containers. The target's readiness probe was
+   `pgrep -f 'mock-upstream.mjs'`, which matches the *make command line
+   itself* — so it printed "mock already running on :8787" while nothing was
+   listening. The probe is now an actual `curl /health`, which cannot lie.
+
+2. **Loopback is unreachable from a bridge container on Linux.**
+   `scripts/mock-upstream.mjs` bound `127.0.0.1`, but
+   `docker-compose.mock.yml` points LiteLLM at
+   `http://host.docker.internal:8787`, which on Linux resolves to the docker
+   bridge gateway (172.17.0.1) — and that cannot reach the host's 127.0.0.1.
+   This file was written for Docker Desktop, where `host.docker.internal` does
+   reach the host's interfaces. Fixed with an opt-in `MOCK_HOST` (default
+   still `127.0.0.1`); on the VPS the mock runs as a host-network container
+   with `MOCK_HOST=0.0.0.0`, which is safe only because the Lightsail
+   firewall admits 22/80/443.
+
+After both fixes `make verify-metering` passes end-to-end against the new
+`space-bunny` price row (2 requests, 2 ledger rows, $0.000108 upstream /
+$0.000140 customer at the 1.30× starter multiplier).

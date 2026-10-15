@@ -6,7 +6,7 @@
 FROM node:22-alpine
 
 WORKDIR /app
-COPY server.mjs ./server.mjs
+COPY server.mjs responses-shim.mjs ./
 
 USER node
 
@@ -16,6 +16,9 @@ ENV AUTH_EDGE_HOST=127.0.0.1 \
     AUTH_EDGE_PORT=4001 \
     AUTH_EDGE_UPSTREAM=http://127.0.0.1:4000
 
+# The Responses→Chat shim is imported by server.mjs and runs in-process at
+# the edge — it is not a separate service, deliberately. It must sit
+# BEFORE LiteLLM so metering stays on /v1/chat/completions.
 EXPOSE 4001
 
 CMD ["node", "server.mjs"]

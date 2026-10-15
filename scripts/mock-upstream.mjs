@@ -21,6 +21,21 @@
 import http from 'node:http';
 
 const PORT = Number(process.env.MOCK_PORT ?? 8787);
+
+// Bind address. Loopback by default, and that is the RIGHT default: the mock
+// holds no credential, but it does mint fake completions, so it must not be
+// reachable from anything but this machine.
+//
+// It is configurable only because LiteLLM runs in Docker. On Docker Desktop
+// (macOS) `host.docker.internal` reaches the host's interfaces, so loopback
+// works. On a LINUX host the container resolves that name to the docker
+// bridge gateway (172.17.0.1), which CANNOT reach the host's 127.0.0.1 — so
+// `make verify-metering` on a VPS fails every request with
+// "OpenAIException - Connection error" unless the mock binds wider.
+//
+// `MOCK_HOST=0.0.0.0` is therefore opt-in and is only ever needed on a host
+// that already firewalls the port (the Lightsail box admits 22/80/443 only).
+const HOST = process.env.MOCK_HOST ?? '127.0.0.1';
 const PROMPT_TOKENS = 100;
 const COMPLETION_TOKENS = 20;
 
@@ -294,6 +309,6 @@ const server = http.createServer((req, res) => {
   });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`mock-upstream listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`mock-upstream listening on http://${HOST}:${PORT}`);
 });

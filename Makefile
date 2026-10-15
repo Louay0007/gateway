@@ -229,13 +229,17 @@ MOCK_PORT ?= 8787
 COMPOSE_MOCK := docker compose -f docker-compose.yml -f docker-compose.mock.yml
 
 mock-upstream: ## Run a fake upstream on the host (background; for smoke-local)
-	@if pgrep -f 'mock-upstream.mjs' >/dev/null; then \
+	@# On a Linux host, LiteLLM's container reaches this service through
+	@# `host.docker.internal` (the docker bridge gateway), which cannot see
+	@# the host's 127.0.0.1 — so the mock must bind wider there. Only safe
+	@# on a box whose firewall already denies the port. Set MOCK_HOST=0.0.0.0.
+	@if curl -sS -m 3 http://127.0.0.1:$(MOCK_PORT)/health >/dev/null 2>&1; then \
 	  echo "  mock already running on :$(MOCK_PORT)"; \
 	else \
-	  nohup node scripts/mock-upstream.mjs >/tmp/mock-upstream.log 2>&1 & \
-	  sleep 1; \
+	  MOCK_HOST=$(MOCK_HOST) setsid nohup node scripts/mock-upstream.mjs >/tmp/mock-upstream.log 2>&1 < /dev/null & \
+	  sleep 2; \
 	  if curl -sS -m 5 http://127.0.0.1:$(MOCK_PORT)/health >/dev/null 2>&1; then \
-	    echo "  mock-upstream up on http://127.0.0.1:$(MOCK_PORT)"; \
+	    echo "  mock-upstream up on http://127.0.0.1:$(MOCK_PORT) (MOCK_HOST=$(MOCK_HOST))"; \
 	  else \
 	    echo "  FAILED to start mock-upstream — see /tmp/mock-upstream.log"; exit 1; \
 	  fi; \

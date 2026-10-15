@@ -89,7 +89,7 @@ missing_ttl_split = 0
 # The ledger's top-level `model` is usually the resolved name, but some
 # rows (older, or non-streaming) record the alias the key requested.
 # Both must price to the same row or the reconciliation under-counts.
-ALIAS = {"fast": "poolside/laguna-s-2.1:free"}
+ALIAS = {"fast": "space-bunny"}
 
 def usage_of(r):
     # Tokens live under metadata.usage_object in this LiteLLM version;

@@ -1,33 +1,36 @@
 # Your price table. Reviewed monthly against the provider's live
 # pricing page. Do NOT hardcode values from documentation examples.
 #
-# ── CURRENT UPSTREAM (dev): OpenRouter free tier ────────────────────
-# Active model: `fast` → openai/poolside/laguna-s-2.1:free
-# (OpenRouter base https://openrouter.ai/api/v1)
+# ── CURRENT UPSTREAM (dev): howtofix.id ────────────────────────────
+# Active model: `fast` → openai/space-bunny
+# (base https://api.howtofix.id/v1)
 #
-# The upstream is FREE ($0/$0 — verified against OpenRouter's live
-# catalogue), so the rates below are NOMINAL DEV RATES, not real provider
-# prices. They exist so the gateway's spend / budget / rollup pipeline
-# stays exercisable end-to-end (a $0 model makes every budget a no-op and
-# hides pipeline bugs). These values are mirrored, per-token, in
-# config/litellm.yaml's model_info — ONE table, TWO consumers (portal
-# resolvePrice + scripts/reconcile.sh). Keep them in sync, and zero them
-# before any real billing relies on this table.
+# The upstream is FREE and this provider publishes NO pricing — its
+# /v1/models response carries no `pricing` object, only
+# `supported_endpoint_types`. The rates below are therefore NOMINAL DEV
+# RATES, not real provider prices. They exist so the gateway's spend /
+# budget / rollup pipeline stays exercisable end-to-end (a $0 model makes
+# every budget a no-op and hides pipeline bugs). Replace them with real
+# numbers before any customer money depends on them.
+#
+# These values are mirrored, per-token, in config/litellm.yaml's
+# model_info — ONE table, TWO consumers (portal resolvePrice +
+# scripts/reconcile.sh). Keep them in sync, and zero them if you switch
+# to a genuinely free-for-cost upstream.
 #
 # resolvePrice() strips the provider prefix and matches the bare model by
-# prefix. LiteLLM reports this upstream as `openai/poolside/laguna-s-2.1:free`,
-# so the bare form is `laguna-s-2.1:free`; the key below is that exact bare
-# name (no `openai/`, no `poolside/`), matching the `fast` alias.
+# prefix. LiteLLM reports this upstream as `openai/space-bunny`, so the
+# bare form is `space-bunny`; the key below is that exact bare name.
 models:
-  laguna-s-2.1:free:
-    input_per_mtok:          0.60   # OpenRouter PAID tier of the same model
-    cache_write_5m_per_mtok: 0.75
+  space-bunny:
+    input_per_mtok:          0.30   # NOMINAL placeholder — no published price
+    cache_write_5m_per_mtok: 0.375
     cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 1.20
+    cache_write_1h_per_mtok: 0.60
     cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.06
+    cache_read_per_mtok:     0.03
     cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         2.40   # OpenRouter PAID tier of the same model
+    output_per_mtok:         1.20   # NOMINAL placeholder — no published price
 
 # ── When the real Anthropic models return, restore rows like these ──
 # (kept commented as the reference shape; multipliers are stable:

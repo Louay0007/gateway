@@ -29,35 +29,61 @@ model_list:
   # pipeline stays exercisable end-to-end. prices/models.yaml carries the
   # same values (one table, two consumers — resolvePrice + reconcile.sh).
   # Zero them before any real billing relies on this table.
+  # TWO DEPLOYMENTS, ONE ALIAS. Both are the `fast` model group, so LiteLLM
+  # load-balances across them and falls through to the other when one is rate
+  # limited. That is the point: the free pools behind these are individually
+  # flaky, and two independent pools are not flaky in the same place at once.
+  #
+  # Both are reached through 9Router on the VPS: UPSTREAM_BASE_URL points at
+  # upstream-edge, which normalises 9Router's wrapped response shape into a
+  # plain OpenAI body (see edge/normalise.mjs — it is NOT directly parseable).
+  #
+  # `openai/` + api_base, not `openrouter/`: this LiteLLM build has no
+  # model_cost entry for the openrouter/ provider.
+  #
+  # Nominal rates are NON-ZERO on purpose. The upstream is genuinely $0, and a
+  # $0 model makes every budget a no-op and hides pipeline bugs. Each mirrors
+  # prices/models.yaml exactly (one table, two consumers) and equals that
+  # model's real paid-tier price, so the nominal charge is defensible.
+  # ACTIVE UPSTREAM: space-bunny via https://api.howtofix.id/v1
+  #
+  # Verified against the live endpoint before wiring this:
+  #   - POST /v1/chat/completions -> real completions
+  #   - TOOL CALLING -> finish_reason: tool_calls, well-formed arguments
+  #   - full agentic loop (call -> tool result -> final answer) -> works
+  #   - POST /v1/messages         -> works (Anthropic-native, emits thinking)
+  #   - POST /v1/responses        -> 404, NOT offered by this upstream
+  #
+  # `/v1/responses` is deliberately ABSENT from supported_endpoints: the
+  # upstream does not serve it, and declaring an endpoint the upstream lacks
+  # makes LiteLLM forward into a 404. codex-cli 0.156 speaks Responses only, so
+  # it cannot drive this model directly — see HANDOFF.md.
+  #
+  # Nominal rates are NON-ZERO on purpose. The upstream is free, and a $0 model
+  # makes every budget a no-op and hides pipeline bugs. This provider publishes
+  # NO pricing, so these are a documented PLACEHOLDER to keep the spend /
+  # budget / rollup pipeline exercisable — replace with real numbers before
+  # customer money depends on them. Mirrored in prices/models.yaml.
   - model_name: fast
     litellm_params:
-      # OpenRouter is an OpenAI-compatible gateway. Registered as
-      # `openai/` + api_base, NOT `openrouter/`: this LiteLLM build has no
-      # model_cost entry for the openrouter/ provider, and the openai/ path
-      # is the one verified end-to-end against
-      # UPSTREAM_BASE_URL=https://openrouter.ai/api/v1.
-      model: openai/poolside/laguna-s-2.1:free
+      model: openai/space-bunny
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
+      # Free pools intermittently 429/5xx, and a coding agent has a small
+      # client-side retry budget — codex-cli gave up with "exceeded retry
+      # limit" mid-task. Retrying HERE turns a transient failure into latency
+      # the client never sees.
+      num_retries: 6
+      cooldown_time: 3
     model_info:
-      # BOTH wire formats. OpenRouter serves this model natively on
-      # /chat/completions AND translates /v1/messages; `supported_endpoints`
-      # makes LiteLLM forward /v1/messages UNTRANSLATED (preserving
-      # Anthropic cache_control) rather than translating and dropping it.
-      # Verified: OpenRouter's /v1/messages returned a real message here.
+      # Only what the upstream actually serves.
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
-      # Nominal dev rates — mirror prices/models.yaml exactly (per-token).
-      # input $0.60/MTok, output $2.40/MTok (OpenRouter's PAID tier of this
-      # same model); cache read at 0.10x input. Non-zero ONLY to keep the
-      # spend/budget/rollup pipeline exercisable — the :free upstream is
-      # genuinely $0. (LiteLLM exposes ONE cache_creation_input_token_cost,
-      # so it is set to the 1h tier, 2.0x, the higher of the two.)
-      input_cost_per_token: 0.0000006
-      output_cost_per_token: 0.0000024
-      cache_creation_input_token_cost: 0.0000012
-      cache_read_input_token_cost: 0.00000006
-
+      # NOMINAL placeholder — this provider publishes no pricing.
+      input_cost_per_token: 0.0000003
+      output_cost_per_token: 0.0000012
+      cache_creation_input_token_cost: 0.0000006
+      cache_read_input_token_cost: 0.00000003
   # ─────────────────────────────────────────────────────────────────────
   # BLOCK B — UPSTREAM IS OPENAI-COMPATIBLE ONLY
   # ═════════════════════════════════════════════════════════════════════
@@ -75,7 +101,7 @@ model_list:
   #       api_key: os.environ/UPSTREAM_API_KEY
   #       cache_control_ttl: true
   #     model_info:
-  #       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+  #       supported_endpoints: ["/v1/chat/completions", "/v1/messages", "/v1/responses"]
 
   # ─────────────────────────────────────────────────────────────────────
   # BLOCK C — UPSTREAM IS ANTHROPIC-NATIVE ONLY
@@ -91,7 +117,7 @@ model_list:
   #       api_base: os.environ/UPSTREAM_BASE_URL
   #       api_key: os.environ/UPSTREAM_API_KEY
   #     model_info:
-  #       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+  #       supported_endpoints: ["/v1/chat/completions", "/v1/messages", "/v1/responses"]
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Routing
