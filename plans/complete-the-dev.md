@@ -390,10 +390,15 @@ Reviewed 2026-10-13 — clean, with three documented observations:
   the screenshot filename comes from the DB row and is charset-validated (no traversal).
 - session-freshness — fails closed, compared as epoch ms (not text), wired into
   `currentUser()` so every customer route enforces it.
-- **Observation (low):** `requireStaff()` does NOT apply the freshness check, so a
-  stolen STAFF token survives a staff password change for the token's `maxAge`. Staff
-  live in `staff_users` with no in-portal password-change path today, so there is no
-  trigger — but if one is added, staff session invalidation must be wired the same way.
+- **Observation (low): CLOSED 2026-10-15.** `requireStaff()` did NOT apply the freshness
+  check, so a stolen STAFF token survived a staff password change for the token's
+  `maxAge`. Staff live in `staff_users` with no in-portal password-change path today, so
+  there was no trigger — but it is now wired regardless: `requireStaff()` and
+  `currentStaffRole()` share a private `staffSessionIsFresh()` that reads only the
+  `password_changed_at` stamp from `users` (never a role or an org, so the
+  staff-are-never-customers separation holds). Stale → `401`, not `403`. Verified live:
+  a fresh staff token reaches `/admin`, and a token older than a bumped
+  `password_changed_at` is refused (nav hidden, `/api/admin/orgs` → 401). See §5.17.
 - **Observation (informational):** the CSV failure path commits as HTTP 200 (the stream
   is already open), so the signal is an in-file comment row, not a status code. By design;
   the header can't be changed after the body starts.
@@ -423,6 +428,34 @@ Explicitly out of scope until then, in dependency order:
 **Also unresolved and outside engineering:** the Anthropic Commercial ToS §D.2 resale
 question. `README.md` and `PLATFORM.md §0` both say third-party use should wait for a
 written answer. No amount of code settles it.
+
+---
+
+## Phase F — Browser pass + deploy dry-run (2026-10-15)
+
+Every proof drives the service layer in-process, so a green `verify-metering` says
+nothing about whether the *buttons* work. Phase E (trials, admin console) shipped with
+backend proofs and no UI proof at all.
+
+- [x] Drive every Phase E surface in a real browser, not just assert on HTTP status:
+      `/dashboard/billing` trial, `/admin` (suspend / reactivate / retry / credit),
+      `/admin/d17` (approve / reject-with-reason), plus the email-verification resend →
+      link → `POST` confirm. Confirm each in the database afterwards.
+- [x] **Found: the admin routes mounted no `<Toaster/>`** (it lived only in the `(app)`
+      group), so all 14 `toast.*` calls on `/admin` + `/admin/d17` rendered nothing — the
+      operator got no feedback on any manual power. Fixed by `app/admin/layout.tsx`.
+- [x] **Found: "Retry sync" on a subscription-less org reported a gateway failure.**
+      `no subscription` is a benign outcome (the sync ran and cut), not an outage. Now
+      reported as its own message; `reactivate` no longer claims success on a failed push.
+- [x] Close the Step 12 staff-freshness observation (wired, and verified both directions
+      live: fresh token in, stale token out).
+- [x] Deploy dry-run without deploying: `verify-config`, `docker compose config`,
+      `verify-caddy`, `make health`, `backup-drill` — all green. Fixed the `Caddyfile`
+      (`caddy fmt`) and **`make probe`, which could never pass**: its
+      `: "${UPSTREAM_BASE_URL:?…}"` guard ran before the same recipe sourced `.env`.
+- [ ] Still blocked externally, not by code: the upstream tunnel answers **530** on
+      every wire format, so `make probe`'s verdict is "neither format worked". Real
+      upstream + real pricing remain unshippable until that endpoint answers.
 
 ---
 

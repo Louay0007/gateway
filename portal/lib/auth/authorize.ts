@@ -179,6 +179,31 @@ export function staffAtLeast(role: StaffRole, required: StaffRole): boolean {
 }
 
 /**
+ * Is this staff session still fresh?
+ *
+ * `requireStaff()` resolves the ROLE from `staff_users` alone, never from
+ * the customer tables — a staff account must not become a customer by
+ * virtue of a shared email. Freshness is the one thing that must cross
+ * over: the token's `password_changed_at` was minted from
+ * `users.password_changed_at` at sign-in (auth.ts), so a password change
+ * has to invalidate a stolen staff cookie exactly as it invalidates a
+ * customer's. Only the stamp is read from `users`, never a role or an org.
+ *
+ * A staff identity with no `users` row has no stamp to compare, and
+ * `sessionIsFresh` accepts that case — there is nothing to invalidate.
+ */
+async function staffSessionIsFresh(
+  email: string,
+  tokenStamp: string | null | undefined,
+): Promise<boolean> {
+  const mirror = await db.query.users.findFirst({
+    where: eq(users.email, email),
+    columns: { passwordChangedAt: true },
+  });
+  return sessionIsFresh(tokenStamp, mirror?.passwordChangedAt);
+}
+
+/**
  * Staff access, resolved from `staff_users` — never from an org_role.
  *
  * A staff account must never be able to act as a customer. The two lookups
@@ -189,6 +214,16 @@ export async function requireStaff(required: StaffRole = 'read_only') {
   const session = await auth();
   if (!session?.user?.email) {
     throw new AuthzError('Not signed in', 'unauthorized', 401);
+  }
+
+  // Freshness BEFORE the role lookup. A cookie minted before the account's
+  // last password change is an unauthenticated cookie, so this is 401
+  // (re-authenticate), not 403 (you are not staff).
+  if (!(await staffSessionIsFresh(session.user.email, session.user.passwordChangedAt))) {
+    log.warn('auth: staff session predates the last password change — rejected', {
+      identity: session.user.email,
+    });
+    throw new AuthzError('Session expired', 'unauthorized', 401);
   }
 
   const staff = await db.query.staffUsers.findFirst({
@@ -221,6 +256,16 @@ export async function requireStaff(required: StaffRole = 'read_only') {
 export async function currentStaffRole(): Promise<StaffRole | null> {
   const session = await auth();
   if (!session?.user?.email) return null;
+
+  // Same freshness rule as requireStaff(): a stale cookie grants no role,
+  // so the admin nav simply does not appear rather than appearing and then
+  // answering 401 on the first action.
+  if (!(await staffSessionIsFresh(session.user.email, session.user.passwordChangedAt))) {
+    log.warn('auth: staff session predates the last password change — rejected', {
+      identity: session.user.email,
+    });
+    return null;
+  }
 
   const staff = await db.query.staffUsers.findFirst({
     where: eq(staffUsers.email, session.user.email),

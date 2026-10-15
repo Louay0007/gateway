@@ -475,6 +475,58 @@ The last three deferred dev features, now built and proven.
   expiry; suspend→CUT / reactivate→FULL / retry / credit); `tests/billing.test.ts`
   adds `forbidden`→403 and `summarizePlan().trialDays`.
 
+### 5.17 Browser pass over the staff/customer UI + deploy dry-run (2026-10-15)
+
+`verify-metering` §23–§27 drive the billing/admin service layer directly, so
+the Phase E UI (§5.16) had never been *clicked*. Driving it in a real browser
+found two defects that type-checking and the proofs both passed over.
+
+- **The admin routes had no `<Toaster/>` — every operator message was silently
+  dropped.** `Toaster` was mounted only in `app/(app)/layout.tsx`, and
+  `/admin` + `/admin/d17` sit OUTSIDE that group. So an operator clicked
+  Suspend, the server cut the gateway, the row updated — and *no toast ever
+  appeared* for any of the 14 `toast.*` calls across `admin-orgs.tsx` and
+  `d17-admin-queue.tsx`. Fixed by `app/admin/layout.tsx`, which mounts the
+  toaster for the whole `admin` group. The root layout already provides
+  `ThemeProvider`, so sonner's theme resolution works there unchanged.
+- **"Retry sync" on an account with no subscription reported a gateway
+  failure.** `syncOrganizationEntitlements` returns
+  `{ok: false, error: 'no subscription'}` for a brand-new account — the sync
+  ran and cut anything stale; there is simply no plan to push. The UI mapped
+  `syncOk === false` to "Sync still failing — check the gateway", sending an
+  operator to chase an outage that did not exist. Now `syncError === 'no
+  subscription'` is reported as its own benign outcome ("Nothing to sync"),
+  and `reactivate` no longer claims "Limits re-pushed" when the push failed.
+  (That silence was latent, not caused by this fix: it applied to
+  `reactivate` on a failing gateway too.)
+- **Step 12 closed — staff session freshness.** `currentUser()` has applied
+  `sessionIsFresh` since migration 0006; `requireStaff()` and
+  `currentStaffRole()` read `auth()` directly and did not, so a staff cookie
+  minted before a password change stayed valid for `maxAge`. Both now share a
+  private `staffSessionIsFresh()` helper. It reads ONLY the
+  `password_changed_at` stamp from `users` — never a role or an org — so the
+  "staff are never customers" separation is untouched. Stale is `401`
+  (re-authenticate), not `403`: a pre-change cookie is an unauthenticated
+  cookie.
+- **Also driven end-to-end in the browser:** sign-up → the verification
+  banner's resend → the real dev-transport link → the `POST` confirm form →
+  "Start 7-day free trial" (`trialing`, entitlement `synced`, the
+  `subscription.trial_started` audit row), plus suspend / reactivate / retry /
+  credit note and D17 approve (→ `paid`, subscription `active`, limits pushed)
+  / reject-with-reason. All confirmed in the database, not just by HTTP 200.
+- **Deploy dry-run** (no deploy performed). `verify-config` OK; `docker
+  compose config` resolves; `verify-caddy` OK; `make health` OK (gateway 200,
+  portal `database`+`gateway` true, jobs running); `backup-drill` passes
+  (9 migrations, 171 ledger rows). Two things fixed: the `Caddyfile` was not
+  `caddy fmt`-clean (whitespace only, revalidated), and **`make probe` could
+  never pass** — its guard `: "$${UPSTREAM_BASE_URL:?...}"` ran BEFORE the same
+  recipe sourced `.env`, so the documented `make init` → fill `.env` → `make
+  probe` sequence always died with "source .env first". Source now comes
+  first, and is skipped when `.env` is absent so the message is the useful
+  one. The probe now runs and returns its real verdict: the upstream tunnel
+  `rj8dp52.abc-tunnel.us` answers **530 on every wire format**, which is the
+  known external blocker, not a defect.
+
 ### 5.8 Frontend removed (2026-10-11) — SUPERSEDED by §5.9
 All page-level UI was deleted at the user's request — the frontend is
 being built fresh. Gone: `app/page.tsx`, `globals.css`, `sign-in/`,

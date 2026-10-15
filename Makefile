@@ -36,8 +36,9 @@ init: ## Create .env from template with generated secrets
 	@echo "  Next: make probe"
 
 probe: ## Detect which wire formats the upstream supports  (RUN FIRST)
-	@: "$${UPSTREAM_BASE_URL:?source .env first}"; \
-	 set -a; . ./.env; set +a; ./scripts/probe-upstream.sh
+	@[ -f ./.env ] && set -a && . ./.env && set +a; \
+	 : "$${UPSTREAM_BASE_URL:?set UPSTREAM_BASE_URL in .env}"; \
+	 ./scripts/probe-upstream.sh
 
 up: ## Start the stack
 	$(COMPOSE) up -d

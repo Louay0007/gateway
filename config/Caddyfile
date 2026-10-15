@@ -26,8 +26,8 @@
 	# can only become public by coming through THIS vhost — deny it here.
 	# Ordered before the reverse_proxy so blocked paths never reach LiteLLM.
 	@mgmt path /key/* /key /user/* /user /team/* /team /organization/* \
-		/organization /model/* /model /spend/* /spend /config/* /config \
-		/global/* /global /customer/* /customer /budget/* /budget
+ /organization /model/* /model /spend/* /spend /config/* /config \
+ /global/* /global /customer/* /customer /budget/* /budget
 	respond @mgmt "Not found" 404
 
 	request_body {
@@ -91,8 +91,8 @@
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options    "nosniff"
-		Referrer-Policy           "no-referrer"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
 		-Server
 	}
 }
@@ -154,8 +154,8 @@
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options    "nosniff"
-		Referrer-Policy           "no-referrer"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
 		-Server
 	}
 }
@@ -189,8 +189,8 @@
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options    "nosniff"
-		Referrer-Policy           "no-referrer"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
 		-Server
 	}
 }

@@ -86,7 +86,12 @@ export function AdminOrgs({
         headers: { "Content-Type": "application/json" },
       });
       const data = (await res.json().catch(() => null)) as
-        | { error?: { message?: string }; alreadyApplied?: boolean; syncOk?: boolean | null }
+        | {
+            error?: { message?: string };
+            alreadyApplied?: boolean;
+            syncOk?: boolean | null;
+            syncError?: string | null;
+          }
         | null;
 
       if (!res.ok) {
@@ -94,23 +99,40 @@ export function AdminOrgs({
         return;
       }
 
+      // `no subscription` is not a failure. A brand-new account has no
+      // plan to push, and the sync has already cut anything stale — the
+      // service says so in `syncError`. Reporting it as a gateway problem
+      // sends an operator chasing an outage that does not exist.
+      const noSubscription = data?.syncError === "no subscription";
+      const syncFailed = data?.syncOk === false && !noSubscription;
+
       if (kind === "suspend") {
         toast.success(
           data?.alreadyApplied
             ? "Already suspended."
-            : data?.syncOk === false
+            : syncFailed
               ? "Suspended, but the gateway push failed — retry the sync."
-              : "Suspended. The gateway has been cut.",
+              : noSubscription
+                ? "Suspended. The account has no subscription, so nothing needed cutting."
+                : "Suspended. The gateway has been cut.",
         );
       } else if (kind === "reactivate") {
         toast.success(
-          data?.alreadyApplied ? "Already active." : "Reactivated. Limits re-pushed.",
+          syncFailed
+            ? "Reactivated, but the gateway push failed — retry the sync."
+            : data?.alreadyApplied
+              ? "Already active."
+              : noSubscription
+                ? "Reactivated. The account has no subscription to restore limits for."
+                : "Reactivated. Limits re-pushed.",
         );
       } else {
         toast.success(
-          data?.syncOk === false
-            ? "Sync still failing — check the gateway."
-            : "Entitlements re-pushed.",
+          noSubscription
+            ? "Nothing to sync — this account has no subscription."
+            : syncFailed
+              ? "Sync still failing — check the gateway."
+              : "Entitlements re-pushed.",
         );
       }
       router.refresh();
