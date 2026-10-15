@@ -71,11 +71,11 @@ export function ClaudeLogo({ className }: { className?: string }) {
   return (
     <Tile className={className}>
       <Image
-        src="/logos/claude.svg"
+        src="/logos/claude-icon.svg"
         alt="Claude logo"
-        width={40}
-        height={12}
-        className="h-4 w-10 object-contain"
+        width={44}
+        height={44}
+        className="size-11 object-contain"
       />
     </Tile>
   );

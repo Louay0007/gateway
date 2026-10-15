@@ -18,7 +18,13 @@ export const metadata: Metadata = {
 export default function DocsPage() {
   return (
     <>
-      <Navbar />
+      {/* light-surface pins the light tokens over the navbar's hardcoded
+          `dark` class (declared later in globals.css, equal specificity,
+          so it wins in this subtree) — otherwise the nav text renders
+          white on this page's white canvas. */}
+      <div className="light-surface">
+        <Navbar />
+      </div>
       <main>
         <DocsContent />
       </main>

@@ -1,3 +1,5 @@
+import Logo from "@/assets/logo/logo";
+
 /**
  * Marketing footer.
  *
@@ -6,6 +8,10 @@
  * absent sections. The auth routes (/sign-in, /sign-up) are API-backed
  * pages that land with the auth UI; until then they render the 404 from
  * the empty route set, which is honest.
+ *
+ * The brand lockup sits beside the name (mark tile + wordmark); the
+ * footer canvas is white in both themes, so `tone="light"` pins the
+ * wordmark black instead of following a dark theme into invisibility.
  */
 
 const columns = [
@@ -32,7 +38,10 @@ export function MarketingFooter() {
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="flex flex-col justify-between gap-10 sm:flex-row">
           <div>
-            <p className="font-semibold tracking-tight text-black">Zaino AI</p>
+            <div className="flex items-center gap-2.5">
+              <Logo tone="light" wordmark={false} />
+              <p className="font-semibold tracking-tight text-black">Zaino AI</p>
+            </div>
             <p className="mt-2 max-w-xs text-sm text-gray-600">
               One API for every model, priced for the way Tunisia pays.
             </p>
