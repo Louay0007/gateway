@@ -181,15 +181,6 @@ const Navbar = ({ tone = "dark" }: { tone?: "dark" | "light" }) => {
               />
             </div>
           </SheetContent>
-                    className="group h-10 w-full rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
-                  >
-                    Get an API key
-                    <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
-                  </Button>
-                }
-              />
-            </div>
-          </SheetContent>
         </Sheet>
       </div>
     </nav>
