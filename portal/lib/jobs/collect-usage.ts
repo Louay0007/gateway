@@ -20,8 +20,9 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { getSpendLogs, extractUsage, statusCodeForRow, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
+import { loadAliasMap, toAlias, aliasForRow, routeForCallType, UNKNOWN_ALIAS, type AliasMap } from '@/lib/pricing/alias';
 
-const PRICE_VERSION = '2026-10-11';   // bump when prices/models.yaml changes
+const PRICE_VERSION = '2026-10-15';   // bump when prices/models.yaml changes
 
 /**
  * Dedupe hash. Must be stable across retries AND unique per real request.
@@ -53,6 +54,8 @@ export interface CollectResult {
   skippedDuplicates: number;
   unmapped: number;
   ttlMissing: number;
+  /** Resolved model names with no entry under `aliases:`. Should be empty. */
+  unmappedModels: string[];
   window: { start: string; end: string };
 }
 
@@ -70,10 +73,11 @@ export async function collectUsage(opts?: {
   const endDate   = now.toISOString().slice(0, 10);
 
   const prices: PriceTable = await loadPriceTable();
+  const aliasMap: AliasMap = await loadAliasMap();
 
   const result: CollectResult = {
     scanned: 0, inserted: 0, skippedDuplicates: 0,
-    unmapped: 0, ttlMissing: 0,
+    unmapped: 0, ttlMissing: 0, unmappedModels: [],
     window: { start: startDate, end: endDate },
   };
 
@@ -84,6 +88,37 @@ export async function collectUsage(opts?: {
   for (const row of rows) {
     result.scanned++;
     if (row.startTime && new Date(row.startTime) < from) continue; // outside window
+
+    // ── Resolve the model to its ALIAS, here, before anything is written.
+    //
+    // The gateway's spend log reports the RESOLVED upstream model
+    // (`openai/space-bunny`, sometimes `space-bunny-free`) in `model`, AND
+    // the alias the client requested in `model_group`. Prefer the group: it
+    // is the name the customer used, so no registry lookup can misfire on a
+    // new upstream spelling. Fall back to mapping `model` for rows whose
+    // group is empty.
+    //
+    // Writing the alias is what makes "the customer surface shows aliases
+    // only" true rather than aspirational: there is no later stage that
+    // could reintroduce the name.
+    const alias = aliasForRow(aliasMap, row);
+    if (alias === UNKNOWN_ALIAS && (row.model || row.model_group)) {
+      // Loud, not silent. This means a deployed model has no entry under
+      // `aliases:` in prices/models.yaml. The row is still recorded (cost is
+      // still knowable) but it will read as `unknown` in analytics, which is
+      // the point — an unmapped model should be visibly broken, not silently
+      // rendering the provider's name on a customer dashboard.
+      result.unmappedModels.push(row.model_group || row.model || '?');
+    }
+
+    // ── Resolve the ROUTE from the call type, for the same reason.
+    //
+    // `model` says which model served the request; it says nothing about the
+    // wire format. `call_type` is LiteLLM's own vocabulary (`acompletion`,
+    // `anthropic_messages`, `aresponses`) and a NOT NULL column in the spend
+    // table. Reading `endpoint` instead is what produced the wall of
+    // `unknown` the dashboard showed: current rows do not carry it.
+    const route = routeForCallType(row.call_type, row.endpoint);
 
     const orgId = await orgIdForRow(row);
     if (!orgId) { result.unmapped++; continue; }   // not ours; ignore
@@ -147,8 +182,8 @@ export async function collectUsage(opts?: {
         ${memberUserId}::uuid,
         ${row.startTime ?? now.toISOString()}::timestamptz,
         date_trunc('month', ${row.startTime ?? now.toISOString()}::timestamptz)::date,
-        ${row.model ?? 'unknown'},
-        ${row.endpoint ?? 'unknown'},
+        ${alias},
+        ${route},
         ${row.api_key ?? null},
         ${u.inputTokens}, ${u.outputTokens},
         ${u.cacheWrite5m}, ${u.cacheWrite1h}, ${u.cacheRead},

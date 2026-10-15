@@ -572,6 +572,14 @@ async function main(): Promise<void> {
     first.inserted >= successes.length,
     `inserted ${first.inserted}, expected at least ${successes.length}`,
   );
+  // No upstream model name may survive the import. Every ledger row must read
+  // as one of the three customer-facing aliases, or as `unknown` only when the
+  // row genuinely predates the alias registry (see alias.ts).
+  check(
+    `collector mapped every import to an alias (unmapped: ${first.unmappedModels.join(', ') || 'none'})`,
+    first.unmappedModels.length === 0,
+    `models with no entry under aliases:: ${first.unmappedModels.join(', ')}`,
+  );
 
   const ledger = await db
     .select()
@@ -692,6 +700,15 @@ async function main(): Promise<void> {
     (r) => Boolean(r.dedupeHash) && Boolean(r.priceTableVersion) && r.model.length > 0,
   );
   check('every row carries model, price_table_version and dedupe_hash', metaOk);
+
+  // The ledger must carry ALIASES, never upstream names. Anything else is a
+  // provider name rendered on a customer dashboard — the one outcome §5.30
+  // exists to prevent.
+  check(
+    `every ledger row reads as an alias (got ${[...new Set(successRows.map((r) => r.model))].join(', ') || 'no rows'})`,
+    successRows.every((r) => ['fast', 'smart', 'frontier'].includes(r.model)),
+    successRows.map((r) => r.model).join(' '),
+  );
 
   if (otherRows.length) {
     check(

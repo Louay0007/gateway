@@ -368,6 +368,20 @@ export interface SpendLogRow {
    */
   status?: string;
   endpoint?: string;
+  /**
+   * The alias the client actually requested (`fast`, `smart`, `frontier`).
+   * LiteLLM logs this separately from `model`, which is the RESOLVED
+   * upstream id. Present on normal rows; empty on some zero-token rows
+   * (e.g. a `/v1/models` call logged against an alias-looking model).
+   */
+  model_group?: string;
+  /**
+   * LiteLLM's own vocabulary for which endpoint served the request:
+   * `acompletion`, `anthropic_messages`, `aresponses`, plus non-inference
+   * calls like `/v1/models`. Always present on rows from the spend table —
+   * it is a NOT NULL column there — which makes it the reliable route signal.
+   */
+  call_type?: string;
   model_info?: Record<string, unknown>;
   usage?: {
     prompt_tokens?: number;

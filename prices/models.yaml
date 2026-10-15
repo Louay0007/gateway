@@ -38,6 +38,35 @@
 # Tier membership is by MEASURED latency, not quality — all eleven models tie
 # on the quality probes. See HANDOFF.md §5.25 before reading `frontier` as
 # "the best models".
+# ── Alias registry ─────────────────────────────────────────────────
+#
+# WHICH alias each upstream model is sold under. This is the ONLY place tier
+# membership is declared for the portal, and it lives here rather than being
+# hardcoded in TypeScript so it cannot drift from the price rows above or
+# from config/litellm.yaml — tests/pricing-consistency.test.ts asserts all
+# three agree.
+#
+# WHY IT EXISTS AT ALL: the customer-facing surface shows aliases only. No
+# upstream model name is ever rendered, exported, or stored in the ledger, so
+# a provider swap or a model being dropped costs a deploy rather than
+# becoming a customer-visible diff. collect-usage.ts resolves the gateway's
+# resolved model name to an alias BEFORE writing usage_records, which is what
+# makes that true rather than merely intended.
+#
+# Keep the keys identical to the model keys under `models:` below.
+aliases:
+  nemotron-3.5-lightning:  fast
+  space-bunny:             fast
+  cat-jam:                 fast
+  deepseek-v4.1-flash:     fast
+  longcat-2.5-preview:     smart
+  mimo-v2.6:               smart
+  mimo-v2.6-flash:         smart
+  big-pickle:              smart
+  grok-4.6-liberated:      frontier
+  muse-spark-1.3-contributor: frontier
+  muse-spark-1.2-contributor: frontier
+
 models:
   # ── fast ($0.15 in / $0.60 out, nominal) — ttft 0.90–1.54s ──
   # 0.90s ttft, fastest measured

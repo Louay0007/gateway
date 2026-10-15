@@ -1137,3 +1137,56 @@ count it in the spend ledger as an upstream fault so it stays visible.
 **Rate is roughly 1 in 150 on the codex path** and Codex recovers on its own
 retry. Recorded here so the next occurrence is a confirmation rather than a
 new investigation.
+
+---
+
+### 5.30 The ledger and dashboard speak in aliases only (2026-10-15)
+
+The customer surface shows three model names — `fast`, `smart`, `frontier` —
+and never an upstream one. That was the intent from §5.25, but the ledger
+contradicted it: `usage_records.model` held whatever the gateway reported per
+request (`openai/space-bunny`, `space-bunny-free`, `poolside/laguna-s-2.1:free`
+…), **twenty distinct spellings** of eleven models on the live database, all
+rendered verbatim by the dashboard table, the "by model" breakdown, and the
+CSV export.
+
+Fixed in three layers:
+
+1. **Write time** (`portal/lib/jobs/collect-usage.ts`). The collector resolves
+   to an alias BEFORE inserting. It prefers `model_group` — the alias the
+   client requested, logged separately from the resolved upstream id — and
+   falls back to the `aliases:` registry in `prices/models.yaml` for rows
+   whose group is empty. Either path returns an alias or `unknown`; a raw name
+   can no longer reach the ledger through this path. It also resolves the
+   ROUTE from `call_type` (`acompletion`→`chat`, `anthropic_messages`→
+   `messages`, `aresponses`→`responses`), because reading the legacy
+   `endpoint` field is what produced the dashboard's wall of `unknown` —
+   current spend rows do not carry it. Non-inference calls (`/v1/models`,
+   `/key/info`) keep a truthful label instead of `unknown`.
+2. **History** (migration `0011_usage_aliases.sql`). Backfills every existing
+   row to its alias — 213 fast, 17 smart, 10 frontier, 11 unknown — then adds
+   a CHECK constraint so the column can never hold anything else. A future
+   deploy that writes an unmapped name fails at the INSERT, loudly, instead
+   of silently rendering a provider's name on a customer dashboard. The
+   mapping is written out explicitly so an auditor can read what each old
+   value became. The `unknown` escape hatch is deliberate: rejected attempts
+   (`__not_allowed__`) have no model, and they must not need a second one.
+3. **Routes** (`portal/scripts/backfill-routes.ts`). A migration cannot join
+   the portal DB to LiteLLM's spend table, so this runs from the jobs image
+   with `--apply`, matching on (team, exact timestamp, token counts). Dry run
+   first: **237/237 matched, 0 ambiguous, 0 missing** — then written. Only
+   touches rows still reading `unknown`; re-running changes nothing.
+
+The `aliases:` registry lives in `prices/models.yaml` beside the rates, not
+hardcoded in TypeScript — an earlier hand-written map went stale the moment a
+model moved tiers, silently. `tests/pricing-consistency.test.ts` asserts the
+registry covers every deployment and no removed model; `verify-metering`
+asserts the collector maps every import and every ledger row reads as an
+alias. `getSpendLogs` needed no change — the fields were already in the API
+response, just never read.
+
+One honest footnote: `model_group` is empty on some zero-token rows, which is
+why the registry fallback exists at all. And the backfill script's first
+version matched nothing because raw SQL returns `occurred_at` while the
+interface read `occurredAt` — every timestamp parsed as NaN. It now selects
+into the right names and says so in a comment.

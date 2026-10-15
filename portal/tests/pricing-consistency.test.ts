@@ -285,6 +285,38 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
       expect(d.cooldown, `${d.bare} has no cooldown_time`).toBeGreaterThan(0);
     }
   });
+
+  it('registers every deployment under `aliases:`, so the ledger can name it', () => {
+    // collect-usage.ts resolves the gateway's model to an alias before writing
+    // usage_records. A deployment with no entry resolves to `unknown`, which
+    // analytics then shows instead of a tier — invisibly breaking the
+    // customer-visible dashboard while the price rows stay correct.
+    const registered = (() => {
+      // `parsePrices()` strips everything but rate rows, so the registry is
+      // read separately. Sharing the same parse would give the test the same
+      // blind spot it is checking for.
+      const raw = readFileSync(PRICES_YAML, 'utf8');
+      const inBlock = raw.slice(raw.indexOf('aliases:'));
+      const out: Record<string, string> = {};
+      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+(fast|smart|frontier)\s*$/gm)) {
+        out[m[1]!] = m[2]!;
+      }
+      return out;
+    })();
+    expect(Object.keys(registered).length, 'prices/models.yaml has an empty `aliases:` registry').toBeGreaterThan(0);
+    const missing = deployments.filter((d) => !(d.bare in registered));
+    expect(
+      missing.map((d) => d.bare),
+      'these deployments have no alias and would land as `unknown` in analytics',
+    ).toEqual([]);
+    // No alias may point at a model the gateway does not serve — the reverse
+    // drift: a tier entry for a model that was removed.
+    const served = new Set(deployments.map((d) => d.bare));
+    const stale = Object.entries(registered)
+      .filter(([model]) => !served.has(model))
+      .map(([model]) => model);
+    expect(stale, 'alias entries for models no deployment serves').toEqual([]);
+  });
 });
 
 describe('scripts/reconcile.sh alias map', () => {
