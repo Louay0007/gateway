@@ -204,12 +204,21 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('resolves each alias to its own tier via resolvePrice, longest key first', () => {
-    // `mimo-v2.6-flash` must never collapse into `mimo-v2.6`: they are
-    // different models in different tiers with different rates.
-    expect(resolvePrice(priceTable, 'openai/mimo-v2.6-flash')?.input_per_mtok).toBe(0.15);
-    expect(resolvePrice(priceTable, 'openai/mimo-v2.6')?.input_per_mtok).toBe(0.3);
-    // The upstream answers `"model":"space-bunny-free"`.
-    expect(resolvePrice(priceTable, 'openai/space-bunny-free')?.input_per_mtok).toBe(0.3);
+    // `mimo-v2.6-flash` and `mimo-v2.6` are separate keys and must never
+    // collapse into one another. They currently share a tier, so assert the
+    // identity of resolution rather than a rate difference — the failure
+    // guarded against is `mimo-v2.6-flash` silently resolving through the
+    // `mimo-v2.6` row, which would silently reprice traffic if they ever
+    // land in different tiers.
+    const flash = resolvePrice(priceTable, 'openai/mimo-v2.6-flash');
+    const full = resolvePrice(priceTable, 'openai/mimo-v2.6');
+    expect(flash).toBeTruthy();
+    expect(full).toBeTruthy();
+    expect(flash).toBe(priceTable['mimo-v2.6-flash']);
+    expect(full).toBe(priceTable['mimo-v2.6']);
+    // The upstream answers `"model":"space-bunny-free"` — the suffix must not
+    // stop it resolving.
+    expect(resolvePrice(priceTable, 'openai/space-bunny-free')).toBe(priceTable['space-bunny']);
   });
 
   it('has IDENTICAL rates for every deployment inside one alias', () => {

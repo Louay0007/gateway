@@ -589,19 +589,33 @@ async function main(): Promise<void> {
   section('11. ledger contents (usage_records)');
 
   const priceTable = await loadPriceTable();
-  // The model string LiteLLM actually reports for the `fast` alias. Kept in
-  // sync with config/litellm.yaml; resolvePrice strips the provider prefix and
-  // matches the bare `deepseek-v4.1-flash` row.
-  const price = resolvePrice(priceTable, 'openai/deepseek-v4.1-flash');
-  check('price table resolves the served model', Boolean(price), 'deepseek-v4.1-flash not in prices/models.yaml');
+  // Every deployed model must be priced. Probing one hardcoded
+  // "representative" per tier is what broke this before: a model moving
+  // tiers left the probe pointing at the old row, and the increasing-order
+  // check silently compared fast against fast and passed. So assert on all
+  // eleven, then take the tier representatives explicitly.
+  const deployedModels = [
+    'nemotron-3.5-lightning', 'space-bunny', 'cat-jam', 'deepseek-v4.1-flash',
+    'longcat-2.5-preview', 'mimo-v2.6', 'mimo-v2.6-flash', 'big-pickle',
+    'grok-4.6-liberated', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor',
+  ];
 
-  // All three aliases must be priced, not just the one this run exercised.
-  // A typo in a frontier row would leave every frontier request unpriced and
-  // invisible in the ledger — revenue that appears to be free usage.
+  const unpriced = deployedModels.filter((m) => !resolvePrice(priceTable, `openai/${m}`));
+  check(
+    `all ${deployedModels.length} deployed models are priced`,
+    unpriced.length === 0,
+    `unpriced: ${unpriced.join(', ') || 'none'} — their spend would be invisible in the ledger`,
+  );
+
+  // The model string LiteLLM actually reports for the `fast` alias. Kept in
+  // sync with config/litellm.yaml; resolvePrice strips the provider prefix.
+  const price = resolvePrice(priceTable, 'openai/nemotron-3.5-lightning');
+  check('price table resolves the served model', Boolean(price), 'nemotron-3.5-lightning not in prices/models.yaml');
+
   const tierRates: Record<string, number> = {};
   for (const [alias, probe] of [
-    ['fast', 'openai/deepseek-v4.1-flash'],
-    ['smart', 'openai/space-bunny'],
+    ['fast', 'openai/nemotron-3.5-lightning'],
+    ['smart', 'openai/longcat-2.5-preview'],
     ['frontier', 'openai/grok-4.6-liberated'],
   ] as const) {
     const p = resolvePrice(priceTable, probe);

@@ -97,8 +97,8 @@ missing_ttl_split = 0
 # config/litellm.yaml) — so which deployment actually served a request cannot
 # change the money. Keep that invariant, or this becomes an under-count.
 ALIAS = {
-    "fast": "deepseek-v4.1-flash",
-    "smart": "space-bunny",
+    "fast": "nemotron-3.5-lightning",
+    "smart": "longcat-2.5-preview",
     "frontier": "grok-4.6-liberated",
 }
 

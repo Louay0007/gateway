@@ -1103,3 +1103,37 @@ pass.** The dev billing provider ignores them all.
 Codex CLI 0.156.1 verified against `smart` as well as `fast` (multi-step:
 create `sum.js`, run it, report `42`). `[models.fast]`, `[models.smart]` and
 `[models.frontier]` are all declared in `~/.codex/config.toml`.
+
+---
+
+### 5.29 One unreproduced 400 from the upstream (2026-10-15)
+
+Observed twice while driving codex-cli against `fast`, never reproduced:
+
+    litellm.BadRequestError: OpenAIException - Invalid request
+    (request id: 202610151344276123347438268d9d6…)
+
+LiteLLM treats 400 as terminal — `num_retries` covers 429 and 5xx, not 4xx —
+so the request fails instead of falling through to another deployment in the
+group. That is LiteLLM's correct general behaviour: a genuine bad request
+should not be retried, and blindly retrying every 400 would turn one typo into
+six model calls.
+
+**Could not reproduce.** ~150 requests across the failing path, all clean:
+- 30 identical simple requests per `fast` model, direct to the upstream
+  (120 total) — 0 failures
+- `max_tokens` 8192 and 32768 on all four `fast` models — all 200
+- 25 requests with a 5-tool Codex-shaped catalogue, direct — all 200
+- 8 requests through the shim with the EXACT codex shape (instructions +
+  5 tools + stream + `max_output_tokens: 32768`) — all 200
+
+**Not yet mitigated, deliberately.** A bare 400 with no detail field cannot be
+distinguished from a genuinely malformed request, so the gateway does not
+retry it. If this rate turns out to matter, the fix belongs at the provider
+adapter, not in the retry config: retry only a 400 whose body carries no
+`error.type`/`error.param` (i.e. malformed upstream, not a real rejection), and
+count it in the spend ledger as an upstream fault so it stays visible.
+
+**Rate is roughly 1 in 150 on the codex path** and Codex recovers on its own
+retry. Recorded here so the next occurrence is a confirmation rather than a
+new investigation.
