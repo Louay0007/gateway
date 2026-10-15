@@ -16,9 +16,10 @@ import { cn } from "@/lib/utils";
 import { ChevronRight, Equal, X } from "lucide-react";
 
 // CONTENT OWNED BY US — a registry refresh restores the placeholder nav.
-// "Documentation" is intentionally absent: no /docs route exists, and a
-// link labelled Documentation pointing at /pricing is a lie that ships.
+// Every entry here resolves to a route that exists: /docs renders the
+// public integration guide (same body as /dashboard/docs).
 const navLinks = [
+  { title: "Docs", href: "/docs", isActive: false },
   { title: "Pricing", href: "/pricing", isActive: true },
   { title: "Sign in", href: "/sign-in" },
 ];

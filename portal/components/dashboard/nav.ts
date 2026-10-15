@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  BookOpen,
   CreditCard,
   KeyRound,
   LayoutDashboard,
@@ -19,6 +20,7 @@ export type NavItem = {
 /** The product surface — the customer's whole job list. */
 export const navMain: NavItem[] = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Docs", href: "/dashboard/docs", icon: BookOpen },
   { title: "Usage", href: "/dashboard/usage", icon: BarChart3 },
   { title: "API keys", href: "/dashboard/keys", icon: KeyRound },
   { title: "Billing", href: "/dashboard/billing", icon: CreditCard },

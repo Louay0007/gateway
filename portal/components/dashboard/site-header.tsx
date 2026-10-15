@@ -260,6 +260,7 @@ function SearchDialog({
   const results = React.useMemo(() => {
     const items = [
       { label: "Overview", href: "/dashboard", hint: "Spend, requests, keys" },
+      { label: "Docs", href: "/dashboard/docs", hint: "Snippets, tiers, Codex, Claude Code" },
       { label: "Usage", href: "/dashboard/usage", hint: "Ledger and charts" },
       { label: "API keys", href: "/dashboard/keys", hint: "Create and revoke" },
       { label: "Billing", href: "/dashboard/billing", hint: "Plan and payments" },
