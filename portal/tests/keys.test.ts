@@ -8,6 +8,7 @@ import {
   keyHashFor,
   keyLimitState,
   keyPrefixFor,
+  toGatewayKey,
   KEY_PREFIX_LENGTH,
 } from '@/lib/keys/policy';
 import { createApiKey, listApiKeys, revokeApiKey } from '@/lib/keys/service';
@@ -133,13 +134,20 @@ function fakeGateway(over: Partial<FakeGateway> = {}): FakeGateway {
     },
     generateThrows: false,
     revokeThrows: false,
-    issuedKey: PLAINTEXT,
+    // Set to force a MISMATCH between what the portal asked the gateway to
+    // store and what came back — the case that must abort rather than hand
+    // the customer a `zn-` key that will never authenticate.
+    issuedKey: null as string | null,
 
     async generate(input: GatewayGenerateInput) {
       self.calls.generate.push(input);
       if (self.generateThrows) throw new Error('LiteLLM /key/generate → 500');
+      // Real LiteLLM echoes a caller-supplied `key` back verbatim. That
+      // echo is what makes the `zn-` ↔ `sk-` translation sound, so the
+      // stub has to behave the same way.
+      const stored = self.issuedKey ?? input.key;
       return {
-        key: self.issuedKey,
+        key: stored,
         // The shape the live gateway actually returns: key_name is a
         // display mask, the token id is the only usable identifier.
         keyName: 'sk-...mask',
@@ -297,16 +305,40 @@ describe('createApiKey', () => {
 
     const result = await createApiKey(CREATE, deps(store, gateway));
 
-    expect(result.plaintext).toBe(PLAINTEXT);
+    // The customer receives the `zn-` form, and it is the SAME body the
+    // gateway was told to store.
+    expect(result.plaintext).toMatch(/^zn-/);
+    expect(toGatewayKey(result.plaintext)).toBe(gateway.calls.generate[0]!.key);
+
     expect(store.rows).toHaveLength(1);
     const row = store.rows[0]!;
-    expect(row.keyHash).toBe(keyHashFor(PLAINTEXT));
-    expect(row.keyPrefix).toBe(keyPrefixFor(PLAINTEXT));
+    expect(row.keyHash).toBe(keyHashFor(result.plaintext));
+    expect(row.keyPrefix).toBe(keyPrefixFor(result.plaintext));
+    expect(row.keyPrefix.startsWith('zn-')).toBe(true);
 
-    // Nothing persisted, logged, or audited may contain the secret.
+    // Nothing persisted, logged, or audited may contain the secret — in
+    // EITHER form, since the gateway form is the one that exists upstream.
     const persisted = JSON.stringify({ rows: store.rows, audits: store.audits });
-    expect(persisted).not.toContain(PLAINTEXT);
-    expect(JSON.stringify(store.audits)).not.toContain(keyHashFor(PLAINTEXT));
+    expect(persisted).not.toContain(result.plaintext);
+    expect(persisted).not.toContain(gateway.calls.generate[0]!.key);
+    expect(JSON.stringify(store.audits)).not.toContain(keyHashFor(result.plaintext));
+  });
+
+  it('refuses when the gateway stores a different key than requested', async () => {
+    // The `zn-` key is only usable because it differs from the stored
+    // credential by its prefix. If the gateway auto-generates instead, the
+    // customer would be handed a key that can never authenticate — so this
+    // must abort, and must not leave the orphan behind.
+    const store = fakeStore();
+    const gateway = fakeGateway();
+    gateway.issuedKey = 'sk-something-else-entirely-0000000000';
+
+    const error = await createApiKey(CREATE, deps(store, gateway)).catch((e) => e);
+
+    expect(error.status).toBe(502);
+    expect(store.rows).toHaveLength(0);
+    // The orphan is revoked, not abandoned.
+    expect(gateway.calls.revoke).toEqual(['litellm-token-hash']);
   });
 
   it('writes an audit row without key material', async () => {
@@ -566,7 +598,7 @@ describe('listApiKeys', () => {
   it('returns prefixes and ownership, never hashes', async () => {
     const store = fakeStore();
     const gateway = fakeGateway();
-    await createApiKey(CREATE, deps(store, gateway));
+    const created = await createApiKey(CREATE, deps(store, gateway));
 
     const { keys } = await listApiKeys(
       { organizationId: 'org-1', userId: 'user-1' },
@@ -574,10 +606,13 @@ describe('listApiKeys', () => {
     );
 
     expect(keys).toHaveLength(1);
-    expect(keys[0]!.keyPrefix).toBe(keyPrefixFor(PLAINTEXT));
+    // The listed prefix is the customer-facing one, so the dashboard is
+    // branded and matches what the customer actually holds.
+    expect(keys[0]!.keyPrefix).toBe(keyPrefixFor(created.plaintext));
+    expect(keys[0]!.keyPrefix.startsWith('zn-')).toBe(true);
     expect(keys[0]!.isOwn).toBe(true);
-    expect(JSON.stringify(keys)).not.toContain(keyHashFor(PLAINTEXT));
-    expect(JSON.stringify(keys)).not.toContain(PLAINTEXT);
+    expect(JSON.stringify(keys)).not.toContain(keyHashFor(created.plaintext));
+    expect(JSON.stringify(keys)).not.toContain(created.plaintext);
   });
 
   it('marks another member\'s key as not their own', async () => {

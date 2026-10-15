@@ -36,6 +36,7 @@ import {
   keyHashFor,
   keyLimitState,
   keyPrefixFor,
+  mintKey,
 } from '@/lib/keys/policy';
 import { CUT_BUDGET } from '@/lib/entitlements/policy';
 import { KeyServiceError, type CreateKeyInput, type CreateKeyResult, type KeyDeps, type KeyView, type ListKeysInput, type RevokeKeyInput, type RevokeKeyResult } from '@/lib/keys/types';
@@ -132,9 +133,16 @@ export async function createApiKey(
 
   const keyAlias = buildKeyAlias({ orgSlug: org.slug, name: input.name });
 
+  // ONE random body, two prefixes. `customerKey` is what the person pastes
+  // into their app; `gatewayKey` is what LiteLLM stores. The auth edge turns
+  // the leading `zn-` back into `sk-` on the way in, so the secret half is
+  // identical in both and no second credential exists.
+  const { customerKey, gatewayKey } = mintKey();
+
   let issued;
   try {
     issued = await gateway.generate({
+      key: gatewayKey,
       keyAlias,
       teamId: org.litellmTeamId,
       userId: pinnedUserId,
@@ -157,7 +165,34 @@ export async function createApiKey(
     );
   }
 
-  const keyPrefix = keyPrefixFor(issued.key);
+  const keyPrefix = keyPrefixFor(customerKey);
+
+  // REFUSE unless the gateway stored exactly the body we chose.
+  //
+  // `customerKey` is only usable because it differs from the stored
+  // credential by its prefix. If LiteLLM ever ignored our `key` and
+  // auto-generated one, the `zn-` key we are about to display would not
+  // match the stored credential and would fail on the customer's first
+  // request — a dead key that looks perfect on screen. Failing here, loudly,
+  // is the only safe outcome. Revoke first so nothing is orphaned.
+  if (issued.key !== gatewayKey) {
+    try {
+      await gateway.revoke(issued.token);
+    } catch (cleanup) {
+      log.error('key create: mismatch cleanup failed — MANUAL ACTION REQUIRED', {
+        organizationId: input.organizationId,
+        error: cleanup instanceof Error ? cleanup.message : String(cleanup),
+      });
+    }
+    log.error('key create: gateway stored a different key than requested', {
+      organizationId: input.organizationId,
+    });
+    throw new KeyServiceError(
+      'The gateway issued an unexpected key, so it was revoked. Please try again.',
+      'upstream',
+      502,
+    );
+  }
 
   let row: { id: string };
   try {
@@ -166,7 +201,9 @@ export async function createApiKey(
       createdBy: input.userId,
       name: input.name,
       keyPrefix,
-      keyHash: keyHashFor(issued.key),
+      // The hash identifies the credential the CUSTOMER holds, which is the
+      // `zn-` form and the one `keyPrefix` is derived from.
+      keyHash: keyHashFor(customerKey),
       litellmKeyName: issued.keyName,
       litellmKeyHash: issued.token,
       expiresAt: parseExpires(issued.expires),
@@ -219,7 +256,9 @@ export async function createApiKey(
     after: { name: input.name, models: models.models, keyPrefix, plan: plan.planCode },
   });
 
-  return { key: view, plaintext: issued.key };
+  // `customerKey`, never `issued.key`: the customer must never see the
+  // gateway's `sk-` form, and the two are verified identical below the prefix.
+  return { key: view, plaintext: customerKey };
 }
 
 /**

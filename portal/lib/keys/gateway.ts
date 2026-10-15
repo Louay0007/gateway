@@ -18,6 +18,7 @@ import type {
 export const gateway: KeyGateway = {
   async generate(input: GatewayGenerateInput): Promise<GatewayGenerateResult> {
     const issued = await generateKey({
+      key: input.key,
       keyAlias: input.keyAlias,
       teamId: input.teamId,
       userId: input.userId,

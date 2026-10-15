@@ -272,7 +272,7 @@ auth_user (Clerk) ──1:1──► users
                                 │            ├──1:1── api_keys
                                 │            │            ├── litellm_token_hash
                                 │            │            ├── litellm_key_name
-                                │            │            └── key_prefix  (sk-ab…x9f2)
+                                │            │            └── key_prefix  (zn-ab…x9f2)
                                 │            │
                                 │            ├──*──*── usage_records  (immutable)
                                 │            │
@@ -456,7 +456,7 @@ CREATE TABLE api_keys (
   created_by           UUID NOT NULL REFERENCES users(id),
   name                 TEXT NOT NULL,
 
-  -- Prefix for display: "sk-live-ab…9f2". Never store the full key.
+  -- Prefix for display: "zn-live-ab…9f2". Never store the full key.
   key_prefix           TEXT NOT NULL,
   key_hash             TEXT NOT NULL,   -- sha256, if you need verification
 

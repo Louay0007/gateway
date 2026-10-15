@@ -247,6 +247,37 @@ services:
     # client (DESIGN.md §6.1).
     network_mode: host
     depends_on:
+      - auth-edge
+      - litellm
+
+  # ── auth-edge: `zn-` → `sk-` at the credential boundary ──────────────
+  # Customers hold `zn-<body>`; LiteLLM hashes `sk-<body>` and its key
+  # normalizer only hashes values beginning with `sk-`, so a `zn-` value
+  # could never match the stored hash. The body is chosen by the portal and
+  # is identical in both forms — this restores the gateway's prefix and
+  # nothing else. See edge/server.mjs for the fail-closed rules.
+  #
+  # Host networking for the same reason as caddy: it must reach LiteLLM on
+  # the HOST's 127.0.0.1:4000 (litellm publishes there, loopback only), and
+  # Caddy reaches the edge the same way. AUTH_EDGE_HOST is pinned to
+  # 127.0.0.1 in the image, so nothing is exposed on a routable interface.
+  auth-edge:
+    build:
+      context: ./edge
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      AUTH_EDGE_HOST: 127.0.0.1
+      AUTH_EDGE_PORT: "4001"
+      AUTH_EDGE_UPSTREAM: http://127.0.0.1:4000
+    healthcheck:
+      # Busybox wget ships in the alpine base — no curl dependency.
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:4001/__edge/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
       - litellm
 
 volumes:

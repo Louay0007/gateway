@@ -82,6 +82,11 @@ import { apiKeys, auditLog, entitlements, organizations, paymentsD17, subscripti
 import { createLocalUser } from '@/lib/auth/create-user';
 import { ensurePersonalOrg } from '@/lib/auth/provision';
 import { createKey, revokeKey } from '@/lib/keys';
+import {
+  CUSTOM_KEY_PREFIX,
+  GATEWAY_KEY_PREFIX,
+  toGatewayKey,
+} from '@/lib/keys/policy';
 import { getSpendLogs } from '@/lib/litellm/client';
 import { LITELLM_BASE } from '@/lib/litellm/endpoint';
 import { syncOrganizationEntitlements } from '@/lib/entitlements/sync';
@@ -139,7 +144,14 @@ async function infer(plaintext: string): Promise<{ status: number; body: any }> 
   const res = await fetch(`${LITELLM_BASE}/v1/chat/completions`, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${plaintext}`,
+      // `plaintext` is the CUSTOMER form (`zn-…`). This helper talks to
+      // LiteLLM's own port directly, which is the path the auth edge does
+      // NOT sit on — the edge exists for external traffic arriving via
+      // Caddy. An internal caller therefore presents the gateway form.
+      //
+      // The mistake this guards against is real: sending `zn-` here yields
+      // a 401 that reads like a broken key rather than a wrong door.
+      Authorization: `Bearer ${toGatewayKey(plaintext)}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -363,9 +375,19 @@ async function main(): Promise<void> {
     models: ['fast'],
   });
   check(
-    'credential minted (redacted)',
-    plaintext.startsWith('sk-') && plaintext.startsWith(key.keyPrefix),
+    'credential minted in the customer format (redacted)',
+    plaintext.startsWith(CUSTOM_KEY_PREFIX) && plaintext.startsWith(key.keyPrefix),
     `prefix=${key.keyPrefix} len=${plaintext.length}`,
+  );
+  // The `zn-` form is only usable because the auth edge can restore the
+  // `sk-` prefix — which requires the body to satisfy the gateway's own
+  // format rules. Assert the shape the gateway will validate, not a
+  // round-trip we cannot observe from here.
+  check(
+    'the key body satisfies the gateway format',
+    toGatewayKey(plaintext).startsWith(GATEWAY_KEY_PREFIX) &&
+      /^sk-[A-Za-z0-9_-]{13,}$/.test(toGatewayKey(plaintext)),
+    `gateway form prefix=${toGatewayKey(plaintext).slice(0, 8)}…`,
   );
 
   // The per-key push the activation could not do (no keys existed yet).

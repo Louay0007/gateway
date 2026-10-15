@@ -564,6 +564,57 @@ completion can flow. `LITELLM_SALT_KEY` and `AUTH_SECRET` exist only in the VPS 
 losing them bricks stored credentials and signs every user out, so back them up
 off-box now.
 
+### 5.19 Customer keys are `zn-` — and the auth edge that makes it honest (2026-10-15)
+
+Every key the portal issues now starts with `zn-`. This did not work, and the
+reason is worth keeping.
+
+**LiteLLM's `sk-` is structural, not cosmetic.** `/key/generate` hard-codes
+`data.key.startswith("sk-")` with no setting to change it, and — the part that
+actually blocks it — the normalizer in `proxy/_types.py` only calls
+`hash_token()` when the value starts with `sk-`. Anything else is treated as an
+*already-hashed* token and looked up verbatim, so a `zn-` value can never match
+the sha256 the gateway stores. Verified against the pinned `v1.103.1` image,
+not assumed. `sk-` is also branched on in `/key/block`, key-info, and two
+spend-tracking paths.
+
+**What we did.** The portal generates the random *body* (32 bytes →
+43 base64url chars), shows the customer `zn-<body>`, registers `sk-<body>` at
+the gateway, and a new **`edge/`** service restores the prefix on the way in.
+One body, two prefixes — verified cryptographically on the live key:
+`sha256("sk-" + body)` equals LiteLLM's stored token.
+
+**What we rejected, and why.** *Patching LiteLLM* would put a change in the
+normalizer and in spend tracking — the code that enforces budgets, where a
+mistake fails silently as unmetered usage. *Doing it in Caddy* was tested
+against the real binary and fails in two silent ways: `header_up` with a
+`.replace.` placeholder **drops the header**, and a plain placeholder forwards
+the unexpanded literal. `request_header` and `map` do not exist in Caddy
+2.11.7's Caddyfile. Both failures turn a request anonymous without an error.
+
+**The edge's rules** (`edge/server.mjs`): fail closed (502, never 200, when
+the gateway is down); never log a credential (boolean only); stream, so SSE is
+unbuffered; refuse a bodiless `zn-` key rather than minting `sk-short`; deny
+the management surface as defence in depth. Binds `127.0.0.1` only, reached
+exclusively from Caddy.
+
+**Two bugs the tests caught**, both mine, both silent:
+- The edge never piped the **request body** — every POST would have reached
+  LiteLLM with an empty body and hung on its own `Content-Length`.
+- `verify-metering` calls LiteLLM directly, so its `zn-` key got no rewrite
+  and **every** API call 401'd. Internal callers must present the gateway form
+  (`toGatewayKey`); the edge is on the external path only.
+
+**Also corrected:** a test asserted that the two forms hash alike. They do not —
+the prefix is part of the hashed input. Now pinned deliberately, since the
+instinct is wrong and would bite anyone verifying a presented `zn-` key.
+
+Proven live on the VPS: a portal-minted `zn-` key returns **200** from
+`/v1/models` through Caddy and the edge, via both `Authorization` and
+`x-api-key`; a wrong `zn-` key is 401; `zn-short` is refused **by the edge**
+(`auth_edge_error`) and never reaches LiteLLM; `/key/generate` is 404 on the
+public host. Full docs in `docs/auth-edge.md`.
+
 ### 5.8 Frontend removed (2026-10-11) — SUPERSEDED by §5.9
 All page-level UI was deleted at the user's request — the frontend is
 being built fresh. Gone: `app/page.tsx`, `globals.css`, `sign-in/`,

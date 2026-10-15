@@ -131,6 +131,15 @@ export interface KeyAuditEntry {
 // ───────────────────────────────────────────────────────────────────────
 
 export interface GatewayGenerateInput {
+  /**
+   * The plaintext the gateway should STORE, in its own `sk-<body>` form.
+   *
+   * The portal chooses the random body (see policy.ts `mintKey`) because the
+   * customer-facing `zn-<body>` has to be derivable from it: the auth edge
+   * restores the `sk-` prefix on the way in. LiteLLM honours a caller-supplied
+   * `key` and echoes it back verbatim.
+   */
+  key: string;
   keyAlias: string;
   teamId: string;
   /** Pinned at creation; see the anti-spoofing note in service.ts. */

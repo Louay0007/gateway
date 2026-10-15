@@ -141,6 +141,12 @@ export interface IssuedKey {
 }
 
 export async function generateKey(input: {
+  /**
+   * The exact plaintext to store. LiteLLM requires it to match
+   * `^sk-[A-Za-z0-9_-]+$` and be 16–100 characters; we send the
+   * `sk-` form of the customer's `zn-` key (see lib/keys/policy.ts).
+   */
+  key: string;
   keyAlias: string;
   teamId: string;
   userId: string;          // pinned — see PLATFORM.md §5.1
@@ -155,6 +161,7 @@ export async function generateKey(input: {
   const key = await call<IssuedKey>('/key/generate', {
     method: 'POST',
     body: JSON.stringify({
+      key:                    input.key,
       key_alias:              input.keyAlias,
       team_id:                input.teamId,
       user_id:                input.userId,

@@ -47,7 +47,15 @@
 		-Upstream-Url
 	}
 
-	reverse_proxy 127.0.0.1:4000 {
+	# → auth-edge (127.0.0.1:4001), NOT litellm directly.
+	#
+	# Customers hold `zn-<body>`. LiteLLM only hashes credentials that start
+	# with `sk-`, so the prefix is structural there, not cosmetic. The edge
+	# restores it on this one path and forwards everything else untouched.
+	# The ADMIN vhost below still goes straight to 4000: it speaks the master
+	# key, not a customer key, and keeping it off the edge means the ops
+	# console has one less hop to reason about.
+	reverse_proxy 127.0.0.1:4001 {
 		# SSE. Low-latency mode: flush after every write.
 		# Caddy also auto-detects text/event-stream and unknown
 		# Content-Length, but this is set explicitly rather than

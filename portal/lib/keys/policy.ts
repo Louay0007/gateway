@@ -22,7 +22,7 @@
  *      API route consults on every request.
  */
 
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { slugify } from '@/lib/org/slug';
 import type { OrgRole } from '@/db/schema';
 
@@ -30,6 +30,100 @@ import type { OrgRole } from '@/db/schema';
  *  a table, too short to be useful to anyone who never sees the full
  *  value. */
 export const KEY_PREFIX_LENGTH = 12;
+
+// ───────────────────────────────────────────────────────────────────────
+//  Key format — a customer key is `zn-<body>`, and the gateway holds the
+//  SAME body under LiteLLM's required `sk-<body>` prefix.
+//
+//  WHY TWO FORMS. LiteLLM hard-codes `sk-` (key_management_endpoints.py:
+//  `if data.key is not None and not data.key.startswith("sk-")`), and that
+//  prefix is load-bearing in AUTH, not decoration. In `_types.py` the
+//  normalizer calls `hash_token()` ONLY when the value starts with `sk-`;
+//  anything else is treated as an already-hashed token and looked up
+//  verbatim, so a `zn-` value can never match the sha256 the gateway
+//  stores. `sk-` is additionally branched on in key-block, key-info, and
+//  two spend-tracking paths.
+//
+//  So the prefix cannot be changed in the credential. Instead the PORTAL
+//  chooses the random body, shows the customer `zn-<body>`, registers
+//  `sk-<body>` at the gateway, and the auth edge (edge/server.mjs) rewrites
+//  the leading `zn-` back to `sk-` on the way in. The body — the part that
+//  is actually secret — is identical in both, so this is a prefix
+//  substitution rather than a second credential.
+//
+//  The alternative, forking the gateway's key normalization, would put a
+//  patch in the exact code that enforces budgets. This does not.
+// ───────────────────────────────────────────────────────────────────────
+
+/** What the customer sees and pastes. */
+export const CUSTOM_KEY_PREFIX = 'zn-';
+/** What the gateway stores. Fixed by LiteLLM; not ours to change. */
+export const GATEWAY_KEY_PREFIX = 'sk-';
+
+/**
+ * Body entropy: 32 random bytes → 43 base64url characters, so a key is 46
+ * characters long. The gateway requires 16–100 characters matching
+ * `^sk-[A-Za-z0-9_-]+$`, and base64url is exactly that alphabet, so the
+ * body needs no further filtering.
+ */
+const KEY_BODY_BYTES = 32;
+
+/** Shortest body accepted; the edge re-checks this before forwarding. */
+export const MIN_KEY_BODY_LENGTH = 16;
+
+export interface MintedKey {
+  /** `zn-…` — handed to the customer, shown once, hashed for storage. */
+  customerKey: string;
+  /** `sk-…` — what the gateway is told to store. Never shown. */
+  gatewayKey: string;
+}
+
+/**
+ * Mint one random body and express it in both forms.
+ *
+ * The body is generated HERE rather than by the gateway, because the
+ * customer form must be derivable from what the gateway stores. Had the
+ * gateway chosen it, the two forms would be unrelated and the edge could not
+ * translate between them.
+ */
+export function mintKey(): MintedKey {
+  const body = randomBytes(KEY_BODY_BYTES).toString('base64url');
+  return {
+    customerKey: `${CUSTOM_KEY_PREFIX}${body}`,
+    gatewayKey: `${GATEWAY_KEY_PREFIX}${body}`,
+  };
+}
+
+/**
+ * `zn-<body>` → `sk-<body>`. The edge's whole job.
+ *
+ * Anything that is not a `zn-` key comes back UNCHANGED on purpose: the
+ * gateway's own master key, and any key issued before this format existed,
+ * must keep working. A value we do not recognise is the gateway's to
+ * reject — the edge must not invent an answer for it.
+ */
+export function toGatewayKey(customerKey: string): string {
+  if (!customerKey.startsWith(CUSTOM_KEY_PREFIX)) return customerKey;
+  return GATEWAY_KEY_PREFIX + customerKey.slice(CUSTOM_KEY_PREFIX.length);
+}
+
+/**
+ * `sk-<body>` → `zn-<body>`.
+ *
+ * Used when the gateway hands back a plaintext we did not supply (an
+ * auto-generated key), so a customer never receives an `sk-` string.
+ */
+export function toCustomerKey(gatewayKey: string): string {
+  if (!gatewayKey.startsWith(GATEWAY_KEY_PREFIX)) return gatewayKey;
+  return CUSTOM_KEY_PREFIX + gatewayKey.slice(GATEWAY_KEY_PREFIX.length);
+}
+
+/** Is this credential's customer-key body long enough to be real? */
+export function isWellFormedCustomerKey(value: string): boolean {
+  // Not one of ours: the gateway's call, not the edge's.
+  if (!value.startsWith(CUSTOM_KEY_PREFIX)) return true;
+  return value.length >= CUSTOM_KEY_PREFIX.length + MIN_KEY_BODY_LENGTH;
+}
 
 /**
  * Display prefix. Never contains the whole key — a prefix equal to the

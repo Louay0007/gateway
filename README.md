@@ -9,8 +9,8 @@ customer ──▶ portal ──▶ Next.js dashboard, auth, billing, admin    �
                             │           │ usage (REST, never SQL)    │
                             ▼           │                           │
                             └──── DATA PLANE ───────────────────────┘
-your client ──sk-your-key──▶ api.yourdomain.com ──real-key──▶ upstream
-                             (Caddy + LiteLLM)                (both formats)
+your client ──zn-your-key──▶ api.yourdomain.com ──sk-your-key──▶ upstream
+                                (Caddy + auth-edge + LiteLLM)   (both formats)
 ```
 
 The **gateway** issues scoped keys and enforces token/spend ceilings. The
@@ -73,7 +73,7 @@ $EDITOR .env                       # API_DOMAIN, UPSTREAM_*, secrets
 make probe                         # ⭐ detects upstream format support
 make up && make health
 make key ALIAS=acme MODELS=fast,smart BUDGET=50
-make smoke KEY=sk-...              # 17-test acceptance suite
+make smoke KEY=zn-...              # 17-test acceptance suite
 ```
 
 ## Why the probe comes first
@@ -91,16 +91,16 @@ prefixes, with nothing in the logs indicating a problem.
 ```bash
 # Claude Code  — note ANTHROPIC_API_KEY MUST be empty
 export ANTHROPIC_BASE_URL=https://api.yourdomain.com
-export ANTHROPIC_AUTH_TOKEN=sk-your-key
+export ANTHROPIC_AUTH_TOKEN=zn-your-key
 export ANTHROPIC_API_KEY=""
 ```
 
 ```python
 # OpenAI SDK
-OpenAI(api_key="sk-…", base_url="https://api.yourdomain.com/v1")
+OpenAI(api_key="zn-…", base_url="https://api.yourdomain.com/v1")
 
 # Anthropic SDK
-Anthropic(base_url="https://api.yourdomain.com", api_key="sk-…")
+Anthropic(base_url="https://api.yourdomain.com", api_key="zn-…")
 ```
 
 ## Code from the web
