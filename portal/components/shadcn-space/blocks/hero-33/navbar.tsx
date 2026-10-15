@@ -20,11 +20,17 @@ import { ChevronRight, Equal, X } from "lucide-react";
 // public integration guide (same body as /dashboard/docs).
 const navLinks = [
   { title: "Docs", href: "/docs", isActive: false },
-  { title: "Pricing", href: "/pricing", isActive: true },
   { title: "Sign in", href: "/sign-in" },
 ];
 
-const Navbar = ({ tone = "dark" }: { tone?: "dark" | "light" }) => {
+/** `active` determines which link carries the highlight. Supported: Docs. */
+const Navbar = ({
+  tone = "dark",
+  active = "Docs",
+}: {
+  tone?: "dark" | "light";
+  active?: string;
+}) => {
   const isDark = tone === "dark";
   const navText = isDark ? "text-foreground" : "text-black";
   const navMuted = isDark ? "text-foreground/70" : "text-black/70";
@@ -70,10 +76,16 @@ const Navbar = ({ tone = "dark" }: { tone?: "dark" | "light" }) => {
                 href={link.href}
                 className={cn(
                   "rounded-full px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors",
-                  link.isActive
-                    ? navActive
-                    : navMuted,
-                  navMutedHover,
+                  link.title === active
+                    ? isDark
+                      ? "bg-foreground/20 text-foreground"
+                      : "bg-foreground/20 text-black"
+                    : link.title === "Sign in"
+                      ? signinText
+                      : navMuted,
+                  link.title === "Sign in"
+                    ? navMutedHover
+                    : navMutedHover,
                 )}
               >
                 {link.title}
