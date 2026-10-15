@@ -15,14 +15,24 @@ help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
 	  | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-16s\033[0m %s\n", $$1, $$2}'
 
+# Portable in-place edit: BSD sed needs `sed -i ''`, GNU sed needs `sed -i`,
+# and the VPS is GNU. `sed -i ''` on Linux treats the '' as a filename and
+# leaves .env unmodified, so this writes to a temp file and moves it — the
+# one form that is correct on both.
+#
+# The guard uses `test ! -f .env ||` rather than `test -f .env &&`: with `&&`,
+# the success path ("no .env yet") leaves the shell exiting 1 and make aborts
+# the target before it creates anything.
 init: ## Create .env from template with generated secrets
-	@test -f .env && { echo ".env already exists — refusing to overwrite"; exit 1; }
+	@test ! -f .env || { echo ".env already exists — refusing to overwrite"; exit 1; }
 	@cp .env.example .env
-	@sed -i '' -e "s|^LITELLM_MASTER_KEY=.*|LITELLM_MASTER_KEY=sk-$$(openssl rand -hex 32)|" .env
-	@sed -i '' -e "s|^LITELLM_SALT_KEY=.*|LITELLM_SALT_KEY=sk-$$(openssl rand -hex 32)|" .env
-	@sed -i '' -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$$(openssl rand -hex 24)|" .env
-	@sed -i '' -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$$(openssl rand -hex 24)|" .env
-	@sed -i '' -e "s|^AUTH_SECRET=.*|AUTH_SECRET=$$(openssl rand -base64 32)|" .env
+	@sed -e "s|^LITELLM_MASTER_KEY=.*|LITELLM_MASTER_KEY=sk-$$(openssl rand -hex 32)|" \
+	     -e "s|^LITELLM_SALT_KEY=.*|LITELLM_SALT_KEY=sk-$$(openssl rand -hex 32)|" \
+	     -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$$(openssl rand -hex 24)|" \
+	     -e "s|^REDIS_PASSWORD=.*|REDIS_PASSWORD=$$(openssl rand -hex 24)|" \
+	     -e "s|^AUTH_SECRET=.*|AUTH_SECRET=$$(openssl rand -base64 32)|" \
+	     -e "s|^BILLING_DEV_SECRET=.*|BILLING_DEV_SECRET=$$(openssl rand -hex 24)|" \
+	     .env > .env.tmp && mv .env.tmp .env
 	@chmod 600 .env
 	@echo ""
 	@echo "  .env created with generated secrets (0600)."
@@ -139,16 +149,27 @@ pull: ## Pull a new gateway image (review release notes first)
 # First time on the VPS: git clone, then `make init` THERE.
 #
 #   make deploy HOST=gateway@203.0.113.10 DIR=/opt/gateway
+#   make deploy HOST=gateway@203.0.113.10 DIR=/opt/gateway
+#
+# SSH_KEY is optional. Without it, `ssh`/`rsync` rely on ~/.ssh/config and
+# the agent — which is right for a key already listed there. It is needed
+# only when the key is NOT in config, and then it must be passed to BOTH
+# tools: rsync does not read the agent the way ssh(1) does, so a
+# `ssh -i` alias in ~/.ssh/config is silently ignored by rsync and the
+# deploy fails with "Permission denied (publickey)".
 deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	@: "$${HOST:?set HOST=user@ip}"
 	@DIR="$${DIR:-/opt/gateway}"; \
-	rsync -avz --delete \
-	  --exclude '.env' --exclude '.git/' \
+	if [ -n "$${SSH_KEY:-}" ]; then export RSYNC_RSH="ssh -i $$SSH_KEY -o IdentitiesOnly=yes"; \
+	  SSH_OPTS="-i $$SSH_KEY -o IdentitiesOnly=yes"; \
+	else RSYNC_RSH="ssh"; SSH_OPTS=""; fi; \
+	rsync -avz --delete -e "$$RSYNC_RSH" \
+	  --exclude '.env' --exclude '.git/' --exclude '_rescue/' \
 	  --exclude 'backup-*.tar.gz' --exclude 'latency.csv' \
 	  --exclude 'portal/node_modules/' --exclude 'portal/.next/' \
 	  --exclude 'docker-compose.mock.yml' --exclude 'mock-upstream.log' \
 	  ./ "$${HOST}:$${DIR}/" && \
-	ssh -t "$${HOST}" "cd $${DIR} && if [ -f .env ]; then \
+	ssh $$SSH_OPTS -t "$${HOST}" "cd $${DIR} && if [ -f .env ]; then \
 	    make db-init && make db-migrate && \
 	    docker compose up -d --build && sleep 8 && make health; \
 	  else echo '  first deploy: ssh in and run: make init  (then fill .env, make probe, make up)'; fi"

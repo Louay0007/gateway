@@ -431,6 +431,44 @@ written answer. No amount of code settles it.
 
 ---
 
+## Phase G — First real deploy to the VPS (2026-10-15)
+
+The first deploy found two faults that no local gate could, because both only
+exist on a machine that is not this one.
+
+- [x] **`make init` could never succeed anywhere.** Two independent bugs: the guard
+      was `test -f .env &&`, so the *success* path (no `.env` yet) exited 1 and aborted
+      the target before it wrote anything; and the recipe used BSD `sed -i ''`, which GNU
+      sed reads as a filename and leaves the file untouched. Rewritten to
+      `test ! -f .env ||` plus a temp-file-and-move. Verified on both BSD (this Mac) and
+      GNU (the VPS): secrets generated, mode 600, second run refuses.
+- [x] **`.env.example` was missing eight keys the stack requires.** Most importantly
+      `BILLING_DEV_SECRET`, which compose demands via `:?` — so `make init` → `make up`
+      fails on ANY fresh environment. Added all eight (billing, email, `APP_URL`) with
+      comments, and taught `make init` to generate `BILLING_DEV_SECRET`. This was a
+      broken repo, not a broken VPS.
+- [x] **`make deploy` could not authenticate.** It called `rsync` with no `-e`, so an
+      `ssh -i` alias in `~/.ssh/config` is silently ignored by rsync and the deploy dies
+      with `Permission denied (publickey)`. Now honours an optional `SSH_KEY=`, passed to
+      both `rsync -e` and `ssh`, and still works with config/agent alone.
+- [x] **`portal/scripts/create-accounts.ts`** provisions a customer and a staff identity
+      from env vars. It calls `createLocalUser()` rather than inserting SQL, because
+      `auth_credentials.password` is a scrypt hash — a hand-written INSERT that is subtly
+      wrong creates an account that cannot sign in and reports nothing. Staff get an
+      identity and a `staff_users` row but deliberately NO org, per PLATFORM.md §1.2.
+- [x] Deployed at `*.15-224-52-176.sslip.io` with real Let's Encrypt certs on all four
+      vhosts (verified by issuer), HTTP→HTTPS 308, migrations 0001–0009 applied to a
+      fresh database, `make health` green. Backups of both prior DB volumes + the old
+      tree are in `/opt/gateway/_rescue/`.
+
+**Still open, and not engineering:** the upstream tunnel answers **530** on every wire
+format from both here and the VPS, so no real completion can flow. `LITELLM_SALT_KEY`
+and `AUTH_SECRET` exist only in the VPS `.env` and need an off-box backup. And
+`admin`/`code` are IP-gated in the Caddyfile, which is why they answer 403 from
+anywhere but a whitelisted address.
+
+---
+
 ## Phase F — Browser pass + deploy dry-run (2026-10-15)
 
 Every proof drives the service layer in-process, so a green `verify-metering` says

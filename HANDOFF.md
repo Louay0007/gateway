@@ -527,6 +527,43 @@ found two defects that type-checking and the proofs both passed over.
   `rj8dp52.abc-tunnel.us` answers **530 on every wire format**, which is the
   known external blocker, not a defect.
 
+### 5.18 Deployed to the VPS (2026-10-15) — live at *.15-224-52-176.sslip.io
+
+First real deploy. It surfaced three faults that no local gate could catch, because
+all three only exist on a machine that is not the dev box.
+
+- **`make init` was broken everywhere, not just on Linux.** Two bugs stacked: the guard
+  `test -f .env &&` meant the *success* path (no `.env` yet) exited 1 and aborted the
+  target before writing anything, and the recipe used BSD `sed -i ''` that GNU sed
+  treats as a filename. Now `test ! -f .env ||` + temp-file-and-move; verified on BSD
+  and GNU sed, mode 600, second run refuses.
+- **`.env.example` was missing eight required keys** — `BILLING_DEV_SECRET` most
+  importantly, which `docker-compose.yml` demands with `:?`. So the documented
+  `make init` → `make up` first-deploy path failed on any fresh host. Fixed in the
+  template, not papered over on the VPS.
+- **`make deploy` could not authenticate.** No `-e` to rsync, so the `ssh -i` alias in
+  `~/.ssh/config` is ignored and it fails `Permission denied (publickey)`. Now accepts
+  `SSH_KEY=` and passes it to both tools.
+
+**Live state:** all four vhosts hold real Let's Encrypt certs (verified by issuer),
+HTTP→HTTPS 308s, migrations 0001–0009 applied to a fresh DB, `make health` green
+(gateway 200, portal `database`+`gateway` true, jobs running). `api` and `portal` answer
+200; `admin` and `code` are IP-gated in the Caddyfile and answer 403 from outside.
+Two demo accounts exist (customer + staff/admin), both created with
+`portal/scripts/create-accounts.ts` — which calls `createLocalUser()` rather than
+writing SQL, because the credential column is a scrypt hash and a subtly wrong INSERT
+yields an account that cannot sign in and reports nothing. The staff identity has a
+`staff_users` row and no org, per PLATFORM.md §1.2.
+
+**Backups:** `/opt/gateway/_rescue/` holds both prior DB volumes (one test user,
+`alex@example.com`), the pre-deploy tree, and a git diff patch.
+
+**Blocked externally, not by code:** the upstream tunnel answers **530** on every wire
+format from both here and the VPS, so the gateway enforces budgets but no real
+completion can flow. `LITELLM_SALT_KEY` and `AUTH_SECRET` exist only in the VPS `.env` —
+losing them bricks stored credentials and signs every user out, so back them up
+off-box now.
+
 ### 5.8 Frontend removed (2026-10-11) — SUPERSEDED by §5.9
 All page-level UI was deleted at the user's request — the frontend is
 being built fresh. Gone: `app/page.tsx`, `globals.css`, `sign-in/`,
