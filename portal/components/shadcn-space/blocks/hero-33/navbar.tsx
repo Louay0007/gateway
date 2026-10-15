@@ -50,8 +50,8 @@ const Navbar = ({
     <nav
       className={cn(
         isDark
-          ? "dark absolute inset-x-0 top-0 z-50 w-full transition-all duration-300"
-          : "absolute inset-x-0 top-0 z-50 w-full transition-all duration-300",
+          ? "dark fixed inset-x-0 top-0 z-50 w-full transition-all duration-300"
+          : "fixed inset-x-0 top-0 z-50 w-full transition-all duration-300",
         isSticky
           ? "bg-background shadow-lg shadow-black/5 backdrop-blur-lg"
           : "bg-transparent",
