@@ -493,8 +493,11 @@ async function main(): Promise<void> {
   section('11. ledger contents (usage_records)');
 
   const priceTable = await loadPriceTable();
-  const price = resolvePrice(priceTable, 'openai/cl/cline-free/step-5-preview');
-  check('price table resolves the served model', Boolean(price), 'step-5-preview not in prices/models.yaml');
+  // The model string LiteLLM actually reports for the `fast` alias. Kept in
+  // sync with config/litellm.yaml; resolvePrice strips the provider prefix and
+  // matches the bare `laguna-s-2.1:free` row.
+  const price = resolvePrice(priceTable, 'openai/poolside/laguna-s-2.1:free');
+  check('price table resolves the served model', Boolean(price), 'laguna-s-2.1:free not in prices/models.yaml');
 
   // Starter's multiplier (rate_multiplier_bps = 13000 → 1.30).
   const multiplier = (activeState.plan?.rateMultiplierBps ?? 13000) / 10_000;

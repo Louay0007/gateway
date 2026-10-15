@@ -31,20 +31,32 @@ model_list:
   # Zero them before any real billing relies on this table.
   - model_name: fast
     litellm_params:
-      model: openai/cl/cline-free/step-5-preview
+      # OpenRouter is an OpenAI-compatible gateway. Registered as
+      # `openai/` + api_base, NOT `openrouter/`: this LiteLLM build has no
+      # model_cost entry for the openrouter/ provider, and the openai/ path
+      # is the one verified end-to-end against
+      # UPSTREAM_BASE_URL=https://openrouter.ai/api/v1.
+      model: openai/poolside/laguna-s-2.1:free
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
     model_info:
+      # BOTH wire formats. OpenRouter serves this model natively on
+      # /chat/completions AND translates /v1/messages; `supported_endpoints`
+      # makes LiteLLM forward /v1/messages UNTRANSLATED (preserving
+      # Anthropic cache_control) rather than translating and dropping it.
+      # Verified: OpenRouter's /v1/messages returned a real message here.
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
       # Nominal dev rates — mirror prices/models.yaml exactly (per-token).
-      # input $0.30/MTok, output $1.20/MTok; cache at the standard
-      # multipliers (write-5m 1.25x, write-1h 2.0x, read 0.10x). Non-zero
-      # only to keep the spend pipeline exercisable; real upstream is free.
-      input_cost_per_token: 0.0000003
-      output_cost_per_token: 0.0000012
-      cache_creation_input_token_cost: 0.000000375
-      cache_read_input_token_cost: 0.00000003
+      # input $0.60/MTok, output $2.40/MTok (OpenRouter's PAID tier of this
+      # same model); cache read at 0.10x input. Non-zero ONLY to keep the
+      # spend/budget/rollup pipeline exercisable — the :free upstream is
+      # genuinely $0. (LiteLLM exposes ONE cache_creation_input_token_cost,
+      # so it is set to the 1h tier, 2.0x, the higher of the two.)
+      input_cost_per_token: 0.0000006
+      output_cost_per_token: 0.0000024
+      cache_creation_input_token_cost: 0.0000012
+      cache_read_input_token_cost: 0.00000006
 
   # ─────────────────────────────────────────────────────────────────────
   # BLOCK B — UPSTREAM IS OPENAI-COMPATIBLE ONLY

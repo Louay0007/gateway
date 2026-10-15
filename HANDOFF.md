@@ -615,6 +615,59 @@ Proven live on the VPS: a portal-minted `zn-` key returns **200** from
 (`auth_edge_error`) and never reaches LiteLLM; `/key/generate` is 404 on the
 public host. Full docs in `docs/auth-edge.md`.
 
+### 5.20 Upstream is now OpenRouter `poolside/laguna-s-2.1:free` (2026-10-15)
+
+Proven end-to-end on the VPS, both wire formats.
+
+**Chosen because it is the best free *coding* model reachable.** Surveyed
+OpenRouter's catalogue: `poolside/laguna-s-2.1:free` — Poolside's open-weight
+**agentic-coding** model, 256k context, 32k max output, served directly by
+Poolside, priced `$0/$0`. Its paid sibling (`poolside/laguna-s-2.1`) costs
+$0.09/$0.18 per Mtok, which is what the nominal rates are anchored to.
+
+**Config** (`config/litellm.yaml` + `prices/models.yaml`, one table two
+consumers): `model: openai/poolside/laguna-s-2.1:free`, `api_base` from
+`UPSTREAM_BASE_URL=https://openrouter.ai/api/v1`. Registered as `openai/`,
+NOT `openrouter/` — the pinned LiteLLM build has **no `model_cost` entry** for
+the `openrouter/` provider, and the `openai/` path is the verified one.
+`supported_endpoints` keeps BOTH `/v1/chat/completions` and `/v1/messages`
+untranslated.
+
+**Nominal rates, deliberately non-zero** (input $0.60, output $2.40/Mtok): the
+upstream is genuinely $0, and a $0 model makes every budget a no-op and hides
+pipeline bugs. This is the pattern already documented in `prices/models.yaml`.
+Note LiteLLM exposes only ONE `cache_creation_input_token_cost`, so it is set
+to the **1h tier** (2.0x), not the 5m one — the two tables now agree on the
+value LiteLLM actually uses.
+
+**It is a reasoning model, and that matters operationally.** A completion
+with `max_tokens: 90` returned **empty text** — all 90 tokens went to
+`reasoning_tokens`. At `max_tokens: 1024` it returned
+`def reverse_str(s): return s[::-1]` (224 reasoning + 11 content). Operators
+must not set a tiny `max_tokens` against this model, or every response looks
+like a silent failure.
+
+**Live results** (portal-minted `zn-` key → Caddy → auth-edge → LiteLLM →
+OpenRouter):
+- `GET /v1/models` → `["fast"]`
+- `POST /v1/chat/completions` → 200, real code, `cost: 0`
+- `POST /v1/messages` (Anthropic) → 200, `type: message`, `WIRE_FORMAT_OK`
+
+**Known behaviour: OpenRouter's free pool is rate-limited.** Both formats
+intermittently return **429** and succeed on retry (~1 in 2 calls). This is an
+upstream capacity limit, not a config fault, and it is the main reason the
+nominal-budget machinery matters.
+
+**Three credentials were tried first and rejected on evidence** — worth
+recording so nobody re-litigates them:
+- **opencode** (`oc_sk_…`): all ten `*-free` models → 403 `FreeTierError`
+  ("can only be used from within OpenCode"); paid models → 402, no funds.
+- **Kilo** (`eyJ…` JWT): inference → 401 `INVALID_TOKEN` (token has
+  `"apiTokenPepper": null`) while `/models` still returned 200; paid models
+  fail identically.
+- **Vercel AI Gateway** (`vck_…`): key valid, catalog readable, the model IS
+  there — but every inference → 403 "requires a valid credit card on file".
+
 ### 5.8 Frontend removed (2026-10-11) — SUPERSEDED by §5.9
 All page-level UI was deleted at the user's request — the frontend is
 being built fresh. Gone: `app/page.tsx`, `globals.css`, `sign-in/`,
