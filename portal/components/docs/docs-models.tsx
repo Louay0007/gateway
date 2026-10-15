@@ -1,16 +1,23 @@
-import { Check } from "lucide-react";
+import { Check, Gauge, MessageSquareText, Sparkles } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/docs/docs-section";
 import { TIERS } from "@/components/docs/docs-data";
+import { cn } from "@/lib/utils";
+
+const TIER_ICON = {
+  fast: Gauge,
+  smart: MessageSquareText,
+  frontier: Sparkles,
+} as const;
 
 /**
  * Models — the three aliases, priced and positioned.
  *
  * ALIAS-ONLY by invariant: no upstream deployment name appears here.
- * Each tier card carries nominal per-Mtok rates (mirroring
- * prices/models.yaml) so the page states the same numbers metering
- * charges — with the placeholder caveat where money is discussed.
+ * Cards are glance-first: speed tag + alias up top, one-line read
+ * context, price pair, use-cases as chips, specs as a single footer
+ * line. The "Most used" tier gets the emphasis border.
  */
 export function ModelsSection() {
   return (
@@ -28,41 +35,89 @@ export function ModelsSection() {
       }
     >
       <div className="grid gap-4 md:grid-cols-3">
-        {TIERS.map((t) => (
-          <article
-            key={t.alias}
-            className="flex flex-col rounded-2xl border border-border bg-card p-6 transition-colors hover:border-foreground/30"
-          >
-            <div className="flex items-center justify-between gap-2">
-              <code className="rounded-md bg-muted px-2.5 py-1 font-mono text-lg font-semibold">
-                {t.alias}
-              </code>
-              <Badge variant={t.alias === "smart" ? "default" : "outline"}>{t.badge}</Badge>
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{t.tagline}</p>
-            <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
-              <div className="rounded-lg bg-muted/60 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">Input / Mtok</dt>
-                <dd className="font-semibold tabular-nums">{t.inputPerMtok}</dd>
+        {TIERS.map((t) => {
+          const Icon = TIER_ICON[t.alias as keyof typeof TIER_ICON] ?? Gauge;
+          const featured = t.alias === "smart";
+          return (
+            <article
+              key={t.alias}
+              className={cn(
+                "relative flex flex-col rounded-2xl border bg-card p-5 transition-colors",
+                featured
+                  ? "border-2 border-foreground shadow-sm"
+                  : "border-border hover:border-foreground/30",
+              )}
+            >
+              {featured ? (
+                <span className="absolute -top-3 left-5 rounded-full bg-foreground px-3 py-0.5 text-xs font-medium text-background">
+                  Most used
+                </span>
+              ) : null}
+              <div className="flex items-center gap-3">
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                  <Icon className="size-5" aria-hidden />
+                </span>
+                <div className="min-w-0">
+                  <code className="font-mono text-xl font-bold tracking-tight">
+                    {t.alias}
+                  </code>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {SPEED_LINE[t.alias as keyof typeof SPEED_LINE]}
+                  </p>
+                </div>
+                <Badge
+                  variant={featured ? "default" : "outline"}
+                  className="ml-auto shrink-0"
+                >
+                  {t.badge}
+                </Badge>
               </div>
-              <div className="rounded-lg bg-muted/60 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">Output / Mtok</dt>
-                <dd className="font-semibold tabular-nums">{t.outputPerMtok}</dd>
-              </div>
-            </dl>
-            <ul className="mt-4 grid gap-2 text-sm">
-              {t.bestFor.map((b) => (
-                <li key={b} className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0" aria-hidden />
-                  <span>{b}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-auto pt-4 text-xs text-muted-foreground">
-              Plans: {t.plans} · 262k context · 32k max output
-            </p>
-          </article>
-        ))}
+
+              <p className="mt-3 text-sm leading-relaxed">{t.tagline}</p>
+
+              <dl className="mt-4 grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-muted/60 px-3 py-2">
+                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                    Read · in
+                  </dt>
+                  <dd className="text-lg font-bold tabular-nums">
+                    {t.inputPerMtok}
+                    <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                      / Mtok
+                    </span>
+                  </dd>
+                </div>
+                <div className="rounded-lg bg-muted/60 px-3 py-2">
+                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
+                    Write · out
+                  </dt>
+                  <dd className="text-lg font-bold tabular-nums">
+                    {t.outputPerMtok}
+                    <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                      / Mtok
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+
+              <ul className="mt-3 flex flex-wrap gap-1.5" aria-label={`${t.alias} use cases`}>
+                {t.bestFor.map((b) => (
+                  <li
+                    key={b}
+                    className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs"
+                  >
+                    <Check className="size-3" aria-hidden />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+
+              <p className="mt-auto border-t border-border pt-3 text-xs text-muted-foreground">
+                {t.plans} · 262k context · 32k max output
+              </p>
+            </article>
+          );
+        })}
       </div>
       <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
         Rates are nominal development figures so budgets stay exercisable —
@@ -73,3 +128,10 @@ export function ModelsSection() {
     </Section>
   );
 }
+
+const SPEED_LINE = {
+  fast: "Fastest · bulk",
+  smart: "Balanced · default",
+  frontier: "Deepest · hardest tasks",
+} as const;
+
