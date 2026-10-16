@@ -103,3 +103,27 @@ export function rangeLabel(from?: string | null, to?: string | null): string | n
   if (!from || !to) return null;
   return `${shortDate(from)} → ${shortDate(to)}`;
 }
+
+/**
+ * Avatar initials for a person, not an org.
+ *
+ * First letters of the first two name words ("Ada Lovelace" → "AL"), and
+ * the email local part when there is no name yet ("zaino" → "ZA"). Never
+ * blank: "?" beats an empty circle. One function so the header, the
+ * sidebar, and the settings page cannot disagree on who you are.
+ */
+export function initialsFor(name?: string | null, email?: string | null): string {
+  const fromName = (name ?? "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join("");
+  if (fromName) return fromName.toUpperCase();
+  const local = (email ?? "").split("@")[0] ?? "";
+  const cleaned = local.replace(/[^a-zA-Z0-9]/g, "");
+  if (cleaned.length >= 2) return cleaned.slice(0, 2).toUpperCase();
+  if (cleaned.length === 1) return cleaned.toUpperCase();
+  return "?";
+}

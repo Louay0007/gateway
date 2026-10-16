@@ -27,39 +27,58 @@ import {
 } from '@/db/schema';
 import { appendAudit } from '@/lib/audit';
 import { hashPassword, validatePassword, verifyPassword } from '@/lib/auth/password';
+import { validateAvatarDataUrl } from '@/lib/account/avatar';
+import { AccountError } from '@/lib/account/errors';
 import { CUT_BUDGET } from '@/lib/entitlements/policy';
 import { deleteKey, listTeamKeys, updateKeyLimits, updateTeamBudget } from '@/lib/litellm/client';
 import { log } from '@/lib/log';
 
 /**
- * An error carrying an HTTP status, so the route maps it without
- * re-deriving intent from a message. Mirrors `KeyServiceError`'s shape and
- * speaks the same code vocabulary as `lib/api/errors.ts`.
+ * Re-exported so existing importers (`app/api/profile/route.ts`,
+ * `scripts/verify-metering.ts`) keep working unchanged. The class itself
+ * lives in `./errors` so the pure validators can throw it without
+ * importing the database client.
  */
-export class AccountError extends Error {
-  constructor(
-    message: string,
-    readonly code:
-      | 'validation'
-      | 'not_found'
-      | 'conflict'
-      | 'upstream'
-      | 'internal',
-    readonly status: number,
-    /** Field-level message, so a form can put it on the right input. */
-    readonly field?: string,
-  ) {
-    super(message);
-    this.name = 'AccountError';
-  }
-}
+export { AccountError } from '@/lib/account/errors';
+export { MAX_AVATAR_BYTES, validateAvatarDataUrl } from '@/lib/account/avatar';
 
 // ───────────────────────────────────────────────────────────────────────
 //  Profile
 // ───────────────────────────────────────────────────────────────────────
 
 /**
- * Rename yourself.
+ * Read your own profile.
+ *
+ * The settings page previously had no way to SHOW the name or email — the
+ * name field started empty and the email field was a placeholder — because
+ * no endpoint served them. That is what this is for. Self-scoped like the
+ * write: the id comes from the session, never from the request.
+ */
+export async function getProfile(input: { userId: string }): Promise<{
+  name: string;
+  email: string;
+  emailVerifiedAt: string | null;
+  image: string | null;
+  createdAt: string;
+}> {
+  const row = await db.query.users.findFirst({
+    where: eq(users.id, input.userId),
+    columns: { name: true, email: true, emailVerifiedAt: true, image: true, createdAt: true },
+  });
+  if (!row) {
+    throw new AccountError('Account not found.', 'not_found', 404);
+  }
+  return {
+    name: row.name ?? '',
+    email: row.email,
+    emailVerifiedAt: row.emailVerifiedAt?.toISOString() ?? null,
+    image: row.image ?? null,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+/**
+ * Rename yourself, change your picture, or both.
  *
  * Writes `users.name`, the DOMAIN mirror — that is the table
  * authorization reads and the one every product surface resolves through
@@ -75,24 +94,39 @@ export class AccountError extends Error {
  */
 export async function updateProfile(input: {
   userId: string;
-  name: string;
-}): Promise<{ name: string }> {
-  const name = input.name.trim().replace(/\s+/g, ' ');
+  name?: string;
+  image?: string | null;
+}): Promise<{ name: string; image: string | null }> {
+  if (input.name === undefined && input.image === undefined) {
+    throw new AccountError('Nothing to update.', 'validation', 400);
+  }
 
-  if (name.length < 1 || name.length > 120) {
-    throw new AccountError(
-      'Use between 1 and 120 characters.',
-      'validation',
-      400,
-      'name',
-    );
+  const patch: { name?: string; image?: string | null; updatedAt: Date } = {
+    updatedAt: new Date(),
+  };
+
+  if (input.name !== undefined) {
+    const name = input.name.trim().replace(/\s+/g, ' ');
+    if (name.length < 1 || name.length > 120) {
+      throw new AccountError(
+        'Use between 1 and 120 characters.',
+        'validation',
+        400,
+        'name',
+      );
+    }
+    patch.name = name;
+  }
+
+  if (input.image !== undefined) {
+    patch.image = validateAvatarDataUrl(input.image);
   }
 
   const [updated] = await db
     .update(users)
-    .set({ name, updatedAt: new Date() })
+    .set(patch)
     .where(eq(users.id, input.userId))
-    .returning({ id: users.id, name: users.name });
+    .returning({ id: users.id, name: users.name, image: users.image });
 
   if (!updated) {
     throw new AccountError('Account not found.', 'not_found', 404);
@@ -102,13 +136,18 @@ export async function updateProfile(input: {
     actorType: 'user',
     actorId: input.userId,
     organizationId: null,
-    action: 'profile.renamed',
+    action: 'profile.updated',
     targetType: 'user',
     targetId: input.userId,
-    after: { name },
+    after: {
+      ...(patch.name !== undefined ? { name: patch.name } : {}),
+      // The picture itself never enters the audit log — it is opaque
+      // bytes, useless for forensics and heavy to store twice.
+      ...(patch.image !== undefined ? { image: patch.image === null ? null : 'set' } : {}),
+    },
   });
 
-  return { name: updated.name ?? '' };
+  return { name: updated.name ?? '', image: updated.image ?? null };
 }
 
 // ───────────────────────────────────────────────────────────────────────

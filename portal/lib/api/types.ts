@@ -20,6 +20,21 @@ import type { UsageRowView } from "@/lib/billing/service";
  * the source of a number a customer is shown.
  */
 
+/**
+ * Your own profile — GET /api/profile. Self-scoped: the id comes from the
+ * session, so there is no user id in the shape at all.
+ */
+export interface ProfileView {
+  name: string;
+  email: string;
+  /** ISO-8601, or null while the address is unverified. */
+  emailVerifiedAt: string | null;
+  /** Data URL, or null while unset (the UI falls back to initials). */
+  image: string | null;
+  /** ISO-8601. */
+  createdAt: string;
+}
+
 export interface SubscriptionBundle {
   state: PlanState;
   plan: PlanSummary | null;

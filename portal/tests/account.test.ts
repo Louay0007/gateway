@@ -16,6 +16,8 @@
 import { describe, expect, it } from 'vitest';
 import { sessionIsFresh } from '@/lib/auth/session-freshness';
 import { csvCell } from '@/lib/csv';
+import { MAX_AVATAR_BYTES, validateAvatarDataUrl } from '@/lib/account/avatar';
+import { initialsFor } from '@/lib/dashboard/format';
 
 describe('session freshness', () => {
   const stamp = new Date('2026-10-01T12:00:00.000Z');
@@ -80,5 +82,64 @@ describe('CSV cells', () => {
     // a bug report waiting to happen.
     expect(csvCell(null)).toBe('');
     expect(csvCell(undefined)).toBe('');
+  });
+});
+describe('avatar validation', () => {
+  // 1x1 transparent PNG — the smallest real image there is.
+  const PNG_1PX =
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+  it('accepts a real PNG data URL', () => {
+    expect(validateAvatarDataUrl(PNG_1PX)).toBe(PNG_1PX);
+  });
+
+  it('null and undefined mean "remove the picture", not an error', () => {
+    expect(validateAvatarDataUrl(null)).toBeNull();
+    expect(validateAvatarDataUrl(undefined)).toBeNull();
+  });
+
+  it('rejects a non-image data URL', () => {
+    expect(() =>
+      validateAvatarDataUrl('data:text/plain;base64,aGVsbG8='),
+    ).toThrow(/PNG, JPEG, or WebP/);
+  });
+
+  it('rejects a bare URL with no data envelope', () => {
+    expect(() => validateAvatarDataUrl('https://example.com/me.png')).toThrow();
+  });
+
+  it('rejects a prefix that lies about the content', () => {
+    // Claims PNG, decodes to plain text. Magic bytes are checked AFTER
+    // decoding because the prefix is a claim, not proof.
+    const lying =
+      'data:image/png;base64,' + Buffer.from('not an image at all').toString('base64');
+    expect(() => validateAvatarDataUrl(lying)).toThrow(/does not match/);
+  });
+
+  it('rejects an oversized payload on decoded bytes', () => {
+    const big =
+      'data:image/png;base64,' +
+      Buffer.alloc(MAX_AVATAR_BYTES + 1, 0).toString('base64');
+    expect(() => validateAvatarDataUrl(big)).toThrow(/limited to/);
+  });
+});
+
+describe('avatar initials', () => {
+  it('takes the first letters of the first two name words', () => {
+    expect(initialsFor('Ada Lovelace', 'ada@example.com')).toBe('AL');
+  });
+
+  it('falls back to the email local part without a name', () => {
+    expect(initialsFor('', 'zaino@example.com')).toBe('ZA');
+    expect(initialsFor(null, 'zaino@example.com')).toBe('ZA');
+  });
+
+  it('ignores non-alphanumeric noise in the local part', () => {
+    expect(initialsFor('', 'a.b-c_d@example.com')).toBe('AB');
+  });
+
+  it('never returns blank', () => {
+    expect(initialsFor('', '')).toBe('?');
+    expect(initialsFor(null, null)).toBe('?');
   });
 });

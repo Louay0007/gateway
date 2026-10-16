@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import { signOutAction } from "@/lib/auth/actions";
 import Logo from "@/assets/logo/logo";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -61,7 +61,7 @@ import { useShellIdentity } from "@/components/dashboard/shell-identity";
  */
 export function AppSidebar({ isStaff = false }: { isStaff?: boolean } = {}) {
   const { state } = useSidebar();
-  const { org, role, initials } = useShellIdentity();
+  const { org } = useShellIdentity();
   const pathname = usePathname();
   const collapsed = state === "collapsed";
   const active = (href: string) =>
@@ -179,7 +179,7 @@ function ThemeToggle({ collapsed }: { collapsed: boolean }) {
 
 function UserMenu({ collapsed }: { collapsed: boolean }) {
   const { isMobile } = useSidebar();
-  const { org, role, initials } = useShellIdentity();
+  const { org, role, user } = useShellIdentity();
 
   return (
     <DropdownMenu>
@@ -191,15 +191,16 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
             aria-label="Account menu"
           >
           <Avatar className="size-8">
+            {user?.image ? <AvatarImage src={user.image} alt="" /> : null}
             <AvatarFallback className="text-xs font-medium">
-              {initials}
+              {user?.initials ?? "?"}
             </AvatarFallback>
           </Avatar>
           {!collapsed || isMobile ? (
             <span className="grid min-w-0 flex-1 leading-tight">
-              <span className="truncate font-medium">{org?.name ?? "Account"}</span>
+              <span className="truncate font-medium">{(user?.name || org?.name) ?? "Account"}</span>
               <span className="truncate text-xs text-muted-foreground">
-                {org?.name ?? ""}
+                {user?.email ?? org?.name ?? ""}
               </span>
             </span>
           ) : null}

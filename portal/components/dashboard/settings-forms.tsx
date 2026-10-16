@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Building2, KeyRound, TriangleAlert, UserRound } from "lucide-react";
 
 import { PasswordChecklist } from "@/components/auth/password-checklist";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,7 +28,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ErrorState, PanelSkeleton } from "@/components/dashboard/states";
 import { apiSend, useApi } from "@/lib/api/use-api";
-import type { OrgListItem } from "@/lib/api/types";
+import type { OrgListItem, ProfileView } from "@/lib/api/types";
+import { initialsFor } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 
 /**
@@ -36,7 +39,8 @@ import { toast } from "sonner";
  * `toast("saved")` and reloaded to the same value, which is the worst
  * possible version of a settings page: it looks finished, and it lies.
  *
- *   profile name   → PATCH  /api/profile            (self-scoped)
+ *   profile read   → GET    /api/profile            (self-scoped)
+ *   profile write  → PATCH  /api/profile            (self-scoped)
  *   org name/slug  → PATCH  /api/orgs/[id]          (owner only)
  *   password       → POST   /api/profile/password   (re-auth + session kill)
  *   delete account → POST   /api/account/delete     (owner only, type-to-confirm)
@@ -61,40 +65,130 @@ export function SettingsForms() {
 //  Profile
 // ───────────────────────────────────────────────────────────────────────
 
+/**
+ * What a 256 KiB data URL may be. The server re-checks all of this
+ * (magic bytes, decoded size) — the accept attribute and size check here
+ * only fail fast, before a doomed upload crosses the network.
+ */
+const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
+const MAX_IMAGE_BYTES = 256 * 1024;
+
 function ProfileCard() {
   const router = useRouter();
-  const orgs = useApi<{ orgs: OrgListItem[] }>("/api/orgs");
+  const { data, error, loading, reload, set } = useApi<ProfileView>("/api/profile");
   const [name, setName] = React.useState("");
   const [saving, setSaving] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [imageError, setImageError] = React.useState<string | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
 
-  // The display name lives on `users`, which no endpoint exposes for
-  // reading — `/api/orgs` is org-scoped by design. So the field starts
-  // empty and is saved optimistically against the server's copy: blank
-  // means "unchanged", and a successful save fills it in. Showing the
-  // previous mock name here would be inventing it again.
-  const saved = name.length > 0;
+  // Seeded once, when the profile first arrives — writing to state during
+  // render would fight the user typing.
+  const seeded = React.useRef(false);
+  React.useEffect(() => {
+    if (data && !seeded.current) {
+      seeded.current = true;
+      setName(data.name);
+    }
+  }, [data]);
 
-  async function save() {
-    if (saving || !name.trim()) return;
+  const dirty = data ? name.trim() !== data.name : false;
+
+  async function saveName() {
+    if (saving || !dirty) return;
+    const trimmed = name.trim();
+    if (!trimmed) {
+      setSaveError("Enter a name.");
+      return;
+    }
     setSaving(true);
-    setError(null);
+    setSaveError(null);
 
-    const result = await apiSend<{ name: string }>("/api/profile", {
+    const result = await apiSend<{ name: string; image: string | null }>("/api/profile", {
       method: "PATCH",
-      body: { name: name.trim() },
+      body: { name: trimmed },
     });
     setSaving(false);
 
     if ("error" in result) {
-      setError(result.error.message);
+      setSaveError(result.error.message);
       return;
     }
-    setName(result.data.name);
+    set((prev) => (prev ? { ...prev, name: result.data.name } : prev));
     toast.success("Profile updated.");
-    orgs.reload();
     router.refresh();
   }
+
+  async function uploadPicture(file: File) {
+    setImageError(null);
+    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+      setImageError("Use a PNG, JPEG, or WebP image.");
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      setImageError("Pictures are limited to 256 KB.");
+      return;
+    }
+    setUploading(true);
+
+    let dataUrl: string;
+    try {
+      dataUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Could not read that file."));
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+    } catch (e) {
+      setUploading(false);
+      setImageError(e instanceof Error ? e.message : "Could not read that file.");
+      return;
+    }
+
+    const result = await apiSend<{ name: string; image: string | null }>("/api/profile", {
+      method: "PATCH",
+      body: { image: dataUrl },
+    });
+    setUploading(false);
+
+    if ("error" in result) {
+      setImageError(result.error.message);
+      return;
+    }
+    set((prev) => (prev ? { ...prev, image: result.data.image } : prev));
+    toast.success("Profile picture updated.");
+    router.refresh();
+  }
+
+  async function removePicture() {
+    setImageError(null);
+    setUploading(true);
+    const result = await apiSend<{ name: string; image: string | null }>("/api/profile", {
+      method: "PATCH",
+      body: { image: null },
+    });
+    setUploading(false);
+
+    if ("error" in result) {
+      setImageError(result.error.message);
+      return;
+    }
+    set((prev) => (prev ? { ...prev, image: null } : prev));
+    toast.success("Profile picture removed.");
+    router.refresh();
+  }
+
+  if (loading) return <PanelSkeleton rows={3} />;
+  if (error) return <ErrorState error={error} onRetry={reload} />;
+  if (!data) return <PanelSkeleton rows={3} />;
+
+  const verified = data.emailVerifiedAt !== null;
+  const memberSince = new Date(data.createdAt).toLocaleDateString("en-US", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
 
   return (
     <Card id="profile">
@@ -105,23 +199,84 @@ function ProfileCard() {
         </CardTitle>
         <CardDescription>How you appear across the dashboard.</CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 sm:max-w-md">
+      <CardContent className="grid gap-6 sm:max-w-md">
+        <div className="flex items-center gap-4">
+          <Avatar className="size-16">
+            {data.image ? <AvatarImage src={data.image} alt="" /> : null}
+            <AvatarFallback className="text-lg font-medium">
+              {initialsFor(data.name, data.email)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="grid gap-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{data.name || data.email}</span>
+              {verified ? (
+                <Badge variant="secondary" className="text-[11px]">
+                  Verified
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-[11px] text-amber-600 border-amber-600/40">
+                  Unverified
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">Member since {memberSince}</p>
+            <div className="flex items-center gap-2">
+              <input
+                ref={fileRef}
+                type="file"
+                accept={ACCEPTED_IMAGE_TYPES.join(",")}
+                className="hidden"
+                aria-label="Upload profile picture"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (file) void uploadPicture(file);
+                }}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={uploading}
+                onClick={() => fileRef.current?.click()}
+              >
+                {uploading ? "Uploading…" : data.image ? "Change picture" : "Upload picture"}
+              </Button>
+              {data.image ? (
+                <Button size="sm" variant="ghost" disabled={uploading} onClick={() => void removePicture()}>
+                  Remove
+                </Button>
+              ) : null}
+            </div>
+            {imageError ? (
+              <p role="alert" className="text-xs text-destructive">
+                {imageError}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">PNG, JPEG, or WebP up to 256 KB.</p>
+            )}
+          </div>
+        </div>
+
         <div className="grid gap-2">
           <Label htmlFor="profile-name">Name</Label>
           <Input
             id="profile-name"
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setName(e.target.value);
+              setSaveError(null);
+            }}
             maxLength={120}
-            placeholder={saved ? undefined : "Your name"}
-            aria-invalid={Boolean(error) || undefined}
+            placeholder="Your name"
+            aria-invalid={Boolean(saveError) || undefined}
             aria-describedby="profile-name-hint"
             onKeyDown={(e) => {
-              if (e.key === "Enter") void save();
+              if (e.key === "Enter") void saveName();
             }}
           />
           <p id="profile-name-hint" className="text-xs text-muted-foreground">
-            {error ?? "Up to 120 characters."}
+            {saveError ?? "Up to 120 characters. Shown beside your picture in the header."}
           </p>
         </div>
 
@@ -133,15 +288,16 @@ function ProfileCard() {
               remaining Lighthouse color-contrast failure on this page. A
               readOnly field stays non-editable but keeps full-contrast,
               selectable text. */}
-          <Input id="profile-email" readOnly placeholder="Your sign-in address" />
+          <Input id="profile-email" readOnly value={data.email} />
           <p className="text-xs text-muted-foreground">
-            Email changes are handled by an operator. It is the identity your
-            session resolves to, and changing it would detach your usage history.
+            {verified
+              ? "Verified. Email changes are handled by an operator — it is the identity your session resolves to."
+              : "Not verified yet — check your inbox for the verification link. You cannot pay or create keys until it is verified."}
           </p>
         </div>
 
         <div>
-          <Button size="sm" disabled={!name.trim() || saving} onClick={() => void save()}>
+          <Button size="sm" disabled={!dirty || saving} onClick={() => void saveName()}>
             {saving ? "Saving…" : "Save profile"}
           </Button>
         </div>

@@ -16,7 +16,7 @@ import { signOutAction } from "@/lib/auth/actions";
 import { titleForPath } from "@/components/dashboard/nav";
 import { useShellIdentity } from "@/components/dashboard/shell-identity";
 import { relativeTime, usd } from "@/lib/dashboard/format";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,7 +53,6 @@ export function SiteHeader() {
   const pathname = usePathname();
   const router = useRouter();
   const [searchOpen, setSearchOpen] = React.useState(false);
-  const { org, role, initials, bundle } = useShellIdentity();
 
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -209,25 +208,32 @@ function AccountStatusMenu() {
 }
 
 function HeaderUserMenu({ onNavigate }: { onNavigate: () => void }) {
-  const { org, role, initials } = useShellIdentity();
+  const { user, role } = useShellIdentity();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
           <Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu">
             <Avatar className="size-8">
+              {user?.image ? (
+                <AvatarImage src={user.image} alt="" />
+              ) : null}
               <AvatarFallback className="text-xs font-medium">
-                {initials}
+                {user?.initials ?? "?"}
               </AvatarFallback>
             </Avatar>
           </Button>
         }
       />
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-64">
         <DropdownMenuGroup>
           <DropdownMenuLabel className="grid gap-0.5 font-normal">
-            <span className="text-sm font-medium">{org?.name ?? "Account"}</span>
-            <span className="text-xs text-muted-foreground">{role ? `Role: ${role}` : ""}</span>
+            <span className="truncate text-sm font-medium">
+              {user?.name || user?.email || "Account"}
+            </span>
+            <span className="truncate text-xs text-muted-foreground">
+              {[user?.email, role ? `Role: ${role}` : null].filter(Boolean).join("  •  ")}
+            </span>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

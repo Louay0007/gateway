@@ -67,6 +67,15 @@ export const users = pgTable('users', {
   email:        text('email').notNull(),
   name:         text('name'),
   /**
+   * Profile picture as a data URL (`data:image/{png,jpeg,webp};base64,…`),
+   * NULL while unset. Stored in-row rather than on disk or in an object
+   * store so a `docker compose up --build` cannot wipe it and no new
+   * infrastructure is needed — the size discipline (magic bytes, 256 KiB
+   * decoded cap) lives in lib/account/service.ts, which is the only
+   * writer. Migration 0012.
+   */
+  image:        text('image'),
+  /**
    * Stamped on every credential change. Copied into the JWT at sign-in and
    * compared on every authenticated request (lib/auth/authorize.ts), which
    * is how a password change or reset invalidates sessions that were
