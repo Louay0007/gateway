@@ -1,22 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import PromptBar from "@/components/ui/prompt-bar";
+import PromptBar, { type BarModel } from "@/components/ui/prompt-bar";
 import { ChatContainer } from "@/components/ui/chat-container";
 import { ChatMessage, WelcomeMessage } from "@/components/ui/chat-message";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
-type Alias = "fast" | "smart" | "frontier";
-
-const ALIASES: { value: Alias; label: string; color: string }[] = [
+const ALIASES: BarModel[] = [
   { value: "fast", label: "Fast", color: "#4fd1a5" },
   { value: "smart", label: "Smart", color: "#6aa8ff" },
   { value: "frontier", label: "Frontier", color: "#c792ea" },
@@ -28,10 +19,11 @@ export function Playground() {
   const [sessionCost, setSessionCost] = useState(0);
   const [sessionTokens, setSessionTokens] = useState({ input: 0, output: 0 });
   const [error, setError] = useState<string | null>(null);
-  const [alias, setAlias] = useState<Alias>("fast");
+  const [alias, setAlias] = useState("fast");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
-  const active = ALIASES.find((a) => a.value === alias)!;
+  const active = ALIASES.find((a) => a.value === alias) ?? ALIASES[0]!;
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -41,7 +33,12 @@ export function Playground() {
     if (isStreaming) scrollToBottom();
   }, [isStreaming, scrollToBottom]);
 
+  const handleStop = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
   const handleSubmit = async (content: string) => {
+    if (isStreaming) return;
     setError(null);
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -61,6 +58,9 @@ export function Playground() {
     setMessages((prev) => [...prev, assistantMessage]);
     setIsStreaming(true);
 
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -73,6 +73,7 @@ export function Playground() {
           })),
           stream: true,
         }),
+        signal: controller.signal,
       });
 
       if (!res.ok) {
@@ -115,8 +116,7 @@ export function Playground() {
             try {
               parsed = JSON.parse(data);
             } catch {
-              // Unparseable fragment (a frame the server skipped over too,
-              // or a partial the delimiter missed). Skipped, not fatal.
+              // Unparseable fragment. Skipped, not fatal.
               continue;
             }
             if (parsed.error) throw new Error(parsed.error);
@@ -131,31 +131,54 @@ export function Playground() {
               );
             }
             if (parsed.done) {
-              if (parsed.usage) {
+              const usage = parsed.usage
+                ? {
+                    input: parsed.usage.prompt_tokens || 0,
+                    output: parsed.usage.completion_tokens || 0,
+                  }
+                : undefined;
+              if (usage) {
                 setSessionTokens((t) => ({
-                  input: t.input + (parsed.usage!.prompt_tokens || 0),
-                  output: t.output + (parsed.usage!.completion_tokens || 0),
+                  input: t.input + usage.input,
+                  output: t.output + usage.output,
                 }));
               }
               if (parsed.costUsd != null) {
-                setSessionCost((c) => c + parsed.costUsd!);
+                setSessionCost((c) => c + (parsed.costUsd ?? 0));
               }
+              // Stamp the turn itself so the message meta row shows what
+              // this answer cost — not just the session totals above.
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMessage.id
+                    ? { ...m, tokens: usage, costUsd: parsed.costUsd }
+                    : m
+                )
+              );
               setIsStreaming(false);
             }
           }
         }
       }
     } catch (err) {
+      if (controller.signal.aborted) {
+        // User pressed Stop: the partial answer stays, no error shown.
+        // The server meters whatever tokens it counted before the abort.
+        setIsStreaming(false);
+        return;
+      }
       setError(
         err instanceof Error ? err.message : "Failed to send message."
       );
       setMessages((prev) => prev.filter((m) => m.id !== assistantMessage.id));
     } finally {
+      abortRef.current = null;
       setIsStreaming(false);
     }
   };
 
   const clearChat = () => {
+    if (isStreaming) abortRef.current?.abort();
     setMessages([]);
     setSessionCost(0);
     setSessionTokens({ input: 0, output: 0 });
@@ -184,36 +207,22 @@ export function Playground() {
           <CardHeader>
             <CardTitle>Session</CardTitle>
           </CardHeader>
+          {/*
+            The model badge is READ-ONLY on purpose. The picker lives in the
+            prompt bar below — two pickers for one value is how the bar said
+            "Équilibré" while this card said "Fast". One control, one truth.
+          */}
           <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
             <div className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Model</span>
-              {/* Aliases only. The upstream model behind an alias is never
-                  customer-facing — rendering it teaches customers a name we
-                  are free to swap tomorrow. */}
-              <Select
-                value={alias}
-                onValueChange={(v) => setAlias(v as Alias)}
-                disabled={isStreaming}
-              >
-                <SelectTrigger className="w-full">
-                  <span
-                    className="w-2 h-2 rounded-full"
-                    style={{ backgroundColor: active.color }}
-                  />
-                  <SelectValue>{active.label}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {ALIASES.map((a) => (
-                    <SelectItem key={a.value} value={a.value}>
-                      <span
-                        className="w-2 h-2 rounded-full inline-block mr-2"
-                        style={{ backgroundColor: a.color }}
-                      />
-                      {a.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <span className="flex items-center gap-2 rounded-lg border border-input bg-muted px-2.5 py-2 text-sm text-foreground">
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{ backgroundColor: active.color }}
+                  aria-hidden="true"
+                />
+                {active.label}
+              </span>
             </div>
             <div className="flex flex-col gap-1">
               <span className="text-xs text-muted-foreground">Tokens (in / out)</span>
@@ -265,6 +274,11 @@ export function Playground() {
         <PromptBar
           placeholder={hasMessages ? "Type a message…" : "Say hello to your model"}
           onSubmit={handleSubmit}
+          streaming={isStreaming}
+          onStop={handleStop}
+          model={alias}
+          models={ALIASES}
+          onModelChange={setAlias}
           className="mx-auto"
         />
       </div>

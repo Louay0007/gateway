@@ -203,7 +203,11 @@ export async function POST(request: Request): Promise<Response> {
       method: "POST",
       headers: authHeaders(),
       body: JSON.stringify(liteLLMBody),
-      signal: AbortSignal.timeout(300_000),
+      // Tied to the CLIENT's connection: when the user presses Stop (or
+      // navigates away), the upstream fetch aborts too instead of burning
+      // tokens into a response nobody reads. The catch below still meters
+      // whatever was counted before the abort.
+      signal: AbortSignal.any([AbortSignal.timeout(300_000), request.signal]),
     });
 
     if (!res.ok) {
@@ -270,6 +274,10 @@ export async function POST(request: Request): Promise<Response> {
         const finalize = async () => {
           if (terminalSent) return;
           terminalSent = true;
+          // A turn that produced no tokens has nothing to meter and no
+          // terminal frame to send — the error path below speaks for it.
+          // Without this guard every failed handshake writes a $0 row.
+          if (promptTokens === 0 && completionTokens === 0) return;
           const counts = toCounts(promptTokens, completionTokens);
           const { upstreamUsd, customerUsd } = await resolveCosts(
             gatewayModel,
@@ -366,6 +374,10 @@ export async function POST(request: Request): Promise<Response> {
           // still billable — finalize rather than dropping them.
           await finalize();
         } catch (e) {
+          // Aborted by the client (Stop button) or a mid-stream failure:
+          // meter what was counted, THEN report. finalize is idempotent,
+          // so a turn that already terminated is untouched.
+          await finalize().catch(() => {});
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify({ error: String(e) })}\n\n`)
           );
