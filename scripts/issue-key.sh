@@ -5,7 +5,7 @@
 set -euo pipefail
 
 ALIAS="${1:?alias required}"
-MODELS="${2:?models csv required, e.g. fast,smart}"
+MODELS="${2:?models csv required, e.g. fast,smart,frontier}"
 BUDGET="${3:?max budget usd required}"
 DURATION="${4:?budget_duration, e.g. 30d}"
 

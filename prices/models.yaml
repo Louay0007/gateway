@@ -1,24 +1,20 @@
 # Your price table. Reviewed monthly against the provider's live
 # pricing page. Do NOT hardcode values from documentation examples.
 #
-# ── CURRENT UPSTREAM (dev): howtofix.id ────────────────────────────
-# Aliases: `fast` / `smart` / `frontier` → 11 deployments
-# (base https://api.howtofix.id/v1)
+# ── CURRENT UPSTREAM (dev): NVIDIA NIM ────────────────────────────────
+# Alias: `fast` → 1 deployment
+# (base https://integrate.api.nvidia.com/v1)
 #
 # The upstream is FREE and this provider publishes NO pricing — /v1/models
-# carries no `pricing` object (only id/object/created/owned_by/
-# supported_endpoint_types) and completions return no `usage.cost`. The rates
+# carries no `pricing` object and completions return no `usage.cost`. The rates
 # below are therefore NOMINAL DEV RATES, not real provider prices.
 #
-# They are TIERED (fast < smart < frontier) so a `frontier` budget behaves
-# differently from a `fast` one — with one alias every request bills the same
-# and a customer cannot express "cheap for bulk, expensive for the hard bits".
+# They exist so the spend / budget / rollup pipeline stays exercisable
+# end-to-end (a $0 model makes every budget a no-op and hides pipeline bugs).
+# Replace with real numbers before any customer money depends on them.
+#
 # Same multipliers throughout: write-5m = 1.25x input, write-1h = 2.0x,
 # cache-read = 0.10x.
-#
-# They exist so the spend / budget / rollup pipeline stays exercisable end to
-# end (a $0 model makes every budget a no-op and hides pipeline bugs). Replace
-# with real numbers before any customer money depends on them.
 #
 # CAVEAT: this upstream has NO prompt caching, so the cache-write and
 # cache-read rates are never actually charged — every request reports 0 cache
@@ -30,15 +26,30 @@
 # pricing-consistency.test.ts fails the suite on any drift between the two.
 #
 # resolvePrice() strips the provider prefix and matches the bare model by
-# prefix, longest key first. LiteLLM reports `openai/space-bunny` and the
-# upstream answers `"model":"space-bunny-free"`; both resolve to the key
-# below. `mimo-v2.6-flash` is its own key so it never collapses into
-# `mimo-v2.6`.
+# prefix, longest key first. LiteLLM reports `openai/nvidia/nemotron-…` and
+# the upstream answers `nemotron-3.5-super-vl-120b-a12b`; both resolve to the
+# key below. Prefix matching is an alias, not a re-classification — a
+# longer key would be tried first, so a future model that starts with this
+# name could never shadow it.
 #
-# Tier membership is by MEASURED latency, not quality — all eleven models tie
-# on the quality probes. See HANDOFF.md §5.25 before reading `frontier` as
-# "the best models".
-# ── Alias registry ─────────────────────────────────────────────────
+# Tier membership is by MEASURED latency, not quality — see HANDOFF.md
+# §5.25 before reading any alias as "the best model".
+#
+
+models:
+  # ── fast ($0.15 in / $0.60 out, nominal) ──
+  # NVIDIA nemotron-3.5-super-vl-120b-a12b — sold as `fast`
+  nemotron-3.5-super-vl-120b-a12b:
+    input_per_mtok:          0.15
+    cache_write_5m_per_mtok: 0.1875
+    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
+    cache_write_1h_per_mtok: 0.30
+    cache_write_1h_note:     2.0x input (nominal)
+    cache_read_per_mtok:     0.015
+    cache_read_note:         0.10x input (nominal)
+    output_per_mtok:         0.60
+
+# ── Alias registry ──────────────────────────────────────────────────
 #
 # WHICH alias each upstream model is sold under. This is the ONLY place tier
 # membership is declared for the portal, and it lives here rather than being
@@ -53,144 +64,11 @@
 # resolved model name to an alias BEFORE writing usage_records, which is what
 # makes that true rather than merely intended.
 #
-# Keep the keys identical to the model keys under `models:` below.
+# Keep keys identical to the model keys under `models:`
+
 aliases:
-  nemotron-3.5-lightning:  fast
-  space-bunny:             fast
-  cat-jam:                 fast
-  deepseek-v4.1-flash:     fast
-  longcat-2.5-preview:     smart
-  mimo-v2.6:               smart
-  mimo-v2.6-flash:         smart
-  big-pickle:              smart
-  grok-4.6-liberated:      frontier
-  muse-spark-1.3-contributor: frontier
-  muse-spark-1.2-contributor: frontier
-
-models:
-  # ── fast ($0.15 in / $0.60 out, nominal) — ttft 0.90–1.54s ──
-  # 0.90s ttft, fastest measured
-  nemotron-3.5-lightning:
-    input_per_mtok:          0.15
-    cache_write_5m_per_mtok: 0.1875
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.3
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.015
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         0.6
-
-  # most end-to-end verified; Codex was driven against this tier twice
-  space-bunny:
-    input_per_mtok:          0.15
-    cache_write_5m_per_mtok: 0.1875
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.3
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.015
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         0.6
-
-  # 1.51s ttft
-  cat-jam:
-    input_per_mtok:          0.15
-    cache_write_5m_per_mtok: 0.1875
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.3
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.015
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         0.6
-
-  # 1.54s ttft
-  deepseek-v4.1-flash:
-    input_per_mtok:          0.15
-    cache_write_5m_per_mtok: 0.1875
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.3
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.015
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         0.6
-
-  # ── smart ($0.30 in / $1.20 out, nominal) — ttft 2.58–4.05s ──
-  # 2.58s ttft, newest preview
-  longcat-2.5-preview:
-    input_per_mtok:          0.3
-    cache_write_5m_per_mtok: 0.375
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.6
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.03
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         1.2
-
-  # 3.12s ttft, full non-flash
-  mimo-v2.6:
-    input_per_mtok:          0.3
-    cache_write_5m_per_mtok: 0.375
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.6
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.03
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         1.2
-
-  # 3.82s ttft
-  mimo-v2.6-flash:
-    input_per_mtok:          0.3
-    cache_write_5m_per_mtok: 0.375
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.6
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.03
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         1.2
-
-  # 4.05s ttft
-  big-pickle:
-    input_per_mtok:          0.3
-    cache_write_5m_per_mtok: 0.375
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.6
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.03
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         1.2
-
-  # ── frontier ($0.60 in / $2.40 out, nominal) — ttft 4.62–5.25s ──
-  # 4.62s ttft
-  grok-4.6-liberated:
-    input_per_mtok:          0.6
-    cache_write_5m_per_mtok: 0.75
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 1.2
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.06
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         2.4
-
-  # 5.16s ttft, current Spark generation
-  muse-spark-1.3-contributor:
-    input_per_mtok:          0.6
-    cache_write_5m_per_mtok: 0.75
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 1.2
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.06
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         2.4
-
-  # 5.25s ttft, previous Spark generation
-  muse-spark-1.2-contributor:
-    input_per_mtok:          0.6
-    cache_write_5m_per_mtok: 0.75
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 1.2
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.06
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         2.4
+  # ── fast tier ──
+  nemotron-3.5-super-vl-120b-a12b: fast
 
 # ── When the real Anthropic models return, restore rows like these ──
 # (kept commented as the reference shape; multipliers are stable:

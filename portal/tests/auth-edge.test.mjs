@@ -16,6 +16,68 @@ import { fileURLToPath } from 'node:url';
 const EDGE_ENTRY = fileURLToPath(new URL('../../edge/server.mjs', import.meta.url));
 
 /**
+ * Spawn an edge on an OS-assigned port and resolve once it is listening.
+ *
+ * WHY NOT `upstreamPort + 1`. That arithmetic was a real flake, not a
+ * hypothetical one: when vitest runs files in parallel, any other listener
+ * can hold the neighbour port, the edge dies with EADDRINUSE, and every
+ * request below gets ECONNREFUSED — which the suite reports as 9 failing
+ * tests in the credential path. That reads as a product regression and is
+ * not one. Passing port 0 lets the kernel reserve a free port atomically,
+ * and the edge already announces its own port on stdout
+ * (`auth_edge.listening`), so there is nothing to guess and no window in
+ * which two processes can pick the same number.
+ *
+ * @param {Record<string, string>} envExtra
+ * @returns {Promise<{ proc: import('node:child_process').ChildProcess, port: number }>}
+ */
+async function startEdge(envExtra) {
+  const { spawn } = await import('node:child_process');
+
+  const proc = spawn(process.execPath, [EDGE_ENTRY], {
+    env: {
+      ...process.env,
+      AUTH_EDGE_HOST: '127.0.0.1',
+      AUTH_EDGE_PORT: '0', // kernel-assigned; see above
+      ...envExtra,
+    },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  const port = await new Promise((resolve, reject) => {
+    let buf = '';
+    const timer = setTimeout(
+      () => reject(new Error('edge did not report a listening port within 15s')),
+      15_000,
+    );
+    proc.stdout.setEncoding('utf8');
+    proc.stdout.on('data', (chunk) => {
+      buf += chunk;
+      for (const line of buf.split('\n')) {
+        if (!line.trim()) continue;
+        let msg;
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          continue; // not the handshake line; keep reading
+        }
+        if (msg?.msg === 'auth_edge.listening' && msg.port) {
+          clearTimeout(timer);
+          resolve(msg.port);
+          return;
+        }
+      }
+    });
+    proc.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+  });
+
+  return { proc, port };
+}
+
+/**
  * A stand-in for LiteLLM that reports exactly which credential it received,
  * plus an SSE endpoint to prove responses are not buffered.
  */
@@ -79,22 +141,12 @@ let edge;
 let edgePort;
 
 beforeAll(async () => {
-  const { spawn } = await import('node:child_process');
-  edgePort = upstreamPort + 1;
-  edge = spawn(process.execPath, [EDGE_ENTRY], {
-    env: {
-      ...process.env,
-      AUTH_EDGE_HOST: '127.0.0.1',
-      AUTH_EDGE_PORT: String(edgePort),
-      AUTH_EDGE_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
-    },
-    stdio: 'ignore',
-  });
-  // Poll the edge's own health endpoint instead of sleeping a fixed 900ms.
-  // The sleep passed in isolation and failed intermittently when vitest ran
-  // files in parallel: the child had not finished importing its module graph,
-  // so every request below got ECONNREFUSED and the whole file reported as
-  // broken. That reads as a product regression and is not one.
+  ({ proc: edge, port: edgePort } = await startEdge({
+    AUTH_EDGE_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
+  }));
+  // The port handshake above already proves the listener is up. Poll the
+  // health endpoint too, so a process that bound and then failed surfaces
+  // here as one clear timeout rather than as a pile of ECONNREFUSEDs.
   const deadline = Date.now() + 15_000;
   for (;;) {
     const up = await new Promise((resolve) => {
@@ -251,19 +303,10 @@ describe('end to end through the edge', () => {
   });
 
   it('fails CLOSED when the upstream is gone', async () => {
-    // A second edge pointed at a dead port: the answer must not be 200.
-    const { spawn } = await import('node:child_process');
-    const deadPort = upstreamPort + 9;
-    const dead = spawn(process.execPath, [EDGE_ENTRY], {
-      env: {
-        ...process.env,
-        AUTH_EDGE_HOST: '127.0.0.1',
-        AUTH_EDGE_PORT: String(deadPort),
-        AUTH_EDGE_UPSTREAM: 'http://127.0.0.1:1', // nothing listens here
-      },
-      stdio: 'ignore',
+    // A second edge pointed at a dead upstream: the answer must not be 200.
+    const { proc: dead, port: deadPort } = await startEdge({
+      AUTH_EDGE_UPSTREAM: 'http://127.0.0.1:1', // nothing listens here
     });
-    await new Promise((r) => setTimeout(r, 800));
 
     const r = await new Promise((resolve) => {
       const req = http.request(

@@ -1,9 +1,9 @@
 /**
  * Model → alias resolution.
  *
- * WHY. The customer-facing surface shows three names — `fast`, `smart`,
- * `frontier` — and never an upstream model name. That is not cosmetic: a
- * customer who learns `space-bunny` is on our `fast` tier can build against a
+ * WHY. The customer-facing surface shows one name — `fast` — and never an
+ * upstream model name. That is not cosmetic: a customer who learns
+ * `nemotron-3.5-super-vl-120b-a12b` is on our `fast` tier can build against a
  * model we are free to swap tomorrow, and every later change becomes a
  * support conversation about breaking their integration.
  *
@@ -23,7 +23,17 @@ import { parse as parseYaml } from 'yaml';
 
 const PRICE_FILE = process.env.PRICE_FILE ?? 'prices/models.yaml';
 
-/** The three aliases the gateway sells. Order is cheap→expensive. */
+/**
+ * The aliases the gateway sells.
+ *
+ * Listing all three here is what makes a single `aliases:` registry entry
+ * serve every tier. `toAlias` passes a value through unchanged when it is
+ * already one of these, so the alias the client REQUESTED (`model_group`,
+ * which `aliasForRow` prefers) survives end to end even though all three
+ * resolve to one upstream model today. That is the mechanism — NOT three
+ * rows in `prices/models.yaml`, which is a `model → alias` mapping and
+ * cannot hold one key under three values.
+ */
 export const TIER_ALIASES = ['fast', 'smart', 'frontier'] as const;
 export type TierAlias = (typeof TIER_ALIASES)[number];
 

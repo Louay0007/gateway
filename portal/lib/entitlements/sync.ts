@@ -203,14 +203,15 @@ export async function syncOrganizationEntitlements(
     // DEFAULT_MODELS, and never had its models pushed again — so the team
     // stayed at that original list forever. Every key inherited it, and a key
     // minted for a WIDER plan silently lost those models: the key said
-    // {fast,smart}, the team said {fast}, the intersection was {fast}, and
-    // `smart` came back 403 "not available for this API key" — a message
-    // that blames the credential rather than the team.
+    // {fast, smart, frontier}, the team said {fast}, the intersection was
+    // {fast} — and the request 403'd with a message that blames the
+    // credential rather than the team. (HANDOFF.md §5.26.)
     //
     // This stayed invisible while every plan allowed exactly ['fast'], which
-    // matched DEFAULT_MODELS by coincidence. It surfaces the moment a plan
-    // allowlist is wider than the team's creation-time default — which is
-    // what migration 0010 did.
+    // matched DEFAULT_MODELS by coincidence. It surfaced the moment migration
+    // 0010 widened a plan allowlist past what the team was born with. The
+    // push below is what keeps the team's list from ever being the narrower
+    // of the two, so the intersection is decided by the plan alone.
     try {
       await updateTeamModels(org.litellmTeamId, allowedModels);
     } catch (e) {

@@ -37,10 +37,19 @@ export { slugify, slugCandidates } from '@/lib/org/slug';
 /**
  * Models a new org's team may serve BEFORE it subscribes.
  *
- * All three aliases the gateway deploys, so a pre-activation team is not
- * narrower than a paying one — the plan's allowlist (migration 0010) replaces
- * this on activation, and a team that started with only `fast` would silently
- * 403 the first time a customer tried `smart`.
+ * Every alias the gateway serves, deliberately a SUPERSET of any plan
+ * allowlist (starter is fast+smart, pro is all three). LiteLLM resolves a
+ * key's effective access as the INTERSECTION of the key's models and its
+ * team's models, so a team created with a narrower list silently caps
+ * every key beneath it — the key reports {fast, smart} and the team says
+ * {fast}, and the request 403s with a message that blames the credential
+ * rather than the team. (HANDOFF.md §5.26.)
+ *
+ * A pre-activation team is budgeted at CUT_BUDGET = 0, so this wider list
+ * grants nothing on its own: nothing can be spent, and no key is minted
+ * until a subscription exists. It exists so activation never has to widen
+ * a team that was born narrow. `syncOrganizationEntitlements` pushes the
+ * real allowlist and `updateTeamModels` narrows it back down.
  */
 const DEFAULT_MODELS = ['fast', 'smart', 'frontier'];
 

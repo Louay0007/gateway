@@ -35,11 +35,10 @@ function stripComments(yaml: string): string[] {
     .filter((l) => l.trim().length > 0);
 }
 
-/** The bare model id: `openai/deepseek-v4.1-flash` -> `deepseek-v4.1-flash`. */
+/** The bare model id: `openai/nvidia/nemotron-3.5-super-vl-120b-a12b` -> `nemotron-3.5-super-vl-120b-a12b`. */
 function bareModel(openaiId: string): string {
-  return openaiId.replace(/^openai\//, '');
+  return openaiId.split('/').pop()!;
 }
-
 // ── parse config/litellm.yaml ──────────────────────────────────────────────
 
 interface Deployment {
@@ -180,7 +179,7 @@ const priceTable = parsePrices();
 
 describe('litellm.yaml <-> prices/models.yaml', () => {
   it('parses every deployment out of litellm.yaml (the test is not vacuous)', () => {
-    expect(deployments.length).toBeGreaterThanOrEqual(3);
+    expect(deployments.length).toBeGreaterThanOrEqual(1);
     for (const d of deployments) {
       expect(d.model, `deployment "${d.alias}" has no model`).toMatch(/^openai\/.+/);
     }
@@ -204,21 +203,19 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('resolves each alias to its own tier via resolvePrice, longest key first', () => {
-    // `mimo-v2.6-flash` and `mimo-v2.6` are separate keys and must never
-    // collapse into one another. They currently share a tier, so assert the
-    // identity of resolution rather than a rate difference — the failure
-    // guarded against is `mimo-v2.6-flash` silently resolving through the
-    // `mimo-v2.6` row, which would silently reprice traffic if they ever
-    // land in different tiers.
-    const flash = resolvePrice(priceTable, 'openai/mimo-v2.6-flash');
-    const full = resolvePrice(priceTable, 'openai/mimo-v2.6');
-    expect(flash).toBeTruthy();
-    expect(full).toBeTruthy();
-    expect(flash).toBe(priceTable['mimo-v2.6-flash']);
-    expect(full).toBe(priceTable['mimo-v2.6']);
-    // The upstream answers `"model":"space-bunny-free"` — the suffix must not
-    // stop it resolving.
-    expect(resolvePrice(priceTable, 'openai/space-bunny-free')).toBe(priceTable['space-bunny']);
+    // `nemotron-3.5-super-vl-120b-a12b` is its own key so it never collapses
+    // into a broader prefix. LiteLLM reports `openai/nvidia/nemotron-…` and
+    // the upstream answers `"model":"nemotron-3.5-super-vl-120b-a12b"` —
+    // both must resolve to the same price row.
+    const prefixed = resolvePrice(priceTable, 'openai/nvidia/nemotron-3.5-super-vl-120b-a12b');
+    const bare = resolvePrice(priceTable, 'nemotron-3.5-super-vl-120b-a12b');
+    expect(prefixed).toBeTruthy();
+    expect(bare).toBeTruthy();
+    expect(prefixed).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
+    expect(bare).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
+    // The two forms must resolve identically — prefix matching is an alias,
+    // not a re-classification.
+    expect(prefixed).toBe(bare);
   });
 
   it('has IDENTICAL rates for every deployment inside one alias', () => {
@@ -257,12 +254,14 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
     }
   });
 
-  it('rates the three aliases in strictly increasing order', () => {
-    // The tiers must actually mean something to a budget.
+  it('rates every alias above zero, so a budget is never a no-op', () => {
+    // With one tier, the budget's floor must still be non-zero — otherwise
+    // every spend check passes vacuously and pipeline bugs hide.
     const rateOf = (alias: string) =>
       (priceTable[deployments.find((d) => d.alias === alias)!.bare] ?? {}).input_per_mtok ?? 0;
-    expect(rateOf('fast')).toBeLessThan(rateOf('smart'));
-    expect(rateOf('smart')).toBeLessThan(rateOf('frontier'));
+    for (const d of deployments) {
+      expect(rateOf(d.alias), `${d.alias} has a zero input rate`).toBeGreaterThan(0);
+    }
   });
 
   it('only declares endpoints the upstream actually serves', () => {
@@ -272,7 +271,6 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
     for (const d of deployments) {
       expect(d.endpoints, `${d.bare} declares an endpoint the upstream lacks`).toEqual([
         '/v1/chat/completions',
-        '/v1/messages',
       ]);
     }
   });
@@ -298,7 +296,7 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
       const raw = readFileSync(PRICES_YAML, 'utf8');
       const inBlock = raw.slice(raw.indexOf('aliases:'));
       const out: Record<string, string> = {};
-      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+(fast|smart|frontier)\s*$/gm)) {
+      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+fast\s*$/gm)) {
         out[m[1]!] = m[2]!;
       }
       return out;
@@ -326,7 +324,7 @@ describe('scripts/reconcile.sh alias map', () => {
     const block = /ALIAS = \{([\s\S]*?)\}/.exec(reconcile);
     expect(block, 'ALIAS map not found in reconcile.sh').toBeTruthy();
     const entries = [...block![1]!.matchAll(/"([^"]+)":\s*"([^"]+)"/g)];
-    expect(entries.length).toBeGreaterThanOrEqual(3);
+    expect(entries.length).toBeGreaterThanOrEqual(1);
     for (const [, alias, model] of entries) {
       expect(deployments.some((d) => d.alias === alias), `reconcile.sh maps unknown alias "${alias}"`).toBe(true);
       expect(

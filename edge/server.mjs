@@ -510,11 +510,18 @@ const isMain =
 
 if (isMain) {
   server.listen(LISTEN_PORT, LISTEN_HOST, () => {
+    // Report the ACTUAL bound port, not the requested one: when the
+    // listener is started with port 0 (kernel-assigned, as the test suite
+    // does to avoid collisions), LISTEN_PORT is 0 and useless to anyone
+    // trying to connect. server.address() is the only truth here.
+    const bound = server.address();
+    const boundPort =
+      bound && typeof bound === 'object' ? bound.port : LISTEN_PORT;
     process.stdout.write(
       `${JSON.stringify({
         msg: 'auth_edge.listening',
         host: LISTEN_HOST,
-        port: LISTEN_PORT,
+        port: boundPort,
         upstream: UPSTREAM.origin,
         rewrites: `${CUSTOM_PREFIX} -> ${GATEWAY_PREFIX}`,
       })}\n`,
