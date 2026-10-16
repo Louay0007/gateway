@@ -2,7 +2,6 @@ import {
   BarChart3,
   BookOpen,
   CreditCard,
-  FlaskConical,
   KeyRound,
   LayoutDashboard,
   Settings,
@@ -21,7 +20,6 @@ export type NavItem = {
 /** The product surface — the customer's whole job list. */
 export const navMain: NavItem[] = [
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Playground", href: "/dashboard/playground", icon: FlaskConical },
   { title: "Docs", href: "/dashboard/docs", icon: BookOpen },
   { title: "Usage", href: "/dashboard/usage", icon: BarChart3 },
   { title: "API keys", href: "/dashboard/keys", icon: KeyRound },
