@@ -1,16 +1,14 @@
 /**
  * Docs data — the single source of truth for the /docs surface.
  *
- * PRODUCTION values only. The local dev base (http://127.0.0.1:4000) is
- * mentioned once as an aside; every snippet defaults to the public edge
- * so a copy-paste from the docs works from any machine.
+ * PRODUCTION values only. Every snippet defaults to the public edge so a
+ * copy-paste from the docs works from any machine.
  *
  * INVARIANT: only the three aliases (fast / smart / frontier) appear here.
  * No upstream model name is rendered, exported, or embedded in any snippet
  * — the alias IS the product (HANDOFF §1).
  */
 export const PUBLIC_BASE_URL = "https://api.15-224-52-176.sslip.io/v1";
-export const LOCAL_BASE_URL = "http://127.0.0.1:4000";
 
 export const CONTEXT_WINDOW = 262144;
 export const MAX_OUTPUT_TOKENS = 32768;

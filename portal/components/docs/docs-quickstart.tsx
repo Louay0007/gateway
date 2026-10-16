@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { FlaskConical, Globe, Laptop } from "lucide-react";
+import { FlaskConical, Globe } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeBlock } from "@/components/docs/code-block";
 import { Section } from "@/components/docs/docs-section";
 import {
-  LOCAL_BASE_URL,
   PUBLIC_BASE_URL,
   curlSnippet,
   pythonSnippet,
@@ -73,7 +72,6 @@ export function Quickstart({
           </div>
           <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Base URL">
             <BaseToggle active={base === PUBLIC_BASE_URL} onClick={() => setBase(PUBLIC_BASE_URL)} icon={<Globe className="size-3.5" />} label="Production" />
-            <BaseToggle active={base === LOCAL_BASE_URL} onClick={() => setBase(LOCAL_BASE_URL)} icon={<Laptop className="size-3.5" />} label="Local dev" />
           </div>
           <p className="mt-3 font-mono text-xs break-all text-muted-foreground">{base}</p>
         </div>

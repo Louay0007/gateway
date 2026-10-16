@@ -1,23 +1,17 @@
-import { Check, Gauge, MessageSquareText, Sparkles } from "lucide-react";
+"use client";
 
 import { Badge } from "@/components/ui/badge";
 import { Section } from "@/components/docs/docs-section";
 import { TIERS } from "@/components/docs/docs-data";
 import { cn } from "@/lib/utils";
 
-const TIER_ICON = {
-  fast: Gauge,
-  smart: MessageSquareText,
-  frontier: Sparkles,
-} as const;
-
 /**
  * Models — the three aliases, priced and positioned.
  *
  * ALIAS-ONLY by invariant: no upstream deployment name appears here.
- * Cards are glance-first: speed tag + alias up top, one-line read
- * context, price pair, use-cases as chips, specs as a single footer
- * line. The "Most used" tier gets the emphasis border.
+ * Cards are glance-first: alias up top, price pair in the middle,
+ * use-cases as chips, specs as a footer line. No icons — typography
+ * and spacing carry the hierarchy.
  */
 export function ModelsSection() {
   return (
@@ -34,104 +28,92 @@ export function ModelsSection() {
         </>
       }
     >
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-3">
         {TIERS.map((t) => {
-          const Icon = TIER_ICON[t.alias as keyof typeof TIER_ICON] ?? Gauge;
           const featured = t.alias === "smart";
           return (
             <article
               key={t.alias}
               className={cn(
-                "relative flex flex-col rounded-2xl border bg-card p-5 transition-colors",
+                "flex flex-col rounded-3xl border bg-card p-8 transition-colors hover:border-foreground/20",
                 featured
-                  ? "border-2 border-foreground shadow-sm"
-                  : "border-border hover:border-foreground/30",
+                  ? "border-2 border-foreground shadow-sm ring-1 ring-foreground/10"
+                  : "border-border",
               )}
             >
               {featured ? (
-                <span className="absolute -top-3 left-5 rounded-full bg-foreground px-3 py-0.5 text-xs font-medium text-background">
+                <span className="inline-flex items-center rounded-full bg-foreground px-3 py-1 text-xs font-medium text-background uppercase tracking-wider">
                   Most used
                 </span>
               ) : null}
-              <div className="flex items-center gap-3">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted">
-                  <Icon className="size-5" aria-hidden />
-                </span>
-                <div className="min-w-0">
+              <div className="mt-6 flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
                   <code className="font-mono text-xl font-bold tracking-tight">
                     {t.alias}
                   </code>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {SPEED_LINE[t.alias as keyof typeof SPEED_LINE]}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {t.bestFor[0]}
                   </p>
                 </div>
-                <Badge
-                  variant={featured ? "default" : "outline"}
-                  className="ml-auto shrink-0"
-                >
+                <Badge variant={featured ? "default" : "outline"} className="shrink-0">
                   {t.badge}
                 </Badge>
               </div>
 
-              <p className="mt-3 text-sm leading-relaxed">{t.tagline}</p>
+              <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
+                {t.tagline}
+              </p>
 
-              <dl className="mt-4 grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-muted/60 px-3 py-2">
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                    Read · in
+              <dl className="mt-6 grid grid-cols-2 gap-4">
+                <div className="rounded-2xl bg-muted px-4 py-4">
+                  <dt className="text-[10px] tracking-widest text-muted-foreground uppercase font-semibold">
+                    Input
                   </dt>
-                  <dd className="text-lg font-bold tabular-nums">
+                  <dd className="mt-1 text-xl font-bold tabular-nums text-foreground">
                     {t.inputPerMtok}
-                    <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                      / Mtok
-                    </span>
+                  </dd>
+                  <dd className="mt-0.5 text-[10px] text-muted-foreground">
+                    per 1M tokens
                   </dd>
                 </div>
-                <div className="rounded-lg bg-muted/60 px-3 py-2">
-                  <dt className="text-[11px] tracking-wide text-muted-foreground uppercase">
-                    Write · out
+                <div className="rounded-2xl bg-muted px-4 py-4">
+                  <dt className="text-[10px] tracking-widest text-muted-foreground uppercase font-semibold">
+                    Output
                   </dt>
-                  <dd className="text-lg font-bold tabular-nums">
+                  <dd className="mt-1 text-xl font-bold tabular-nums text-foreground">
                     {t.outputPerMtok}
-                    <span className="ml-1 text-[11px] font-normal text-muted-foreground">
-                      / Mtok
-                    </span>
+                  </dd>
+                  <dd className="mt-0.5 text-[10px] text-muted-foreground">
+                    per 1M tokens
                   </dd>
                 </div>
               </dl>
 
-              <ul className="mt-3 flex flex-wrap gap-1.5" aria-label={`${t.alias} use cases`}>
+              <ul className="mt-6 flex flex-wrap gap-2" aria-label={`${t.alias} use cases`}>
                 {t.bestFor.map((b) => (
                   <li
                     key={b}
-                    className="flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs"
+                    className="rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-muted/50 transition-colors"
                   >
-                    <Check className="size-3" aria-hidden />
                     {b}
                   </li>
                 ))}
               </ul>
 
-              <p className="mt-auto border-t border-border pt-3 text-xs text-muted-foreground">
+              <p className="mt-auto pt-6 border-t border-border text-xs text-muted-foreground">
                 {t.plans} · 262k context · 32k max output
               </p>
             </article>
           );
         })}
       </div>
-      <p className="rounded-xl border border-border bg-muted/40 px-4 py-3 text-xs leading-relaxed text-muted-foreground">
+      <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground">
         Rates are nominal development figures so budgets stay exercisable —
         the provider publishes no pricing. They will be replaced with real
-        numbers before customer money depends on them. Your plan&apos;s
+        numbers before customer money depends on them. Your plan's
         multiplier (Starter ×1.30, Pro ×1.25) applies on top.
       </p>
     </Section>
   );
 }
-
-const SPEED_LINE = {
-  fast: "Fastest · bulk",
-  smart: "Balanced · default",
-  frontier: "Deepest · hardest tasks",
-} as const;
 
