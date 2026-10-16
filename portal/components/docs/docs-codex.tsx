@@ -20,7 +20,7 @@ export function CodexSection() {
       <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
         <OpenAILogo />
         <span>
-          <span className="block font-medium">Muse</span>
+          <span className="block font-medium">Codex</span>
           <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
             0.156.1 verified · wire_api = responses · OpenAI CLI
           </span>
