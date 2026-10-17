@@ -44,7 +44,6 @@ const Navbar = ({
       const textColor = isDark ? "#000000" : "#ffffff";
       const mutedColor = isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.7)";
       const sepColor = isDark ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)";
-      const activeBgColor = isDark ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.15)";
 
       nav.style.backgroundColor = isDark ? "rgba(255,255,255,0.92)" : "transparent";
       nav.style.backdropFilter = isDark ? "blur(16px)" : "none";
@@ -56,10 +55,8 @@ const Navbar = ({
       if (signinRight) signinRight.style.color = textColor;
 
       links.forEach((link) => {
-        const isActive = link.dataset.navlink === active;
-        const isSignin = link.dataset.navlink === "Sign in";
-        link.style.color = isActive || isSignin ? textColor : mutedColor;
-        link.style.backgroundColor = isActive ? activeBgColor : "transparent";
+        link.style.color = mutedColor;
+        link.style.backgroundColor = "transparent";
       });
     };
 
@@ -128,12 +125,8 @@ const Navbar = ({
                 data-navlink={link.title}
                 className="rounded-full px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-300"
                 style={{
-                  color: link.title === active
-                    ? (forceLight ? "#000000" : "#ffffff")
-                    : (forceLight ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.7)"),
-                  backgroundColor: link.title === active
-                    ? (forceLight ? "rgba(0,0,0,0.06)" : "rgba(255,255,255,0.15)")
-                    : "transparent",
+                  color: forceLight ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.7)",
+                  backgroundColor: "transparent",
                 }}
               >
                 {link.title}
