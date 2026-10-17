@@ -59,7 +59,7 @@ function shade(hex: string, pct: number): string {
   const h = hex.trim();
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
   if (!m) return hex;
-  const [r, g, b] = [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)];
+  const [r, g, b] = [parseInt(m[1]!, 16), parseInt(m[2]!, 16), parseInt(m[3]!, 16)];
   const k = (100 + pct) / 100;
   const to = (v: number) => Math.max(0, Math.min(255, Math.round(v * k)));
   return `#${to(r).toString(16).padStart(2, '0')}${to(g).toString(16).padStart(2, '0')}${to(b).toString(16).padStart(2, '0')}`;
