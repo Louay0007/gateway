@@ -5,7 +5,11 @@ import { auth } from "@/auth";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignInForm } from "@/components/auth/sign-in-form";
 
-export const metadata: Metadata = { title: "Sign in" };
+export const metadata: Metadata = {
+  title: "Sign in",
+  description:
+    "Sign in to Zaino AI — manage API keys, view usage, and handle billing for your organisation.",
+};
 
 /**
  * /sign-in — signed-in visitors bounce to /dashboard (an authed user has

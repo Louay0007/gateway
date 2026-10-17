@@ -30,6 +30,13 @@ const columns = [
       { label: 'Create an account', href: '/sign-up' },
     ],
   },
+  {
+    title: 'Legal',
+    links: [
+      { label: 'Privacy Policy', href: '/privacy' },
+      { label: 'Terms of Service', href: '/terms' },
+    ],
+  },
 ];
 
 export function MarketingFooter() {

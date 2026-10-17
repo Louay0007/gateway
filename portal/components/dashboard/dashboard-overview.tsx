@@ -16,6 +16,7 @@ import {
 import { OverviewKeysPanel } from "@/components/dashboard/overview-keys-panel";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
+import { OnboardingFlow } from "@/components/dashboard/onboarding-flow";
 import { useApi } from "@/lib/api/use-api";
 import type {
   KeyView,
@@ -44,15 +45,56 @@ export function DashboardOverview() {
   const recent = useApi<UsagePageResponse>("/api/usage?page=1&pageSize=8");
   const series = useApi<UsageSeriesResponse>("/api/usage/summary?bucket=day");
 
+  const [onboardingDismissed, setOnboardingDismissed] = React.useState(false);
+
+  // Check localStorage on mount to respect previous dismissal
+  React.useEffect(() => {
+    try {
+      setOnboardingDismissed(
+        localStorage.getItem("zaino-onboarding-dismissed") === "true",
+      );
+    } catch {
+      // localStorage may be unavailable (SSR, privacy mode). Default to showing.
+    }
+  }, []);
+
   const b = bundle.data;
   const plan = b?.plan ?? null;
   const keys = keysApi.data?.keys ?? [];
   const noPlan = b?.state === "no_subscription";
+  const noKeys = keys.length === 0;
+
+  // Show onboarding when user has no plan OR no keys, and hasn't dismissed it
+  const showOnboarding =
+    !onboardingDismissed &&
+    !bundle.loading &&
+    !keysApi.loading &&
+    b !== null &&
+    (noPlan || noKeys);
 
   if (bundle.loading || keysApi.loading) return <PanelSkeleton rows={4} />;
   if (bundle.error) return <ErrorState error={bundle.error} onRetry={bundle.reload} />;
   if (keysApi.error) return <ErrorState error={keysApi.error} onRetry={keysApi.reload} />;
   if (!b) return null;
+
+  // When onboarding should show, render it instead of the normal dashboard
+  if (showOnboarding) {
+    return (
+      <>
+        <RefreshingBar show={bundle.refreshing || keysApi.refreshing} />
+        <OnboardingFlow
+          bundle={b}
+          keys={keys}
+          onComplete={() => {
+            setOnboardingDismissed(true);
+            // Reload data in case key was created during onboarding
+            keysApi.reload();
+            bundle.reload();
+          }}
+        />
+      </>
+    );
+  }
 
   return (
     <>

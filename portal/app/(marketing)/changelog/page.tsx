@@ -1,0 +1,20 @@
+import type { Metadata } from 'next';
+import Navbar from '@/components/shadcn-space/blocks/hero-33/navbar';
+import ChangelogContent from '@/components/marketing/changelog-content';
+import ZainoFooter from '@/components/marketing/zaino-footer';
+
+export const metadata: Metadata = {
+  title: 'Changelog — Zaino AI',
+  description:
+    'Product updates, new features, and improvements across Zaino AI integrations and the desktop app.',
+};
+
+export default function ChangelogPage() {
+  return (
+    <div className="min-h-screen bg-white text-black">
+      <Navbar tone="light" />
+      <ChangelogContent />
+      <ZainoFooter />
+    </div>
+  );
+}
