@@ -37,5 +37,5 @@ export interface EmailTransport {
 
 /** From address, with a sane local fallback. */
 export function fromAddress(): string {
-  return process.env.MAIL_FROM ?? 'Gateway <noreply@localhost>';
+  return process.env.MAIL_FROM ?? 'Zaino <noreply@zaino.ai>';
 }
