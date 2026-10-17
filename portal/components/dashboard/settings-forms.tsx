@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Building2, KeyRound, TriangleAlert, UserRound } from "lucide-react";
+import { KeyRound, TriangleAlert, UserRound } from "lucide-react";
 
 import { PasswordChecklist } from "@/components/auth/password-checklist";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -41,7 +41,6 @@ import { toast } from "sonner";
  *
  *   profile read   → GET    /api/profile            (self-scoped)
  *   profile write  → PATCH  /api/profile            (self-scoped)
- *   org name/slug  → PATCH  /api/orgs/[id]          (owner only)
  *   password       → POST   /api/profile/password   (re-auth + session kill)
  *   delete account → POST   /api/account/delete     (owner only, type-to-confirm)
  *
@@ -54,7 +53,6 @@ export function SettingsForms() {
   return (
     <>
       <ProfileCard />
-      <OrgCard />
       <PasswordCard />
       <DangerCard />
     </>
@@ -301,142 +299,6 @@ function ProfileCard() {
             {saving ? "Saving…" : "Save profile"}
           </Button>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ───────────────────────────────────────────────────────────────────────
-//  Organization
-// ───────────────────────────────────────────────────────────────────────
-
-function OrgCard() {
-  const { data, error, loading, reload } = useApi<{ orgs: OrgListItem[] }>("/api/orgs");
-  const org = data?.orgs?.[0] ?? null;
-
-  const [name, setName] = React.useState("");
-  const [slug, setSlug] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
-  const [fieldError, setFieldError] = React.useState<string | null>(null);
-
-  // Seeded once, when the org first arrives — writing to state during
-  // render would fight the user typing.
-  const seeded = React.useRef<string | null>(null);
-  React.useEffect(() => {
-    if (org && seeded.current !== org.id) {
-      seeded.current = org.id;
-      setName(org.name);
-      setSlug(org.slug);
-    }
-  }, [org]);
-
-  const isOwner = org?.role === "owner";
-  const slugValid = /^[a-z0-9-]+$/.test(slug) && slug.length >= 2;
-  const dirty = org ? name !== org.name || slug !== org.slug : false;
-
-  async function save() {
-    if (!org || saving) return;
-    setSaving(true);
-    setFieldError(null);
-
-    const result = await apiSend<{ organization: OrgListItem }>(
-      `/api/orgs/${org.id}`,
-      { method: "PATCH", body: { name, slug } },
-    );
-    setSaving(false);
-
-    if ("error" in result) {
-      // Validation errors belong on the field they are about, not in a
-      // banner above a four-card page.
-      if (result.error.code === "validation") setFieldError(result.error.message);
-      else toast.error(result.error.message);
-      return;
-    }
-
-    // The server may have picked a different slug on collision.
-    setName(result.data.organization.name);
-    setSlug(result.data.organization.slug);
-    reload();
-    toast.success("Organization updated.");
-  }
-
-  if (loading) return <PanelSkeleton rows={2} />;
-  if (error) return <ErrorState error={error} onRetry={reload} />;
-
-  return (
-    <Card id="organization">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Building2 className="size-4" />
-          Organization
-        </CardTitle>
-        <CardDescription>
-          The billing entity. Keys, usage, and the subscription all belong to it.
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="grid gap-4 sm:max-w-md">
-        {!org ? (
-          <p className="text-sm text-muted-foreground">
-            This account has no organization yet.
-          </p>
-        ) : !isOwner ? (
-          <p className="rounded-lg border border-border px-4 py-3 text-sm text-muted-foreground">
-            You are a member of <span className="font-medium">{org.name}</span> with
-            the <span className="font-medium">{org.role}</span> role. Only the owner
-            can rename the account or change its slug.
-          </p>
-        ) : null}
-
-        <div className="grid gap-2">
-          <Label htmlFor="org-name">Name</Label>
-          <Input
-            id="org-name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            maxLength={80}
-            disabled={!isOwner}
-            aria-invalid={Boolean(fieldError) || undefined}
-          />
-        </div>
-
-        <div className="grid gap-2">
-          <Label htmlFor="org-slug">Slug</Label>
-          <div className="flex items-center gap-2">
-            <span className="shrink-0 text-sm text-muted-foreground">/</span>
-            <Input
-              id="org-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
-              maxLength={48}
-              disabled={!isOwner}
-              aria-invalid={!slugValid || Boolean(fieldError) || undefined}
-              aria-describedby="org-slug-hint"
-            />
-          </div>
-          <p id="org-slug-hint" className="text-xs text-muted-foreground">
-            {isOwner
-              ? "Lowercase letters, numbers, and dashes only — at least 2 characters. If it is taken we pick a nearby one and save it here."
-              : "The account's public handle."}
-          </p>
-        </div>
-
-        {fieldError ? (
-          <p role="alert" className="text-sm text-destructive">
-            {fieldError}
-          </p>
-        ) : null}
-
-        {isOwner ? (
-          <div>
-            <Button
-              size="sm"
-              disabled={!dirty || !slugValid || saving}
-              onClick={() => void save()}
-            >
-              {saving ? "Saving…" : "Save organization"}
-            </Button>
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   );

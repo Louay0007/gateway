@@ -105,6 +105,35 @@ const fr: Dict = {
     'Soumise : {submittedAt}\n\n' +
     'Vérifiez dans D17 > historique des transactions : le montant, le numéro ' +
     'expéditeur, le numéro d’autorisation et une date récente.',
+
+  // ── Stepper labels ──────────────────────────────────────────────────
+  'd17.step_transfer': 'Transfert',
+  'd17.step_proof': 'Preuve',
+  'd17.step_verify': 'Vérification',
+  'd17.step_active': 'Actif',
+
+  // ── State explanations ──────────────────────────────────────────────
+  'd17.state_pending_explain': 'Effectuez le virement dans l’application D17, puis soumettez votre preuve ci-dessous.',
+  'd17.state_submitted_explain': 'Notre équipe vérifie votre transfert. Vous recevrez un e-mail dès que votre abonnement sera activé.',
+  'd17.state_rejected_explain': 'La preuve fournie n’a pas pu être vérifiée. Vérifiez les informations et soumettez une nouvelle preuve.',
+  'd17.state_expired_explain': 'Le délai de paiement est dépassé. Veuillez recommencer le processus de paiement.',
+  'd17.state_paid_explain': 'Votre paiement a été confirmé. Votre abonnement est actif et prêt à l’emploi.',
+
+  // ── Plan features ───────────────────────────────────────────────────
+  'd17.plan_starter_name': 'Starter',
+  'd17.plan_pro_name': 'Pro',
+  'd17.plan_recommended': 'Recommandé',
+  'd17.plan_current': 'Plan actuel',
+  'd17.plan_choose': 'Choisir ce plan',
+  'd17.plan_upgrade': 'Passer à ce plan',
+  'd17.feat_fast_model': 'Modèle rapide (Claude Sonnet)',
+  'd17.feat_smart_model': 'Modèle intelligent (Claude Opus)',
+  'd17.feat_frontier_model': 'Modèle frontier (entreprise)',
+  'd17.feat_keys': '{count} clés API',
+  'd17.feat_rpm': '{count} requêtes/min',
+  'd17.feat_tpm': '{count} tokens/min',
+  'd17.feat_support': 'Support prioritaire',
+  'd17.feat_budget': 'Budget mensuel inclus : {amount}',
 };
 
 const ar: Dict = {
@@ -185,6 +214,35 @@ const ar: Dict = {
     'رقم التفويض: {auth}\nهاتف المُرسل: {phone}\n' +
     'تاريخ الإرسال: {submittedAt}\n\n' +
     'تحقق في D17 > سجل المعاملات: المبلغ، رقم المُرسل، رقم التفويض، وتاريخ قريب.',
+
+  // ── Stepper labels ──────────────────────────────────────────────────
+  'd17.step_transfer': 'التحويل',
+  'd17.step_proof': 'الإثبات',
+  'd17.step_verify': 'التحقق',
+  'd17.step_active': 'نشط',
+
+  // ── State explanations ──────────────────────────────────────────────
+  'd17.state_pending_explain': 'قم بالتحويل في تطبيق D17، ثم أرسل إثباتك أدناه.',
+  'd17.state_submitted_explain': 'يقوم فريقنا بالتحقق من تحويلك. ستتلقى بريداً إلكترونياً عند تفعيل اشتراكك.',
+  'd17.state_rejected_explain': 'تعذر التحقق من الإثبات المقدم. تحقق من التفاصيل وأرسل إثباتاً جديداً.',
+  'd17.state_expired_explain': 'انتهت مهلة الدفع. يرجى إعادة بدء عملية الدفع.',
+  'd17.state_paid_explain': 'تم تأكيد دفعتك. اشتراكك نشط وجاهز للاستخدام.',
+
+  // ── Plan features ───────────────────────────────────────────────────
+  'd17.plan_starter_name': 'Starter',
+  'd17.plan_pro_name': 'Pro',
+  'd17.plan_recommended': 'موصى به',
+  'd17.plan_current': 'الخطة الحالية',
+  'd17.plan_choose': 'اختر هذه الخطة',
+  'd17.plan_upgrade': 'الترقية إلى هذه الخطة',
+  'd17.feat_fast_model': 'نموذج سريع (Claude Sonnet)',
+  'd17.feat_smart_model': 'نموذج ذكي (Claude Opus)',
+  'd17.feat_frontier_model': 'نموذج frontier (مؤسسات)',
+  'd17.feat_keys': '{count} مفاتيح API',
+  'd17.feat_rpm': '{count} طلب/دقيقة',
+  'd17.feat_tpm': '{count} رمز/دقيقة',
+  'd17.feat_support': 'دعم ذو أولوية',
+  'd17.feat_budget': 'ميزانية شهرية مضمنة: {amount}',
 };
 
 const en: Dict = {
@@ -266,6 +324,35 @@ const en: Dict = {
     'Submitted: {submittedAt}\n\n' +
     'Verify in D17 > transaction history: the amount, the sender phone, the ' +
     'authorization number, and a recent date.',
+
+  // ── Stepper labels ──────────────────────────────────────────────────
+  'd17.step_transfer': 'Transfer',
+  'd17.step_proof': 'Proof',
+  'd17.step_verify': 'Verification',
+  'd17.step_active': 'Active',
+
+  // ── State explanations ──────────────────────────────────────────────
+  'd17.state_pending_explain': 'Make the transfer in the D17 app, then submit your proof below.',
+  'd17.state_submitted_explain': 'Our team is verifying your transfer. You will receive an email once your subscription is activated.',
+  'd17.state_rejected_explain': 'The proof provided could not be verified. Check the details and submit a new proof.',
+  'd17.state_expired_explain': 'The payment deadline has passed. Please restart the payment process.',
+  'd17.state_paid_explain': 'Your payment has been confirmed. Your subscription is active and ready to use.',
+
+  // ── Plan features ───────────────────────────────────────────────────
+  'd17.plan_starter_name': 'Starter',
+  'd17.plan_pro_name': 'Pro',
+  'd17.plan_recommended': 'Recommended',
+  'd17.plan_current': 'Current plan',
+  'd17.plan_choose': 'Choose this plan',
+  'd17.plan_upgrade': 'Upgrade to this plan',
+  'd17.feat_fast_model': 'Fast model (Claude Sonnet)',
+  'd17.feat_smart_model': 'Smart model (Claude Opus)',
+  'd17.feat_frontier_model': 'Frontier model (enterprise)',
+  'd17.feat_keys': '{count} API keys',
+  'd17.feat_rpm': '{count} requests/min',
+  'd17.feat_tpm': '{count} tokens/min',
+  'd17.feat_support': 'Priority support',
+  'd17.feat_budget': 'Monthly budget included: {amount}',
 };
 
 const DICTS: Record<D17Lang, Dict> = { fr, ar, en };

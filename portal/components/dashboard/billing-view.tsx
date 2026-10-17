@@ -33,7 +33,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ErrorState, PanelSkeleton, PaywallState, RefreshingBar } from "@/components/dashboard/states";
+import { ErrorState, PanelSkeleton, RefreshingBar } from "@/components/dashboard/states";
+import { PaywallState } from "@/components/dashboard/paywall-state";
 import { SpendMeter } from "@/components/dashboard/spend-meter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { apiSend, useApi } from "@/lib/api/use-api";
@@ -226,32 +227,10 @@ export function BillingView() {
 
       {!hasPlan ? (
         <PaywallState
-          cta={
-            <div className="flex flex-wrap justify-center gap-2">
-              {b.trial.eligible && b.trial.planCode ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy !== null}
-                  onClick={() => void startTrial(b.trial.planCode!)}
-                >
-                  {busy === "trial"
-                    ? "Starting…"
-                    : `Start ${b.trial.trialDays}-day free trial`}
-                </Button>
-              ) : null}
-              {plans.map((p) => (
-                <Button
-                  key={p.code}
-                  size="sm"
-                  disabled={busy !== null}
-                  onClick={() => void beginCheckout(p.code)}
-                >
-                  {p.name} — {centsUsd(p.priceCents)}/mo
-                </Button>
-              ))}
-            </div>
-          }
+          plans={plans}
+          lang="en"
+          onCheckout={(planCode) => void beginCheckout(planCode)}
+          disabled={busy !== null}
         />
       ) : null}
 

@@ -6,7 +6,6 @@ import { usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import {
   LogOut,
-  Monitor,
   Moon,
   Sun,
   UserRound,
@@ -218,10 +217,6 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
         <DropdownMenuItem render={<Link href="/dashboard/settings" />}>
           <UserRound />
           Account settings
-        </DropdownMenuItem>
-        <DropdownMenuItem render={<Link href="/dashboard/settings#organization" />}>
-          <Monitor />
-          Organization
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action={signOutAction}>

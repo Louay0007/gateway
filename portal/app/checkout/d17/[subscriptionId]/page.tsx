@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { D17Instructions } from "@/components/d17/d17-instructions";
 import { D17ProofForm } from "@/components/d17/d17-proof-form";
+import { D17StatusCard, type D17PaymentStatus } from "@/components/d17/d17-status-card";
 import { db } from "@/db";
 import { plans, subscriptions } from "@/db/schema";
 import { AuthzError, requireActiveOrg } from "@/lib/auth/authorize";
@@ -21,33 +22,12 @@ export const metadata: Metadata = { title: "Pay with D17" };
 export const dynamic = "force-dynamic";
 
 /**
- * /checkout/d17/[subscriptionId] — the instruction page `d17.ts:begin()`
- * has always returned, and which 404'd because the page was deleted with
- * the old frontend.
+ * /checkout/d17/[subscriptionId] — professional subscription flow with
+ * visual progress stepper and state-aware rendering.
  *
- * Without it the manual payment method could not be completed from a
- * browser at all: `lib/billing/d17-proof.ts` had no reachable caller, and
- * no customer could ever hand over an authorization number. The provider
- * writes the payment row and hands back a URL to THIS page — there is
- * nothing on D17's side to redirect to.
- *
- * The page renders one of five states from the payment row's own status,
- * which is the same state `d17-admin.ts` and `expire_subscriptions` move:
- *
- *   pending_payment  → instructions + proof form
- *   proof_submitted  → waiting (nothing to do but wait)
- *   rejected         → reason banner + one resubmission
- *   paid             → done
- *   expired          → window elapsed, start again
- *
- * Authorization: the org comes from the session and the subscription must
- * belong to it. Another account's subscription id answers the same "not
- * found" page as one that does not exist.
- *
- * Language is `?lang=`, defaulting to FR — the documented resolution order
- * in `lib/i18n/d17.ts` is query → cookie → FR, and the cookie is not
- * written here: every language link carries the parameter, which needs no
- * mutation and cannot be used to set a cookie on someone's browser.
+ * The stepper shows three stages: Transfer → Proof → Verification.
+ * Each payment status maps to a stepper position and a status card
+ * that explains what the user should do next.
  */
 export default async function D17CheckoutPage({
   params,
@@ -106,7 +86,7 @@ export default async function D17CheckoutPage({
       current: l === lang,
     }));
 
-  // ── Already activated: nothing to collect ────────────────────────────
+  // ── Already activated ────────────────────────────────────────────────
   if (sub.status === "active" && payment?.status === "paid") {
     return (
       <AuthShell
@@ -121,12 +101,13 @@ export default async function D17CheckoutPage({
           </Link>
         }
       >
+        <D17StatusCard status="paid" lang={lang} className="mb-6" />
         <div dir={dir} className="grid gap-4" />
       </AuthShell>
     );
   }
 
-  // ── No payment row: checkout was never started for this subscription ──
+  // ── No payment row ───────────────────────────────────────────────────
   if (!payment) {
     return (
       <AuthShell
@@ -137,15 +118,24 @@ export default async function D17CheckoutPage({
           </Link>
         }
       >
-        <p className="text-sm text-gray-600">{t("d17.method_hint")}</p>
+        <p className="text-sm text-gray-600">{t("d17.summary_reference")}: {subscriptionId}</p>
       </AuthShell>
     );
   }
 
-  const amount = formatTndMillimes(payment.amountMillimes);
+  // ── Stepper state derivation ─────────────────────────────────────────
+  const status = payment.status as D17PaymentStatus;
+  const stepperStep =
+    status === "paid" ? 3 :
+    status === "proof_submitted" ? 2 :
+    status === "rejected" ? 1 :
+    status === "expired" ? 0 :
+    0; // pending_payment
+
   const phone = d17ReceiverPhone();
-  const base = `/checkout/d17/${subscriptionId}`;
   const hours = Math.max(1, Math.round(reviewWindowMinutes() / 60));
+  const rejected = status === "rejected";
+  const base = `/checkout/d17/${subscriptionId}`;
 
   const statusKey: Record<string, string> = {
     pending_payment: "d17.status_pending",
@@ -155,95 +145,70 @@ export default async function D17CheckoutPage({
     expired: "d17.status_expired",
   };
 
-  // ── Window elapsed ────────────────────────────────────────────────────
-  if (payment.status === "expired" || payment.expiresAt.getTime() < Date.now()) {
-    return (
-      <AuthShell
-        title={t("d17.status_expired")}
-        subtitle={t("d17.err_expired")}
-        footer={
-          <Link href="/dashboard/billing" className="text-black underline-offset-4 hover:underline">
-            {t("d17.back_dashboard")}
-          </Link>
-        }
-      >
-        <div dir={dir} className="grid gap-4">
-          <dl className="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-600">{t("d17.summary_amount")}</dt>
-              <dd className="font-medium tabular-nums text-black">{amount} DT</dd>
-            </div>
-          </dl>
-          <LangSwitch links={langLinks(base)} />
-        </div>
-      </AuthShell>
-    );
-  }
-
-  // ── Proof submitted: the only honest thing to say is "we are checking" ─
-  if (payment.status === "proof_submitted") {
-    return (
-      <AuthShell
-        title={t("d17.waiting_title")}
-        subtitle={t("d17.waiting_subtitle")}
-        footer={
-          <Link href="/dashboard" className="text-black underline-offset-4 hover:underline">
-            {t("d17.back_dashboard")}
-          </Link>
-        }
-      >
-        <div dir={dir} className="grid gap-4">
-          <dl className="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-600">{t("d17.summary_amount")}</dt>
-              <dd className="font-medium tabular-nums text-black">{amount} DT</dd>
-            </div>
-            <div className="flex justify-between gap-3">
-              <dt className="text-gray-600">{t("d17.summary_status")}</dt>
-              <dd className="font-medium text-black">{t(statusKey[payment.status]!)}</dd>
-            </div>
-          </dl>
-          <p className="text-sm text-gray-600">{t("d17.waiting_email_note")}</p>
-          {payment.flaggedReview ? (
-            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              {t("d17.waiting_review")}
-            </p>
-          ) : null}
-          <LangSwitch links={langLinks(base)} />
-        </div>
-      </AuthShell>
-    );
-  }
-
-  // ── pending_payment OR rejected: the actionable states ───────────────
-  const rejected = payment.status === "rejected";
-
   return (
     <AuthShell
-      className="max-w-xl"
-      title={rejected ? t("d17.proof_title") : t("d17.instructions_title")}
-      subtitle={rejected ? t("d17.resubmit") : t("d17.instructions_subtitle")}
+      title={plan?.name ?? "Subscription"}
+      subtitle={
+        <span className="flex items-center gap-2 text-sm font-normal text-gray-500">
+          <span>{formatTndMillimes(payment.amountMillimes)}</span>
+          <span aria-hidden>·</span>
+          <span>{t(statusKey[status] ?? "d17.status_pending")}</span>
+        </span>
+      }
       footer={
-        <Link href="/dashboard" className="text-black underline-offset-4 hover:underline">
+        <Link href="/dashboard/billing" className="text-black underline-offset-4 hover:underline">
           {t("d17.back_dashboard")}
         </Link>
       }
     >
       <div dir={dir} className="grid gap-6">
-        <dl className="grid gap-2 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+        {/* ── Progress Stepper ─────────────────────────────────────── */}
+        <nav aria-label={t("d17.step_transfer")} className="px-2">
+          <ol className="flex items-center justify-between">
+            {[
+              { key: "d17.step_transfer", step: 0 },
+              { key: "d17.step_proof", step: 1 },
+              { key: "d17.step_verify", step: 2 },
+            ].map(({ key, step }, i, arr) => {
+              const state =
+                step < stepperStep ? "completed" :
+                step === stepperStep ? "active" :
+                "upcoming";
+              return (
+                <li key={key} className="d17-stepper-step" data-state={state}>
+                  <div className="d17-stepper-circle" data-state={state} aria-current={state === "active" ? "step" : undefined}>
+                    {state === "completed" ? "✓" : step + 1}
+                  </div>
+                  <span className={`text-xs font-medium ${state === "active" ? "text-black" : "text-muted-foreground"}`}>
+                    {t(key)}
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </nav>
+
+        {/* ── Status Card ──────────────────────────────────────────── */}
+        <D17StatusCard
+          status={status}
+          lang={lang}
+          rejectReason={payment.rejectReason}
+          flaggedReview={payment.flaggedReview}
+        />
+
+        {/* ── Payment Summary ──────────────────────────────────────── */}
+        <dl className="grid gap-2 rounded-lg border border-gray-200 bg-white p-4 text-sm">
           <div className="flex justify-between gap-3">
-            <dt className="text-gray-600">{t("d17.summary_amount")}</dt>
-            <dd className="font-medium tabular-nums text-black">{amount} DT</dd>
+            <dt className="text-gray-600">{t("d17.summary_plan")}</dt>
+            <dd className="font-medium text-black">{plan?.name ?? "—"}</dd>
           </div>
           <div className="flex justify-between gap-3">
-            <dt className="text-gray-600">{t("d17.summary_deadline")}</dt>
-            <dd className="font-medium text-black">
-              {payment.expiresAt.toLocaleString(lang === "ar" ? "ar-TN" : lang === "en" ? "en-GB" : "fr-TN", {
-                dateStyle: "medium",
-                timeStyle: "short",
-                timeZone: "UTC",
-              })}
-            </dd>
+            <dt className="text-gray-600">{t("d17.summary_amount")}</dt>
+            <dd className="font-mono font-medium text-black">{formatTndMillimes(payment.amountMillimes)}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt className="text-gray-600">{t("d17.summary_reference")}</dt>
+            <dd className="font-mono text-gray-700">d17-{payment.id.slice(0, 8)}</dd>
           </div>
           <div className="flex justify-between gap-3">
             <dt className="text-gray-600">{t("d17.summary_status")}</dt>
@@ -251,33 +216,52 @@ export default async function D17CheckoutPage({
           </div>
         </dl>
 
-        {rejected && payment.rejectReason ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {t("d17.rejected_banner", { reason: payment.rejectReason })}
-          </p>
-        ) : null}
-
-        {!rejected ? (
+        {/* ── Instructions + Proof Form (only when actionable) ────── */}
+        {(status === "pending_payment" || status === "rejected") && phone && (
           <>
-            <p className="text-sm text-gray-600">{t("d17.method_hint")}</p>
-            <D17Instructions
-              lang={lang}
-              amountMillimes={payment.amountMillimes}
-              receiverPhone={phone}
-              reference={`d17-${payment.id}`}
-            />
-            <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
-              {t("d17.notice", { hours: String(hours) })}
-            </p>
-            <hr className="border-gray-200" />
-          </>
-        ) : null}
+            {!rejected && (
+              <>
+                <p className="text-sm text-gray-600">{t("d17.method_hint")}</p>
+                <D17Instructions
+                  lang={lang}
+                  amountMillimes={payment.amountMillimes}
+                  receiverPhone={phone}
+                  reference={`d17-${payment.id}`}
+                />
+                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                  {t("d17.notice", { hours: String(hours) })}
+                </p>
+                <hr className="border-gray-200" />
+              </>
+            )}
 
-        <section className="grid gap-3">
-          <h2 className="text-sm font-semibold text-black">{t("d17.proof_title")}</h2>
-          <p className="text-sm text-gray-600">{t("d17.proof_subtitle")}</p>
-          <D17ProofForm subscriptionId={subscriptionId} lang={lang} />
-        </section>
+            <section className="grid gap-3">
+              <h2 className="text-sm font-semibold text-black">{t("d17.proof_title")}</h2>
+              <p className="text-sm text-gray-600">{t("d17.proof_subtitle")}</p>
+              <D17ProofForm subscriptionId={subscriptionId} lang={lang} />
+            </section>
+          </>
+        )}
+
+        {/* ── Waiting state (proof submitted) ─────────────────────── */}
+        {status === "proof_submitted" && (
+          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center">
+            <p className="text-sm text-gray-700">{t("d17.waiting_title")}</p>
+            <p className="mt-1 text-xs text-gray-500">{t("d17.waiting_subtitle")}</p>
+          </div>
+        )}
+
+        {/* ── Expired state ───────────────────────────────────────── */}
+        {status === "expired" && (
+          <div className="text-center">
+            <Link
+              href="/dashboard/billing"
+              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+            >
+              {t("d17.continue")}
+            </Link>
+          </div>
+        )}
 
         <p className="text-xs text-gray-600">{t("d17.no_pin_notice")}</p>
         <LangSwitch links={langLinks(base)} />
@@ -286,7 +270,6 @@ export default async function D17CheckoutPage({
   );
 }
 
-/** Plain links, one per language. `dir` is already set on the container. */
 function LangSwitch({
   links,
 }: {

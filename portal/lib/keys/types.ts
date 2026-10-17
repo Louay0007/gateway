@@ -75,6 +75,8 @@ export interface KeyRow {
   revokedAt: Date | null;
   lastUsedAt: Date | null;
   expiresAt: Date | null;
+  /** personal (dashboard) or device (device-code flow). */
+  kind: string;
   createdAt: Date;
 }
 
@@ -150,6 +152,8 @@ export interface GatewayGenerateInput {
   rpmLimit: number | null;
   tpmLimit: number | null;
   maxParallelRequests: number | null;
+  /** Optional lifetime the key should live for (LiteLLM `duration`). */
+  duration?: string | null;
 }
 
 export interface GatewayGenerateResult {

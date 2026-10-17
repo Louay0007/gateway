@@ -10,7 +10,7 @@ export default function SettingsPage() {
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
         <p className="text-sm text-muted-foreground">
-          Your profile, the organization keys belong to, and your password.
+          Your profile and your password.
         </p>
       </div>
       <SettingsForms />

@@ -208,6 +208,7 @@ export async function createApiKey(
       litellmKeyHash: issued.token,
       expiresAt: parseExpires(issued.expires),
       createdAt: new Date(),
+      kind: 'personal',
     });
   } catch (e) {
     // The credential exists upstream with nothing local describing it.

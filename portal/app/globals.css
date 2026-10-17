@@ -241,6 +241,80 @@
  * Loaders that freeze are still announced by the role=status / aria-live
  * text beside them, so no information is lost.
  */
+/*
+ * D17 subscription flow — stepper + status animations.
+ *
+ * The stepper uses a CSS-only progress bar: each step is a flex item with
+ * a connector line drawn via ::after pseudo-element. Active steps get a
+ * filled circle; completed steps get a checkmark via border trick.
+ * Status cards use a subtle pulse for pending/submitted states to draw
+ * attention without being distracting.
+ */
+@keyframes d17-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+.d17-stepper-step {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  gap: 0.5rem;
+}
+
+.d17-stepper-step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 1rem;
+  left: calc(50% + 1rem);
+  right: calc(-50% + 1rem);
+  height: 2px;
+  background: var(--border);
+  z-index: 0;
+}
+
+.d17-stepper-step[data-state="completed"]:not(:last-child)::after {
+  background: oklch(0.6 0.2 145); /* emerald-500 approx */
+}
+
+.d17-stepper-circle {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  z-index: 1;
+  transition: all 0.3s ease;
+}
+
+.d17-stepper-circle[data-state="upcoming"] {
+  background: var(--muted);
+  color: var(--muted-foreground);
+  border: 2px solid var(--border);
+}
+
+.d17-stepper-circle[data-state="active"] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border: 2px solid var(--primary);
+  box-shadow: 0 0 0 4px oklch(0.205 0 0 / 15%);
+}
+
+.d17-stepper-circle[data-state="completed"] {
+  background: oklch(0.6 0.2 145);
+  color: white;
+  border: 2px solid oklch(0.6 0.2 145);
+}
+
+.d17-status-pulse {
+  animation: d17-status-pulse 2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   ::before,

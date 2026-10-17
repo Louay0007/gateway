@@ -95,6 +95,7 @@ function fakeStore(over: Partial<FakeStore> = {}): FakeStore {
         id,
         revokedAt: null,
         lastUsedAt: null,
+        kind: 'personal',
       } as KeyRow);
       return { id };
     },
@@ -481,6 +482,7 @@ describe('revokeApiKey', () => {
       revokedAt: null,
       lastUsedAt: null,
       expiresAt: null,
+      kind: 'personal',
       createdAt: new Date('2026-10-01T00:00:00Z'),
       ...over,
     });

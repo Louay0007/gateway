@@ -216,10 +216,45 @@ export const apiKeys = pgTable('api_keys', {
   revokedAt:      timestamp('revoked_at', { withTimezone: true }),
   lastUsedAt:     timestamp('last_used_at', { withTimezone: true }),
   expiresAt:      timestamp('expires_at', { withTimezone: true }),
+  /** personal (dashboard-minted) or device (device-code flow). */
+  kind:           text('kind').notNull().default('personal'),
   createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgIdx:           index('api_keys_org_idx').on(t.organizationId),
   litellmNameIdx:   uniqueIndex('api_keys_litellm_name_idx').on(t.litellmKeyName),
+}));
+
+/**
+ * Device-code authorizations for Zaino Desktop sign-in (lib/auth/device).
+ * One row per issuance; 15-minute TTL whether or not it is ever approved.
+ */
+export const deviceCodes = pgTable('device_codes', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  deviceCodeHash: text('device_code_hash').notNull().unique(),
+  userCode:       text('user_code').notNull().unique(),
+  userId:         uuid('user_id').references(() => users.id),
+  organizationId: uuid('organization_id').references(() => organizations.id),
+  /** pending | approved | consumed | expired | revoked */
+  status:         text('status').notNull().default('pending'),
+  intervalSeconds: integer('interval_seconds').notNull().default(5),
+  expiresAt:      timestamp('expires_at', { withTimezone: true }).notNull(),
+  approvedAt:     timestamp('approved_at', { withTimezone: true }),
+  consumedAt:     timestamp('consumed_at', { withTimezone: true }),
+  keyId:          uuid('key_id').references(() => apiKeys.id),
+  /**
+   * One-time plaintext of the minted zn- key, held between approval and the
+   * desktop app's first successful poll. NULL after consumption — never
+   * logged, never returned in a list.
+   */
+  keyPlaintext:   text('key_plaintext'),
+  /** Entitled alias set the minted key carries (non-secret metadata). */
+  models:         text('models').array().notNull().default([]),
+  /** Last token-poll time; enforces the minimum polling interval. */
+  lastPolledAt:   timestamp('last_polled_at', { withTimezone: true }),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  statusIdx: index('device_codes_status_idx').on(t.status),
+  expiresIdx: index('device_codes_expires_at_idx').on(t.expiresAt),
 }));
 
 /** Ops alerting dedupe: one row, the last state we mailed about. */
@@ -481,6 +516,7 @@ export type Plan         = typeof plans.$inferSelect;
 export type Subscription = typeof subscriptions.$inferSelect;
 export type Entitlement  = typeof entitlements.$inferSelect;
 export type ApiKey       = typeof apiKeys.$inferSelect;
+export type DeviceCode   = typeof deviceCodes.$inferSelect;
 export type AuthUser     = typeof authUsers.$inferSelect;
 
 /** The five org roles, as a type. IMPLEMENTATION.md §1.2. */
