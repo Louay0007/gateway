@@ -47,7 +47,7 @@ const columns = [
 
 export default function ZainoFooter() {
   return (
-    <RuixenGradientFooter gradientHeight="40vh">
+    <RuixenGradientFooter>
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 pt-16">
         <div className="grid gap-10 pb-10 sm:grid-cols-2 lg:grid-cols-6">
           {/* Brand column */}

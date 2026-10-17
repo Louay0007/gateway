@@ -18,7 +18,7 @@ const CTA = ({ className }: CTAProps) => {
   const bottomAnimation = {
     initial: { y: "5%", opacity: 0 },
     animate: { y: 0, opacity: 1 },
-    transition: { duration: 1, delay: 0.8, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 1, delay: 0.8, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
   };
 
   const handleMouseEnter = useCallback(() => {

@@ -48,7 +48,7 @@ const Navbar = ({
 
       nav.style.backgroundColor = isDark ? "rgba(255,255,255,0.92)" : "transparent";
       nav.style.backdropFilter = isDark ? "blur(16px)" : "none";
-      nav.style.webkitBackdropFilter = isDark ? "blur(16px)" : "none";
+      (nav.style as any).webkitBackdropFilter = isDark ? "blur(16px)" : "none";
       nav.style.borderBottom = isDark ? "1px solid rgba(0,0,0,0.06)" : "none";
 
       if (wordmark) wordmark.style.color = textColor;
@@ -197,9 +197,7 @@ const Navbar = ({
                       href={link.href}
                       className={cn(
                         "rounded-lg px-3 py-2 text-base font-normal hover:bg-primary/10",
-                        link.isActive
-                          ? "bg-primary/20 text-foreground"
-                          : "text-muted-foreground",
+                        "text-muted-foreground",
                       )}
                     >
                       {link.title}

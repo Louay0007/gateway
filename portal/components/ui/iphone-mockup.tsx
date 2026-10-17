@@ -85,7 +85,7 @@ export const IPhoneMockup: React.FC<IPhoneMockupProps> = ({
   const outerWidth = screenWidth + resolvedBezel * 2;
   const outerHeight = screenHeight + resolvedBezel * 2;
   const outerRadius = resolvedRadius + resolvedBezel;
-  const colorHex = PRESET_COLORS[color] ?? color;
+  const colorHex = PRESET_COLORS[color] ?? color ?? '#000000';
   const frameGradient = `linear-gradient(135deg, ${shade(colorHex, 8)} 0%, ${colorHex} 40%, ${shade(colorHex, -14)} 100%)`;
   const outerShadow = typeof shadow === 'string' ? shadow : shadow ? `0 12px 30px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.22)` : 'none';
   const innerShadowCss = innerShadow ? 'inset 0 0 0 1px rgba(255,255,255,0.03), inset 0 10px 20px rgba(0,0,0,0.35), inset 0 -8px 16px rgba(0,0,0,0.28)' : 'none';
