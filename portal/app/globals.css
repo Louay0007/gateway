@@ -245,6 +245,41 @@
 }
 
 /*
+ * Force-light override for marketing pages.
+ *
+ * next-themes can apply `class="dark"` to <html> based on the visitor's
+ * localStorage or system preference, and CSS variables cascade from there
+ * down to <body class="bg-background">. The marketing layout wraps content
+ * in a `.light` div, but <body> sits outside that wrapper and still picks
+ * up dark tokens. This rule re-declares every light token on both html.light
+ * AND on .light-surface (the wrapper), with !important to win over any
+ * competing dark: utilities. Marketing pages are always white regardless of
+ * what next-themes does at the document level.
+ */
+html.light,
+.light-surface {
+  --background: oklch(1 0 0) !important;
+  --foreground: oklch(0.145 0 0) !important;
+  --card: oklch(1 0 0) !important;
+  --card-foreground: oklch(0.145 0 0) !important;
+  --popover: oklch(1 0 0) !important;
+  --popover-foreground: oklch(0.145 0 0) !important;
+  --primary: oklch(0.205 0 0) !important;
+  --primary-foreground: oklch(0.985 0 0) !important;
+  --secondary: oklch(0.97 0 0) !important;
+  --secondary-foreground: oklch(0.205 0 0) !important;
+  --muted: oklch(0.97 0 0) !important;
+  --muted-foreground: oklch(0.556 0 0) !important;
+  --accent: oklch(0.97 0 0) !important;
+  --accent-foreground: oklch(0.205 0 0) !important;
+  --destructive: oklch(0.51 0.245 27.325) !important;
+  --destructive-foreground: oklch(0.985 0 0) !important;
+  --border: oklch(0.922 0 0) !important;
+  --input: oklch(0.922 0 0) !important;
+  --ring: oklch(0.708 0 0) !important;
+}
+
+/*
  * Reduced motion (WCAG 2.3.3 / the Step 11 a11y pass).
  *
  * The app ships one entrance animation (hero-rise, above) and a handful
