@@ -260,6 +260,7 @@ export async function submitD17Proof(
       flaggedReview,
       ip: input.ip,
       userAgent: input.userAgent,
+      lang: input.lang ?? null,
       updatedAt: new Date(),
     })
     .where(eq(paymentsD17.id, payment.id));

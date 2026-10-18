@@ -64,10 +64,16 @@ import type { ProviderEvent } from './types';
 //  Reading state
 // ───────────────────────────────────────────────────────────────────────
 
-/** The org's one subscription row, if any. */
+/** The org's one subscription row, if any.
+ *
+ * Newest-first by created_at so that if an org ever has multiple rows
+ * (e.g., after a migration bug or a future multi-subscription feature),
+ * we always read the latest rather than an arbitrary one. Mirrors the
+ * same pattern used by loadD17Payment() for the same reason. */
 async function loadSubscription(organizationId: string) {
   return db.query.subscriptions.findFirst({
     where: eq(subscriptions.organizationId, organizationId),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
   });
 }
 

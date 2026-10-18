@@ -95,7 +95,7 @@ export async function listD17Queue(
         FROM audit_log
        WHERE action = 'd17.rejected'
          AND target_type = 'payment_d17'
-         AND target_id = ANY(${sql.raw(`ARRAY[${ids.map((i) => `'${i}'`).join(',')}]::text[]`)})
+         AND target_id = ANY(${ids}::text[])
        GROUP BY target_id
     `)) as unknown as { target_id: string; n: number }[];
     for (const c of counts) rejectionCounts.set(c.target_id, Number(c.n));
@@ -215,7 +215,8 @@ export async function approveD17Payment(
     after: { planCode: plan?.code ?? null, authorizationNumber: payment.authorizationNumber },
   });
 
-  // Customer confirmation.
+  // Customer confirmation — in the language they chose at checkout.
+  // Pre-0016 rows have lang=NULL; fall back to French for those.
   const membership = await db.query.organizationMembers.findFirst({
     where: and(
       eq(organizationMembers.organizationId, payment.organizationId),
@@ -227,7 +228,8 @@ export async function approveD17Payment(
       where: eq(users.id, membership.userId),
     });
     if (owner?.email) {
-      const templates = d17EmailTemplates('fr');
+      const lang = (payment.lang === 'ar' || payment.lang === 'en') ? payment.lang : 'fr';
+      const templates = d17EmailTemplates(lang);
       try {
         await sendEmail({
           to: owner.email,
@@ -313,7 +315,10 @@ export async function rejectD17Payment(
       where: eq(users.id, membership.userId),
     });
     if (owner?.email) {
-      const templates = d17EmailTemplates('fr');
+      // Use the language the customer chose at checkout; pre-0016 rows
+      // have lang=NULL and fall back to French.
+      const lang = (payment.lang === 'ar' || payment.lang === 'en') ? payment.lang : 'fr';
+      const templates = d17EmailTemplates(lang);
       try {
         await sendEmail({
           to: owner.email,

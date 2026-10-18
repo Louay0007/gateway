@@ -350,37 +350,39 @@ export async function listApiKeys(
 ): Promise<{ keys: KeyView[] }> {
   const rows = await deps.store.listActiveKeys(input.organizationId, LIST_LIMIT);
 
-  const keys = await Promise.all(
-    rows.map(async (row): Promise<KeyView> => {
-      let models: string[] | null = null;
-      let lastUsedAt = toIso(row.lastUsedAt);
-
-      if (row.litellmKeyHash) {
-        try {
-          // Token id, not the display mask — /key/info answers 404 to the
-          // mask, and enrichment is best-effort so the failure would be
-          // silent (two columns stuck on "unknown").
-          const info = await deps.gateway.info(row.litellmKeyHash);
-          if (info.models.length) models = info.models;
-          lastUsedAt = info.lastUsed ?? lastUsedAt;
-        } catch {
-          // Enrichment is not worth failing the list over.
-        }
-      }
-
-      return {
-        id: row.id,
-        name: row.name,
-        keyPrefix: row.keyPrefix,
-        models,
-        createdBy: row.createdBy,
-        isOwn: row.createdBy === input.userId,
-        createdAt: row.createdAt.toISOString(),
-        lastUsedAt,
-        revokedAt: null,
-      };
-    }),
+  // Enrich keys concurrently rather than sequentially. An org near the
+  // 100-key limit would otherwise make 100 serial HTTP roundtrips to the
+  // gateway, turning a dashboard load into a multi-second stall.
+  // allSettled keeps the list renderable even when individual lookups fail.
+  const enrichments = await Promise.allSettled(
+    rows.map((row) =>
+      row.litellmKeyHash ? deps.gateway.info(row.litellmKeyHash) : null,
+    ),
   );
+
+  const keys: KeyView[] = rows.map((row, i) => {
+    let models: string[] | null = null;
+    let lastUsedAt = toIso(row.lastUsedAt);
+
+    const result = enrichments[i];
+    if (result?.status === 'fulfilled' && result.value) {
+      const info = result.value;
+      if (info.models.length) models = info.models;
+      lastUsedAt = info.lastUsed ?? lastUsedAt;
+    }
+
+    return {
+      id: row.id,
+      name: row.name,
+      keyPrefix: row.keyPrefix,
+      models,
+      createdBy: row.createdBy,
+      isOwn: row.createdBy === input.userId,
+      createdAt: row.createdAt.toISOString(),
+      lastUsedAt,
+      revokedAt: null,
+    };
+  });
 
   return { keys };
 }

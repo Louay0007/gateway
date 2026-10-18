@@ -347,6 +347,12 @@ export const paymentsD17 = pgTable('payments_d17', {
   ip:                   text('ip'),
   userAgent:            text('user_agent'),
 
+  /** Customer's chosen language at proof submission time (fr/ar/en).
+   *  Used by admin approval/rejection emails so they match the language
+   *  the customer used at checkout. NULL for pre-0016 rows; admin falls
+   *  back to 'fr' in that case. */
+  lang:                 text('lang'),
+
   expiresAt:            timestamp('expires_at', { withTimezone: true }).notNull(),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

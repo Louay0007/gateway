@@ -189,12 +189,18 @@ export default async function D17CheckoutPage({
         </nav>
 
         {/* ── Status Card ──────────────────────────────────────────── */}
-        <D17StatusCard
-          status={status}
-          lang={lang}
-          rejectReason={payment.rejectReason}
-          flaggedReview={payment.flaggedReview}
-        />
+        {/* Only show after proof submission or admin action. A fresh
+         * pending_payment row means the customer hasn't transferred yet;
+         * showing "awaiting verification" at that point is misleading —
+         * the instructions and form below already tell them what to do. */}
+        {status !== 'pending_payment' && (
+          <D17StatusCard
+            status={status}
+            lang={lang}
+            rejectReason={payment.rejectReason}
+            flaggedReview={payment.flaggedReview}
+          />
+        )}
 
         {/* ── Payment Summary ──────────────────────────────────────── */}
         <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
