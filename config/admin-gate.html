@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operations Console — Zaino AI</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+min-height: 100vh;
+display: flex;
+align-items: center;
+justify-content: center;
+background: #f3f4f6;
+padding: 1rem;
+}
+.card {
+width: 100%;
+max-width: 24rem;
+background: white;
+border-radius: 0.75rem;
+border: 1px solid #e5e7eb;
+box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+padding: 2rem;
+}
+.icon-wrap {
+width: 3rem;
+height: 3rem;
+margin: 0 auto 1rem;
+display: flex;
+align-items: center;
+justify-content: center;
+border-radius: 9999px;
+background: #eff6ff;
+}
+.icon-wrap svg {
+width: 1.5rem;
+height: 1.5rem;
+color: #2563eb;
+}
+h1 {
+text-align: center;
+font-size: 1.25rem;
+font-weight: 600;
+color: #111827;
+margin-bottom: 0.25rem;
+}
+.subtitle {
+text-align: center;
+font-size: 0.875rem;
+color: #6b7280;
+margin-bottom: 1.5rem;
+}
+label {
+display: block;
+font-size: 0.875rem;
+font-weight: 500;
+color: #374151;
+margin-bottom: 0.5rem;
+}
+input[type="password"] {
+width: 100%;
+height: 2.75rem;
+padding: 0 0.75rem;
+border: 1px solid #d1d5db;
+border-radius: 0.5rem;
+font-size: 0.875rem;
+color: #111827;
+background: white;
+outline: none;
+transition: border-color 0.15s, box-shadow 0.15s;
+}
+input[type="password"]:focus {
+border-color: #3b82f6;
+box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+}
+input[type="password"]::placeholder { color: #9ca3af; }
+button {
+width: 100%;
+height: 2.75rem;
+margin-top: 1rem;
+background: #2563eb;
+color: white;
+border: none;
+border-radius: 0.5rem;
+font-size: 0.875rem;
+font-weight: 500;
+cursor: pointer;
+transition: background 0.15s;
+}
+button:hover { background: #1d4ed8; }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+.error {
+display: none;
+align-items: center;
+gap: 0.5rem;
+margin-top: 0.75rem;
+font-size: 0.875rem;
+color: #dc2626;
+}
+.error.show { display: flex; }
+.error svg { width: 1rem; height: 1rem; flex-shrink: 0; }
+</style>
+</head>
+<body>
+<div class="card">
+<div class="icon-wrap">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<rect width="18" height="11" x="3" y="11" rx="2" ry="2"></rect>
+<path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+</svg>
+</div>
+<h1>Operations Console</h1>
+<p class="subtitle">Enter the access code to continue</p>
+<form id="gate-form">
+<label for="code">Access code</label>
+<input type="password" id="code" name="code" autocomplete="off" autofocus placeholder="••••••••" required>
+<div class="error" id="error">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+<circle cx="12" cy="12" r="10"></circle>
+<line x1="12" y1="8" x2="12" y2="12"></line>
+<line x1="12" y1="16" x2="12.01" y2="16"></line>
+</svg>
+<span id="error-msg">Invalid code</span>
+</div>
+<button type="submit" id="submit-btn">Enter console</button>
+</form>
+</div>
+<script>
+(function() {
+var form = document.getElementById('gate-form');
+if (!form) return;
+form.addEventListener('submit', function(e) {
+e.preventDefault();
+var code = document.getElementById('code').value.trim();
+var btn = document.getElementById('submit-btn');
+var errorDiv = document.getElementById('error');
+var errorMsg = document.getElementById('error-msg');
+if (!code) return;
+btn.disabled = true;
+btn.textContent = 'Verifying…';
+errorDiv.classList.remove('show');
+fetch('/api/admin/gate', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ code: code })
+}).then(function(res) {
+if (res.ok) {
+window.location.href = '/admin/ops';
+} else {
+return res.json().catch(function() { return {}; }).then(function(data) {
+errorMsg.textContent = data.error || 'Invalid code';
+errorDiv.classList.add('show');
+btn.disabled = false;
+btn.textContent = 'Enter console';
+});
+}
+}).catch(function() {
+errorMsg.textContent = 'Network error — please try again';
+errorDiv.classList.add('show');
+btn.disabled = false;
+btn.textContent = 'Enter console';
+});
+});
+})();
+</script>
+</body>
+</html>
