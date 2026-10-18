@@ -14,7 +14,7 @@ import { PlanCard } from './plan-card';
 import type { PlanSummary } from '@/lib/billing/state';
 import type { D17Lang } from '@/lib/i18n/d17';
 import { t17 } from '@/lib/i18n/d17';
-import { centsUsd } from '@/lib/dashboard/format';
+import { centsUsd, centsDt } from '@/lib/dashboard/format';
 
 interface PaywallStateProps {
   plans: PlanSummary[];
@@ -95,7 +95,7 @@ export function PaywallState({
             <PlanCard
               key={plan.code}
               name={t(isPro ? 'd17.plan_pro_name' : 'd17.plan_starter_name')}
-              priceLabel={`${centsUsd(plan.priceCents)}/mo`}
+              priceLabel={`${centsDt(plan.priceCents)}/mo`}
               features={features}
               isRecommended={isPro}
               ctaLabel={t('d17.plan_choose')}

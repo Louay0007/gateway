@@ -44,7 +44,7 @@ import type {
   SubscriptionBundle,
   PaymentHistoryItem,
 } from "@/lib/api/types";
-import { centsUsd, compact, usd } from "@/lib/dashboard/format";
+import { centsUsd, centsDt, compact, usd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 
 /**
@@ -311,7 +311,7 @@ export function BillingView() {
                   </div>
                   <div className="text-right">
                     <p className="flex items-baseline justify-end gap-1 text-2xl font-semibold tabular-nums">
-                      {centsUsd(plan.priceCents)}
+                      {centsDt(plan.priceCents)}
                       <span className="text-sm font-normal text-muted-foreground">
                         /{plan.interval}
                       </span>
@@ -529,7 +529,7 @@ export function BillingView() {
                   {p.code === plan?.code ? <Badge>Current</Badge> : null}
                 </div>
                 <p className="text-2xl font-semibold tabular-nums">
-                  {centsUsd(p.priceCents)}
+                  {centsDt(p.priceCents)}
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
                 </p>
                 <ul className="grid gap-1 text-sm text-muted-foreground">

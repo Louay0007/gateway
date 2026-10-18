@@ -11,7 +11,7 @@ import { plans, subscriptions } from "@/db/schema";
 import { AuthzError, requireActiveOrg } from "@/lib/auth/authorize";
 import { billingProvider } from "@/lib/billing/index";
 import { devSignBody } from "@/lib/billing/dev";
-import { centsUsd } from "@/lib/dashboard/format";
+import { centsUsd, centsDt } from "@/lib/dashboard/format";
 import { log } from "@/lib/log";
 
 export const metadata: Metadata = { title: "Complete payment" };
@@ -184,7 +184,7 @@ export default async function DevCheckoutPage({
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-gray-600">Amount</dt>
-            <dd className="font-medium text-black tabular-nums">{centsUsd(plan.priceCents)}</dd>
+            <dd className="font-medium text-black tabular-nums">{centsDt(plan.priceCents)}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
             <dt className="text-gray-600">Reference</dt>
@@ -204,7 +204,7 @@ export default async function DevCheckoutPage({
           subscriptionId={sub.id}
           nonce={nonce}
           returnTo={returnTo}
-          amountLabel={centsUsd(plan.priceCents)}
+          amountLabel={centsDt(plan.priceCents)}
         />
       </div>
     </AuthShell>

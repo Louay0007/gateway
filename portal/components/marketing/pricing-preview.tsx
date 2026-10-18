@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState, PanelSkeleton } from "@/components/dashboard/states";
 import { useApi } from "@/lib/api/use-api";
 import type { PlanListResponse } from "@/lib/api/types";
-import { centsUsd, compact } from "@/lib/dashboard/format";
+import { centsUsd, centsDt, compact } from "@/lib/dashboard/format";
 
 /**
  * PricingPreview — the plan table, live.
@@ -91,7 +91,7 @@ export function PricingPreview() {
 
               <p className="mt-6 flex items-baseline gap-1">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums text-black">
-                  {centsUsd(plan.priceCents)}
+                  {centsDt(plan.priceCents)}
                 </span>
                 <span className="text-sm text-gray-600">/{plan.interval}</span>
               </p>
