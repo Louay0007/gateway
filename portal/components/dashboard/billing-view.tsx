@@ -253,17 +253,20 @@ export function BillingView() {
         </Card>
       ) : null}
 
-      {b.state === "pending" && b.d17PaymentStatus === "proof_submitted" ? (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <Clock className="size-5 text-amber-600" />
-            <p className="text-sm">
-              <span className="font-medium">Payment pending verification.</span>{" "}
-              Your {plan?.name ?? "Pro"} plan will activate once we confirm your D17 transfer.
-              This usually takes a few hours.
-            </p>
-          </CardContent>
-        </Card>
+      {b.state === "pending" ? (
+        <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+          <Image
+            src="/images/d17-logo.webp"
+            alt="D17"
+            width={80}
+            height={80}
+            className="opacity-80"
+          />
+          <p className="text-lg font-medium text-gray-900">Still pending</p>
+          <p className="max-w-sm text-sm text-gray-500">
+            Your payment is being verified. We&apos;ll notify you once your plan is active.
+          </p>
+        </div>
       ) : plan ? (
         <>
           {/* Stats Grid */}
@@ -302,7 +305,7 @@ export function BillingView() {
                 <div className="flex justify-center md:justify-start">
                   <div className="relative size-24 overflow-hidden rounded-xl border-2 border-emerald-200 bg-white shadow-sm md:size-28">
                     <Image
-                      src="/images/d17-logo.svg"
+                      src="/images/d17-logo.webp"
                       alt="D17 DigiPost Bank"
                       fill
                       className="object-contain p-2"
@@ -650,8 +653,12 @@ function PlanComparisonTable({
 
   const features = [
     { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => centsDt(p.priceCents) },
-    { key: "included", label: "Included spend", getValue: (p: typeof plans[0]) => centsUsd(p.includedSpendCents) },
-    { key: "unlimited", label: "Usage limit", getValue: () => "Unlimited" },
+    { key: "fast", label: "Fast prompts", getValue: (p: typeof plans[0]) => `${(p.promptLimits as Record<string, number>)?.fast ?? 0} / period` },
+    { key: "smart", label: "Smart prompts", getValue: (p: typeof plans[0]) => `${(p.promptLimits as Record<string, number>)?.smart ?? 0} / period` },
+    { key: "frontier", label: "Frontier prompts", getValue: (p: typeof plans[0]) => {
+      const limit = (p.promptLimits as Record<string, number>)?.frontier;
+      return limit ? `${limit} / period` : "—";
+    }},
     { key: "rpm", label: "Requests / minute", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
     { key: "tpm", label: "Tokens / minute", getValue: (p: typeof plans[0]) => compact(p.tpmLimit ?? 0) },
     { key: "keys", label: "API keys", getValue: (p: typeof plans[0]) => p.maxKeys.toString() },
@@ -662,11 +669,11 @@ function PlanComparisonTable({
     <Card className="overflow-hidden">
       <CardHeader className="border-b bg-gray-50/50">
         <CardTitle className="flex items-center gap-2">
-          <Sparkles className="size-5 text-emerald-600" />
+          <Landmark className="size-5 text-emerald-600" />
           Compare plans
         </CardTitle>
         <CardDescription>
-          All plans include unlimited usage — pay only for the tokens you consume.
+          Prompt-based limits per model tier — choose the plan that fits your workflow.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -696,11 +703,7 @@ function PlanComparisonTable({
                   <td className="px-4 py-3 font-medium text-gray-700">{feat.label}</td>
                   {plans.map((p) => (
                     <td key={p.code} className="px-4 py-3 text-center tabular-nums text-gray-600">
-                      {feat.key === "unlimited" ? (
-                        <Infinity className="mx-auto size-4 text-emerald-600" />
-                      ) : (
-                        feat.getValue(p)
-                      )}
+                      {feat.getValue(p)}
                     </td>
                   ))}
                 </tr>
@@ -767,9 +770,8 @@ function PlanComparisonTable({
       </CardContent>
       <div className="border-t bg-gray-50/50 px-4 py-3">
         <p className="text-xs text-gray-500">
-          Token prices shown are upstream USD rates (input / output per million tokens). 
-          Your DT cost is calculated at the current D17 exchange rate. 
-          All plans have no spend caps — usage is truly unlimited.
+          Prompt limits reset each billing period. Token prices shown are upstream USD rates (input / output per million tokens).
+          Your DT cost is calculated at the current D17 exchange rate.
         </p>
       </div>
     </Card>
