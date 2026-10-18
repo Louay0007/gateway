@@ -37,7 +37,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const code = typeof body?.code === "string" ? body.code.trim() : "";
 
-  if (!code || !crypto.timingSafeEqual(Buffer.from(code), Buffer.from(SECRET))) {
+  if (
+    !code ||
+    code.length !== SECRET.length ||
+    !crypto.timingSafeEqual(Buffer.from(code), Buffer.from(SECRET))
+  ) {
     return NextResponse.json({ error: "Invalid code" }, { status: 401 });
   }
 
