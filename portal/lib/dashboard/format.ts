@@ -136,3 +136,20 @@ export function centsDt(cents: number): string {
   const dt = Math.round((cents / 100) * D17_RATE);
   return `${dt} DT`;
 }
+
+const tndFormatter = new Intl.NumberFormat("fr-TN", {
+  style: "currency",
+  currency: "TND",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** USD amount → TND string using the D17 rate. */
+export function usdToTnd(usdAmount: number): string {
+  return tndFormatter.format(usdAmount * D17_RATE);
+}
+
+/** Integer USD cents → TND string using the D17 rate. */
+export function centsToTnd(cents: number): string {
+  return tndFormatter.format((cents / 100) * D17_RATE);
+}
