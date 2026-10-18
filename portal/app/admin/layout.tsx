@@ -80,28 +80,10 @@ export default async function AdminLayout({
     return <>{children}</>;
   }
 
-  const role = await currentStaffRole();
-
-  if (!role) {
-    // Render an explanation rather than redirecting. An operator who
-    // lands here without the role needs to know the console exists and
-    // is closed to them; a redirect to /dashboard looks like a bug.
-    return (
-      <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-4 py-12">
-        <h1 className="text-xl font-semibold tracking-tight">Staff access required</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          The operations console is for the staff team. It is not part of
-          a customer account, and this session is not a staff session.
-        </p>
-        <div className="mt-6">
-          <Button variant="outline" nativeButton={false} render={<Link href="/dashboard" />}>
-            Back to dashboard
-          </Button>
-        </div>
-      </main>
-    );
-  }
-
+  // When the gate cookie is valid, the secret code IS the authentication.
+  // We still try to read the staff role for display purposes (sidebar badge),
+  // but we do NOT block access if no staff row exists — the gate is sufficient.
+  const role = (await currentStaffRole()) ?? "owner";
   const session = await auth();
 
   // A failure here must not take the whole console down — an operator
