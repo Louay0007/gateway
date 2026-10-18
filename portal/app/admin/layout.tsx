@@ -71,11 +71,13 @@ export default async function AdminLayout({
 }: {
   children: ReactNode;
 }) {
-  // Gate check runs BEFORE the staff role check. Without the correct
-  // cookie the layout renders nothing — the /admin/page.tsx gate form
-  // is a client component that lives outside this server layout.
+  // Gate check runs BEFORE the staff role check. When the cookie is
+  // missing or invalid, render only {children} — which at /admin is the
+  // gate form (a client component). The full console shell (sidebar,
+  // toaster) must NOT render until the gate passes, but the gate form
+  // itself must be visible so the operator can enter the code.
   if (!(await gatePassed())) {
-    return null;
+    return <>{children}</>;
   }
 
   const role = await currentStaffRole();
