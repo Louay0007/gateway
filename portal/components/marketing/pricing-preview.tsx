@@ -2,27 +2,21 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Check, Infinity } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Check, Infinity, MessageCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ErrorState, PanelSkeleton } from "@/components/dashboard/states";
 import { useApi } from "@/lib/api/use-api";
-import type { PlanListResponse } from "@/lib/api/types";
+import type { PlanListResponse, ProfileView } from "@/lib/api/types";
 import { centsDt, compact } from "@/lib/dashboard/format";
+
+const WHATSAPP_NUMBER = "21656794578";
+const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I'm interested in Zaino AI Enterprise plan.")}`;
 
 /**
  * Per-model token pricing from prices/models.yaml.
- *
- * These are the upstream USD rates per million tokens. Displayed on the
- * pricing card so customers see exactly what they pay per model when
- * using their own keys (BYOK) or comparing against Zaino AI's bundled
- * rate. The YAML is the single source of truth; this object mirrors it
- * for the client component since we cannot read YAML at runtime in a
- * "use client" module.
- *
- * Sync check: tests/pricing-consistency.test.ts fails on drift between
- * this file, models.yaml, and config/litellm.yaml.
  */
 const MODEL_PRICES: Record<string, { input: number; output: number; label: string }> = {
   "claude-sonnet-5": { input: 3.0, output: 15.0, label: "Fast (Sonnet 5)" },
@@ -30,24 +24,16 @@ const MODEL_PRICES: Record<string, { input: number; output: number; label: strin
   "nemotron-3.5-super-vl-120b-a12b": { input: 0.15, output: 0.6, label: "Frontier (Nemotron)" },
 };
 
-/** Format USD per million tokens → "$3.00 / MTok". */
 function usdPerMtok(usd: number): string {
   return `$${usd.toFixed(2)} / MTok`;
 }
 
-/**
- * PricingPreview — the plan table, live.
- *
- * Prices are displayed in Tunisian Dinars (DT) using the configured D17
- * exchange rate. Plans are unlimited — no spend caps, no hard limits.
- * Customers pay only for the tokens they use at the per-model rates
- * shown below each plan.
- *
- * Public on purpose: `GET /api/plans` is the one endpoint with no session
- * and no org-scoped data. Plan rows are catalog.
- */
 export function PricingPreview() {
+  const router = useRouter();
   const { data, error, loading, reload } = useApi<PlanListResponse>("/api/plans");
+  const profile = useApi<ProfileView>("/api/profile");
+  
+  const isAuthenticated = profile.data !== null && !profile.error;
 
   if (loading) {
     return (
@@ -69,6 +55,14 @@ export function PricingPreview() {
   }
 
   const plans = data?.plans ?? [];
+
+  function handleGetStarted(planCode: string) {
+    if (isAuthenticated) {
+      router.push("/dashboard/billing");
+    } else {
+      router.push(`/sign-up?plan=${planCode}`);
+    }
+  }
 
   return (
     <section id="pricing" className="border-t border-gray-200/60 py-20 sm:py-28 bg-white">
@@ -124,7 +118,6 @@ export function PricingPreview() {
                 )}
               </ul>
 
-              {/* Per-model token pricing */}
               <div className="mt-6 rounded-lg border border-gray-100 bg-gray-50/50 p-4">
                 <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Token pricing per model
@@ -142,7 +135,6 @@ export function PricingPreview() {
                       </div>
                     );
                   })}
-                  {/* Show all models if plan doesn't restrict */}
                   {(plan.models ?? []).length === 0 &&
                     Object.entries(MODEL_PRICES).map(([id, price]) => (
                       <div key={id} className="flex items-center justify-between">
@@ -156,25 +148,48 @@ export function PricingPreview() {
               </div>
 
               <Button
-                nativeButton={false}
-                render={<Link href="/sign-up" />}
                 className="mt-8 w-full rounded-full"
                 variant={plan.code === "pro" ? "default" : "outline"}
+                onClick={() => handleGetStarted(plan.code)}
               >
-                Start with {plan.name}
+                {isAuthenticated ? "Go to Billing" : "Get Started"}
               </Button>
             </div>
           ))}
         </div>
 
+        {/* Enterprise CTA */}
+        <div className="mt-12 rounded-2xl border border-gray-200 bg-gray-50 p-8 text-center">
+          <h3 className="text-xl font-semibold text-black">Need Enterprise?</h3>
+          <p className="mt-2 text-gray-600">
+            Custom volume pricing, dedicated support, and SLA agreements for your organization.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
+            <a
+              href={WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+            >
+              <MessageCircle className="size-4" />
+              Chat on WhatsApp
+            </a>
+            <a
+              href={`tel:+${WHATSAPP_NUMBER}`}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-6 py-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            >
+              Call +216 56 794 578
+            </a>
+          </div>
+        </div>
+
         <p className="mt-8 text-sm text-gray-600">
           Token prices shown are upstream USD rates. Your DT cost is calculated
-          at the current D17 exchange rate. Not using Zaino AI? These are the
-          same rates you would pay directly to the model providers.{" "}
-          <Link href="/" className="underline hover:text-black">
-            Get in touch
-          </Link>{" "}
-          for volume discounts.
+          at the current D17 exchange rate. Questions?{" "}
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-black">
+            Contact us on WhatsApp
+          </a>{" "}
+          or call +216 56 794 578.
         </p>
       </div>
     </section>

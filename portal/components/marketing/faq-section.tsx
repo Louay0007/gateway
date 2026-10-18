@@ -194,10 +194,19 @@ export default function FaqSection() {
           <p className="text-sm text-muted-foreground">
             Still have questions?{' '}
             <a
-              href="mailto:support@zaino.ai"
+              href="https://wa.me/21656794578"
+              target="_blank"
+              rel="noopener noreferrer"
               className="text-primary font-medium hover:underline underline-offset-4"
             >
-              Contact our support team
+              Chat on WhatsApp
+            </a>{' '}
+            or call{' '}
+            <a
+              href="tel:+21656794578"
+              className="text-primary font-medium hover:underline underline-offset-4"
+            >
+              +216 56 794 578
             </a>
           </p>
         </div>

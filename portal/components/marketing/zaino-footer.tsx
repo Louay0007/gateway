@@ -20,8 +20,8 @@ const columns = [
       { label: 'Documentation', href: '/docs' },
       { label: 'Guides', href: '/docs' },
       { label: 'Support', href: 'mailto:support@zaino.ai' },
+      { label: 'WhatsApp', href: 'https://wa.me/21656794578' },
       { label: 'Status', href: '#' },
-      { label: 'Community', href: '#' },
     ],
   },
   {
@@ -32,6 +32,7 @@ const columns = [
       { label: 'Blog', href: '#' },
       { label: 'Press', href: '#' },
       { label: 'Contact', href: 'mailto:hello@zaino.ai' },
+      { label: 'Call +216 56 794 578', href: 'tel:+21656794578' },
     ],
   },
   {
