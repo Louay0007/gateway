@@ -37,17 +37,47 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { cookies } from "next/headers";
+import crypto from "node:crypto";
 import { auth } from "@/auth";
 import { currentStaffRole } from "@/lib/auth/authorize";
 import { listD17Queue } from "@/lib/billing/d17-admin";
 
 export const dynamic = "force-dynamic";
 
+const ADMIN_GATE_COOKIE = "admin_gate";
+
+/**
+ * Verify the admin gate cookie matches the server secret.
+ * Returns true when the gate is not configured (no secret set), so the
+ * console works without the extra layer in environments that don't need it.
+ */
+async function gatePassed(): Promise<boolean> {
+  const secret = process.env.ADMIN_GATE_SECRET;
+  if (!secret) return true; // gate disabled when no secret is set
+  const cookieStore = await cookies();
+  const value = cookieStore.get(ADMIN_GATE_COOKIE)?.value;
+  if (!value) return false;
+  const expected = crypto.createHmac("sha256", secret).update(ADMIN_GATE_COOKIE).digest("hex");
+  try {
+    return crypto.timingSafeEqual(Buffer.from(value), Buffer.from(expected));
+  } catch {
+    return false;
+  }
+}
+
 export default async function AdminLayout({
   children,
 }: {
   children: ReactNode;
 }) {
+  // Gate check runs BEFORE the staff role check. Without the correct
+  // cookie the layout renders nothing — the /admin/page.tsx gate form
+  // is a client component that lives outside this server layout.
+  if (!(await gatePassed())) {
+    return null;
+  }
+
   const role = await currentStaffRole();
 
   if (!role) {
