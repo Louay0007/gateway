@@ -215,11 +215,9 @@ function HeaderUserMenu({ onNavigate }: { onNavigate: () => void }) {
         render={
           <Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu">
             <Avatar className="size-8">
-              {user?.image ? (
-                <AvatarImage src={user.image} alt="" />
-              ) : null}
+              {user?.image && <AvatarImage src={user.image} alt={user.name || ""} />}
               <AvatarFallback className="text-xs font-medium">
-                {user?.initials ?? "?"}
+                {user ? user.initials : "…"}
               </AvatarFallback>
             </Avatar>
           </Button>

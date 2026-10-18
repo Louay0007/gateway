@@ -200,7 +200,7 @@ function ProfileCard() {
       <CardContent className="grid gap-6 sm:max-w-md">
         <div className="flex items-center gap-4">
           <Avatar className="size-16">
-            {data.image ? <AvatarImage src={data.image} alt="" /> : null}
+            {data.image && <AvatarImage src={data.image} alt={data.name || ""} />}
             <AvatarFallback className="text-lg font-medium">
               {initialsFor(data.name, data.email)}
             </AvatarFallback>
