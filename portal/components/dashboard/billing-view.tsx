@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   Sparkles,
   TriangleAlert,
+  Clock,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -261,7 +262,18 @@ export function BillingView() {
         </Card>
       ) : null}
 
-      {plan ? (
+      {b.state === "pending" ? (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <Clock className="size-5 text-amber-600" />
+            <p className="text-sm">
+              <span className="font-medium">Payment pending verification.</span>{" "}
+              Your {plan?.name ?? "Pro"} plan will activate once we confirm your D17 transfer.
+              This usually takes a few hours.
+            </p>
+          </CardContent>
+        </Card>
+      ) : plan ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard

@@ -161,6 +161,8 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     costUpstreamUsd: number;
     costCustomerUsd: number;
   };
+  /** Per-alias prompt counts for the current billing period. Migration 0013. */
+  promptsByModel: Record<string, number>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
 }> {
@@ -265,6 +267,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       costUpstreamUsd: usage.costUpstreamUsd,
       costCustomerUsd: usage.costCustomerUsd,
     },
+    promptsByModel: usage.promptsByModel,
     limits: plan,
     keys: { active: Number(activeKeys[0]?.count ?? 0), max: plan?.maxKeys ?? null },
   };
