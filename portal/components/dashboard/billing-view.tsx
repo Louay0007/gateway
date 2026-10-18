@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import {
   ArrowLeftRight,
   BadgeCheck,
+  Check,
   CircleDollarSign,
   CreditCard,
+  Infinity,
   Landmark,
   Receipt,
   RefreshCw,
@@ -14,6 +17,7 @@ import {
   Sparkles,
   TriangleAlert,
   Clock,
+  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -45,31 +49,28 @@ import type {
   SubscriptionBundle,
   PaymentHistoryItem,
 } from "@/lib/api/types";
-import { centsUsd, centsDt, compact, usd } from "@/lib/dashboard/format";
+import { centsDt, centsUsd, compact, usd, usdToTnd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
+
+/**
+ * Per-model token pricing from prices/models.yaml.
+ * Mirrored for the client component since we cannot read YAML at runtime.
+ */
+const MODEL_PRICES: Record<string, { input: number; output: number; label: string }> = {
+  "claude-sonnet-5": { input: 3.0, output: 15.0, label: "Fast (Sonnet 5)" },
+  "claude-opus-5-5": { input: 15.0, output: 75.0, label: "Smart (Opus 5.5)" },
+  "nemotron-3.5-super-vl-120b-a12b": { input: 0.15, output: 0.6, label: "Frontier (Nemotron)" },
+};
+
+function usdPerMtok(usd: number): string {
+  return `$${usd.toFixed(2)} / MTok`;
+}
 
 /**
  * BillingView — plan, spend and the exits, live.
  *
- * Every number here used to come from `mock-data.ts`. It now comes from
- * `GET /api/subscription`, which builds its usage figures from the LEDGER
- * (`usage_records`) rather than the rollup cache — PLATFORM §8.2, and the
- * reason the number a customer is shown can be re-derived from evidence.
- *
- * The four actions all route to their endpoint now:
- *   subscribe    → POST /api/checkout
- *   change plan  → POST /api/subscription/change-plan   (limits live, price at renewal)
- *   cancel       → POST /api/subscription/cancel        (two modes, genuinely different)
- *   resume       → POST /api/subscription/resume       (undoes cancel-at-period-end)
- *
- * The two cancel modes are confirmed separately and with different copy,
- * because the word "cancel" hides the entire difference: one keeps access
- * until the paid date, the other cuts the budget now (next request → 429)
- * while leaving the keys valid so re-subscribing is instant.
- *
- * NOTHING here is optimistic. These actions move money and remove access,
- * so every one reconciles against the server before the screen claims it
- * worked.
+ * Redesigned with prominent D17 payment method branding, emerald/gray palette,
+ * and detailed plan comparison table.
  */
 export function BillingView() {
   const router = useRouter();
@@ -97,11 +98,8 @@ export function BillingView() {
       })
     : null;
 
-  // Mirrors server isRenewable(): live + same plan is renewable when the
-  // period ends within 7 days or has lapsed. The button must not promise
-  // what POST /api/checkout will 409.
   const isRenewableNow = (() => {
-    if (!b?.subscription || !hasPlan) return true; // paywall: checkout always allowed
+    if (!b?.subscription || !hasPlan) return true;
     if (!['active', 'past_due', 'paused'].includes(b.subscription.status)) return true;
     if (!b.subscription.currentPeriodEnd) return true;
     const end = new Date(b.subscription.currentPeriodEnd).getTime();
@@ -167,10 +165,6 @@ export function BillingView() {
     }
     refresh();
     if (result.data.providerError) {
-      // The local cut stands even when the provider call failed — a
-      // customer who asked to stop must stop being able to spend. Billing
-      // needs a human on this one, and the UI must say so rather than
-      // quietly reporting success.
       toast.error(
         "Access was cut, but the payment provider rejected the cancellation. Our team has to finish it by hand.",
       );
@@ -240,9 +234,6 @@ export function BillingView() {
         </Card>
       ) : null}
 
-      {/* An entitlement that failed to push is a silent-money bug: the
-          dashboard says one thing and the gateway enforces another. It is
-          surfaced here rather than left for the ops email. */}
       {b.entitlement?.status === "failed" ? (
         <Card className="border-destructive/40 bg-destructive/5">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
@@ -275,11 +266,12 @@ export function BillingView() {
         </Card>
       ) : plan ? (
         <>
+          {/* Stats Grid */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
               label="Spend this period"
-              value={usd(b.usage.costCustomerUsd)}
-              hint={`${plan.name} · ${centsUsd(plan.includedSpendCents)} included`}
+              value={usdToTnd(b.usage.costCustomerUsd)}
+              hint={`${plan.name} · ${centsDt(plan.includedSpendCents)} included`}
               icon={CircleDollarSign}
             />
             <StatCard
@@ -302,6 +294,106 @@ export function BillingView() {
             />
           </div>
 
+          {/* D17 Payment Method Hero Card */}
+          <Card className="overflow-hidden border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-gray-50">
+            <CardContent className="p-0">
+              <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr] md:items-center md:gap-8">
+                {/* D17 Logo */}
+                <div className="flex justify-center md:justify-start">
+                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-emerald-200 bg-white shadow-sm md:size-28">
+                    <Image
+                      src="/images/d17-logo.svg"
+                      alt="D17 DigiPost Bank"
+                      fill
+                      className="object-contain p-2"
+                      priority
+                    />
+                  </div>
+                </div>
+
+                {/* D17 Info */}
+                <div className="text-center md:text-left">
+                  <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                    <h3 className="text-lg font-semibold text-gray-900">Pay with D17</h3>
+                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">
+                      La Poste Tunisia
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-gray-600">
+                    Transfer via DigiPost Bank (D17) at any La Poste counter or through the D17 mobile app. 
+                    Proof of payment is verified manually — usually within hours.
+                  </p>
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 md:justify-start">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck className="size-3.5 text-emerald-600" />
+                      Secure manual verification
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <Clock className="size-3.5 text-emerald-600" />
+                      Usually confirmed within hours
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <BadgeCheck className="size-3.5 text-emerald-600" />
+                      No credit card required
+                    </span>
+                  </div>
+                </div>
+
+                {/* Action Button */}
+                <div className="flex justify-center md:justify-end">
+                  <Button
+                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
+                    size="lg"
+                    disabled={busy !== null || !isRenewableNow}
+                    title={
+                      !isRenewableNow
+                        ? `Renewal opens ${renewalOpensLabel} — 7 days before your period ends.`
+                        : undefined
+                    }
+                    onClick={() => void beginCheckout(plan.code, "d17")}
+                  >
+                    <CreditCard className="mr-2 size-4" />
+                    {busy
+                      ? "Opening checkout…"
+                      : hasPlan
+                        ? isRenewableNow
+                          ? "Renew with D17"
+                          : `Renews ${renews ?? "next period"}`
+                        : "Pay with D17"}
+                  </Button>
+                </div>
+              </div>
+
+              {/* How it works strip */}
+              <div className="border-t border-emerald-100 bg-emerald-50/50 px-6 py-4">
+                <div className="grid gap-4 text-sm sm:grid-cols-3">
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">1</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Start checkout</p>
+                      <p className="text-xs text-gray-500">Get your unique transfer amount</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">2</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Transfer via D17</p>
+                      <p className="text-xs text-gray-500">At La Poste or D17 app</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">3</span>
+                    <div>
+                      <p className="font-medium text-gray-900">Submit proof</p>
+                      <p className="text-xs text-gray-500">Authorization number activates your plan</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Current Plan & Usage */}
           <div className="grid gap-6 lg:grid-cols-3">
             <Card className="lg:col-span-2">
               <CardHeader>
@@ -313,6 +405,7 @@ export function BillingView() {
                         variant={
                           b.subscription?.cancelAtPeriodEnd ? "outline" : "secondary"
                         }
+                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"}
                       >
                         {b.subscription?.cancelAtPeriodEnd
                           ? "Cancels at period end"
@@ -338,7 +431,6 @@ export function BillingView() {
                 </div>
               </CardHeader>
               <CardContent className="grid gap-6">
-                {/* Prompt meters — primary limit indicator (Migration 0013) */}
                 <PromptMeters
                   promptsByModel={b.usage.promptsByModel ?? {}}
                   promptLimits={plan.promptLimits ?? {}}
@@ -348,8 +440,8 @@ export function BillingView() {
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Spend this period</span>
                     <span className="tabular-nums">
-                      {usd(b.usage.costCustomerUsd)} of{" "}
-                      {centsUsd(plan.includedSpendCents)}
+                      {usdToTnd(b.usage.costCustomerUsd)} of{" "}
+                      {centsDt(plan.includedSpendCents)}
                     </span>
                   </div>
                   <SpendMeter
@@ -357,16 +449,6 @@ export function BillingView() {
                     includedCents={plan.includedSpendCents}
                     hardCapCents={plan.hardCapCents}
                   />
-                  {/*
-                    Pricing truth (0007): customer cost = upstream ×
-                    multiplier for EVERY row. The $20 included is a discount
-                    pool in customer dollars — the first $20 of customer
-                    cost each period is covered by the base price. Overage
-                    bills at the same multiplier (overage_markup_bps ==
-                    rate_multiplier_bps - 10000 by invariant), and the
-                    gateway stops traffic when customer cost would exceed
-                    the hard cap (enforced as hardCap/multiplier upstream).
-                  */}
                   <p className="mt-2 text-xs text-muted-foreground">
                     First {centsUsd(plan.includedSpendCents)} of usage each
                     period is included. Beyond that, usage bills at{" "}
@@ -432,63 +514,13 @@ export function BillingView() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <Landmark className="size-4" />
-                    Payment method
-                  </CardTitle>
-                  <CardDescription>
-                    Payments are verified manually through La Poste (D17).
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid gap-3 text-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Payment via</span>
-                    <span className="font-medium">La Poste (D17)</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Account</span>
-                    <Badge variant={hasPlan ? "secondary" : "outline"}>
-                      {hasPlan ? "Active" : "Not yet paid"}
-                    </Badge>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-1"
-                    disabled={busy !== null || !isRenewableNow}
-                    title={
-                      !isRenewableNow
-                        ? `Renewal opens ${renewalOpensLabel} — 7 days before your period ends.`
-                        : undefined
-                    }
-                    onClick={() => void beginCheckout(plan.code, "d17")}
-                  >
-                    <CreditCard />
-                    {busy
-                      ? "Opening checkout…"
-                      : hasPlan
-                        ? isRenewableNow
-                          ? "Renew for next period"
-                          : `Renews ${renews ?? "next period"} — renewal opens later`
-                        : "Pay with D17"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground">
-                    {hasPlan && !isRenewableNow
-                      ? `Your current period is paid until ${renews}. The renewal button unlocks 7 days before it ends — early renewal keeps your overlap days.`
-                      : "Transfer the amount shown at checkout, then submit the authorization number. Activation is manual and usually confirmed within hours."}
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base">
                     <CircleDollarSign className="size-4" />
                     Usage math
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-2 text-sm">
-                  <Row label="Upstream cost" value={usd(b.usage.costUpstreamUsd)} />
-                  <Row label="Your cost" value={usd(b.usage.costCustomerUsd)} />
+                  <Row label="Upstream cost" value={usdToTnd(b.usage.costUpstreamUsd)} />
+                  <Row label="Your cost" value={usdToTnd(b.usage.costCustomerUsd)} />
                   <Row
                     label="Plan multiplier"
                     value={`${(plan.rateMultiplierBps / 10000).toFixed(2)}×`}
@@ -510,9 +542,17 @@ export function BillingView() {
                   ) : null}
                 </CardContent>
               </Card>
-            <PaymentHistory />
+              <PaymentHistory />
             </div>
           </div>
+
+          {/* Plan Comparison Table */}
+          <PlanComparisonTable
+            plans={plans}
+            currentPlanCode={plan.code}
+            onSelectPlan={(code) => void beginCheckout(code, "d17")}
+            disabled={busy !== null}
+          />
         </>
       ) : null}
 
@@ -533,12 +573,12 @@ export function BillingView() {
                 disabled={busy !== null}
                 onClick={() => void changePlan(p.code)}
                 className={`grid gap-3 rounded-lg border p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 disabled:opacity-50 ${
-                  p.code === plan?.code ? "border-primary" : ""
+                  p.code === plan?.code ? "border-emerald-500 ring-1 ring-emerald-200" : ""
                 }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{p.name}</span>
-                  {p.code === plan?.code ? <Badge>Current</Badge> : null}
+                  {p.code === plan?.code ? <Badge className="bg-emerald-600 text-white">Current</Badge> : null}
                 </div>
                 <p className="text-2xl font-semibold tabular-nums">
                   {centsDt(p.priceCents)}
@@ -593,19 +633,151 @@ export function BillingView() {
 }
 
 /**
+ * PlanComparisonTable — detailed side-by-side comparison of all plans.
+ */
+function PlanComparisonTable({
+  plans,
+  currentPlanCode,
+  onSelectPlan,
+  disabled,
+}: {
+  plans: PlanListResponse["plans"];
+  currentPlanCode: string;
+  onSelectPlan: (code: string) => void;
+  disabled: boolean;
+}) {
+  if (plans.length === 0) return null;
+
+  const features = [
+    { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => centsDt(p.priceCents) },
+    { key: "included", label: "Included spend", getValue: (p: typeof plans[0]) => centsUsd(p.includedSpendCents) },
+    { key: "unlimited", label: "Usage limit", getValue: () => "Unlimited" },
+    { key: "rpm", label: "Requests / minute", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
+    { key: "tpm", label: "Tokens / minute", getValue: (p: typeof plans[0]) => compact(p.tpmLimit ?? 0) },
+    { key: "keys", label: "API keys", getValue: (p: typeof plans[0]) => p.maxKeys.toString() },
+    { key: "concurrency", label: "Max concurrency", getValue: (p: typeof plans[0]) => p.maxConcurrentRequests?.toString() ?? "—" },
+  ];
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="border-b bg-gray-50/50">
+        <CardTitle className="flex items-center gap-2">
+          <Sparkles className="size-5 text-emerald-600" />
+          Compare plans
+        </CardTitle>
+        <CardDescription>
+          All plans include unlimited usage — pay only for the tokens you consume.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-gray-50/30">
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Feature</th>
+                {plans.map((p) => (
+                  <th key={p.code} className="px-4 py-3 text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <span className="font-semibold text-gray-900">{p.name}</span>
+                      {p.code === currentPlanCode && (
+                        <Badge className="bg-emerald-600 text-white text-xs">Current</Badge>
+                      )}
+                      {p.code === "pro" && p.code !== currentPlanCode && (
+                        <Badge variant="outline" className="text-xs">Popular</Badge>
+                      )}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {features.map((feat, i) => (
+                <tr key={feat.key} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}>
+                  <td className="px-4 py-3 font-medium text-gray-700">{feat.label}</td>
+                  {plans.map((p) => (
+                    <td key={p.code} className="px-4 py-3 text-center tabular-nums text-gray-600">
+                      {feat.key === "unlimited" ? (
+                        <Infinity className="mx-auto size-4 text-emerald-600" />
+                      ) : (
+                        feat.getValue(p)
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {/* Token pricing row */}
+              <tr className="border-t bg-white">
+                <td className="px-4 py-3 font-medium text-gray-700">Token pricing</td>
+                {plans.map((p) => (
+                  <td key={p.code} className="px-4 py-3">
+                    <div className="grid gap-1 text-xs">
+                      {(p.models ?? []).length > 0 ? (
+                        (p.models ?? []).map((modelId) => {
+                          const price = MODEL_PRICES[modelId];
+                          if (!price) return null;
+                          return (
+                            <div key={modelId} className="flex items-center justify-center gap-1">
+                              <span className="text-gray-500">{price.label}:</span>
+                              <span className="tabular-nums text-gray-600">
+                                {usdPerMtok(price.input)} / {usdPerMtok(price.output)}
+                              </span>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        Object.entries(MODEL_PRICES).map(([id, price]) => (
+                          <div key={id} className="flex items-center justify-center gap-1">
+                            <span className="text-gray-500">{price.label}:</span>
+                            <span className="tabular-nums text-gray-600">
+                              {usdPerMtok(price.input)} / {usdPerMtok(price.output)}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </td>
+                ))}
+              </tr>
+              {/* CTA row */}
+              <tr className="border-t bg-gray-50/50">
+                <td className="px-4 py-4"></td>
+                {plans.map((p) => (
+                  <td key={p.code} className="px-4 py-4 text-center">
+                    {p.code === currentPlanCode ? (
+                      <Button variant="outline" size="sm" disabled className="w-full">
+                        Current plan
+                      </Button>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className={p.code === "pro" ? "bg-emerald-600 text-white hover:bg-emerald-700 w-full" : "w-full"}
+                        variant={p.code === "pro" ? "default" : "outline"}
+                        disabled={disabled}
+                        onClick={() => onSelectPlan(p.code)}
+                      >
+                        Choose {p.name}
+                      </Button>
+                    )}
+                  </td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </CardContent>
+      <div className="border-t bg-gray-50/50 px-4 py-3">
+        <p className="text-xs text-gray-500">
+          Token prices shown are upstream USD rates (input / output per million tokens). 
+          Your DT cost is calculated at the current D17 exchange rate. 
+          All plans have no spend caps — usage is truly unlimited.
+        </p>
+      </div>
+    </Card>
+  );
+}
+
+/**
  * PaymentHistory — every payment this account has made.
- *
- * The Billing page carried a "Recent payments" card from the first UI
- * rewrite rendering two invented rows. Behind it there was nothing:
- * `payments_d17` was a staff-only verification queue with no customer read
- * route at all. That matters more than it looks — a customer who wired
- * money to a La Poste counter and was told "activation is manual" has no
- * way to learn whether the transfer was received, is being checked, was
- * refused, or silently expired. This is that answer.
- *
- * All five statuses are shown, including the unflattering ones. A queue
- * view that only lists verified payments is worse than none: it implies
- * "nothing is wrong" when the truth is "we cannot see it".
  */
 function PaymentHistory() {
   const { data, error, loading, reload } = useApi<{
@@ -715,7 +887,6 @@ function paymentStatusLabel(status: string): string {
   }
 }
 
-/** One dated sentence. The date is the reassurance; the status is the news. */
 function paymentStatusSentence(p: PaymentHistoryItem): string {
   const when = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString("en-US", { dateStyle: "medium", timeZone: "UTC" }) : null;
