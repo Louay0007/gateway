@@ -249,6 +249,11 @@
 		max_size 2MB
 	}
 
+	# Redirect bare domain to the admin gate/console entry point.
+	# Without this, / serves the portal's marketing landing page because
+	# the reverse_proxy forwards to Next.js at /, which is the customer site.
+	redir / /admin 302
+
 	reverse_proxy 127.0.0.1:3000 {
 		flush_interval -1
 		transport http {
