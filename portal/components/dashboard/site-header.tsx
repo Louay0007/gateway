@@ -15,7 +15,7 @@ import {
 import { signOutAction } from "@/lib/auth/actions";
 import { titleForPath } from "@/components/dashboard/nav";
 import { useShellIdentity } from "@/components/dashboard/shell-identity";
-import { relativeTime, usd } from "@/lib/dashboard/format";
+import { centsDt, relativeTime, usdToTnd } from "@/lib/dashboard/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -152,7 +152,7 @@ function AccountStatusMenu() {
 
   const facts: { label: string; value: string }[] = [
     { label: "Plan", value: plan?.name ?? "None" },
-    { label: "Spend this period", value: `${usd(spent)}${included ? ` of $${included.toFixed(2)} (${pct}%)` : ""}` },
+    { label: "Spend this period", value: `${usdToTnd(spent)}${included ? ` of ${centsDt(plan.includedSpendCents)} (${pct}%)` : ""}` },
     { label: "Active keys", value: `${bundle?.keys.active ?? 0}${bundle?.keys.max ? ` of ${bundle.keys.max}` : ""}` },
     {
       label: "Gateway limits",
@@ -215,10 +215,13 @@ function HeaderUserMenu({ onNavigate }: { onNavigate: () => void }) {
         render={
           <Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu">
             <Avatar className="size-8">
-              {user?.image && <AvatarImage src={user.image} alt={user.name || ""} />}
-              <AvatarFallback className="text-xs font-medium">
-                {user ? user.initials : "…"}
-              </AvatarFallback>
+              {user?.image ? (
+                <img src={user.image} alt={user.name || ""} className="aspect-square size-full rounded-full object-cover" />
+              ) : (
+                <AvatarFallback className="text-xs font-medium">
+                  {user ? user.initials : "…"}
+                </AvatarFallback>
+              )}
             </Avatar>
           </Button>
         }

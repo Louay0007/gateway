@@ -190,10 +190,13 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
             aria-label="Account menu"
           >
           <Avatar className="size-8">
-            {user?.image && <AvatarImage src={user.image} alt={user.name || ""} />}
-            <AvatarFallback className="text-xs font-medium">
-              {user ? user.initials : "…"}
-            </AvatarFallback>
+            {user?.image ? (
+              <img src={user.image} alt={user.name || ""} className="aspect-square size-full rounded-full object-cover" />
+            ) : (
+              <AvatarFallback className="text-xs font-medium">
+                {user ? user.initials : "…"}
+              </AvatarFallback>
+            )}
           </Avatar>
           {!collapsed || isMobile ? (
             <span className="grid min-w-0 flex-1 leading-tight">

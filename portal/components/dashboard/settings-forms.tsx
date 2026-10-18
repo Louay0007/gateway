@@ -200,10 +200,13 @@ function ProfileCard() {
       <CardContent className="grid gap-6 sm:max-w-md">
         <div className="flex items-center gap-4">
           <Avatar className="size-16">
-            {data.image && <AvatarImage src={data.image} alt={data.name || ""} />}
-            <AvatarFallback className="text-lg font-medium">
-              {initialsFor(data.name, data.email)}
-            </AvatarFallback>
+            {data.image ? (
+              <img src={data.image} alt={data.name || ""} className="aspect-square size-full rounded-full object-cover" />
+            ) : (
+              <AvatarFallback className="text-lg font-medium">
+                {initialsFor(data.name, data.email)}
+              </AvatarFallback>
+            )}
           </Avatar>
           <div className="grid gap-1.5">
             <div className="flex items-center gap-2">
