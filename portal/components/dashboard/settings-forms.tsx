@@ -27,6 +27,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ErrorState, PanelSkeleton } from "@/components/dashboard/states";
+import { useShellIdentity } from "@/components/dashboard/shell-identity";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import type { OrgListItem, ProfileView } from "@/lib/api/types";
 import { initialsFor } from "@/lib/dashboard/format";
@@ -73,6 +74,7 @@ const MAX_IMAGE_BYTES = 256 * 1024;
 
 function ProfileCard() {
   const router = useRouter();
+  const { refresh: refreshShell } = useShellIdentity();
   const { data, error, loading, reload, set } = useApi<ProfileView>("/api/profile");
   const [name, setName] = React.useState("");
   const [saving, setSaving] = React.useState(false);
@@ -114,6 +116,9 @@ function ProfileCard() {
       return;
     }
     set((prev) => (prev ? { ...prev, name: result.data.name } : prev));
+    // The sidebar and header read the shell snapshot, not this component's
+    // state. Without this they keep showing the old name until a reload.
+    refreshShell();
     toast.success("Profile updated.");
     router.refresh();
   }
@@ -155,6 +160,7 @@ function ProfileCard() {
       return;
     }
     set((prev) => (prev ? { ...prev, image: result.data.image } : prev));
+    refreshShell();
     toast.success("Profile picture updated.");
     router.refresh();
   }
@@ -173,6 +179,7 @@ function ProfileCard() {
       return;
     }
     set((prev) => (prev ? { ...prev, image: null } : prev));
+    refreshShell();
     toast.success("Profile picture removed.");
     router.refresh();
   }
@@ -200,13 +207,10 @@ function ProfileCard() {
       <CardContent className="grid gap-6 sm:max-w-md">
         <div className="flex items-center gap-4">
           <Avatar className="size-16">
-            {data.image ? (
-              <img src={data.image} alt={data.name || ""} className="aspect-square size-full rounded-full object-cover" />
-            ) : (
-              <AvatarFallback className="text-lg font-medium">
-                {initialsFor(data.name, data.email)}
-              </AvatarFallback>
-            )}
+            {data.image ? <AvatarImage src={data.image} alt={data.name || ""} /> : null}
+            <AvatarFallback className="text-lg font-medium">
+              {initialsFor(data.name, data.email)}
+            </AvatarFallback>
           </Avatar>
           <div className="grid gap-1.5">
             <div className="flex items-center gap-2">

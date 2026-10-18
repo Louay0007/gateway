@@ -39,6 +39,21 @@ interface ShellValue {
   } | null;
   bundle: SubscriptionBundle | null;
   loading: boolean;
+  /**
+   * Re-read everything the shell knows about the caller.
+   *
+   * This exists because of a real bug: the settings page keeps its OWN
+   * `useApi("/api/profile")` instance, so after PATCHing a new picture it
+   * updated its own state and showed the image — while the sidebar and
+   * header, which read THIS context, kept the snapshot they fetched at
+   * mount. `router.refresh()` does not help: it re-renders Server
+   * Components, it does not re-run a client `useEffect` fetch. The account
+   * page and the nav disagreed until a hard reload.
+   *
+   * A write to the profile anywhere in the tree must call this, or the
+   * shell stays stale.
+   */
+  refresh: () => void;
 }
 
 const ShellContext = React.createContext<ShellValue>({
@@ -47,12 +62,22 @@ const ShellContext = React.createContext<ShellValue>({
   user: null,
   bundle: null,
   loading: true,
+  refresh: () => {},
 });
 
 export function ShellIdentityProvider({ children }: { children: React.ReactNode }) {
   const orgs = useApi<{ orgs: OrgListItem[] }>("/api/orgs");
   const profile = useApi<ProfileView>("/api/profile");
   const bundle = useApi<SubscriptionBundle>("/api/subscription");
+
+  // Stable identity: the provider re-renders on every state change, and a
+  // fresh function each render would make `refresh` a new prop for every
+  // consumer on every fetch.
+  const refresh = React.useCallback(() => {
+    orgs.reload();
+    profile.reload();
+    bundle.reload();
+  }, [orgs.reload, profile.reload, bundle.reload]);
 
   const value = React.useMemo<ShellValue>(() => {
     const org = orgs.data?.orgs?.[0] ?? null;
@@ -71,8 +96,9 @@ export function ShellIdentityProvider({ children }: { children: React.ReactNode 
         : null,
       bundle: bundle.data,
       loading: orgs.loading || profile.loading || bundle.loading,
+      refresh,
     };
-  }, [orgs.data, orgs.loading, profile.data, profile.loading, bundle.data, bundle.loading]);
+  }, [orgs.data, orgs.loading, profile.data, profile.loading, bundle.data, bundle.loading, refresh]);
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
