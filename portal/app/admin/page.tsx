@@ -56,44 +56,47 @@ export default function AdminGatePage() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-2 flex size-10 items-center justify-center rounded-full bg-primary/10">
-            <Lock className="size-5 text-primary" />
+    <main className="flex min-h-dvh items-center justify-center px-4 bg-white dark:bg-gray-950">
+      <div className="w-full max-w-sm rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-lg">
+        <div className="text-center">
+          <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-blue-50 dark:bg-blue-950">
+            <Lock className="size-6 text-blue-600 dark:text-blue-400" />
           </div>
-          <CardTitle className="text-lg">Operations Console</CardTitle>
-          <CardDescription>Enter the access code to continue</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="grid gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="gate-code">Access code</Label>
-              <Input
-                id="gate-code"
-                type="password"
-                autoComplete="off"
-                autoFocus
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder="••••••••"
-                disabled={loading}
-              />
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Operations Console</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Enter the access code to continue</p>
+        </div>
+        <form onSubmit={handleSubmit} className="mt-6 grid gap-4">
+          <div className="grid gap-2">
+            <label htmlFor="gate-code" className="text-sm font-medium text-gray-700 dark:text-gray-300">Access code</label>
+            <input
+              id="gate-code"
+              type="password"
+              autoComplete="off"
+              autoFocus
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="••••••••"
+              disabled={loading}
+              className="h-10 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50"
+            />
+          </div>
+
+          {error && (
+            <div className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
+              <AlertCircle className="size-4 shrink-0" />
+              <span>{error}</span>
             </div>
+          )}
 
-            {error && (
-              <div className="flex items-center gap-2 text-sm text-destructive">
-                <AlertCircle className="size-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <Button type="submit" disabled={!code || loading}>
-              {loading ? "Verifying…" : "Enter console"}
-            </Button>
-          </form>
-        </CardContent>
-      </Card>
+          <button
+            type="submit"
+            disabled={!code || loading}
+            className="h-10 w-full rounded-lg bg-blue-600 px-4 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? "Verifying…" : "Enter console"}
+          </button>
+        </form>
+      </div>
     </main>
   );
 }
