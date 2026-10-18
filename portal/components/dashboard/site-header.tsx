@@ -152,7 +152,7 @@ function AccountStatusMenu() {
 
   const facts: { label: string; value: string }[] = [
     { label: "Plan", value: plan?.name ?? "None" },
-    { label: "Spend this period", value: `${usdToTnd(spent)}${included ? ` of ${centsDt(plan.includedSpendCents)} (${pct}%)` : ""}` },
+    { label: "Spend this period", value: `${usdToTnd(spent)}${included && plan ? ` of ${centsDt(plan?.includedSpendCents ?? 0)} (${pct}%)` : ""}` },
     { label: "Active keys", value: `${bundle?.keys.active ?? 0}${bundle?.keys.max ? ` of ${bundle.keys.max}` : ""}` },
     {
       label: "Gateway limits",
