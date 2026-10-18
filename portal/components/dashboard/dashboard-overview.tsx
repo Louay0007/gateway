@@ -23,7 +23,7 @@ import type {
   UsagePageResponse,
   UsageSeriesResponse,
 } from "@/lib/api/types";
-import { centsUsd, compact, rangeLabel, relativeTime, usd } from "@/lib/dashboard/format";
+import { centsUsd, compact, rangeLabel, relativeTime, usd, usdToTnd } from "@/lib/dashboard/format";
 
 /**
  * /dashboard — the overview, live.
@@ -103,7 +103,7 @@ export function DashboardOverview() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Spend this period"
-          value={usd(b.usage.costCustomerUsd)}
+          value={usdToTnd(b.usage.costCustomerUsd)}
           hint={
             plan ? `${plan.name} · ${centsUsd(plan.includedSpendCents)} included` : "No plan"
           }

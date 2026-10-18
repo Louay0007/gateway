@@ -45,7 +45,7 @@ import type {
   UsagePageResponse,
   UsageSeriesResponse,
 } from "@/lib/api/types";
-import { compact, dateTime, rangeLabel, usdPrecise } from "@/lib/dashboard/format";
+import { compact, dateTime, rangeLabel, usdToTnd } from "@/lib/dashboard/format";
 
 const PAGE_SIZE = 25;
 
@@ -219,7 +219,7 @@ export function UsageView() {
         />
         <StatCard
           label="Spend"
-          value={usdPrecise(totals?.costCustomerUsd ?? 0)}
+          value={usdToTnd(totals?.costCustomerUsd ?? 0)}
           hint="Your cost for this period"
           icon={Coins}
         />
@@ -418,7 +418,7 @@ export function UsageView() {
                           {row.cacheReadTokens ? compact(row.cacheReadTokens) : "—"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {usdPrecise(row.costCustomerUsd)}
+                          {usdToTnd(row.costCustomerUsd)}
                         </TableCell>
                         <TableCell className="pr-6 text-right">
                           <StatusBadge code={row.statusCode} />
@@ -568,7 +568,7 @@ function ModelBreakdown({
               <TableCell className="text-right tabular-nums text-muted-foreground">
                 {compact(e.cache)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">{usdPrecise(e.cost)}</TableCell>
+              <TableCell className="text-right tabular-nums">{usdToTnd(e.cost)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

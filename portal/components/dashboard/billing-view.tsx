@@ -253,7 +253,7 @@ export function BillingView() {
         </Card>
       ) : null}
 
-      {b.state === "pending" ? (
+      {b.state === "pending" && b.d17PaymentStatus === "proof_submitted" ? (
         <Card className="border-amber-500/40 bg-amber-500/5">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
             <Clock className="size-5 text-amber-600" />

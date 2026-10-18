@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { and, eq } from "drizzle-orm";
+import { ShieldCheck, ArrowLeft } from "lucide-react";
 
-import { AuthShell } from "@/components/auth/auth-shell";
 import { D17Instructions } from "@/components/d17/d17-instructions";
 import { D17ProofForm } from "@/components/d17/d17-proof-form";
 import { D17StatusCard, type D17PaymentStatus } from "@/components/d17/d17-status-card";
@@ -17,17 +17,17 @@ import {
 } from "@/lib/billing/d17-config";
 import { loadD17Payment } from "@/lib/billing/d17";
 import { D17_LANGS, d17Dir, isD17Lang, t17 } from "@/lib/i18n/d17";
+import Logo from "@/assets/logo/logo";
 
 export const metadata: Metadata = { title: "Pay with D17" };
 export const dynamic = "force-dynamic";
 
 /**
- * /checkout/d17/[subscriptionId] — professional subscription flow with
- * visual progress stepper and state-aware rendering.
+ * /checkout/d17/[subscriptionId] — professional subscription checkout.
  *
- * The stepper shows three stages: Transfer → Proof → Verification.
- * Each payment status maps to a stepper position and a status card
- * that explains what the user should do next.
+ * Wide two-column layout: instructions on the left, proof form on the right.
+ * Stepper at top shows progress through Transfer → Proof → Verification.
+ * All monetary values displayed in TND.
  */
 export default async function D17CheckoutPage({
   params,
@@ -63,16 +63,16 @@ export default async function D17CheckoutPage({
   });
   if (!sub) {
     return (
-      <AuthShell
-        title={t("d17.err_generic")}
-        footer={
-          <Link href="/dashboard/billing" className="text-black underline-offset-4 hover:underline">
+      <CheckoutShell lang={lang} dir={dir}>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <p className="text-lg font-medium text-gray-900">{t("d17.err_generic")}</p>
+          <p className="mt-2 text-sm text-gray-500">{t("d17.summary_reference")}: {subscriptionId}</p>
+          <Link href="/dashboard/billing" className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black underline-offset-4 hover:underline">
+            <ArrowLeft className="size-4" />
             {t("d17.back_dashboard")}
           </Link>
-        }
-      >
-        <p className="text-sm text-gray-600">{t("d17.summary_reference")}: {subscriptionId}</p>
-      </AuthShell>
+        </div>
+      </CheckoutShell>
     );
   }
 
@@ -89,37 +89,36 @@ export default async function D17CheckoutPage({
   // ── Already activated ────────────────────────────────────────────────
   if (sub.status === "active" && payment?.status === "paid") {
     return (
-      <AuthShell
-        title={t("d17.status_paid")}
-        subtitle={t("d17.email_approved_body", {
-          plan: plan?.name ?? "",
-          amount: formatTndMillimes(payment.amountMillimes),
-        })}
-        footer={
-          <Link href="/dashboard" className="text-black underline-offset-4 hover:underline">
+      <CheckoutShell lang={lang} dir={dir}>
+        <div className="mx-auto max-w-lg py-10 text-center">
+          <D17StatusCard status="paid" lang={lang} className="mb-6" />
+          <p className="text-sm leading-relaxed text-gray-600">
+            {t("d17.email_approved_body", {
+              plan: plan?.name ?? "",
+              amount: formatTndMillimes(payment.amountMillimes),
+            })}
+          </p>
+          <Link href="/dashboard" className="mt-8 inline-flex items-center justify-center rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800">
             {t("d17.back_dashboard")}
           </Link>
-        }
-      >
-        <D17StatusCard status="paid" lang={lang} className="mb-6" />
-        <div dir={dir} className="grid gap-4" />
-      </AuthShell>
+        </div>
+      </CheckoutShell>
     );
   }
 
   // ── No payment row ───────────────────────────────────────────────────
   if (!payment) {
     return (
-      <AuthShell
-        title={t("d17.err_generic")}
-        footer={
-          <Link href="/dashboard/billing" className="text-black underline-offset-4 hover:underline">
+      <CheckoutShell lang={lang} dir={dir}>
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <p className="text-lg font-medium text-gray-900">{t("d17.err_generic")}</p>
+          <p className="mt-2 text-sm text-gray-500">{t("d17.summary_reference")}: {subscriptionId}</p>
+          <Link href="/dashboard/billing" className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black underline-offset-4 hover:underline">
+            <ArrowLeft className="size-4" />
             {t("d17.back_dashboard")}
           </Link>
-        }
-      >
-        <p className="text-sm text-gray-600">{t("d17.summary_reference")}: {subscriptionId}</p>
-      </AuthShell>
+        </div>
+      </CheckoutShell>
     );
   }
 
@@ -145,25 +144,25 @@ export default async function D17CheckoutPage({
     expired: "d17.status_expired",
   };
 
+  const isActionable = status === "pending_payment" || status === "rejected";
+
   return (
-    <AuthShell
-      title={plan?.name ?? "Subscription"}
-      subtitle={
-        <span className="flex items-center gap-2 text-sm font-normal text-gray-500">
-          <span>{formatTndMillimes(payment.amountMillimes)}</span>
-          <span aria-hidden>·</span>
-          <span>{t(statusKey[status] ?? "d17.status_pending")}</span>
-        </span>
-      }
-      footer={
-        <Link href="/dashboard/billing" className="text-black underline-offset-4 hover:underline">
-          {t("d17.back_dashboard")}
-        </Link>
-      }
-    >
-      <div dir={dir} className="grid gap-8">
-        {/* ── Progress Stepper ─────────────────────────────────────── */}
-        <nav aria-label={t("d17.step_transfer")} className="px-1">
+    <CheckoutShell lang={lang} dir={dir}>
+      <div className="mx-auto w-full max-w-4xl">
+        {/* ── Header ──────────────────────────────────────────────────── */}
+        <header className="mb-8 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight text-black sm:text-3xl">
+            {plan?.name ?? "Subscription"}
+          </h1>
+          <p className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-500">
+            <span className="font-mono font-medium text-black">{formatTndMillimes(payment.amountMillimes)}</span>
+            <span aria-hidden className="text-gray-300">·</span>
+            <span>{t(statusKey[status] ?? "d17.status_pending")}</span>
+          </p>
+        </header>
+
+        {/* ── Progress Stepper ────────────────────────────────────────── */}
+        <nav aria-label={t("d17.step_transfer")} className="mb-10 px-2">
           <ol className="flex items-center justify-between">
             {[
               { key: "d17.step_transfer", step: 0 },
@@ -188,103 +187,164 @@ export default async function D17CheckoutPage({
           </ol>
         </nav>
 
-        {/* ── Status Card ──────────────────────────────────────────── */}
-        {/* Only show after proof submission or admin action. A fresh
-         * pending_payment row means the customer hasn't transferred yet;
-         * showing "awaiting verification" at that point is misleading —
-         * the instructions and form below already tell them what to do. */}
+        {/* ── Status Card ─────────────────────────────────────────────── */}
         {status !== 'pending_payment' && (
-          <D17StatusCard
-            status={status}
-            lang={lang}
-            rejectReason={payment.rejectReason}
-            flaggedReview={payment.flaggedReview}
-          />
+          <div className="mb-8">
+            <D17StatusCard
+              status={status}
+              lang={lang}
+              rejectReason={payment.rejectReason}
+              flaggedReview={payment.flaggedReview}
+            />
+          </div>
         )}
 
-        {/* ── Payment Summary ──────────────────────────────────────── */}
-        <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
-          <div className="border-b border-gray-100 px-5 py-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t("d17.summary_reference")}</h2>
-          </div>
-          <dl className="grid gap-y-3 px-5 py-4 text-sm">
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-gray-500">{t("d17.summary_plan")}</dt>
-              <dd className="font-medium text-black">{plan?.name ?? "—"}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-gray-500">{t("d17.summary_amount")}</dt>
-              <dd className="font-mono text-base font-semibold tabular-nums text-black">{formatTndMillimes(payment.amountMillimes)}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-gray-500">{t("d17.summary_reference")}</dt>
-              <dd className="font-mono text-xs text-gray-600">d17-{payment.id.slice(0, 8)}</dd>
-            </div>
-            <div className="flex items-center justify-between gap-4">
-              <dt className="text-gray-500">{t("d17.summary_status")}</dt>
-              <dd className="font-medium text-black">{t(statusKey[payment.status] ?? "d17.status_pending")}</dd>
-            </div>
-          </dl>
-        </section>
-
-        {/* ── Instructions + Proof Form (only when actionable) ────── */}
-        {(status === "pending_payment" || status === "rejected") && phone && (
-          <>
-            {!rejected && (
-              <section className="grid gap-5">
-                <div className="grid gap-2">
-                  <h2 className="text-sm font-semibold text-black">{t("d17.step_transfer")}</h2>
-                  <p className="text-sm leading-relaxed text-gray-600">{t("d17.method_hint")}</p>
+        {/* ── Main Content Grid ───────────────────────────────────────── */}
+        {isActionable && phone ? (
+          <div className="grid gap-8 lg:grid-cols-[1fr_380px]">
+            {/* Left column: Instructions + Summary */}
+            <div className="space-y-6">
+              {/* Payment Summary Card */}
+              <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                <div className="border-b border-gray-100 bg-gray-50/50 px-5 py-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t("d17.summary_reference")}</h2>
                 </div>
-                <D17Instructions
-                  lang={lang}
-                  amountMillimes={payment.amountMillimes}
-                  receiverPhone={phone}
-                  reference={`d17-${payment.id}`}
-                />
-                <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3 text-sm text-amber-900">
-                  {t("d17.notice", { hours: String(hours) })}
-                </div>
+                <dl className="divide-y divide-gray-50 px-5">
+                  <SummaryRow label={t("d17.summary_plan")} value={plan?.name ?? "—"} />
+                  <SummaryRow label={t("d17.summary_amount")} value={formatTndMillimes(payment.amountMillimes)} mono highlight />
+                  <SummaryRow label={t("d17.summary_reference")} value={`d17-${payment.id.slice(0, 8)}`} mono small />
+                  <SummaryRow label={t("d17.summary_status")} value={t(statusKey[payment.status] ?? "d17.status_pending")} />
+                </dl>
               </section>
-            )}
 
-            <section className="grid gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-              <div className="grid gap-1.5">
-                <h2 className="text-sm font-semibold text-black">{t("d17.proof_title")}</h2>
-                <p className="text-sm leading-relaxed text-gray-600">{t("d17.proof_subtitle")}</p>
-              </div>
-              <D17ProofForm subscriptionId={subscriptionId} lang={lang} />
-            </section>
-          </>
-        )}
+              {/* Transfer Instructions */}
+              {!rejected && (
+                <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <div className="mb-5">
+                    <h2 className="text-base font-semibold text-black">{t("d17.step_transfer")}</h2>
+                    <p className="mt-1 text-sm leading-relaxed text-gray-600">{t("d17.method_hint")}</p>
+                  </div>
+                  <D17Instructions
+                    lang={lang}
+                    amountMillimes={payment.amountMillimes}
+                    receiverPhone={phone}
+                    reference={`d17-${payment.id}`}
+                  />
+                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50/60 px-4 py-3">
+                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-amber-700" aria-hidden />
+                    <p className="text-sm leading-relaxed text-amber-900">
+                      {t("d17.notice", { hours: String(hours) })}
+                    </p>
+                  </div>
+                </section>
+              )}
+            </div>
 
-        {/* ── Waiting state (proof submitted) ─────────────────────── */}
+            {/* Right column: Proof Form */}
+            <aside className="lg:sticky lg:top-8 lg:self-start">
+              <section className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                <div className="mb-5">
+                  <h2 className="text-base font-semibold text-black">{t("d17.proof_title")}</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-gray-600">{t("d17.proof_subtitle")}</p>
+                </div>
+                <D17ProofForm subscriptionId={subscriptionId} lang={lang} />
+              </section>
+            </aside>
+          </div>
+        ) : null}
+
+        {/* ── Waiting state (proof submitted) ─────────────────────────── */}
         {status === "proof_submitted" && (
-          <div className="grid gap-2 rounded-xl border border-gray-200 bg-gray-50/50 p-6 text-center">
+          <div className="mx-auto max-w-md rounded-xl border border-gray-200 bg-gray-50/50 p-8 text-center">
             <p className="text-sm font-medium text-gray-900">{t("d17.waiting_title")}</p>
-            <p className="text-xs leading-relaxed text-gray-500">{t("d17.waiting_subtitle")}</p>
+            <p className="mt-2 text-xs leading-relaxed text-gray-500">{t("d17.waiting_subtitle")}</p>
           </div>
         )}
 
-        {/* ── Expired state ───────────────────────────────────────── */}
+        {/* ── Expired state ───────────────────────────────────────────── */}
         {status === "expired" && (
-          <div className="flex justify-center pt-2">
+          <div className="flex justify-center pt-4">
             <Link
               href="/dashboard/billing"
-              className="inline-flex items-center justify-center rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
+              className="inline-flex items-center justify-center rounded-lg bg-black px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
             >
               {t("d17.continue")}
             </Link>
           </div>
         )}
 
-        {/* ── Footer notices ──────────────────────────────────────── */}
-        <div className="grid gap-4 border-t border-gray-100 pt-6">
-          <p className="text-center text-xs leading-relaxed text-gray-500">{t("d17.no_pin_notice")}</p>
+        {/* ── Footer ──────────────────────────────────────────────────── */}
+        <footer className="mt-12 flex flex-col items-center gap-4 border-t border-gray-100 pt-8">
+          <div className="flex items-center gap-2 text-xs text-gray-400">
+            <ShieldCheck className="size-3.5" aria-hidden />
+            <span>{t("d17.no_pin_notice")}</span>
+          </div>
           <LangSwitch links={langLinks(base)} />
-        </div>
+          <Link href="/dashboard/billing" className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 underline-offset-4 hover:text-black hover:underline">
+            <ArrowLeft className="size-3" />
+            {t("d17.back_dashboard")}
+          </Link>
+        </footer>
       </div>
-    </AuthShell>
+    </CheckoutShell>
+  );
+}
+
+/* ── Sub-components ─────────────────────────────────────────────────────── */
+
+function CheckoutShell({
+  children,
+  lang,
+  dir,
+}: {
+  children: React.ReactNode;
+  lang: string;
+  dir: "ltr" | "rtl";
+}) {
+  return (
+    <main className="light-surface min-h-dvh bg-white" lang={lang} dir={dir}>
+      <div className="animate-hero-rise px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+        <Link
+          href="/"
+          aria-label="Zaino AI home"
+          className="mb-10 flex justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-black/40 focus-visible:outline-none"
+        >
+          <Logo tone="light" />
+        </Link>
+        {children}
+      </div>
+    </main>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  mono,
+  highlight,
+  small,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+  highlight?: boolean;
+  small?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 py-3.5">
+      <dt className="text-sm text-gray-500">{label}</dt>
+      <dd
+        className={`text-right ${
+          highlight
+            ? "text-base font-semibold text-black"
+            : small
+              ? "text-xs text-gray-600"
+              : "text-sm font-medium text-black"
+        } ${mono ? "font-mono tabular-nums" : ""}`}
+      >
+        {value}
+      </dd>
+    </div>
   );
 }
 
@@ -294,18 +354,18 @@ function LangSwitch({
   links: { lang: string; href: string; current: boolean }[];
 }) {
   return (
-    <nav aria-label="Language" className="flex items-center gap-3 text-xs">
+    <nav aria-label="Language" className="flex items-center gap-2">
       {links.map((l) => (
         <Link
           key={l.lang}
           href={l.href}
           hrefLang={l.lang}
           aria-current={l.current ? "true" : undefined}
-          className={
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
             l.current
-              ? "rounded border border-gray-300 bg-gray-100 px-2 py-1 font-medium text-black"
-              : "rounded border border-transparent px-2 py-1 text-gray-600 hover:text-black"
-          }
+              ? "border border-gray-200 bg-gray-100 text-black"
+              : "text-gray-500 hover:text-black"
+          }`}
         >
           {l.lang.toUpperCase()}
         </Link>

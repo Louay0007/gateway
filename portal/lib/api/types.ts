@@ -62,6 +62,7 @@ export interface SubscriptionBundle {
   };
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
+  d17PaymentStatus: string | null;
 }
 
 export interface UsagePageResponse {

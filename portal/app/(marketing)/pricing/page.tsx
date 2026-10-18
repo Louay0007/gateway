@@ -56,7 +56,7 @@ export default function PricingPage() {
 function Badge() {
   return (
     <span className="inline-flex h-7 w-fit items-center rounded-full border border-black px-3 text-sm font-normal text-black">
-      Starter $19 / month · Pro $99 / month
+      Starter 59 DT / month · Pro 307 DT / month
     </span>
   );
 }

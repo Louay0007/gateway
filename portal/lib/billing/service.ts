@@ -57,6 +57,7 @@ import {
 } from './state';
 import { syncOrganizationEntitlements } from '@/lib/entitlements/sync';
 import { billingProvider, resolveBillingProvider } from './index';
+import { loadD17Payment } from './d17';
 import { log } from '@/lib/log';
 import type { ProviderEvent } from './types';
 
@@ -171,6 +172,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   promptsByModel: Record<string, number>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
+  d17PaymentStatus: string | null;
 }> {
   const [{ state, plan, subscription }, ent, usage, activeKeys] = await Promise.all([
     planStateFor(organizationId),
@@ -276,6 +278,9 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     promptsByModel: usage.promptsByModel,
     limits: plan,
     keys: { active: Number(activeKeys[0]?.count ?? 0), max: plan?.maxKeys ?? null },
+    d17PaymentStatus: subscription
+      ? (await loadD17Payment(subscription.id))?.status ?? null
+      : null,
   };
 }
 
