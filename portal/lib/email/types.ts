@@ -31,7 +31,7 @@ export interface EmailResult {
 }
 
 export interface EmailTransport {
-  readonly name: 'resend' | 'log';
+  readonly name: 'resend' | 'log' | 'smtp';
   send(message: EmailMessage): Promise<EmailResult>;
 }
 

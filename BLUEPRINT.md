@@ -173,8 +173,8 @@ subscription-derived credential.**
                         ▼
         ┌──────────────────────────────────────────────────────────┐
         │  Caddy  (TLS termination, auto-cert)                    │
-        │  • api.yourdomain.com  → gateway      [public]          │
-        │  • admin.yourdomain.com → admin UI     [IP-allowlisted] │
+        │  • api.zaino.soon.it  → gateway      [public]          │
+        │  • admin.zaino.soon.it → admin UI     [IP-allowlisted] │
         │  • trusted_proxies = Cloudflare CIDRs (if used)         │
         │  • flush_interval -1  (no SSE buffering)                │
         └───────────────┬──────────────────────────────────────────┘
@@ -550,7 +550,7 @@ printf 'POSTGRES_PASSWORD=%s\nREDIS_PASSWORD=%s\n' \
 
 ```caddyfile
 {
-    email you@yourdomain.com
+    email you@zaino.soon.it
 
     # ONLY enable these two lines if the origin is unreachable except
     # through Cloudflare. Without them, X-Forwarded-For is spoofable.
@@ -658,7 +658,7 @@ from openai import OpenAI
 
 client = OpenAI(
     api_key="sk-...",
-    base_url="https://api.yourdomain.com/v1",   # your base URL
+    base_url="https://api.zaino.soon.it/v1",   # your base URL
 )
 
 r = client.chat.completions.create(
@@ -670,7 +670,7 @@ r = client.chat.completions.create(
 Native Anthropic SDK works too — point it at your domain:
 
 ```bash
-export ANTHROPIC_BASE_URL=https://api.yourdomain.com
+export ANTHROPIC_BASE_URL=https://api.zaino.soon.it
 export ANTHROPIC_AUTH_TOKEN=sk-your-issued-key
 export ANTHROPIC_MODEL=fast
 export ANTHROPIC_SMALL_FAST_MODEL=fast
@@ -997,7 +997,7 @@ proxy_read_timeout 900s;
 **The attack:**
 
 ```bash
-curl https://api.yourdomain.com/v1/messages \
+curl https://api.zaino.soon.it/v1/messages \
   -H "X-Forwarded-For: 1.2.3.4" \
   -H "Authorization: Bearer sk-leaked"
 ```
@@ -1313,7 +1313,7 @@ admin   A     <VPS_IP>
 DNS propagation is not instant. Verify before proceeding:
 
 ```bash
-dig +short api.yourdomain.com
+dig +short api.zaino.soon.it
 ```
 
 ### 13.3 Base host
@@ -1355,8 +1355,8 @@ cd /opt/gateway
 openssl rand -hex 32   # LITELLM_MASTER_KEY
 openssl rand -hex 32   # LITELLM_SALT_KEY
 cat > .env <<'EOF'
-API_DOMAIN=api.yourdomain.com
-ADMIN_DOMAIN=admin.yourdomain.com
+API_DOMAIN=api.zaino.soon.it
+ADMIN_DOMAIN=admin.zaino.soon.it
 LITELLM_MASTER_KEY=sk-...
 LITELLM_SALT_KEY=sk-...
 UPSTREAM_BASE_URL=https://api.anthropic.com
@@ -1373,7 +1373,7 @@ docker compose exec litellm \
   python -c "import os; print(os.environ['DATABASE_URL'][:30])"
 ```
 
-Verify in the Admin UI (`https://admin.yourdomain.com/ui`): **Models** → spend
+Verify in the Admin UI (`https://admin.zaino.soon.it/ui`): **Models** → spend
 values must be **non-zero**. If they are zero, your price table isn't matching
 the model name and every budget will be wrong.
 
@@ -1419,13 +1419,13 @@ curl -s https://<UPSTREAM_BASE_URL>/v1/models \
   -H "x-api-key: $UPSTREAM_API_KEY" | head -c 200
 
 # 2. Gateway rejects a bad key
-curl -s -o /dev/null -w '%{http_code}\n' https://api.yourdomain.com/v1/chat/completions \
+curl -s -o /dev/null -w '%{http_code}\n' https://api.zaino.soon.it/v1/chat/completions \
   -H "Authorization: Bearer sk-invalid" \
   -H 'Content-Type: application/json' -d '{"model":"fast","messages":[]}'
 # expect 401
 
 # 3. Gateway accepts a valid key
-curl -s https://api.yourdomain.com/v1/chat/completions \
+curl -s https://api.zaino.soon.it/v1/chat/completions \
   -H "Authorization: Bearer $TENANT_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"say hi"}]}'
@@ -1436,7 +1436,7 @@ curl -s https://api.yourdomain.com/v1/chat/completions \
 
 ```bash
 # Key is scoped to `fast` only
-curl -s https://api.yourdomain.com/v1/chat/completions \
+curl -s https://api.zaino.soon.it/v1/chat/completions \
   -H "Authorization: Bearer $CHEAP_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"smart","messages":[{"role":"user","content":"hi"}]}'
@@ -1453,7 +1453,7 @@ curl -s -X POST http://127.0.0.1:4000/key/generate \
        "max_budget":0.000001,"budget_duration":"30d"}'
 
 # Now call it. MUST be rejected.
-curl -s -o /dev/null -w '%{http_code}\n' https://api.yourdomain.com/v1/chat/completions \
+curl -s -o /dev/null -w '%{http_code}\n' https://api.zaino.soon.it/v1/chat/completions \
   -H "Authorization: Bearer <canary-key>" \
   -H 'Content-Type: application/json' \
   -d '{"model":"fast","messages":[{"role":"user","content":"hi"}]}'
@@ -1466,7 +1466,7 @@ system is being enforced.** Stop and fix it before issuing any real keys.
 ### 14.4 Streaming
 
 ```bash
-time curl -sN https://api.yourdomain.com/v1/chat/completions \
+time curl -sN https://api.zaino.soon.it/v1/chat/completions \
   -H "Authorization: Bearer $TENANT_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"fast","stream":true,
@@ -1482,7 +1482,7 @@ Automated check:
 python3 - <<'PY'
 import time, json, urllib.request, os
 req = urllib.request.Request(
-    "https://api.yourdomain.com/v1/chat/completions",
+    "https://api.zaino.soon.it/v1/chat/completions",
     data=json.dumps({"model":"fast","stream":True,
         "messages":[{"role":"user","content":"count slowly to 20"}]}).encode(),
     headers={"Authorization": f"Bearer {os.environ['TENANT_KEY']}",
@@ -1509,7 +1509,7 @@ zero cache tokens.
 
 ```bash
 # Direct-to-origin call with a forged XFF
-curl -s -o /dev/null -w '%{http_code}\n' https://api.yourdomain.com/v1/chat/completions \
+curl -s -o /dev/null -w '%{http_code}\n' https://api.zaino.soon.it/v1/chat/completions \
   -H "X-Forwarded-For: 203.0.113.99" \
   -H "CF-Connecting-IP: 203.0.113.99" \
   -H "Authorization: Bearer $TENANT_KEY" \
@@ -1526,7 +1526,7 @@ limits are void.
 ### 14.7 SSRF
 
 ```bash
-curl -s https://api.yourdomain.com/v1/chat/completions \
+curl -s https://api.zaino.soon.it/v1/chat/completions \
   -H "Authorization: Bearer $TENANT_KEY" \
   -H 'Content-Type: application/json' \
   -d '{"model":"fast","api_base":"http://169.254.169.254/","messages":[]}'

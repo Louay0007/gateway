@@ -568,7 +568,7 @@ already exists in this repo:
 
 ```bash
 ./scripts/measure-latency.sh \
-  --base https://api.yourdomain.com \
+  --base https://api.zaino.soon.it \
   --key  sk-... \
   --model fast \
   --samples 50

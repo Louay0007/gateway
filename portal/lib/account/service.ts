@@ -341,7 +341,7 @@ export async function deleteAccount(input: {
     .where(
       and(
         eq(subscriptions.organizationId, org.id),
-        sql`${subscriptions.status} IN ('trialing','active','past_due','paused','incomplete')`,
+        sql`${subscriptions.status} IN ('active','past_due','paused','incomplete')`,
       ),
     );
 

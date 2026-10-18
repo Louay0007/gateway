@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Activity, Boxes, Coins, Database, Download, RefreshCw, Search, X } from "lucide-react";
+import { Activity, Boxes, Coins, Database, Download, MessageSquare, RefreshCw, Search, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -185,7 +185,20 @@ export function UsageView() {
     <>
       <RefreshingBar show={usage.refreshing} />
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard
+          label="Prompts"
+          value={Object.values(bundle.data?.usage.promptsByModel ?? {}).reduce((a, b) => a + b, 0).toLocaleString()}
+          hint={
+            bundle.data?.plan?.promptLimits
+              ? Object.entries(bundle.data.plan.promptLimits)
+                  .filter(([, v]) => v > 0)
+                  .map(([k, v]) => `${k}: ${bundle.data?.usage.promptsByModel?.[k] ?? 0}/${v}`)
+                  .join(" · ") || "No prompt limits"
+              : "Per-model counts"
+          }
+          icon={MessageSquare}
+        />
         <StatCard
           label="Requests"
           value={(totals?.requests ?? 0).toLocaleString()}
@@ -199,21 +212,15 @@ export function UsageView() {
           icon={Boxes}
         />
         <StatCard
-          label="Cache reads"
+          label="Cached tokens"
           value={compact(totals?.cacheReadTokens ?? 0)}
-          hint="Billed at the cache-read rate"
+          hint="Tokens served from cache (cheaper)"
           icon={Database}
         />
         <StatCard
           label="Spend"
           value={usdPrecise(totals?.costCustomerUsd ?? 0)}
-          hint={
-            bundle.data?.plan
-              ? `Upstream ${usdPrecise(totals?.costUpstreamUsd ?? 0)} · ${(
-                  bundle.data.plan.rateMultiplierBps / 10000
-                ).toFixed(2)}×`
-              : "Customer cost"
-          }
+          hint="Your cost for this period"
           icon={Coins}
         />
       </div>
@@ -395,7 +402,9 @@ export function UsageView() {
                         <TableCell>
                           <Badge variant="secondary">{row.model}</Badge>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{row.route}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {row.route === 'chat_completions' ? 'Chat' : row.route === 'responses' ? 'Response' : row.route}
+                        </TableCell>
                         <TableCell
                           className="max-w-0 truncate text-muted-foreground"
                           title={row.keyName ?? "deleted key"}

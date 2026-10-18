@@ -1,5 +1,5 @@
 {
-	email you@yourdomain.com
+	email you@zaino.soon.it
 
 	# DESIGN.md §6.1 — no CDN by default. DNS-only A record → VPS.
 	# With no intermediary, the TCP peer IS the client IP and Caddy's
@@ -202,26 +202,77 @@
 		-Server
 	}
 }
-# ── Admin UI + management API ───────────────────────────────────────
-# Separate hostname, IP-gated, default-deny.
+# ── Operations console (admin.zaino.soon.it) ────────────────────────
+# The staff-facing Next.js console — suspend accounts, verify D17
+# payments, read revenue and margin, manage plans and staff.
 #
-# Why separate: LiteLLM's management endpoints are authenticated by the
-# master key, but hosting them on the same origin as your tenant keys
-# means one leaked master key is a single HTTP request from total
-# compromise of every budget and key.
-{$ADMIN_DOMAIN} {
+# A DIFFERENT VHOST FROM LiteLLM'S OWN ADMIN UI, DELIBERATELY.
+#
+# The retired ADMIN_DOMAIN variable used to point here and proxied to
+# 127.0.0.1:4000, which is LiteLLM's Admin UI — a master-key-only surface
+# listing raw keys and spend. It is a different product from the portal's
+# operations console, it is far more powerful per request, and setting
+# ADMIN_DOMAIN=admin.zaino.soon.it sent staff to LiteLLM while the
+# console they actually needed stayed stranded on the portal domain.
+#
+# LiteLLM's management API is now reachable ONLY on 127.0.0.1:4000,
+# which is already bound to loopback (docker-compose.yml publishes
+# "127.0.0.1:4000:4000" and nothing else). There is no public vhost for
+# it at all. Reach it with an SSH tunnel:
+#
+#     ssh -L 4000:localhost:4000 gateway@<VPS_IP>
+#     # then http://localhost:4000/ui — master key required
+#
+# That is the same pattern already used for `opencode web` above. One
+# leaked master key now requires shell access, not one HTTP request.
+#
+# This host is still IP-gated, because the portal's own staff gate is
+# enforced in the application and the IP allowlist is defence in depth —
+# it stops an unauthenticated caller from ever reaching a login form on
+# the operations host.
+#
+# Replace 203.0.113.4/32 with YOUR public IP (curl -s ifconfig.me).
+{$CONSOLE_DOMAIN} {
 	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32
 	respond @blocked "Forbidden" 403
 
-	reverse_proxy 127.0.0.1:4000 {
+	# The same 2MB control-plane ceiling as the portal vhost, plus the
+	# 4MB D17-proof carve-out: staff open payment screenshots through
+	# /api/admin/d17/[id]/screenshot here, and a proof can be up to 3MB.
+	route /api/checkout/d17/proof* {
+		request_body {
+			max_size 4MB
+		}
+	}
+
+	request_body {
+		max_size 2MB
+	}
+
+	reverse_proxy 127.0.0.1:3000 {
 		flush_interval -1
 		transport http {
 			dial_timeout 10s
-			response_header_timeout 300s
-			read_timeout 900s
-			write_timeout 900s
+			response_header_timeout 60s
+			read_timeout 120s
+			write_timeout 120s
 			keepalive_interval 30s
 			keepalive_idle_conns_per_host 64
 		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+		# The console must never be indexed, and must never be embedded.
+		X-Robots-Tag "noindex, nofollow"
+		X-Frame-Options "DENY"
 	}
 }

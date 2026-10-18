@@ -134,6 +134,11 @@ const fr: Dict = {
   'd17.feat_tpm': '{count} tokens/min',
   'd17.feat_support': 'Support prioritaire',
   'd17.feat_budget': 'Budget mensuel inclus : {amount}',
+  'd17.feat_fast_prompts': '{count} prompts rapides',
+  'd17.feat_smart_prompts': '{count} prompts intelligents',
+  'd17.feat_frontier_prompts': '{count} prompts frontier',
+  'd17.prompt_meter_label': '{used} / {limit} prompts {alias}',
+  'd17.prompt_limit_exceeded': 'Limite de prompts atteinte pour {model}',
 };
 
 const ar: Dict = {
@@ -243,6 +248,11 @@ const ar: Dict = {
   'd17.feat_tpm': '{count} رمز/دقيقة',
   'd17.feat_support': 'دعم ذو أولوية',
   'd17.feat_budget': 'ميزانية شهرية مضمنة: {amount}',
+  'd17.feat_fast_prompts': '{count} طلب سريع',
+  'd17.feat_smart_prompts': '{count} طلب ذكي',
+  'd17.feat_frontier_prompts': '{count} طلب متقدم',
+  'd17.prompt_meter_label': '{used} / {limit} طلبات {alias}',
+  'd17.prompt_limit_exceeded': 'تم الوصول إلى حد الطلبات لـ {model}',
 };
 
 const en: Dict = {
@@ -353,6 +363,11 @@ const en: Dict = {
   'd17.feat_tpm': '{count} tokens/min',
   'd17.feat_support': 'Priority support',
   'd17.feat_budget': 'Monthly budget included: {amount}',
+  'd17.feat_fast_prompts': '{count} fast prompts',
+  'd17.feat_smart_prompts': '{count} smart prompts',
+  'd17.feat_frontier_prompts': '{count} frontier prompts',
+  'd17.prompt_meter_label': '{used} / {limit} {alias} prompts',
+  'd17.prompt_limit_exceeded': 'Prompt limit reached for {model}',
 };
 
 const DICTS: Record<D17Lang, Dict> = { fr, ar, en };

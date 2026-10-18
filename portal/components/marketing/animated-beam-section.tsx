@@ -97,7 +97,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
         {/* Right: TextReveal paragraph about Claude Code $20 limitations */}
         <div className="w-full lg:w-1/2 flex flex-col justify-center space-y-4">
           <TextReveal
-            text="Claude Code's $20/month plan hits its limit fast. Heavy coding sessions burn through usage caps, leaving you throttled or waiting hours to continue. Teams face unpredictable overages and fragmented workflows when the meter runs out mid-task."
+            text="Other tools cap your usage and throttle you mid-flow. You hit limits, wait hours, and lose momentum."
             mode="word"
             as="p"
             delay={0.2}
@@ -108,7 +108,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
             className="text-base sm:text-lg text-muted-foreground leading-relaxed"
           />
           <TextReveal
-            text="Zaino AI removes those ceilings entirely — unlimited access, no throttling, no surprise charges. One subscription, every model, zero friction."
+            text="Zaino gives you every model with no throttling, no surprises, and no waiting. Just code."
             mode="word"
             as="p"
             delay={0.8}

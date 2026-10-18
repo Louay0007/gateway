@@ -32,7 +32,6 @@ import { db } from '@/db';
 import { collectUsage, rollupUsage } from '@/lib/jobs/collect-usage';
 import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
 import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
-import { expireTrials } from '@/lib/jobs/expire-trials';
 import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
 import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
 import { log } from '@/lib/log';
@@ -72,11 +71,6 @@ const JOBS: readonly Job[] = [
     name: 'expire_subscriptions',
     everyMs: 5 * 60_000,
     run: () => expireSubscriptions(),
-  },
-  {
-    name: 'expire_trials',
-    everyMs: 5 * 60_000,
-    run: () => expireTrials(),
   },
   {
     name: 'send_alerts',

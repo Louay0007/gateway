@@ -59,8 +59,6 @@ export {
   changePlan,
   cancelSubscription,
   resumeSubscription,
-  startTrial,
-  trialEligibility,
   subscriptionBundle,
   planStateFor,
   listPlans,

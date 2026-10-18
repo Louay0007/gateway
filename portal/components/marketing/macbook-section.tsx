@@ -17,7 +17,7 @@ export default function MacbookSection({ className }: { className?: string }) {
         {/* Left: TextReveal about Zaino AI Agent App */}
         <div className="w-full lg:w-1/2 flex flex-col justify-center space-y-4">
           <TextReveal
-            text="Meet your built-in AI agent app — powered by our own models, packed with full skills, autonomous agents, and real-time tool execution."
+            text="A full AI agent app built right in. Autonomous coding, real-time execution, and every tool you need."
             mode="word"
             as="p"
             delay={0.2}
@@ -28,7 +28,7 @@ export default function MacbookSection({ className }: { className?: string }) {
             className="text-base sm:text-lg text-muted-foreground leading-relaxed"
           />
           <TextReveal
-            text="Zaino AI doesn't just chat. It plans, codes, deploys, and iterates — all inside one desktop experience that feels like having a senior engineer on call 24/7."
+            text="It plans, codes, and ships — like a senior engineer on call 24/7, all from one desktop app."
             mode="word"
             as="p"
             delay={0.8}

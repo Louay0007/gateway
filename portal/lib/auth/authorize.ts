@@ -171,12 +171,23 @@ export function roleAtLeast(role: OrgRole, required: OrgRole): boolean {
   return ORG_RANK[role] >= ORG_RANK[required];
 }
 
-const STAFF_RANK = { read_only: 0, support: 1, admin: 2, owner: 3 } as const;
-export type StaffRole = keyof typeof STAFF_RANK;
+// The rank table itself lives in `staff-roles.ts` so `lib/admin/staff.ts`
+// can validate a role without importing this module (which would be
+// circular). Imported AND re-exported: the gates below use the names in
+// their own bodies, and every existing caller — pages, nav, the admin
+// routes — already imports them from `authorize`.
+import {
+  staffAtLeast,
+  type StaffRole,
+} from '@/lib/auth/staff-roles';
 
-export function staffAtLeast(role: StaffRole, required: StaffRole): boolean {
-  return STAFF_RANK[role] >= STAFF_RANK[required];
-}
+export {
+  STAFF_ROLES,
+  STAFF_ROLE_SUMMARY,
+  isStaffRole,
+  staffAtLeast,
+  type StaffRole,
+} from '@/lib/auth/staff-roles';
 
 /**
  * Is this staff session still fresh?
@@ -235,6 +246,20 @@ export async function requireStaff(required: StaffRole = 'read_only') {
     throw new AuthzError('Staff access required', 'forbidden', 403);
   }
 
+  // Revocation (0015). Checked AFTER the row lookup so a revoked operator
+  // gets 403, not the 401 that means "log in again" — their password is
+  // fine, their ACCESS was withdrawn, and telling them to re-authenticate
+  // would loop them straight back to the same refusal.
+  //
+  // NULL means active, so every row written before 0015 keeps working.
+  if (staff.revokedAt) {
+    log.warn('auth: revoked staff account attempted access', {
+      identity: session.user.email,
+      revokedAt: staff.revokedAt.toISOString(),
+    });
+    throw new AuthzError('Staff access has been revoked', 'forbidden', 403);
+  }
+
   const role = staff.role as StaffRole;
   if (!staffAtLeast(role, required)) {
     throw new AuthzError('Insufficient staff role', 'forbidden', 403);
@@ -270,7 +295,10 @@ export async function currentStaffRole(): Promise<StaffRole | null> {
   const staff = await db.query.staffUsers.findFirst({
     where: eq(staffUsers.email, session.user.email),
   });
-  return staff ? (staff.role as StaffRole) : null;
+  // A revoked operator is not staff for navigation purposes either: the
+  // nav must disappear rather than offer links that answer 403.
+  if (!staff || staff.revokedAt) return null;
+  return staff.role as StaffRole;
 }
 
 // ───────────────────────────────────────────────────────────────────────

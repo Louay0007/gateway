@@ -5,7 +5,7 @@
 # effective decode throughput, and LiteLLM's own overhead header.
 # Run weekly from two locations; append to CSV for SLA evidence.
 #
-#   usage: ./scripts/measure-latency.sh --base https://api.yourdomain.com \
+#   usage: ./scripts/measure-latency.sh --base https://api.zaino.soon.it \
 #            --key sk-... [--model fast] [--samples 50] [--csv latency.csv]
 
 set -uo pipefail

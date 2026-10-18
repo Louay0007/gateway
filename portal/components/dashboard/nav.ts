@@ -26,18 +26,20 @@ export const navMain: NavItem[] = [
   { title: "Billing", href: "/dashboard/billing", icon: CreditCard },
 ];
 
-/** Account-level and staff-only destinations. */
+/**
+ * Account-level and staff-only destinations.
+ *
+ * ONE staff entry, not two. The console used to offer "Admin" and "D17
+ * queue" as separate sidebar links; it now has its own navigation (the
+ * operations shell), so a single "Operations" entry is the honest
+ * representation. Listing the queue separately would imply it lives
+ * somewhere other than the console.
+ */
 export const navSecondary: NavItem[] = [
   { title: "Settings", href: "/dashboard/settings", icon: Settings },
   {
-    title: "Admin",
+    title: "Operations",
     href: "/admin",
-    icon: ShieldCheck,
-    staffOnly: true,
-  },
-  {
-    title: "D17 queue",
-    href: "/admin/d17",
     icon: ShieldCheck,
     staffOnly: true,
   },

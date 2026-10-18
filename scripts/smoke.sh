@@ -6,7 +6,7 @@
 # actually happen; the rest are hygiene.
 set -uo pipefail
 
-API="${API_DOMAIN:-api.yourdomain.com}"
+API="${API_DOMAIN:-api.zaino.soon.it}"
 # Public URL through the edge (Caddy) on the VPS. Locally there is no edge
 # proxy — LiteLLM is reached directly on loopback — so allow BASE to be
 # overridden. Set SMOKE_BASE=http://127.0.0.1:4000 to run the suite without

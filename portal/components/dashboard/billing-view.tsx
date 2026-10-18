@@ -36,6 +36,7 @@ import {
 import { ErrorState, PanelSkeleton, RefreshingBar } from "@/components/dashboard/states";
 import { PaywallState } from "@/components/dashboard/paywall-state";
 import { SpendMeter } from "@/components/dashboard/spend-meter";
+import { PromptMeters } from "@/components/dashboard/prompt-meter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import type {
@@ -131,27 +132,6 @@ export function BillingView() {
     router.push(result.data.checkoutUrl);
   }
 
-  async function startTrial(planCode: string) {
-    setBusy("trial");
-    const result = await apiSend<{ trialEnd: string }>("/api/billing/trial", {
-      body: { planCode },
-    });
-    setBusy(null);
-
-    if ("error" in result) {
-      toast.error(result.error.message);
-      return;
-    }
-    refresh();
-    const end = new Date(result.data.trialEnd).toLocaleDateString("en-US", {
-      month: "long",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "UTC",
-    });
-    toast.success(`Free trial started. Full access until ${end}.`);
-  }
-
   async function changePlan(planCode: string) {
     setBusy("change");
     const result = await apiSend<{ plan: unknown }>(
@@ -232,23 +212,6 @@ export function BillingView() {
           onCheckout={(planCode) => void beginCheckout(planCode)}
           disabled={busy !== null}
         />
-      ) : null}
-
-      {b.subscription?.status === "trialing" ? (
-        <Card className="border-primary/40 bg-primary/5">
-          <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <Sparkles className="size-5 text-primary" />
-            <p className="text-sm">
-              <span className="font-medium">Free trial.</span>{" "}
-              {b.subscription.trialEnd
-                ? `Full access until ${new Date(b.subscription.trialEnd).toLocaleDateString(
-                    "en-US",
-                    { month: "long", day: "numeric", timeZone: "UTC" },
-                  )} — subscribe before then to keep it.`
-                : "Subscribe before it ends to keep full access."}
-            </p>
-          </CardContent>
-        </Card>
       ) : null}
 
       {justPaid ? (
@@ -363,6 +326,12 @@ export function BillingView() {
                 </div>
               </CardHeader>
               <CardContent className="grid gap-6">
+                {/* Prompt meters — primary limit indicator (Migration 0013) */}
+                <PromptMeters
+                  promptsByModel={b.usage.promptsByModel ?? {}}
+                  promptLimits={plan.promptLimits ?? {}}
+                />
+
                 <div>
                   <div className="mb-2 flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">Spend this period</span>
@@ -460,13 +429,13 @@ export function BillingView() {
                 </CardHeader>
                 <CardContent className="grid gap-3 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Method</span>
-                    <span className="font-medium">D17 — La Poste</span>
+                    <span className="text-muted-foreground">Payment via</span>
+                    <span className="font-medium">La Poste (D17)</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-muted-foreground">Status</span>
+                    <span className="text-muted-foreground">Account</span>
                     <Badge variant={hasPlan ? "secondary" : "outline"}>
-                      {hasPlan ? "Active" : "Awaiting first payment"}
+                      {hasPlan ? "Active" : "Not yet paid"}
                     </Badge>
                   </div>
                   <Button

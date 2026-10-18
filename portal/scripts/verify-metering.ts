@@ -97,9 +97,7 @@ import {
   cancelSubscription,
   changePlan,
   planStateFor,
-  startTrial,
   subscriptionBundle,
-  trialEligibility,
   usageHistory,
   usageHistorySeries,
 } from '@/lib/billing';
@@ -112,7 +110,6 @@ import {
   setOrganizationStatus,
 } from '@/lib/billing/admin-console';
 import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
-import { expireTrials } from '@/lib/jobs/expire-trials';
 import { deleteAccount, updateProfile } from '@/lib/account/service';
 import { KeyServiceError } from '@/lib/keys/types';
 
@@ -1247,79 +1244,13 @@ async function main(): Promise<void> {
     `${renamed?.name}`,
   );
 
-  // ── 23. Free trial — start it, then prove the one-per-org rule ───────
-  section('23. free trial (startTrial — starter-only, one per org, audit-backed)');
-  // A dedicated org: a trial needs an org that has never subscribed.
-  const trialEmail = `trial-${runTag}@verify.invalid`;
-  const trialUser = await createLocalUser({ email: trialEmail, name: 'Trial Proof', password });
-  const trialProvisioned = await ensurePersonalOrg(trialUser.domainUserId);
-  const trialOrgId = trialProvisioned.organizationId;
-
-  const eligBefore = await trialEligibility(trialOrgId);
-  check(
-    'a fresh org is eligible for the 7-day trial',
-    eligBefore.eligible && eligBefore.trialDays === 7 && eligBefore.planCode === 'starter',
-    JSON.stringify(eligBefore),
-  );
-
-  await startTrial(trialOrgId, 'starter', trialUser.domainUserId);
-  const [trialSub] = await db
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.organizationId, trialOrgId));
-  check(
-    'startTrial opens the subscription in trialing',
-    trialSub?.status === 'trialing',
-    trialSub?.status ?? 'none',
-  );
-  const trialWindowDays = trialSub?.trialEnd
-    ? Math.round((trialSub.trialEnd.getTime() - Date.now()) / 86_400_000)
-    : -1;
-  check('the trial window is 7 days', trialWindowDays === 7, `${trialWindowDays}d`);
-  check(
-    'the period IS the trial (periodEnd == trialEnd)',
-    trialSub?.trialEnd != null &&
-      trialSub?.currentPeriodEnd?.getTime() === trialSub.trialEnd.getTime(),
-    `${trialSub?.currentPeriodEnd?.toISOString()} vs ${trialSub?.trialEnd?.toISOString()}`,
-  );
-
-  const trialState = await planStateFor(trialOrgId);
-  check('trialing resolves to full access in the dashboard', trialState.state === 'active', trialState.state);
-
-  const trialEnt = await db.query.entitlements.findFirst({
-    where: eq(entitlements.organizationId, trialOrgId),
-  });
-  check(
-    'trialing grants FULL at the gateway (a trial exercises the product)',
-    (trialEnt?.effective as { effect?: string })?.effect === 'full',
-    JSON.stringify(trialEnt?.effective),
-  );
-
-  const eligAfter = await trialEligibility(trialOrgId);
-  check(
-    'the trial cannot be started twice (the audit row is the ledger)',
-    !eligAfter.eligible && eligAfter.reason === 'trial_used',
-    JSON.stringify(eligAfter),
-  );
-  let secondTrialRefused = false;
-  try {
-    await startTrial(trialOrgId, 'starter', trialUser.domainUserId);
-  } catch (e) {
-    secondTrialRefused = (e as { code?: string }).code === 'conflict';
-  }
-  check('a second startTrial is refused with a conflict', secondTrialRefused);
-  check(
-    'Pro offers no trial (its ~$144 grant is a business decision, not a default)',
-    (await trialEligibility(trialOrgId, 'pro')).reason === 'no_trial_plan',
-  );
-
-  // ── 24. Admin console — the three manual staff powers ────────────────
-  section('24. admin console (suspend / reactivate / retry / credit)');
+  // ── 23. Admin console — the three manual staff powers ────────────────
+  section('23. admin console (suspend / reactivate / retry / credit)');
   const STAFF = 'verify-staff';
 
-  const suspended = await setOrganizationStatus(STAFF, trialOrgId, 'suspended');
+  const suspended = await setOrganizationStatus(STAFF, org.id, 'suspended');
   const orgAfterSuspend = await db.query.organizations.findFirst({
-    where: eq(organizations.id, trialOrgId),
+    where: eq(organizations.id, org.id),
   });
   check('suspend writes the org status', orgAfterSuspend?.status === 'suspended', orgAfterSuspend?.status);
   check(
@@ -1330,22 +1261,22 @@ async function main(): Promise<void> {
 
   let suspendedCheckoutRefused = false;
   try {
-    await beginCheckout(trialOrgId, 'starter', trialUser.domainUserId);
+    await beginCheckout(org.id, 'starter', domainUserId);
   } catch (e) {
     suspendedCheckoutRefused = (e as { code?: string }).code === 'forbidden';
   }
   check('a suspended org is refused the money path (403 forbidden)', suspendedCheckoutRefused);
 
-  const suspendedAgain = await setOrganizationStatus(STAFF, trialOrgId, 'suspended');
+  const suspendedAgain = await setOrganizationStatus(STAFF, org.id, 'suspended');
   check(
     'suspending an already-suspended org is a no-op (idempotent)',
     suspendedAgain.ok && suspendedAgain.alreadyApplied === true,
     JSON.stringify(suspendedAgain),
   );
 
-  const reactivatedOrg = await setOrganizationStatus(STAFF, trialOrgId, 'active');
+  const reactivatedOrg = await setOrganizationStatus(STAFF, org.id, 'active');
   const entReactivated = await db.query.entitlements.findFirst({
-    where: eq(entitlements.organizationId, trialOrgId),
+    where: eq(entitlements.organizationId, org.id),
   });
   check(
     'reactivate restores FULL access',
@@ -1355,7 +1286,7 @@ async function main(): Promise<void> {
     JSON.stringify(reactivatedOrg),
   );
 
-  const retried = await retryEntitlementSync(STAFF, trialOrgId);
+  const retried = await retryEntitlementSync(STAFF, org.id);
   check(
     'manual entitlement retry reports the pushed effect',
     retried.ok && retried.syncOk === true && retried.effect === 'full',
@@ -1363,7 +1294,7 @@ async function main(): Promise<void> {
   );
 
   const credit = await recordCreditNote(STAFF, {
-    organizationId: trialOrgId,
+    organizationId: org.id,
     amountCents: -2000,
     currency: 'TND',
     reason: 'verify: goodwill refund',
@@ -1373,7 +1304,7 @@ async function main(): Promise<void> {
     credit.ok && Boolean(credit.id),
     JSON.stringify(credit),
   );
-  const creditList = await listCreditNotes(trialOrgId);
+  const creditList = await listCreditNotes(org.id);
   check(
     'the credit note is listed for the org',
     creditList.length === 1 &&
@@ -1382,13 +1313,13 @@ async function main(): Promise<void> {
     JSON.stringify(creditList[0]),
   );
   const zeroCredit = await recordCreditNote(STAFF, {
-    organizationId: trialOrgId,
+    organizationId: org.id,
     amountCents: 0,
     reason: 'nothing',
   });
   check('a zero-amount credit note is refused', zeroCredit.ok === false && zeroCredit.error === 'amount_required');
   const adminRoster = await listAdminOrgs();
-  check('the admin roster includes the org it just acted on', adminRoster.some((o) => o.id === trialOrgId));
+  check('the admin roster includes the org it just acted on', adminRoster.some((o) => o.id === org.id));
 
   // ── 25. Anomaly scan — the money-risk signals ────────────────────────
   section('25. anomaly scan (detect_anomalies — mule phone, burst, cap, big request)');
@@ -1415,8 +1346,8 @@ async function main(): Promise<void> {
       expiresAt: new Date(),
     },
     {
-      subscriptionId: trialSub!.id,
-      organizationId: trialOrgId,
+      subscriptionId: mainSub!.id,
+      organizationId: org.id,
       amountMillimes: 1000,
       usdAmountCents: 100,
       fxRate: '3.1000',
@@ -1427,21 +1358,21 @@ async function main(): Promise<void> {
     },
   ]);
 
-  // (b) rejected-proof burst: three rejections in 24h on the trial org.
+  // (b) rejected-proof burst: three rejections in 24h on the org.
   for (let i = 0; i < 3; i++) {
     await db.insert(auditLog).values({
       actorType: 'system',
       action: 'd17.rejected',
-      organizationId: trialOrgId,
+      organizationId: org.id,
       after: { synthetic: true, i },
     });
   }
 
-  // (c) hard-cap breach: the trialing trial org spent past its cap for
+  // (c) hard-cap breach: the org spent past its cap for
   // the period (starter caps at $100). (d) a single oversized request.
   await db.insert(usageRecords).values([
     {
-      organizationId: trialOrgId,
+      organizationId: org.id,
       occurredAt: new Date(),
       billingPeriod: anomalyDay,
       model: 'fast',
@@ -1479,11 +1410,11 @@ async function main(): Promise<void> {
   );
   check(
     'the scan flags a rejected-proof burst',
-    await alertExists(`anomaly:rejected_burst:${trialOrgId}`),
+    await alertExists(`anomaly:rejected_burst:${org.id}`),
   );
   check(
     'the scan flags a hard-cap breach (the limiter did not hold)',
-    await alertExists(`anomaly:cap_breach:${trialOrgId}`),
+    await alertExists(`anomaly:cap_breach:${org.id}`),
   );
   check(
     'the scan flags a single oversized request',
@@ -1548,43 +1479,6 @@ async function main(): Promise<void> {
     headerLine.slice(0, 60),
   );
 
-  // ── 27. Trial expiry — the job cuts, it does not revoke ──────────────
-  section('27. trial expiry (expireTrials — unpaid + cut, keys starved)');
-  await db
-    .update(subscriptions)
-    .set({
-      trialEnd: new Date(Date.now() - 1000),
-      currentPeriodEnd: new Date(Date.now() - 1000),
-      updatedAt: new Date(),
-    })
-    .where(eq(subscriptions.id, trialSub!.id));
-
-  const expiries = await expireTrials();
-  check('the job ends the elapsed trial', expiries.ended >= 1, JSON.stringify(expiries));
-
-  const endedSub = await db.query.subscriptions.findFirst({
-    where: eq(subscriptions.id, trialSub!.id),
-  });
-  check(
-    'the subscription lands in unpaid (cut, not canceled/revoked)',
-    endedSub?.status === 'unpaid',
-    endedSub?.status,
-  );
-  const endedEnt = await db.query.entitlements.findFirst({
-    where: eq(entitlements.organizationId, trialOrgId),
-  });
-  check(
-    'the gateway is pushed to CUT_BUDGET',
-    (endedEnt?.effective as { effect?: string })?.effect === 'cut',
-    JSON.stringify(endedEnt?.effective),
-  );
-  const eligPostTrial = await trialEligibility(trialOrgId);
-  check(
-    'the trial stays spent after it ends (one per org, forever)',
-    !eligPostTrial.eligible && eligPostTrial.reason === 'trial_used',
-    JSON.stringify(eligPostTrial),
-  );
-
   // ── Summary ──────────────────────────────────────────────────────────
   const totalUpstream = ledger.reduce((a, r) => a + Number(r.costUpstreamUsd), 0);
   const totalCustomer = ledger.reduce((a, r) => a + Number(r.costCustomerUsd), 0);
@@ -1597,7 +1491,7 @@ async function main(): Promise<void> {
       `  upstream cost  $${totalUpstream.toFixed(8)} total\n` +
       `  customer cost  $${totalCustomer.toFixed(8)} total (starter × ${multiplier})\n` +
       `  lifecycle      paywall → checkout → activate → replay(no-op) → use → upgrade → cancel@period-end (grace) → rollover(cut) → re-subscribe → usage-series → cancel(now) → revoke(401) → delete-account → rename → trial → admin(suspend/reactivate/credit) → anomaly-scan → csv-export → trial-expiry(cut)\n` +
-      `  left behind    users ${email} + ${trialEmail}, orgs + teams, ledger rows, synthetic anomaly rows (evidence — nothing deleted)\n`,
+      `  left behind    user ${email}, org + team, ledger rows, synthetic anomaly rows (evidence — nothing deleted)\n`,
   );
 
   if (failures.length) {

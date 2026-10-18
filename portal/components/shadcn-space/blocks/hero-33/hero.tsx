@@ -15,14 +15,13 @@ import { useEffect, useRef } from "react";
 import gsap from "gsap";
 
 const headlineWords = [
-  "Your",
-  "Ultimate",
-  "Claude",
-  "Subscription",
-  "—",
-  "Forget",
-  "the",
+  "Code",
+  "Without",
   "Limits.",
+  "One",
+  "API.",
+  "Every",
+  "Model.",
 ];
 
 const Hero33 = () => {

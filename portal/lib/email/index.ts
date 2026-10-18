@@ -11,12 +11,15 @@
 
 import { logTransport } from './log';
 import { resendTransport } from './resend';
+import { smtpTransport } from './smtp';
 import type { EmailMessage, EmailResult, EmailTransport } from './types';
 
 function select(): EmailTransport {
   const requested = (process.env.EMAIL_TRANSPORT ?? '').toLowerCase();
   if (requested === 'log') return logTransport;
   if (requested === 'resend') return resendTransport;
+  if (requested === 'smtp') return smtpTransport;
+  if (process.env.SMTP_HOST && process.env.SMTP_USER) return smtpTransport;
   return process.env.RESEND_API_KEY ? resendTransport : logTransport;
 }
 

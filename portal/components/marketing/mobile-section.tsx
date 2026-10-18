@@ -22,17 +22,18 @@ export default function MobileSection({ className }: { className?: string }) {
           <IPhoneMockup
             model="15-pro"
             color="space-black"
-            scale={0.65}
+            scale={0.55}
             wallpaper="/images/zaino-iphone-screen.png"
             wallpaperFit="cover"
-            className="drop-shadow-2xl"
+            className="drop-shadow-2xl max-w-[280px] sm:max-w-none sm:scale-[0.65]"
+            style={{ transformOrigin: 'center center' }}
           />
         </div>
 
         {/* Right: TextReveal about mobile app + store badges — vertically centered with phone */}
         <div className="w-full lg:w-1/2 flex flex-col justify-center items-start space-y-6 lg:py-8">
           <TextReveal
-            text="The Zaino AI mobile app is coming soon — code remotely from anywhere, manage agents on the go, and stay connected to your workspace from any device."
+            text="Code from anywhere. Manage agents on the go. Your workspace, always with you."
             mode="word"
             as="p"
             delay={0.2}
@@ -43,7 +44,7 @@ export default function MobileSection({ className }: { className?: string }) {
             className="text-base sm:text-lg text-muted-foreground leading-relaxed"
           />
           <TextReveal
-            text="Full agent control, real-time execution, and seamless sync across desktop and mobile. Available soon on the Apple App Store and Google Play Store."
+            text="Full control, real-time sync, coming soon to iOS and Android."
             mode="word"
             as="p"
             delay={0.8}

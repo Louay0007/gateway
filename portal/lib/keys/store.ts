@@ -27,7 +27,7 @@ import type {
 } from '@/lib/keys/types';
 
 /** Statuses that keep an org alive; mirrors `subscriptions_one_live_idx`. */
-const LIVE_STATUSES = ['trialing', 'active', 'past_due', 'paused'] as const;
+const LIVE_STATUSES = ['active', 'past_due', 'paused'] as const;
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;

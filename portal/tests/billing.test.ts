@@ -156,11 +156,4 @@ describe('summarizePlan — trial terms (0009)', () => {
     models: ['gpt-4o-mini'],
   };
 
-  it('projects trialDays when the plan carries it', () => {
-    expect(summarizePlan({ ...base, trialDays: 7 }).trialDays).toBe(7);
   });
-
-  it('defaults trialDays to 0 rather than undefined (no trial)', () => {
-    expect(summarizePlan(base).trialDays).toBe(0);
-  });
-});

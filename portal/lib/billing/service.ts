@@ -149,17 +149,9 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     status: string;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
-    trialEnd: string | null;
     cancelAtPeriodEnd: boolean;
   } | null;
   entitlement: { status: string; syncedAt: string | null; lastError: string | null } | null;
-  trial: {
-    eligible: boolean;
-    reason?: string;
-    trialDays: number;
-    planCode?: string;
-    endsAt: string | null;
-  };
   period: { start: string; end: string };
   usage: {
     requests: number;
@@ -172,7 +164,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
 }> {
-  const [{ state, plan, subscription }, ent, usage, activeKeys, trial] = await Promise.all([
+  const [{ state, plan, subscription }, ent, usage, activeKeys] = await Promise.all([
     planStateFor(organizationId),
     db.query.entitlements.findFirst({
       where: eq(entitlements.organizationId, organizationId),
@@ -204,6 +196,24 @@ export async function subscriptionBundle(organizationId: string): Promise<{
             sql`${usageRecords.occurredAt} < ${window.end.toISOString()}::timestamptz`,
           ),
         );
+
+      // Per-model prompt counts for the same window. Migration 0013 added
+      // prompt_count (1 for inference rows, 0 otherwise). The model column
+      // already holds the alias (fast/smart/frontier) via aliasForRow().
+      const promptRows = await db.execute(sql`
+        SELECT u.model, coalesce(sum(u.prompt_count), 0)::int AS prompts
+          FROM usage_records u
+         WHERE u.organization_id = ${organizationId}::uuid
+           AND u.occurred_at >= ${window.start.toISOString()}::timestamptz
+           AND u.occurred_at <  ${window.end.toISOString()}::timestamptz
+         GROUP BY u.model
+      `) as unknown as { model: string; prompts: number }[];
+
+      const promptsByModel: Record<string, number> = {};
+      for (const r of promptRows) {
+        if (r.model && r.prompts > 0) promptsByModel[r.model] = r.prompts;
+      }
+
       return {
         requests: Number(row?.requests ?? 0),
         inputTokens: Number(row?.inputTokens ?? 0),
@@ -211,6 +221,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
         cacheReadTokens: Number(row?.cacheReadTokens ?? 0),
         costUpstreamUsd: Number(row?.costUpstreamUsd ?? 0),
         costCustomerUsd: Number(row?.costCustomerUsd ?? 0),
+        promptsByModel,
         window,
       };
     })(),
@@ -223,8 +234,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
           sql`${apiKeys.revokedAt} IS NULL`,
         ),
       ),
-    trialEligibility(organizationId),
-  ]);
+      ]);
 
   return {
     state,
@@ -234,20 +244,12 @@ export async function subscriptionBundle(organizationId: string): Promise<{
           status: subscription.status,
           currentPeriodStart: subscription.currentPeriodStart?.toISOString() ?? null,
           currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
-          trialEnd: subscription.trialEnd?.toISOString() ?? null,
           cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
         }
       : null,
     entitlement: ent
       ? { status: ent.status, syncedAt: ent.syncedAt?.toISOString() ?? null, lastError: ent.lastError }
       : null,
-    trial: {
-      eligible: trial.eligible,
-      reason: trial.reason,
-      trialDays: trial.trialDays,
-      planCode: trial.planCode,
-      endsAt: subscription?.trialEnd?.toISOString() ?? null,
-    },
     // The period the usage window actually covers: subscription period
     // when known, calendar fallback. This is what the SpendMeter's "of
     // $20 included" is measured against — not always the calendar month.
@@ -395,8 +397,6 @@ export async function beginCheckout(
               currentPeriodStart: null,
               currentPeriodEnd: null,
               cancelAtPeriodEnd: false,
-              // Starting a fresh paid checkout abandons any trial state.
-              trialEnd: null,
               updatedAt: now,
             })
             .where(eq(subscriptions.id, existing.id))
@@ -428,164 +428,6 @@ export async function beginCheckout(
   });
 
   return { intent, changed: true };
-}
-
-// ───────────────────────────────────────────────────────────────────────
-//  Trials (0009)
-// ───────────────────────────────────────────────────────────────────────
-
-/**
- * Can this org start a free trial, and on what terms?
- *
- * ONE TRIAL PER ORG, EVER. The durable record is the
- * `subscription.trial_started` audit row — audit_log is append-only, so a
- * later checkout (which clears trial_end on the subscription row) cannot
- * erase the fact that the trial happened. Eligibility is therefore read
- * from the audit log, not from the column.
- *
- * Pure-ish: reads two tables, mutates nothing. The billing bundle calls
- * this so the "Start free trial" button only appears when
- * `startTrial()` would actually succeed — a button that 409s is worse
- * than no button.
- */
-export async function trialEligibility(organizationId: string, planCode?: string): Promise<{
-  eligible: boolean;
-  reason?: string;
-  trialDays: number;
-  planCode?: string;
-}> {
-  // Best plan offering a trial, unless a specific one was asked about.
-  const candidates = planCode
-    ? await db.select().from(plans).where(and(eq(plans.public, true), eq(plans.code, planCode)))
-    : await db.select().from(plans).where(eq(plans.public, true));
-
-  const trialPlan = candidates.find((p) => p.trialDays > 0);
-  if (!trialPlan) {
-    return { eligible: false, reason: 'no_trial_plan', trialDays: 0 };
-  }
-
-  const [prior] = await db
-    .select({ id: auditLog.id })
-    .from(auditLog)
-    .where(
-      and(
-        eq(auditLog.organizationId, organizationId),
-        eq(auditLog.action, 'subscription.trial_started'),
-      ),
-    )
-    .limit(1);
-  if (prior) {
-    return { eligible: false, reason: 'trial_used', trialDays: trialPlan.trialDays, planCode: trialPlan.code };
-  }
-
-  const sub = await loadSubscription(organizationId);
-  if (sub && ['active', 'past_due', 'paused', 'trialing'].includes(sub.status)) {
-    return { eligible: false, reason: 'already_subscribed', trialDays: trialPlan.trialDays, planCode: trialPlan.code };
-  }
-
-  const org = await db.query.organizations.findFirst({
-    where: eq(organizations.id, organizationId),
-  });
-  if (org && org.status !== 'active') {
-    return { eligible: false, reason: 'suspended', trialDays: trialPlan.trialDays, planCode: trialPlan.code };
-  }
-
-  return { eligible: true, trialDays: trialPlan.trialDays, planCode: trialPlan.code };
-}
-
-/**
- * Start the org's free trial.
- *
- * The subscription goes straight to `trialing` with a period that IS the
- * trial (current_period_start → trial_end), so every period-based surface
- * (usage window, "renews on", cancellation) reads correctly with no
- * special case. STATUS_EFFECT grants `full` for `trialing`, so the plan's
- * real limits apply — a trial that does not exercise the product is not a
- * trial.
- *
- * No payment row is created: a trial is the absence of a payment, and
- * inventing one would put a phantom claim in the D17 queue. At
- * `trial_end`, `expire_trials` flips the status to `unpaid` (cut, keys
- * starved not revoked — D3) unless the customer has paid. Reusing the
- * org's single subscription row keeps the one-row invariant.
- */
-export async function startTrial(
-  organizationId: string,
-  planCode: string,
-  actorUserId: string,
-): Promise<{ trialEnd: string; plan: PlanSummary }> {
-  const plan = await planByCode(planCode);
-  if (plan.trialDays <= 0) {
-    throw new BillingError('validation', 'This plan does not offer a free trial.');
-  }
-
-  const eligibility = await trialEligibility(organizationId, planCode);
-  if (!eligibility.eligible) {
-    if (eligibility.reason === 'trial_used') {
-      throw new BillingError('conflict', 'This account has already used its free trial.');
-    }
-    if (eligibility.reason === 'already_subscribed') {
-      throw new BillingError('conflict', 'You already have a subscription.');
-    }
-    if (eligibility.reason === 'suspended') {
-      throw new BillingError('forbidden', 'This account is suspended. Contact support.');
-    }
-    throw new BillingError('validation', 'A free trial is not available.');
-  }
-
-  const existing = await loadSubscription(organizationId);
-  const now = new Date();
-  const trialEnd = new Date(now.getTime() + plan.trialDays * 86_400_000);
-
-  const sub = !existing
-    ? (
-        await db
-          .insert(subscriptions)
-          .values({
-            organizationId,
-            planId: plan.id,
-            status: 'trialing',
-            currentPeriodStart: now,
-            currentPeriodEnd: trialEnd,
-            trialEnd,
-            updatedAt: now,
-          })
-          .returning()
-      )[0]
-    : (
-        await db
-          .update(subscriptions)
-          .set({
-            planId: plan.id,
-            status: 'trialing',
-            providerSubscriptionId: null,
-            currentPeriodStart: now,
-            currentPeriodEnd: trialEnd,
-            trialEnd,
-            cancelAtPeriodEnd: false,
-            updatedAt: now,
-          })
-          .where(eq(subscriptions.id, existing.id))
-          .returning()
-      )[0];
-  if (!sub) throw new BillingError('internal', 'Could not start the trial.');
-
-  const sync = await syncOrganizationEntitlements(organizationId, 'billing:trial-started');
-  if (!sync.ok) {
-    throw new BillingError('upstream', `Entitlement sync failed: ${sync.error ?? 'unknown'}`);
-  }
-
-  await appendAudit({
-    actorType: 'user',
-    actorId: actorUserId,
-    organizationId,
-    action: 'subscription.trial_started',
-    targetType: 'subscription',
-    targetId: sub.id,
-    after: { planCode, trialDays: plan.trialDays, trialEnd: trialEnd.toISOString() },
-  });
-
-  return { trialEnd: trialEnd.toISOString(), plan: summarizePlan(plan) };
 }
 
 /**
@@ -665,10 +507,6 @@ export async function applyCallback(event: ProviderEvent): Promise<{
           currentPeriodStart: start,
           currentPeriodEnd: end,
           cancelAtPeriodEnd: false,
-          // A trial that converts is now a paid period; leaving trial_end
-          // set would keep the row looking trialing to any surface that
-          // reads the column (0009).
-          trialEnd: null,
           lastProviderEventId: event.id,
           lastProviderEventAt: new Date(),
           updatedAt: new Date(),

@@ -22,14 +22,13 @@ export type PlanState =
  * Internal row states → customer-facing states.
  *
  * `incomplete` is "payment never completed" — what the dashboard calls
- * `pending`. `trialing` maps to active defensively: no plan carries
- * trial days in the MVP, so the value should never appear; if one ever
+ * `pending`. Legacy `trialing` status is no longer used; trials have been
+ * removed from the platform. If one ever
  * does, full access is the intended reading (PLATFORM.md §5.1), and a
  * broken-looking state on a paid account is worse than the alias.
  */
 export function planStateFromStatus(status: string): PlanState {
   if (status === 'incomplete') return 'pending';
-  if (status === 'trialing') return 'active';
   return status as PlanState;
 }
 
@@ -48,8 +47,8 @@ export interface PlanSummary {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
-  /** Free-trial length in days. 0 = no trial. (0009) */
-  trialDays: number;
+  /** Per-alias prompt limits: {fast: 500, smart: 250}. Migration 0013. */
+  promptLimits: Record<string, number>;
 }
 
 /** Project a plan row onto the customer-safe shape. */
@@ -67,8 +66,20 @@ export function summarizePlan(row: {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
-  trialDays?: number;
+  promptLimits?: Record<string, number> | unknown;
 }): PlanSummary {
+  // JSONB columns arrive as `unknown` from Drizzle. Cast safely — a
+  // malformed value defaults to empty limits (deny), not Infinity.
+  const raw = row.promptLimits;
+  let promptLimits: Record<string, number> = {};
+  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+      if (typeof v === 'number' && Number.isFinite(v)) {
+        promptLimits[k] = v;
+      }
+    }
+  }
+
   return {
     code: row.code,
     name: row.name,
@@ -83,7 +94,7 @@ export function summarizePlan(row: {
     maxKeys: row.maxKeys,
     rateMultiplierBps: row.rateMultiplierBps,
     models: row.models,
-    trialDays: row.trialDays ?? 0,
+    promptLimits,
   };
 }
 

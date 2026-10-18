@@ -166,6 +166,10 @@ export async function collectUsage(opts?: {
       memberUserId = (found as unknown as { id: string }[])[0]?.id ?? null;
     }
 
+    // Each inference request = 1 user prompt. Non-inference calls
+    // (/v1/models, etc.) have distinct routes and don't count.
+    const promptCount = (route === 'chat_completions' || route === 'responses') ? 1 : 0;
+
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (
         organization_id, api_key_id, member_user_id, occurred_at, billing_period,
@@ -174,7 +178,7 @@ export async function collectUsage(opts?: {
         cache_write_5m_tokens, cache_write_1h_tokens, cache_read_tokens,
         latency_ms, status_code,
         cost_upstream_usd, cost_customer_usd,
-        price_table_version, dedupe_hash
+        price_table_version, prompt_count, dedupe_hash
       )
       SELECT
         ${orgId}::uuid,
@@ -191,6 +195,7 @@ export async function collectUsage(opts?: {
         ${statusCodeForRow(row)},
         ${upstream}, ${customer},
         ${PRICE_VERSION},
+        ${promptCount},
         ${hash}
       ON CONFLICT (dedupe_hash) DO NOTHING
       RETURNING id
@@ -214,7 +219,7 @@ async function multiplierForOrg(orgId: string): Promise<{ multiplierBps: number 
       FROM subscriptions s
       JOIN plans p ON p.id = s.plan_id
      WHERE s.organization_id = ${orgId}::uuid
-       AND s.status IN ('trialing','active','past_due','paused')
+       AND s.status IN ('active','past_due','paused')
      LIMIT 1
   `) as unknown as { rate_multiplier_bps: number }[];
 
@@ -272,7 +277,7 @@ export async function rollupUsage(): Promise<void> {
     WHERE EXISTS (
       SELECT 1 FROM subscriptions s
        WHERE s.organization_id = u.organization_id
-         AND s.status IN ('trialing','active','past_due','paused')
+         AND s.status IN ('active','past_due','paused')
     )
     GROUP BY u.organization_id, u.billing_period
     ON CONFLICT (organization_id, billing_period) DO UPDATE SET

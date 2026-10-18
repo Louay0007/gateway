@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Ban, RefreshCw, ShieldCheck, Undo2, Wallet } from "lucide-react";
 
@@ -26,20 +27,18 @@ import {
 import { usd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 
-export interface AdminOrgItem {
-  id: string;
-  name: string;
-  slug: string;
-  status: string;
-  planCode: string | null;
-  subStatus: string | null;
-  currentPeriodEnd: string | null;
-  entitlementStatus: string | null;
-  entitlementError: string | null;
-  periodCostUsd: number;
-  hardCapCents: number | null;
-  keyCount: number;
-}
+/**
+ * The row shape, taken from the service that produces it.
+ *
+ * `import type` is erased at compile time, so this client component does
+ * NOT pull `lib/admin/orgs.ts` — and therefore `db` — into the browser
+ * bundle. Declaring the fields here instead would let the two drift, and
+ * a drift between what the roster renders and what the drill-down holds
+ * is exactly the class of bug this codebase keeps paying for.
+ */
+import type { AdminOrgRow } from "@/lib/admin/orgs";
+
+export type AdminOrgItem = AdminOrgRow;
 
 function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
   if (status === "active") return "default";
@@ -70,9 +69,16 @@ function entVariant(status: string | null): "default" | "secondary" | "destructi
 export function AdminOrgs({
   orgs,
   canManage,
+  showDetail = true,
 }: {
   orgs: AdminOrgItem[];
   canManage: boolean;
+  /**
+   * The drill-down reuses this component for its ACTIONS section only, so
+   * it renders a bare action row instead of a one-line table — the keys,
+   * members and payments next to it are already on that page.
+   */
+  showDetail?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -151,6 +157,75 @@ export function AdminOrgs({
     );
   }
 
+  // The actions block on the drill-down: no table, just the powers.
+  if (!showDetail) {
+    return (
+      <div className="rounded-xl border border-border bg-card p-4">
+        {orgs.map((o) => (
+          <div key={o.id} className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={busy !== null}
+              onClick={() => void act(o.id, "sync")}
+            >
+              <RefreshCw />
+              Retry sync
+            </Button>
+            {canManage && o.status === "active" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => void act(o.id, "suspend")}
+              >
+                <Ban />
+                Suspend
+              </Button>
+            ) : null}
+            {canManage && o.status === "suspended" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => void act(o.id, "reactivate")}
+              >
+                <Undo2 />
+                Reactivate
+              </Button>
+            ) : null}
+            {canManage ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => setCreditTarget(o)}
+              >
+                <Wallet />
+                Record credit
+              </Button>
+            ) : null}
+            {!canManage ? (
+              <p className="text-xs text-muted-foreground">
+                Retry is available to support staff. Suspending an account and
+                recording a credit require the admin role.
+              </p>
+            ) : null}
+          </div>
+        ))}
+
+        <CreditDialog
+          target={creditTarget}
+          onClose={() => setCreditTarget(null)}
+          onDone={() => {
+            setCreditTarget(null);
+            router.refresh();
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="overflow-hidden rounded-xl border border-border bg-card">
       <Table>
@@ -160,7 +235,8 @@ export function AdminOrgs({
             <TableHead>Account</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead>Gateway</TableHead>
-            <TableHead className="text-right">Period spend</TableHead>
+            <TableHead className="text-right">Revenue</TableHead>
+            <TableHead className="text-right">Upstream</TableHead>
             <TableHead className="text-right">Keys</TableHead>
             <TableHead className="pr-6 text-right">Actions</TableHead>
           </TableRow>
@@ -210,9 +286,20 @@ export function AdminOrgs({
                     <span className="block text-xs">over cap</span>
                   ) : null}
                 </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {usd(o.periodCostUpstreamUsd)}
+                </TableCell>
                 <TableCell className="text-right tabular-nums">{o.keyCount}</TableCell>
                 <TableCell className="pr-6 text-right">
                   <div className="flex justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      nativeButton={false}
+                      render={<Link href={`/admin/orgs/${o.id}`} />}
+                    >
+                      Open
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"

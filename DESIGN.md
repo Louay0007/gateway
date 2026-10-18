@@ -224,7 +224,7 @@ users, (c) use the Anthropic SDK path exclusively.
 
 ```bash
 # Claude Code
-export ANTHROPIC_BASE_URL=https://api.yourdomain.com
+export ANTHROPIC_BASE_URL=https://api.zaino.soon.it
 export ANTHROPIC_AUTH_TOKEN=sk-your-issued-key
 export ANTHROPIC_API_KEY=""          # MUST be empty — see below
 export ANTHROPIC_MODEL=fast
@@ -239,11 +239,11 @@ export ANTHROPIC_SMALL_FAST_MODEL=fast
 ```python
 # OpenAI SDK
 from openai import OpenAI
-client = OpenAI(api_key="sk-…", base_url="https://api.yourdomain.com/v1")
+client = OpenAI(api_key="sk-…", base_url="https://api.zaino.soon.it/v1")
 
 # Anthropic SDK
 from anthropic import Anthropic
-client = Anthropic(base_url="https://api.yourdomain.com", api_key="sk-…")
+client = Anthropic(base_url="https://api.zaino.soon.it", api_key="sk-…")
 ```
 
 ---

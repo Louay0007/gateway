@@ -112,7 +112,7 @@ async function collectFindings(): Promise<Finding[]> {
       FROM usage_records ur
       JOIN subscriptions s
         ON s.organization_id = ur.organization_id
-       AND s.status IN ('trialing', 'active', 'past_due', 'paused')
+       AND s.status IN ('active', 'past_due', 'paused')
       JOIN plans p ON p.id = s.plan_id
       JOIN organizations o ON o.id = ur.organization_id
      WHERE p.hard_cap_cents IS NOT NULL

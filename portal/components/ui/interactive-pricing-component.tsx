@@ -66,7 +66,7 @@ const zainoPlans: PricingPlan[] = [
       { name: 'Custom integrations', included: true },
     ],
     popular: true,
-    buttonText: 'Start Free Trial',
+    buttonText: 'Get Started',
   },
   {
     id: 'enterprise',
@@ -142,7 +142,7 @@ export default function PricingComponent({
             Choose Your Plan
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            Unlock Claude&apos;s full potential with Zaino AI. No rate limits, no compromises — just pure coding power at Tunisian-friendly prices.
+            Every model, one API. Simple prompt-based pricing with D17 payment.
           </p>
 
           {/* Billing Toggle */}
@@ -361,7 +361,7 @@ export default function PricingComponent({
         {/* Footer */}
         <div className="text-center mt-12 pt-8 border-t border-border">
           <p className="text-sm text-muted-foreground">
-            All plans include 14-day free trial. Pay securely with D17. Cancel anytime.
+            Pay securely with D17. Cancel anytime.
           </p>
         </div>
       </div>

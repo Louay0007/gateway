@@ -27,6 +27,7 @@ import {
   CUT_BUDGET,
   effectForStatus,
   resolveBudgetUsd,
+  resolvePromptLimits,
   type Effect,
 } from '@/lib/entitlements/policy';
 import { log } from '@/lib/log';
@@ -68,11 +69,12 @@ async function resolveSubscription(orgId: string) {
     SELECT s.id, s.status, p.id AS plan_id, p.code AS plan_code,
            p.included_spend_cents, p.hard_cap_cents, p.rpm_limit,
            p.tpm_limit, p.max_concurrent_requests, p.models,
-           p.max_keys, p.max_seats, p.rate_multiplier_bps, p.trial_days
+           p.max_keys, p.max_seats, p.rate_multiplier_bps, p.trial_days,
+           p.prompt_limits
       FROM subscriptions s
       JOIN plans p ON p.id = s.plan_id
      WHERE s.organization_id = ${orgId}
-     ORDER BY (s.status IN ('trialing','active','past_due','paused')) DESC,
+     ORDER BY (s.status IN ('active','past_due','paused')) DESC,
               s.updated_at DESC
      LIMIT 1
   `)) as unknown as {
@@ -81,7 +83,7 @@ async function resolveSubscription(orgId: string) {
     rpm_limit: number | null; tpm_limit: number | null;
     max_concurrent_requests: number | null; models: string[];
     max_keys: number; max_seats: number; rate_multiplier_bps: number;
-    trial_days: number;
+    trial_days: number; prompt_limits: unknown;
   }[];
   return rows[0] ?? null;
 }
@@ -97,6 +99,8 @@ export interface EntitlementSpec {
   maxSeats: number;
   maxBudgetUsd: number;
   budgetDuration: string;
+  /** Per-alias prompt limits for the current billing period. Migration 0013. */
+  promptLimits: Record<string, number>;
 }
 
 /**
@@ -142,6 +146,11 @@ export async function syncOrganizationEntitlements(
     effect,
   );
 
+  const promptLimits = resolvePromptLimits(
+    { promptLimits: live.prompt_limits as Record<string, number> | null },
+    effect,
+  );
+
   const spec: EntitlementSpec = {
     effect,
     planCode: live.plan_code,
@@ -153,6 +162,7 @@ export async function syncOrganizationEntitlements(
     maxSeats: live.max_seats,
     maxBudgetUsd: budgetUsd,
     budgetDuration: '30d',
+    promptLimits,
   };
 
   // ── 1. Cache the intended state FIRST, so the dashboard is correct

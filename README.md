@@ -9,7 +9,7 @@ customer ──▶ portal ──▶ Next.js dashboard, auth, billing, admin    �
                             │           │ usage (REST, never SQL)    │
                             ▼           │                           │
                             └──── DATA PLANE ───────────────────────┘
-your client ──zn-your-key──▶ api.yourdomain.com ──sk-your-key──▶ upstream
+your client ──zn-your-key──▶ api.zaino.soon.it ──sk-your-key──▶ upstream
                                 (Caddy + auth-edge + LiteLLM)   (both formats)
 ```
 
@@ -90,17 +90,17 @@ prefixes, with nothing in the logs indicating a problem.
 
 ```bash
 # Claude Code  — note ANTHROPIC_API_KEY MUST be empty
-export ANTHROPIC_BASE_URL=https://api.yourdomain.com
+export ANTHROPIC_BASE_URL=https://api.zaino.soon.it
 export ANTHROPIC_AUTH_TOKEN=zn-your-key
 export ANTHROPIC_API_KEY=""
 ```
 
 ```python
 # OpenAI SDK
-OpenAI(api_key="zn-…", base_url="https://api.yourdomain.com/v1")
+OpenAI(api_key="zn-…", base_url="https://api.zaino.soon.it/v1")
 
 # Anthropic SDK
-Anthropic(base_url="https://api.yourdomain.com", api_key="zn-…")
+Anthropic(base_url="https://api.zaino.soon.it", api_key="zn-…")
 ```
 
 ## Code from the web
@@ -118,7 +118,7 @@ ssh -L 4096:localhost:4096 gateway
 #   2. CODE_DOMAIN in .env
 #   3. replace 203.0.113.4/32 in config/Caddyfile {$CODE_DOMAIN} block
 #      with your public IP, redeploy
-# then: https://code.yourdomain.com
+# then: https://code.zaino.soon.it
 ```
 
 `opencode web` has no built-in auth — the IP allowlist (Option B) or the
@@ -152,12 +152,50 @@ make db-migrate                      # applies 0001..0008, once each
 ```
 
 Current schema migrations: `0006_account_operations` (session invalidation),
-`0007_d17_renewals` (per-period payment history, renewals), `0008_email_verification`.
+`0007_d17_renewals` (per-period payment history, renewals), `0008_email_verification`,
+`0015_admin_console` (console read indexes, staff revocation).
 
 Implementation order matters — entitlements and payment activation are where
 "customer paid but has no access" and "customer paid twice" bugs live. Both are
 silent. See [PLATFORM.md §12](PLATFORM.md#12-implementation-plan) and the
 authoritative current-state notes in [HANDOFF.md](HANDOFF.md).
+
+## Operations console
+
+The staff-facing console is the Next.js app on its **own, IP-gated host**:
+
+```
+{$CONSOLE_DOMAIN}   →   127.0.0.1:3000   (the portal's /admin)
+```
+
+| Page | What it answers |
+|---|---|
+| `/admin` | Is the pipeline healthy, is money waiting, is the business healthy |
+| `/admin/orgs` | Filterable account roster (search, plan, status, over-cap, failed sync) |
+| `/admin/orgs/[id]` | One account: keys, members, payments, credits, audit |
+| `/admin/d17` | Approve or reject a payment proof |
+| `/admin/usage` | Per-account revenue, upstream cost and margin |
+| `/admin/credits` | The refund ledger — read back, not just recorded |
+| `/admin/plans` | Plan CRUD (owner only) |
+| `/admin/audit` | Who changed what, filterable |
+| `/admin/ops` | Job health and ledger freshness |
+| `/admin/staff` | Grant, change and revoke staff access (owner only) |
+
+Four staff tiers, `read_only < support < admin < owner`, resolved from
+`staff_users` on every request — a revoked account loses the console on its
+next navigation, and no role is ever read from a customer's org.
+
+**`CONSOLE_DOMAIN` is not `ADMIN_DOMAIN`.** LiteLLM's own Admin UI
+(`127.0.0.1:4000`, master-key-only) has **no public vhost at all**; reach it
+over SSH:
+
+```bash
+ssh -L 4000:localhost:4000 gateway@<VPS_IP>   # then http://localhost:4000/ui
+```
+
+Before first use, replace `203.0.113.4/32` in the `{$CONSOLE_DOMAIN}` block of
+`config/Caddyfile` with your public IP (`curl -s ifconfig.me`), or the console
+will 403 you — including from localhost's perspective on a fresh install.
 
 ## Before serving third parties
 

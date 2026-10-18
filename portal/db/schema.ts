@@ -116,7 +116,8 @@ export const organizations = pgTable('organizations', {
   updatedAt:      timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   deletedAt:      timestamp('deleted_at', { withTimezone: true }),
 }, (t) => ({
-  statusIdx: index('organizations_status_idx').on(t.status),
+  statusIdx:  index('organizations_status_idx').on(t.status),
+  createdIdx: index('organizations_created_idx').on(t.createdAt),
 }));
 
 export const organizationMembers = pgTable('organization_members', {
@@ -130,14 +131,27 @@ export const organizationMembers = pgTable('organization_members', {
   userIdx: index('organization_members_user_idx').on(t.userId),
 }));
 
-// Staff are never org members: separate table, no bridge. PLATFORM.md §8.5.
+/**
+ * Staff are never org members: separate table, no bridge. PLATFORM.md §8.5.
+ *
+ * `createdBy` / `revokedAt` (migration 0015) exist so a staff account can
+ * be traced and revoked. Until `requireStaff` reads `revokedAt` they are
+ * recorded but not enforced — the revocation is a row that survives, not a
+ * DELETE that erases the evidence of who had access.
+ */
 export const staffUsers = pgTable('staff_users', {
   id:        uuid('id').primaryKey().defaultRandom(),
   email:     text('email').notNull().unique(),
   name:      text('name'),
   role:      text('role').notNull().default('support'),
+  /** staff_users.id of the operator who granted this account. NULL = seeded. */
+  createdBy: text('created_by'),
+  /** Non-NULL revokes access. Revocation is never a delete. */
+  revokedAt: timestamp('revoked_at', { withTimezone: true }),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-});
+}, (t) => ({
+  activeIdx: index('staff_users_active_idx').on(t.revokedAt, t.createdAt),
+}));
 
 // ───────────────────────────────────────────────────────────────────────
 //  plans — the catalog. These rows are the ONLY entitlement truth.
@@ -164,6 +178,8 @@ export const plans = pgTable('plans', {
   models:                text('models').array().notNull().default([]),
   trialDays:             integer('trial_days').notNull().default(0),
   features:              jsonb('features').notNull().default({}),
+  /** Per-alias prompt limits: {fast: 500, smart: 250}. Migration 0013. */
+  promptLimits:          jsonb('prompt_limits').notNull().default({}),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -283,7 +299,8 @@ export const creditNotes = pgTable('credit_notes', {
   createdBy:      text('created_by').notNull(),
   createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
-  orgIdx: index('credit_notes_org_idx').on(t.organizationId, t.createdAt),
+  orgIdx:     index('credit_notes_org_idx').on(t.organizationId, t.createdAt),
+  createdIdx: index('credit_notes_created_idx').on(t.createdAt),
 }));
 
 /**
@@ -370,12 +387,18 @@ export const usageRecords = pgTable('usage_records', {
   costUpstreamUsd:    numeric('cost_upstream_usd', { precision: 14, scale: 8 }).notNull().default('0'),
   costCustomerUsd:    numeric('cost_customer_usd', { precision: 14, scale: 8 }).notNull().default('0'),
   priceTableVersion:  text('price_table_version'),
+  /** 1 for inference rows (chat_completions, responses), 0 otherwise. Migration 0013. */
+  promptCount:        integer('prompt_count').notNull().default(0),
   dedupeHash:         text('dedupe_hash').notNull(),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dedupeIdx:    uniqueIndex('usage_records_dedupe_idx').on(t.dedupeHash),
   orgPeriodIdx: index('usage_records_org_period_idx').on(t.organizationId, t.billingPeriod),
   occurredIdx:  index('usage_records_occurred_idx').on(t.occurredAt),
+  // Admin drill-down ("what did this org just do?") and the revenue
+  // aggregates, which group by day over both cost columns. 0015.
+  orgOccurredIdx: index('usage_records_org_occurred_idx').on(t.organizationId, t.occurredAt),
+  occurredCostIdx: index('usage_records_occurred_cost_idx').on(t.occurredAt, t.costCustomerUsd, t.costUpstreamUsd),
 }));
 
 // Rollups are REBUILT from the ledger, never incremented. An increment run
@@ -424,6 +447,9 @@ export const auditLog = pgTable('audit_log', {
 }, (t) => ({
   orgTimeIdx:  index('audit_log_org_time_idx').on(t.organizationId, t.createdAt),
   actionIdx:   index('audit_log_action_idx').on(t.action, t.createdAt),
+  // Cross-org "what changed recently" — neither scoped index serves it.
+  // 0015. This table grows on every key create, sync and approval.
+  createdIdx:  index('audit_log_created_idx').on(t.createdAt),
 }));
 
 export const jobRuns = pgTable('job_runs', {

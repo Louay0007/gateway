@@ -58,7 +58,7 @@ and contains NO `.env`, dumps, or `latency.csv`.
 ```bash
 cd /opt/gateway
 make init        # creates VPS-only .env — it never enters git
-# fill .env: API_DOMAIN, ADMIN_DOMAIN, PORTAL_DOMAIN, UPSTREAM_* …
+# fill .env: API_DOMAIN, PORTAL_DOMAIN, CONSOLE_DOMAIN, UPSTREAM_* …
 make probe       # record the verdict (confirms Block A/B/C)
 make up && make health && make smoke KEY=<test-key-from-make-key>
 ```

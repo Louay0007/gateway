@@ -321,7 +321,7 @@ open). SSH already restricted to your IP.
 ```
                         ┌──────────── CONTROL PLANE ────────────────┐
                         │  Caddy :443                               │
-customer ──HTTPS──▶     │   portal.yourdomain.com ──▶ portal :3000  │
+customer ──HTTPS──▶     │   portal.zaino.soon.it ──▶ portal :3000  │
                         │   admin-gw host ──▶ litellm (IP-gated)    │
                         │                                           │
                         │  portal (Next.js, Clerk, Stripe)          │

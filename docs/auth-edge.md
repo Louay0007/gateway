@@ -93,7 +93,7 @@ docker compose up -d auth-edge
 curl -s 127.0.0.1:4001/__edge/health
 
 # the whole loop, by hand
-curl -H "Authorization: Bearer zn-…" https://api.yourdomain/v1/models
+curl -H "Authorization: Bearer zn-…" https://api.zaino.soon.it/v1/models
 ```
 
 It binds `127.0.0.1` only and is reachable exclusively from Caddy on the same

@@ -129,6 +129,10 @@ services:
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-dev}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-Gateway <noreply@localhost>}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
 
       # D17 manual payments (La Poste Tunisienne) — the customer pages
@@ -192,6 +196,10 @@ services:
       EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-dev}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       MAIL_FROM: ${MAIL_FROM:-Gateway <noreply@localhost>}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
       OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
 
       # D17 manual payments (La Poste Tunisienne). No API — a human
@@ -219,7 +227,7 @@ services:
     restart: unless-stopped
     environment:
       API_DOMAIN: ${API_DOMAIN:?set in .env}
-      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?set in .env}
+      CONSOLE_DOMAIN: ${CONSOLE_DOMAIN:?set in .env}
       CODE_DOMAIN: ${CODE_DOMAIN:?set in .env}
       PORTAL_DOMAIN: ${PORTAL_DOMAIN:?set in .env}
     volumes:

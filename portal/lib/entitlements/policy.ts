@@ -45,8 +45,7 @@ export type Effect = 'full' | 'cut';
  * than a support ticket and a new key.
  */
 export const STATUS_EFFECT: Record<string, Effect> = {
-  trialing:   'full',
-  active:     'full',
+    active:     'full',
   past_due:   'full',
   unpaid:     'cut',
   canceled:   'cut',
@@ -105,6 +104,29 @@ export function resolveBudgetUsd(plan: BudgetColumns, effect: Effect): number {
  * null rate limits fall back to the router default rather than a number
  * we would then have to unwind.
  */
+/**
+ * Resolve per-alias prompt limits from the plan's JSONB column.
+ *
+ * Migration 0013 added `prompt_limits` to plans: `{fast: 500, smart: 250}`.
+ * A cut org gets all zeros so every enforcement point can compare without
+ * branching on effect first. Missing aliases default to 0 (deny), not
+ * Infinity — a plan that omits an alias does not grant unlimited access.
+ */
+export function resolvePromptLimits(
+  plan: { promptLimits?: Record<string, number> | null },
+  effect: Effect,
+): Record<string, number> {
+  if (effect === 'cut') return {};
+  const raw = plan.promptLimits ?? {};
+  const out: Record<string, number> = {};
+  for (const [alias, limit] of Object.entries(raw)) {
+    if (typeof limit === 'number' && Number.isFinite(limit) && limit >= 0) {
+      out[alias] = limit;
+    }
+  }
+  return out;
+}
+
 export function resolveLimits(
   plan: {
     rpmLimit: number | null;
