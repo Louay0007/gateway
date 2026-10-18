@@ -257,11 +257,8 @@
 	# Serve the admin gate as a static HTML file, bypassing Next.js entirely.
 	# The Next.js root layout wraps /admin in theme CSS (bg-background) that
 	# renders white-on-white. This static file has its own complete styling.
-	# When the gate cookie exists, the request falls through to the
-	# reverse_proxy below which serves the real admin console from Next.js.
-	@admin_gate path /admin
-	@admin_gate_no_cookie not header Cookie *admin_gate=*
-	handle @admin_gate @admin_gate_no_cookie {
+	# The gate JS checks the cookie client-side and redirects to /admin/ops.
+	handle /admin {
 		root * /etc/caddy
 		try_files /admin-gate.html
 		file_server
