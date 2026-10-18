@@ -302,7 +302,7 @@ function PlanDialog({
 
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">Price (cents / month)</span>
-            <input type="number" value={priceCents} onChange={(e) => setPriceCents(e.target.value)} className={FIELD} placeholder="1900" />
+            <input type="number" value={priceCents} onChange={(e) => setPriceCents(e.target.value)} className={FIELD} placeholder="1613" />
           </label>
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">Included spend (cents)</span>

@@ -129,7 +129,7 @@ export function DocsToc() {
         <div className="mt-4 rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-medium">Need a key?</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Keys are minted in seconds and shown once. Plans start at $19/mo.
+            Keys are minted in seconds and shown once. Plans start at 50 DT/mo.
           </p>
           <Button size="sm" className="mt-3 w-full rounded-full" nativeButton={false} render={<Link href="/sign-up" />}>
             Get an API key

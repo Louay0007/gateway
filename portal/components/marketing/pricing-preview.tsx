@@ -15,8 +15,8 @@ import { centsUsd, compact } from "@/lib/dashboard/format";
  * PricingPreview — the plan table, live.
  *
  * Was a hardcoded array that said **"19 DT/month"** for a plan the database
- * stores as `price_cents = 1900` USD. At the configured D17 rate (3.1 TND per
- * USD) that plan is 58.900 DT — the old component was wrong by the price AND
+ * stores as `price_cents = 1613` USD. At the configured D17 rate (3.1 TND per
+ * USD) that plan is 49.997 DT — the old component was wrong by the price AND
  * the currency, on the page whose entire job is to state the price.
  *
  * The table now reads `GET /api/plans`, so the number on the page is the
