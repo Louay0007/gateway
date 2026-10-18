@@ -44,7 +44,7 @@ export function D17Instructions({
         {steps.map((_, i) => (
           <div key={i} className="flex items-center">
             <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${
-              steps[i].highlight
+              steps[i]?.highlight
                 ? "border-emerald-400 bg-emerald-50 text-emerald-700"
                 : "border-gray-200 bg-white text-gray-500"
             }`}>
@@ -52,7 +52,7 @@ export function D17Instructions({
             </div>
             {i < steps.length - 1 && (
               <div className={`h-px w-5 sm:w-8 md:w-12 ${
-                steps[i].highlight ? "bg-emerald-300" : "bg-gray-200"
+                steps[i]?.highlight ? "bg-emerald-300" : "bg-gray-200"
               }`} />
             )}
           </div>
