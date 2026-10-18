@@ -173,10 +173,10 @@
 #
 # WARNING: opencode web has NO built-in auth — this host is the entire
 # security boundary. Default-deny, IP-gated like the admin host.
-# Replace 203.0.113.4/32 with YOUR public IP (curl ifconfig.me) before
+# Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl ifconfig.me) before
 # first use. Requires DNS: code A <VPS_IP>.
 {$CODE_DOMAIN} {
-	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32
+	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32
 	respond @blocked "Forbidden" 403
 
 	reverse_proxy 127.0.0.1:4096 {
@@ -231,9 +231,9 @@
 # it stops an unauthenticated caller from ever reaching a login form on
 # the operations host.
 #
-# Replace 203.0.113.4/32 with YOUR public IP (curl -s ifconfig.me).
+# Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl -s ifconfig.me).
 {$CONSOLE_DOMAIN} {
-	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32
+	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32
 	respond @blocked "Forbidden" 403
 
 	# The same 2MB control-plane ceiling as the portal vhost, plus the
