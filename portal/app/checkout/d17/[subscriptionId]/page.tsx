@@ -161,15 +161,15 @@ export default async function D17CheckoutPage({
         </Link>
       }
     >
-      <div dir={dir} className="grid gap-6">
+      <div dir={dir} className="grid gap-8">
         {/* ── Progress Stepper ─────────────────────────────────────── */}
-        <nav aria-label={t("d17.step_transfer")} className="px-2">
+        <nav aria-label={t("d17.step_transfer")} className="px-1">
           <ol className="flex items-center justify-between">
             {[
               { key: "d17.step_transfer", step: 0 },
               { key: "d17.step_proof", step: 1 },
               { key: "d17.step_verify", step: 2 },
-            ].map(({ key, step }, i, arr) => {
+            ].map(({ key, step }) => {
               const state =
                 step < stepperStep ? "completed" :
                 step === stepperStep ? "active" :
@@ -179,7 +179,7 @@ export default async function D17CheckoutPage({
                   <div className="d17-stepper-circle" data-state={state} aria-current={state === "active" ? "step" : undefined}>
                     {state === "completed" ? "✓" : step + 1}
                   </div>
-                  <span className={`text-xs font-medium ${state === "active" ? "text-black" : "text-muted-foreground"}`}>
+                  <span className={`text-[11px] font-medium tracking-wide uppercase ${state === "active" ? "text-black" : "text-muted-foreground"}`}>
                     {t(key)}
                   </span>
                 </li>
@@ -197,47 +197,56 @@ export default async function D17CheckoutPage({
         />
 
         {/* ── Payment Summary ──────────────────────────────────────── */}
-        <dl className="grid gap-2 rounded-lg border border-gray-200 bg-white p-4 text-sm">
-          <div className="flex justify-between gap-3">
-            <dt className="text-gray-600">{t("d17.summary_plan")}</dt>
-            <dd className="font-medium text-black">{plan?.name ?? "—"}</dd>
+        <section className="rounded-xl border border-gray-200 bg-white shadow-sm">
+          <div className="border-b border-gray-100 px-5 py-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500">{t("d17.summary_reference")}</h2>
           </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-gray-600">{t("d17.summary_amount")}</dt>
-            <dd className="font-mono font-medium text-black">{formatTndMillimes(payment.amountMillimes)}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-gray-600">{t("d17.summary_reference")}</dt>
-            <dd className="font-mono text-gray-700">d17-{payment.id.slice(0, 8)}</dd>
-          </div>
-          <div className="flex justify-between gap-3">
-            <dt className="text-gray-600">{t("d17.summary_status")}</dt>
-            <dd className="font-medium text-black">{t(statusKey[payment.status] ?? "d17.status_pending")}</dd>
-          </div>
-        </dl>
+          <dl className="grid gap-y-3 px-5 py-4 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-gray-500">{t("d17.summary_plan")}</dt>
+              <dd className="font-medium text-black">{plan?.name ?? "—"}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-gray-500">{t("d17.summary_amount")}</dt>
+              <dd className="font-mono text-base font-semibold tabular-nums text-black">{formatTndMillimes(payment.amountMillimes)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-gray-500">{t("d17.summary_reference")}</dt>
+              <dd className="font-mono text-xs text-gray-600">d17-{payment.id.slice(0, 8)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="text-gray-500">{t("d17.summary_status")}</dt>
+              <dd className="font-medium text-black">{t(statusKey[payment.status] ?? "d17.status_pending")}</dd>
+            </div>
+          </dl>
+        </section>
 
         {/* ── Instructions + Proof Form (only when actionable) ────── */}
         {(status === "pending_payment" || status === "rejected") && phone && (
           <>
             {!rejected && (
-              <>
-                <p className="text-sm text-gray-600">{t("d17.method_hint")}</p>
+              <section className="grid gap-5">
+                <div className="grid gap-2">
+                  <h2 className="text-sm font-semibold text-black">{t("d17.step_transfer")}</h2>
+                  <p className="text-sm leading-relaxed text-gray-600">{t("d17.method_hint")}</p>
+                </div>
                 <D17Instructions
                   lang={lang}
                   amountMillimes={payment.amountMillimes}
                   receiverPhone={phone}
                   reference={`d17-${payment.id}`}
                 />
-                <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                <div className="rounded-lg border border-amber-200 bg-amber-50/50 px-4 py-3 text-sm text-amber-900">
                   {t("d17.notice", { hours: String(hours) })}
-                </p>
-                <hr className="border-gray-200" />
-              </>
+                </div>
+              </section>
             )}
 
-            <section className="grid gap-3">
-              <h2 className="text-sm font-semibold text-black">{t("d17.proof_title")}</h2>
-              <p className="text-sm text-gray-600">{t("d17.proof_subtitle")}</p>
+            <section className="grid gap-4 rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+              <div className="grid gap-1.5">
+                <h2 className="text-sm font-semibold text-black">{t("d17.proof_title")}</h2>
+                <p className="text-sm leading-relaxed text-gray-600">{t("d17.proof_subtitle")}</p>
+              </div>
               <D17ProofForm subscriptionId={subscriptionId} lang={lang} />
             </section>
           </>
@@ -245,26 +254,29 @@ export default async function D17CheckoutPage({
 
         {/* ── Waiting state (proof submitted) ─────────────────────── */}
         {status === "proof_submitted" && (
-          <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-center">
-            <p className="text-sm text-gray-700">{t("d17.waiting_title")}</p>
-            <p className="mt-1 text-xs text-gray-500">{t("d17.waiting_subtitle")}</p>
+          <div className="grid gap-2 rounded-xl border border-gray-200 bg-gray-50/50 p-6 text-center">
+            <p className="text-sm font-medium text-gray-900">{t("d17.waiting_title")}</p>
+            <p className="text-xs leading-relaxed text-gray-500">{t("d17.waiting_subtitle")}</p>
           </div>
         )}
 
         {/* ── Expired state ───────────────────────────────────────── */}
         {status === "expired" && (
-          <div className="text-center">
+          <div className="flex justify-center pt-2">
             <Link
               href="/dashboard/billing"
-              className="inline-flex items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+              className="inline-flex items-center justify-center rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40"
             >
               {t("d17.continue")}
             </Link>
           </div>
         )}
 
-        <p className="text-xs text-gray-600">{t("d17.no_pin_notice")}</p>
-        <LangSwitch links={langLinks(base)} />
+        {/* ── Footer notices ──────────────────────────────────────── */}
+        <div className="grid gap-4 border-t border-gray-100 pt-6">
+          <p className="text-center text-xs leading-relaxed text-gray-500">{t("d17.no_pin_notice")}</p>
+          <LangSwitch links={langLinks(base)} />
+        </div>
       </div>
     </AuthShell>
   );

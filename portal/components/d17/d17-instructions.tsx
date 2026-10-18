@@ -38,31 +38,39 @@ export function D17Instructions({
   ];
 
   return (
-    <div className="grid gap-6">
-      {/* Visual step tracker */}
-      <div className="flex items-center justify-between px-2" aria-hidden="true">
+    <div className="grid gap-5">
+      {/* Visual step tracker — decorative only, detailed list carries semantics */}
+      <div className="flex items-center justify-between px-1" aria-hidden="true">
         {steps.map((_, i) => (
-          <div key={i} className="flex items-center gap-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-full border-2 border-gray-200 bg-white text-xs font-semibold text-gray-600">
+          <div key={i} className="flex items-center">
+            <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${
+              steps[i].highlight
+                ? "border-emerald-400 bg-emerald-50 text-emerald-700"
+                : "border-gray-200 bg-white text-gray-500"
+            }`}>
               {i + 1}
             </div>
             {i < steps.length - 1 && (
-              <div className="h-0.5 w-6 bg-gray-200 sm:w-10 md:w-16" />
+              <div className={`h-px w-5 sm:w-8 md:w-12 ${
+                steps[i].highlight ? "bg-emerald-300" : "bg-gray-200"
+              }`} />
             )}
           </div>
         ))}
       </div>
 
       {/* Detailed steps */}
-      <ol className="grid gap-4">
+      <ol className="grid gap-3">
         {steps.map((step, i) => (
-          <li key={i} className="flex gap-3">
+          <li key={i} className={`flex gap-3.5 rounded-lg p-2.5 transition-colors ${
+            step.highlight ? "bg-emerald-50/30" : ""
+          }`}>
             <span
               aria-hidden
-              className={`flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
+              className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
                 step.highlight
-                  ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                  : "border-gray-300 bg-white text-gray-600"
+                  ? "bg-emerald-600 text-white"
+                  : "bg-gray-100 text-gray-500"
               }`}
             >
               {step.highlight ? (
@@ -72,14 +80,16 @@ export function D17Instructions({
               )}
             </span>
             <div className="min-w-0 flex-1">
-              <p className="text-sm leading-snug text-black">{step.label}</p>
+              <p className={`text-sm leading-relaxed ${
+                step.highlight ? "font-medium text-gray-900" : "text-gray-700"
+              }`}>{step.label}</p>
               {step.value ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <code
-                    className={`min-w-0 flex-1 truncate rounded-md border px-3 py-2 font-mono text-sm select-text ${
+                    className={`min-w-0 flex-1 select-all rounded-lg border px-3 py-2.5 font-mono text-sm tabular-nums tracking-tight ${
                       step.highlight
-                        ? "border-emerald-200 bg-emerald-50/50 font-semibold text-emerald-900"
-                        : "border-gray-200 bg-gray-50 text-black"
+                        ? "border-emerald-200 bg-white text-base font-semibold text-emerald-900 shadow-sm"
+                        : "border-gray-200 bg-gray-50/80 text-gray-900"
                     }`}
                   >
                     {step.value}
