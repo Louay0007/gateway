@@ -61,9 +61,9 @@ export function PricingPreview() {
             Two plans. Usage included, never a surprise.
           </h2>
           <p className="mt-4 text-gray-600">
-            Prices are in US dollars and billed monthly. In Tunisia you can pay
-            any plan by D17 transfer at La Poste — we show you the exact dinar
-            amount at checkout and it comes from the same plan price shown here.
+            Prices are in Tunisian Dinars and billed monthly. Pay any plan by
+            D17 transfer at La Poste — proof of payment is verified by a person,
+            usually within hours.
           </p>
         </div>
 
@@ -107,6 +107,9 @@ export function PricingPreview() {
                 <Feature>{plan.maxKeys} API keys</Feature>
                 <Feature>{(plan.rateMultiplierBps / 10000).toFixed(2)}× usage rate</Feature>
                 <Feature>{(plan.models ?? []).join(", ") || "models"}</Feature>
+                {Object.entries(plan.promptLimits ?? {}).map(([alias, limit]) => (
+                  <Feature key={alias}>{limit} {alias} prompts / month</Feature>
+                ))}
               </ul>
 
               <Button
