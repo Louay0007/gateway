@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -39,14 +41,14 @@ const zainoPlans: PricingPlan[] = [
     id: 'starter',
     name: 'Starter',
     description: 'Perfect for individuals exploring AI coding',
-    monthlyPrice: 60,
-    annualPrice: 48,
+    monthlyPrice: 50,
+    annualPrice: 40,
     features: [
       { name: '500 Sonnet 5 requests/mo', included: true },
-      { name: '250 Sonnet 5 requests/mo', included: true },
+      { name: '250 Opus 5.5 requests/mo', included: true },
       { name: 'Basic agent workflows', included: true },
       { name: 'Community support', included: true },
-      { name: 'Opus 5.5 access', included: false },
+      { name: 'Opus 5.5 access', included: true },
       { name: 'Priority queue', included: false },
     ],
     buttonText: 'Get Started',
@@ -97,14 +99,25 @@ export default function PricingComponent({
   className = '',
   showComparison = true,
 }: PricingComponentProps) {
+  const router = useRouter();
+  const { data: session } = useSession();
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(defaultBillingCycle);
   const [activeTab, setActiveTab] = useState<'pricing' | 'comparison'>('pricing');
 
   const handlePlanSelect = useCallback(
     (planId: string) => {
-      onPlanSelect?.(planId, billingCycle);
+      if (onPlanSelect) {
+        onPlanSelect(planId, billingCycle);
+        return;
+      }
+      // Auth-aware redirect: authenticated → billing, unauthenticated → sign-up
+      if (session?.user) {
+        router.push('/dashboard/billing');
+      } else {
+        router.push('/sign-up');
+      }
     },
-    [onPlanSelect, billingCycle]
+    [onPlanSelect, billingCycle, session, router]
   );
 
   const handleBillingToggle = useCallback((isAnnual: boolean) => {
