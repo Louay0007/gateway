@@ -110,8 +110,8 @@ export default function PrivacyPage() {
                   privacy@zaino.ai
                 </a>
                 . For general support, use the dashboard or email{" "}
-                <a href="mailto:support@zaino.ai" className="text-black underline-offset-4 hover:underline">
-                  support@zaino.ai
+                <a href="mailto:contact.zaino.ai@gmail.com" className="text-black underline-offset-4 hover:underline">
+                  contact.zaino.ai@gmail.com
                 </a>
                 .
               </p>

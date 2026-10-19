@@ -19,7 +19,7 @@ const columns = [
     links: [
       { label: 'Documentation', href: '/docs' },
       { label: 'Guides', href: '/docs' },
-      { label: 'Support', href: 'mailto:support@zaino.ai' },
+      { label: 'Support', href: 'mailto:contact.zaino.ai@gmail.com' },
       { label: 'WhatsApp', href: 'https://wa.me/21656794578' },
       { label: 'Status', href: '#' },
     ],

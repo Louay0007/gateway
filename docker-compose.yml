@@ -143,6 +143,28 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
 
+      # Admin console gate. Shared secret for the entry screen at /admin —
+      # the code the operator types before any staff login form renders.
+      #
+      # Wiring, not value: the secret itself lives in the server's .env and
+      # never leaves the box. This line only carries it into the portal
+      # container, where layout.tsx, page.tsx and the gate route all read
+      # process.env.ADMIN_GATE_SECRET. Without it the container sees
+      # nothing, the route answers 503, and gatePassed() treats the gate as
+      # disabled — which would be an OPEN console, not a locked one, once
+      # the IP allowlist is ever relaxed.
+      #
+      # Same bug class as the GHOSTCLI_API_KEY outage: present in .env,
+      # never passed into the service. Any NEW os.environ/process.env
+      # reference needs its matching line here, verified with:
+      #   docker exec gateway-portal-1 sh -lc 'printenv ADMIN_GATE_SECRET | wc -c'
+      # (non-zero means wired; the value itself is never printed).
+      #
+      # `:?` is load-bearing: it fails the compose up LOUDLY on a box whose
+      # .env predates this line, instead of silently running an ungated
+      # console. `:-` would be the wrong default operator here.
+      ADMIN_GATE_SECRET: ${ADMIN_GATE_SECRET:?set in .env}
+
       # D17 manual payments (La Poste Tunisienne) — the customer pages
       # and the admin queue both run in this container.
       D17_RECEIVER_PHONE: ${D17_RECEIVER_PHONE:-}

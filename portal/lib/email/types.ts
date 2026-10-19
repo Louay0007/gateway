@@ -18,11 +18,23 @@
  *            exists so the flow is exercisable without a mail account.
  */
 
+export interface EmailAttachment {
+  /** File name shown to the client, e.g. `logo.png`. */
+  filename: string;
+  /** Base64-encoded file content. */
+  content: string;
+  /** MIME type, e.g. `image/png`. Helps clients render inline images. */
+  contentType?: string;
+  /** CID used as `<img src="cid:...">` for inline embedding. */
+  contentId?: string;
+}
+
 export interface EmailMessage {
   to: string;
   subject: string;
   text: string;
   html?: string;
+  attachments?: EmailAttachment[];
 }
 
 export interface EmailResult {
@@ -37,5 +49,5 @@ export interface EmailTransport {
 
 /** From address, with a sane local fallback. */
 export function fromAddress(): string {
-  return process.env.MAIL_FROM ?? 'Zaino <noreply@zaino.ai>';
+  return process.env.MAIL_FROM ?? 'Zaino <contact.zaino.ai@gmail.com>';
 }

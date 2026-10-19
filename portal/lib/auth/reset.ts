@@ -47,6 +47,7 @@ import {
   resetLink,
 } from '@/lib/auth/reset-tokens';
 import { sendEmail } from '@/lib/email';
+import { buttonHtml, logoAttachment, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 
 async function emailForToken(email: string): Promise<string | null> {
@@ -89,15 +90,24 @@ export async function requestPasswordReset(emailRaw: string): Promise<{
   });
 
   try {
+    const link = resetLink(raw);
+    const bodyText =
+      `We received a request to reset the password for ${canonical}.\n\n` +
+      `Open this link to choose a new password (valid ${TOKEN_TTL_MINUTES} minutes):\n` +
+      `${link}\n\n` +
+      `If you did not request a reset, you can ignore this email — your ` +
+      `password stays as it is, and this link stops working on its own.`;
+    const bodyHtml =
+      `<p style="margin:0 0 12px 0;">We received a request to reset the password for <strong>${canonical}</strong>.</p>` +
+      `<p style="margin:0 0 12px 0;">Open this link to choose a new password (valid ${TOKEN_TTL_MINUTES} minutes):</p>` +
+      buttonHtml(link, 'Reset Password') +
+      `<p style="margin:0;color:#666666;font-size:13px;">If you did not request a reset, you can ignore this email — your password stays as it is, and this link stops working on its own.</p>`;
     await sendEmail({
       to: canonical,
       subject: 'Reset your password',
-      text:
-        `We received a request to reset the password for ${canonical}.\n\n` +
-        `Open this link to choose a new password (valid ${TOKEN_TTL_MINUTES} minutes):\n` +
-        `${resetLink(raw)}\n\n` +
-        `If you did not request a reset, you can ignore this email — your ` +
-        `password stays as it is, and this link stops working on its own.`,
+      text: bodyText,
+      html: wrapEmail(bodyHtml),
+      attachments: [logoAttachment()],
     });
   } catch (e) {
     log.error('password reset: send failed', {

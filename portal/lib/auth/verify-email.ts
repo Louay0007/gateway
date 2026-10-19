@@ -27,6 +27,7 @@ import { db } from '@/db';
 import { authUsers, authVerificationTokens, users } from '@/db/schema';
 import { AuthzError } from '@/lib/auth/errors';
 import { sendEmail } from '@/lib/email';
+import { buttonHtml, logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 import { hashToken, TOKEN_BYTES } from './tokens';
 import { VERIFY_PREFIX, VERIFY_TTL_MINUTES, verifyIdentifierFor, verifyLink } from './verify-tokens';
@@ -96,17 +97,27 @@ export async function sendVerificationEmail(
   });
 
   try {
+    const link = verifyLink(raw);
+    const bodyText =
+      `Welcome to Zaino AI.\n\n` +
+      `Confirm this address to finish setting up your account (the link is valid ` +
+      `${Math.round(VERIFY_TTL_MINUTES / 60)} hours):\n` +
+      `${link}\n\n` +
+      `Until it is confirmed you can browse the dashboard, but you cannot ` +
+      `create an API key or start a subscription.\n\n` +
+      `If you did not create this account, you can ignore this email.`;
+    const bodyHtml =
+      `<p style="margin:0 0 12px 0;">Welcome to Zaino AI.</p>` +
+      `<p style="margin:0 0 12px 0;">Confirm this address to finish setting up your account (the link is valid ${Math.round(VERIFY_TTL_MINUTES / 60)} hours):</p>` +
+      buttonHtml(link, 'Confirm Email Address') +
+      `<p style="margin:0 0 12px 0;">Until it is confirmed you can browse the dashboard, but you cannot create an API key or start a subscription.</p>` +
+      `<p style="margin:0;color:#666666;font-size:13px;">If you did not create this account, you can ignore this email.</p>`;
     await sendEmail({
       to: email,
       subject: 'Confirm your email address',
-      text:
-        `Welcome to Zaino AI.\n\n` +
-        `Confirm this address to finish setting up your account (the link is valid ` +
-        `${Math.round(VERIFY_TTL_MINUTES / 60)} hours):\n` +
-        `${verifyLink(raw)}\n\n` +
-        `Until it is confirmed you can browse the dashboard, but you cannot ` +
-        `create an API key or start a subscription.\n\n` +
-        `If you did not create this account, you can ignore this email.`,
+      text: bodyText,
+      html: wrapEmail(bodyHtml),
+      attachments: [logoAttachment()],
     });
   } catch (e) {
     log.error('email verification: send failed', {

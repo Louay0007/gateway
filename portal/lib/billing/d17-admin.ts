@@ -32,6 +32,7 @@ import { appendAudit } from '@/lib/audit';
 import { applyCallback, type ProviderEvent } from '@/lib/billing';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
 import { sendEmail } from '@/lib/email';
+import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 import { formatTndMillimes } from './d17-config';
 
@@ -270,16 +271,19 @@ export async function approveD17Payment(
       const lang = (payment.lang === 'ar' || payment.lang === 'en') ? payment.lang : 'fr';
       const templates = d17EmailTemplates(lang);
       try {
+        const approvedText = templates.approvedBody({
+            plan: plan.name,
+            amount: formatTndMillimes(payment.amountMillimes),
+          });
         await sendEmail({
           to: owner.email,
           subject: templates.approvedSubject({
             plan: plan.name,
             amount: formatTndMillimes(payment.amountMillimes),
           }),
-          text: templates.approvedBody({
-            plan: plan.name,
-            amount: formatTndMillimes(payment.amountMillimes),
-          }),
+          text: approvedText,
+          html: wrapEmail(textToHtml(approvedText), { dir: lang === 'ar' ? 'rtl' : 'ltr' }),
+          attachments: [logoAttachment()],
         });
       } catch (e) {
         log.error('d17: approval email failed', {
@@ -359,15 +363,18 @@ export async function rejectD17Payment(
       const lang = (payment.lang === 'ar' || payment.lang === 'en') ? payment.lang : 'fr';
       const templates = d17EmailTemplates(lang);
       try {
-        await sendEmail({
-          to: owner.email,
-          subject: templates.rejectedSubject({}),
-          text: templates.rejectedBody({
+        const rejectedText = templates.rejectedBody({
             amount: formatTndMillimes(payment.amountMillimes),
             reason: alreadyRejected
               ? `${trimmed} — This proof was already rejected once; please contact support.`
               : trimmed,
-          }),
+          });
+        await sendEmail({
+          to: owner.email,
+          subject: templates.rejectedSubject({}),
+          text: rejectedText,
+          html: wrapEmail(textToHtml(rejectedText), { dir: lang === 'ar' ? 'rtl' : 'ltr' }),
+          attachments: [logoAttachment()],
         });
       } catch (e) {
         log.error('d17: rejection email failed', {

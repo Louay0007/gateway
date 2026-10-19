@@ -44,6 +44,7 @@ import {
 import { appendAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
+import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { loadOpenD17Payment } from './d17';
 import { recordSubmission } from './d17-ratelimit';
 import { log } from '@/lib/log';
@@ -317,10 +318,13 @@ export async function submitD17Proof(
       });
       if (owner?.email) {
         try {
+          const receivedText = templates.receivedBody(vars);
           await sendEmail({
             to: owner.email,
             subject: templates.receivedSubject(vars),
-            text: templates.receivedBody(vars),
+            text: receivedText,
+            html: wrapEmail(textToHtml(receivedText), { dir: input.lang === 'ar' ? 'rtl' : 'ltr' }),
+            attachments: [logoAttachment()],
           });
         } catch (e) {
           log.error('d17: customer notification failed', {
@@ -335,15 +339,18 @@ export async function submitD17Proof(
     const opsEmail = (process.env.OPS_ALERT_EMAIL ?? '').trim();
     if (opsEmail) {
       try {
-        await sendEmail({
-          to: opsEmail,
-          subject: templates.adminSubject(vars),
-          text: templates.adminBody({
+        const adminText = templates.adminBody({
             ...vars,
             org: org.name,
             phone: senderPhone,
             submittedAt: new Date().toISOString(),
-          }),
+          });
+        await sendEmail({
+          to: opsEmail,
+          subject: templates.adminSubject(vars),
+          text: adminText,
+          html: wrapEmail(textToHtml(adminText)),
+          attachments: [logoAttachment()],
         });
       } catch (e) {
         log.error('d17: ops notification failed', {

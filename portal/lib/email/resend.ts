@@ -35,6 +35,16 @@ export const resendTransport: EmailTransport = {
         subject: message.subject,
         text: message.text,
         ...(message.html ? { html: message.html } : {}),
+        ...(message.attachments?.length
+          ? {
+              attachments: message.attachments.map((a) => ({
+                content: a.content,
+                filename: a.filename,
+                ...(a.contentType ? { content_type: a.contentType } : {}),
+                ...(a.contentId ? { content_id: a.contentId } : {}),
+              })),
+            }
+          : {}),
       }),
       signal: AbortSignal.timeout(15_000),
     });

@@ -45,6 +45,16 @@ export const smtpTransport: EmailTransport = {
       subject: message.subject,
       text: message.text,
       ...(message.html ? { html: message.html } : {}),
+      ...(message.attachments?.length
+        ? {
+            attachments: message.attachments.map((a) => ({
+              filename: a.filename,
+              content: Buffer.from(a.content, 'base64'),
+              contentType: a.contentType,
+              ...(a.contentId ? { cid: a.contentId } : {}),
+            })),
+          }
+        : {}),
     });
 
     return { id: info.messageId ?? null };

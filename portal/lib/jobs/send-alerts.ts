@@ -27,6 +27,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { systemAlerts } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
+import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 
 /** Collector silence after which usage is silently not being billed. */
@@ -118,17 +119,20 @@ export async function sendOpsAlerts(): Promise<{
 
   if (recipients.length > 0) {
     try {
+      const alertText =
+          (recovering
+            ? 'All monitored checks are healthy again.\n\nPrevious state:\n'
+            : 'One or more checks need attention:\n\n') +
+          (state || '(healthy)') +
+          '\n\n—\nSent by the send_alerts job. Silence means nothing changed.';
       await sendEmail({
         to: recipients[0]!,
         subject: recovering
           ? '[gateway] recovered — all checks healthy'
           : '[gateway] attention needed',
-        text:
-          (recovering
-            ? 'All monitored checks are healthy again.\n\nPrevious state:\n'
-            : 'One or more checks need attention:\n\n') +
-          (state || '(healthy)') +
-          '\n\n—\nSent by the send_alerts job. Silence means nothing changed.',
+        text: alertText,
+        html: wrapEmail(textToHtml(alertText)),
+        attachments: [logoAttachment()],
       });
       emailed = true;
     } catch (e) {

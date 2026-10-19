@@ -42,6 +42,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { systemAlerts } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
+import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 
 /** Rejections in 24h before an org is worth a look. */
@@ -208,12 +209,15 @@ export async function detectAnomalies(): Promise<{
       );
     }
     try {
+      const alertText = sections.join('\n\n') + '\n\n—\nSent by the detect_anomalies job.';
       await sendEmail({
         to: recipients[0]!,
         subject: newOrChanged.length
           ? '[gateway] anomaly signals need attention'
           : '[gateway] anomaly signals cleared',
-        text: sections.join('\n\n') + '\n\n—\nSent by the detect_anomalies job.',
+        text: alertText,
+        html: wrapEmail(textToHtml(alertText)),
+        attachments: [logoAttachment()],
       });
       emailed = true;
     } catch (e) {
