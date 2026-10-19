@@ -120,15 +120,19 @@ export function BillingView() {
     : null;
 
   const isTrial = b?.subscription?.status === 'trialing';
+  // While the trial window is still open the renew button is HIDDEN, not
+  // merely disabled: there is nothing to renew yet, and the paid flow opens
+  // the moment the trial ends. `renews` carries the end date for the note
+  // that replaces the button.
+  const trialActive =
+    isTrial &&
+    !!b?.subscription?.currentPeriodEnd &&
+    Date.now() < new Date(b.subscription.currentPeriodEnd).getTime();
   const isRenewableNow = (() => {
     if (!b?.subscription || !hasPlan) return true;
-    // Trials: renew/upgrade stays open until the trial actually ends, so
-    // users can convert to a paid plan at any point during the window.
-    // Only close the button once currentPeriodEnd has passed.
-    if (isTrial) {
-      if (!b.subscription.currentPeriodEnd) return true;
-      return Date.now() < new Date(b.subscription.currentPeriodEnd).getTime();
-    }
+    // Trial: once it is over (or has no end date) renewal is open at once —
+    // visibility during the window is handled by `trialActive` above.
+    if (isTrial) return true;
     if (!['active', 'past_due', 'paused'].includes(b.subscription.status)) return true;
     if (!b.subscription.currentPeriodEnd) return true;
     const end = new Date(b.subscription.currentPeriodEnd).getTime();
@@ -385,26 +389,41 @@ export function BillingView() {
 
                 {/* Action Button */}
                 <div className="flex justify-center md:justify-end">
-                  <Button
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
-                    size="lg"
-                    disabled={busy !== null || !isRenewableNow}
-                    title={
-                      !isRenewableNow
-                        ? `Renewal opens ${renewalOpensLabel} — 2 days before your period ends.`
-                        : undefined
-                    }
-                    onClick={() => void beginCheckout(plan.code, "d17")}
-                  >
-                    <CreditCard className="mr-2 size-4" />
-                    {busy
-                      ? "Opening checkout…"
-                      : hasPlan
-                        ? isRenewableNow
-                          ? "Renew with D17"
-                          : `Renews ${renews ?? "next period"}`
-                        : "Pay with D17"}
-                  </Button>
+                  {trialActive ? (
+                    <span className="text-sm text-emerald-700 font-medium px-4 py-3">
+                      Free trial active until{" "}
+                      {b?.subscription?.currentPeriodEnd
+                        ? new Date(b.subscription.currentPeriodEnd).toLocaleDateString("en-US", {
+                            month: "long",
+                            day: "numeric",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          })
+                        : "your trial end date"}
+                      {" "}— renewal opens when the trial ends.
+                    </span>
+                  ) : (
+                    <Button
+                      className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
+                      size="lg"
+                      disabled={busy !== null || !isRenewableNow}
+                      title={
+                        !isRenewableNow
+                          ? `Renewal opens ${renewalOpensLabel} — 2 days before your period ends.`
+                          : undefined
+                      }
+                      onClick={() => void beginCheckout(plan.code, "d17")}
+                    >
+                      <CreditCard className="mr-2 size-4" />
+                      {busy
+                        ? "Opening checkout…"
+                        : hasPlan
+                          ? isRenewableNow
+                            ? "Renew with D17"
+                            : `Renews ${renews ?? "next period"}`
+                          : "Pay with D17"}
+                    </Button>
+                  )}
                 </div>
               </div>
 
