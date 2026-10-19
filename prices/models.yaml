@@ -2,9 +2,9 @@
 # pricing page. Do NOT hardcode values from documentation examples.
 #
 # ── CURRENT UPSTREAMS ─────────────────────────────────────────────────
-# fast   → GhostCLI claude-sonnet-5    (Responses API)
-# smart  → GhostCLI claude-opus-5-5    (Responses API)
-# frontier → NVIDIA NIM nemotron-3.5   (enterprise lock, chat/completions only)
+# fast     → GhostCLI claude-sonnet-5   (Responses API)
+# smart    → GhostCLI claude-opus-5-5   (Responses API)
+# frontier → GhostCLI claude-fable-5-1  (Pro-only, Responses API)
 #
 # Mirrored per-token in config/litellm.yaml's model_info — ONE table, TWO
 # consumers (portal resolvePrice + scripts/reconcile.sh). tests/
@@ -36,19 +36,19 @@ models:
     cache_read_note:         0.10x input
     output_per_mtok:         75.00
 
-  # ── frontier: NVIDIA nemotron (enterprise lock, nominal dev rates) ──
-  nemotron-3.5-super-vl-120b-a12b:
-    input_per_mtok:          0.15
-    cache_write_5m_per_mtok: 0.1875
-    cache_write_5m_note:     1.25x input (nominal, mirrors litellm.yaml)
-    cache_write_1h_per_mtok: 0.30
-    cache_write_1h_note:     2.0x input (nominal)
-    cache_read_per_mtok:     0.015
-    cache_read_note:         0.10x input (nominal)
-    output_per_mtok:         0.60
+  # ── frontier: Claude Fable 5.1 via GhostCLI (Pro-only) ──
+  claude-fable-5-1:
+    input_per_mtok:          10.00
+    cache_write_5m_per_mtok: 12.50
+    cache_write_5m_note:     1.25x input
+    cache_write_1h_per_mtok: 20.00
+    cache_write_1h_note:     2.0x input
+    cache_read_per_mtok:     0.25
+    cache_read_note:         0.025x input
+    output_per_mtok:         50.00
 
 # ── Alias registry ──────────────────────────────────────────────────
 aliases:
-  claude-sonnet-5:                    fast
-  claude-opus-5-5:                    smart
-  nemotron-3.5-super-vl-120b-a12b:    frontier
+  claude-sonnet-5:    fast
+  claude-opus-5-5:    smart
+  claude-fable-5-1:   frontier

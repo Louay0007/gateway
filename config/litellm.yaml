@@ -4,7 +4,7 @@
 #  Active deployments:
 #    fast     → GhostCLI claude-sonnet-5   (Responses API)
 #    smart    → GhostCLI claude-opus-5-5   (Responses API)
-#    frontier → NVIDIA NIM nemotron-3.5   (enterprise lock, chat/completions only)
+#    frontier → GhostCLI claude-fable-5-1  (Pro-only, Responses API)
 # ═══════════════════════════════════════════════════════════════════════
 
 model_list:
@@ -21,7 +21,7 @@ model_list:
       supported_endpoints: ["/v1/chat/completions", "/v1/responses"]
       input_cost_per_token: 0.000003
       output_cost_per_token: 0.000015
-      cache_creation_input_token_cost: 0.00000375
+      cache_creation_input_token_cost: 0.000006
       cache_read_input_token_cost: 0.0000003
 
   # ── smart: Claude Opus 5.5 via GhostCLI (Responses wire) ─────────────
@@ -37,24 +37,24 @@ model_list:
       supported_endpoints: ["/v1/chat/completions", "/v1/responses"]
       input_cost_per_token: 0.000015
       output_cost_per_token: 0.000075
-      cache_creation_input_token_cost: 0.00001875
+      cache_creation_input_token_cost: 0.00003
       cache_read_input_token_cost: 0.0000015
 
-  # ── frontier: NVIDIA NIM (enterprise lock) ───────────────────────────
+  # ── frontier: Claude Fable 5.1 via GhostCLI (Pro-only) ───────────────
   - model_name: frontier
     litellm_params:
-      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
-      api_base: os.environ/UPSTREAM_BASE_URL
-      api_key: os.environ/UPSTREAM_API_KEY
+      model: openai/claude-fable-5-1
+      api_base: https://ghostcli.cloud/v1
+      api_key: os.environ/GHOSTCLI_API_KEY
       timeout: 240
       num_retries: 6
       cooldown_time: 3
     model_info:
-      supported_endpoints: ["/v1/chat/completions"]
-      input_cost_per_token: 0.00000015
-      output_cost_per_token: 0.0000006
-      cache_creation_input_token_cost: 0.0000003
-      cache_read_input_token_cost: 0.000000015
+      supported_endpoints: ["/v1/chat/completions", "/v1/responses"]
+      input_cost_per_token: 0.00001
+      output_cost_per_token: 0.00005
+      cache_creation_input_token_cost: 0.00002
+      cache_read_input_token_cost: 0.00000025
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Routing

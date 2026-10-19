@@ -203,16 +203,16 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('resolves each alias to its own tier via resolvePrice, longest key first', () => {
-    // `nemotron-3.5-super-vl-120b-a12b` is its own key so it never collapses
-    // into a broader prefix. LiteLLM reports `openai/nvidia/nemotron-…` and
-    // the upstream answers `"model":"nemotron-3.5-super-vl-120b-a12b"` —
-    // both must resolve to the same price row.
-    const prefixed = resolvePrice(priceTable, 'openai/nvidia/nemotron-3.5-super-vl-120b-a12b');
-    const bare = resolvePrice(priceTable, 'nemotron-3.5-super-vl-120b-a12b');
+    // `claude-fable-5-1` is its own key so it never collapses into a broader
+    // prefix. LiteLLM reports `openai/claude-fable-5-1` and the upstream
+    // answers `"model":"claude-fable-5-1"` — both must resolve to the same
+    // price row.
+    const prefixed = resolvePrice(priceTable, 'openai/claude-fable-5-1');
+    const bare = resolvePrice(priceTable, 'claude-fable-5-1');
     expect(prefixed).toBeTruthy();
     expect(bare).toBeTruthy();
-    expect(prefixed).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
-    expect(bare).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
+    expect(prefixed).toBe(priceTable['claude-fable-5-1']);
+    expect(bare).toBe(priceTable['claude-fable-5-1']);
     // The two forms must resolve identically — prefix matching is an alias,
     // not a re-classification.
     expect(prefixed).toBe(bare);
@@ -265,13 +265,20 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('only declares endpoints the upstream actually serves', () => {
-    // The upstream 404s on /v1/responses. If a future edit declares it,
-    // LiteLLM forwards into a 404 and codex-cli dies — the exact bug §5.22
-    // was built to work around.
+    // GhostCLI serves both /v1/chat/completions and /v1/responses for all
+    // three tiers (sonnet-5, opus-5-5, fable-5-1). Every deployment must
+    // declare at least chat/completions; responses is optional but valid.
     for (const d of deployments) {
-      expect(d.endpoints, `${d.bare} declares an endpoint the upstream lacks`).toEqual([
-        '/v1/chat/completions',
-      ]);
+      expect(
+        d.endpoints,
+        `${d.bare} declares an endpoint the upstream lacks`,
+      ).toContain('/v1/chat/completions');
+      for (const ep of d.endpoints) {
+        expect(
+          ['/v1/chat/completions', '/v1/responses'],
+          `${d.bare} declares unknown endpoint ${ep}`,
+        ).toContain(ep);
+      }
     }
   });
 
@@ -296,7 +303,7 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
       const raw = readFileSync(PRICES_YAML, 'utf8');
       const inBlock = raw.slice(raw.indexOf('aliases:'));
       const out: Record<string, string> = {};
-      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+fast\s*$/gm)) {
+      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+(fast|smart|frontier)\s*$/gm)) {
         out[m[1]!] = m[2]!;
       }
       return out;
