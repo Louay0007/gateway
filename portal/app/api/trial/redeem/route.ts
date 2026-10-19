@@ -6,12 +6,22 @@
  */
 import { NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { requireActiveOrg } from '@/lib/auth/authorize';
+import { currentUser, requireActiveOrg } from '@/lib/auth/authorize';
 import { redeemTrialCode } from '@/lib/trial/service';
 
 export async function POST(request: Request) {
   const session = await auth();
   if (!session?.user?.id) {
+    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+  }
+
+  // The domain id, not the session id: the session carries the AUTH
+  // identity (auth_users.id) while trial_redemptions.user_id references
+  // the domain mirror (users.id) — the two are different UUIDs bridged by
+  // email (see create-user.ts). Passing the session id here violated the
+  // FK on every redemption; requireActiveOrg's userId is the domain id.
+  const user = await currentUser();
+  if (!user) {
     return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
   }
 
@@ -29,9 +39,11 @@ export async function POST(request: Request) {
 
   // Resolve the user's active organization
   let orgId: string;
+  let domainUserId: string;
   try {
-    const { orgId: resolved } = await requireActiveOrg();
-    orgId = resolved;
+    const resolved = await requireActiveOrg();
+    orgId = resolved.orgId;
+    domainUserId = resolved.userId;
   } catch {
     return NextResponse.json(
       { error: 'no_org', message: 'You must have an organization to redeem a trial code.' },
@@ -39,7 +51,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await redeemTrialCode(session.user.id, orgId, code);
+  const result = await redeemTrialCode(domainUserId, orgId, code);
 
   if (!result.ok) {
     const statusMap: Record<string, number> = {
