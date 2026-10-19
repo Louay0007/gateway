@@ -17,7 +17,11 @@ on:
 # the same images and can leave a half-recreated container.
 concurrency:
   group: deploy-production
-  cancel-in-progress: false
+  # When a new push lands while a deploy is running or queued, cancel the
+  # older run. Only the latest commit matters on a single VPS; keeping the
+  # old run just delays the new one by minutes while producing a result
+  # that will be overwritten moments later.
+  cancel-in-progress: true
 
 jobs:
   deploy:
