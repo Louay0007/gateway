@@ -142,10 +142,10 @@
 	# Content-Disposition: attachment so browsers download instead of
 	# trying to render a 100MB binary. The portal's /api/downloads route
 	# lists what's actually on disk; this block serves the bytes.
-	# Path traversal is impossible: `file_server` roots at the downloads
-	# dir and Caddy cleans `..` before resolving; dotfiles and .sig
-	# sidecars are hidden explicitly below.
-	route /downloads/* {
+	# Path traversal is impossible: `handle_path` strips the prefix then
+	# `file_server` roots at the downloads dir, and Caddy cleans `..`
+	# before resolving; dotfiles and .sig sidecars are hidden below.
+	handle_path /downloads/* {
 		root * /opt/gateway/data/downloads
 		@hidden path */.* *.sig
 		respond @hidden "Not found" 404
