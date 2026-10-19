@@ -18,4 +18,6 @@ UPDATE usage_records SET prompt_count = 1 WHERE route IN ('chat_completions', 'r
 
 -- Seed plan prompt limits
 UPDATE plans SET prompt_limits = '{"fast": 500, "smart": 250}' WHERE code = 'starter';
-UPDATE plans SET prompt_limits = '{"smart": 1000, "frontier": 500}' WHERE code = 'pro';
+-- Pro: 1000 Fast (Sonnet 5) + 500 Smart (Opus 5.5). Frontier removed from
+-- this tier; kept only on higher tiers if any are added later.
+UPDATE plans SET prompt_limits = '{"fast": 1000, "smart": 500}', models = '{fast,smart}' WHERE code = 'pro';
