@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import {
+  Apple,
   AppWindow,
   ArrowUpRight,
   Check,
-  Command,
   Cpu,
   Download,
   Info,
@@ -76,7 +76,7 @@ const PLATFORMS: Platform[] = [
     id: "macos",
     name: "macOS",
     tagline: "Signed & notarized DMG",
-    icon: <Command className="size-5" />,
+    icon: <Apple className="size-5" />,
     rows: [
       {
         id: "mac-arm64",
@@ -373,49 +373,73 @@ export default function DownloadContent() {
       </div>
 
       {/* ── Platform cards ───────────────────────────────── */}
-      <div id="platforms" className="mt-14 grid scroll-mt-24 gap-5 md:grid-cols-3">
+      <div id="platforms" className="mt-16 grid scroll-mt-24 gap-6 md:grid-cols-3">
         {PLATFORMS.map((platform) => {
           const isDetected = os === platform.id;
           return (
             <Card
               key={platform.id}
               className={cn(
-                "relative",
-                isDetected && "border-black ring-1 ring-black",
+                "relative flex flex-col overflow-hidden transition-all duration-200 hover:shadow-md",
+                isDetected
+                  ? "border-black ring-1 ring-black shadow-sm"
+                  : "border-black/10 hover:border-black/20",
               )}
             >
               {isDetected ? (
-                <Badge className="absolute -top-2.5 left-4 bg-black text-white">
-                  <Check className="size-3" />
-                  Your OS
+                <div className="absolute inset-x-0 top-0 h-1 bg-black" />
+              ) : null}
+              {isDetected ? (
+                <Badge className="absolute right-4 top-4 z-10 bg-black text-white hover:bg-black/90">
+                  <Check className="mr-1 size-3" />
+                  Detected
                 </Badge>
               ) : null}
-              <CardHeader>
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-xl bg-black text-white">
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-4">
+                  <span
+                    className={cn(
+                      "flex size-12 items-center justify-center rounded-2xl transition-colors",
+                      isDetected
+                        ? "bg-black text-white"
+                        : "bg-gray-100 text-black group-hover:bg-black group-hover:text-white",
+                    )}
+                  >
                     {platform.icon}
                   </span>
                   <div>
-                    <CardTitle>{platform.name}</CardTitle>
-                    <CardDescription>{platform.tagline}</CardDescription>
+                    <CardTitle className="text-xl">{platform.name}</CardTitle>
+                    <CardDescription className="mt-0.5">
+                      {platform.tagline}
+                    </CardDescription>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="grid gap-2">
+              <CardContent className="flex flex-1 flex-col gap-3 pt-0">
                 {platform.rows.map((row) => {
                   const resolved = resolveRow(row);
                   return (
                     <div
                       key={row.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-black/10 px-3 py-2.5"
+                      className={cn(
+                        "group/row flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors",
+                        isDetected
+                          ? "border-black/10 bg-black/[0.02]"
+                          : "border-black/5 hover:border-black/10 hover:bg-gray-50",
+                      )}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-black">
+                        <p className="truncate text-sm font-semibold text-black">
                           {row.label}
                         </p>
-                        <p className="truncate text-xs text-black/50">
+                        <p className="mt-0.5 truncate text-xs text-black/50">
                           {row.hint}
-                          {resolved.size ? ` · ${resolved.size}` : ""}
+                          {resolved.size ? (
+                            <span className="font-medium text-black/70">
+                              {" "}
+                              · {resolved.size}
+                            </span>
+                          ) : null}
                         </p>
                       </div>
                       {resolved.href ? (
@@ -423,13 +447,15 @@ export default function DownloadContent() {
                           size="sm"
                           variant={isDetected ? "default" : "outline"}
                           className={cn(
-                            "shrink-0 rounded-full",
-                            isDetected && "bg-black text-white hover:bg-black/85",
+                            "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition-all",
+                            isDetected
+                              ? "bg-black text-white hover:bg-black/85"
+                              : "border-black/10 text-black hover:border-black hover:bg-black hover:text-white",
                           )}
                           nativeButton={false}
                           render={
                             <a href={resolved.href} download>
-                              <Download className="size-3.5" />
+                              <Download className="mr-1.5 size-3.5" />
                               Get
                             </a>
                           }
@@ -438,11 +464,15 @@ export default function DownloadContent() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="shrink-0 rounded-full"
+                          className="h-8 shrink-0 rounded-lg border-black/10 px-3 text-xs font-medium text-black/60 hover:border-black/20 hover:text-black"
                           nativeButton={false}
                           render={
-                            <a href={RELEASE_PAGE} target="_blank" rel="noreferrer">
-                              Release page
+                            <a
+                              href={RELEASE_PAGE}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              View
                             </a>
                           }
                         />
