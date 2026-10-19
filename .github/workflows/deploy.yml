@@ -1,0 +1,104 @@
+name: Deploy to VPS
+
+# Two triggers, one job: push to main, or click "Run workflow".
+#
+# There is deliberately NO `pull_request` trigger here. This workflow runs
+# on a SELF-HOSTED runner, which means it executes with the VPS user's own
+# filesystem and Docker permissions. This repository is public, so a
+# `pull_request` trigger would let anyone who opens a fork run arbitrary
+# workflow code as the deploy user on the production box. Only maintainers
+# who can push to main may deploy.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time. Two overlapping builds on one VPS will fight over
+# the same images and can leave a half-recreated container.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # The runner is installed ON the VPS, so no SSH key, host, or password
+    # is ever stored in GitHub. The workflow is just a list of commands to
+    # run in the project directory that already exists there.
+    runs-on: [self-hosted, linux, x64]
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        # The one non-secret constant in this file. The project lives here
+        # on the VPS; nothing about the app's configuration is in GitHub.
+        working-directory: /opt/gateway
+
+    steps:
+      - name: Show what is deploying
+        run: |
+          echo "commit  : $(git rev-parse HEAD)"
+          echo "branch  : $(git rev-parse --abbrev-ref HEAD)"
+          echo "trigger : ${{ github.event_name }}"
+          echo "actor   : ${{ github.actor }}"
+
+      # A tracked file edited by hand on the VPS would make `git pull`
+      # refuse (good), but refusing AFTER the pull has already moved some
+      # files is the confusing failure. Fail early, with an explanation.
+      - name: Refuse to deploy a dirty tree
+        run: |
+          dirty=$(git status --porcelain --untracked-files=no)
+          if [ -n "$dirty" ]; then
+            echo "::error::Tracked files on the VPS differ from git. Refusing to deploy:"
+            echo "$dirty"
+            echo "Fix on the VPS (git checkout -- <file>) or commit the change, then re-run."
+            exit 1
+          fi
+          echo "tree is clean"
+
+      - name: Fast-forward to the pushed commit
+        run: |
+          git fetch origin main
+          # --ff-only so a diverged history fails loudly instead of
+          # silently generating a merge commit on the deploy box.
+          git merge --ff-only origin/main
+          echo "now at  : $(git rev-parse HEAD)"
+
+      # Same sequence `make deploy` runs remotely. Migrations are
+      # idempotent and forward-only, and they run BEFORE the new code is
+      # up — so a deploy never serves code that expects a column the
+      # database does not have yet.
+      - name: Migrate database
+        run: |
+          make db-init
+          make db-migrate
+
+      - name: Build and restart the stack
+        run: docker compose up -d --build
+
+      - name: Wait for health
+        run: |
+          sleep 8
+          make health
+
+      # `make health` prints FAIL and still exits 0 — it is a human
+      # readout, not a gate. These checks assert, so a broken deploy marks
+      # the run red instead of scrolling past.
+      - name: Verify the deploy actually serves
+        run: |
+          set -euo pipefail
+
+          code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
+            http://127.0.0.1:4000/health/readiness || true)
+          [ "$code" = "200" ] || { echo "::error::gateway readiness returned $code"; exit 1; }
+          echo "gateway readiness : 200"
+
+          health=$(curl -sS -m 10 http://127.0.0.1:3000/api/health || true)
+          echo "$health" | grep -q '"database":true' \
+            || { echo "::error::portal reports database:false — $health"; exit 1; }
+          echo "portal health     : ok"
+
+          docker compose ps --status running --services | grep -qx jobs \
+            || { echo "::error::jobs runner is not running"; exit 1; }
+          echo "jobs runner       : running"
+
+          echo "deployed commit   : $(git rev-parse HEAD)"
