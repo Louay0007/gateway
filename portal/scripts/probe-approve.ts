@@ -49,7 +49,7 @@ async function main() {
     .values({
       email: `probe-${stamp}@example.invalid`,
       name: 'Probe',
-      authProvider: 'probe',
+      authProvider: 'authjs',
       authId: `probe-${stamp}`,
     })
     .returning({ id: users.id });
