@@ -119,8 +119,16 @@ export function BillingView() {
       })
     : null;
 
+  const isTrial = b?.subscription?.status === 'trialing';
   const isRenewableNow = (() => {
     if (!b?.subscription || !hasPlan) return true;
+    // Trials: renew/upgrade stays open until the trial actually ends, so
+    // users can convert to a paid plan at any point during the window.
+    // Only close the button once currentPeriodEnd has passed.
+    if (isTrial) {
+      if (!b.subscription.currentPeriodEnd) return true;
+      return Date.now() < new Date(b.subscription.currentPeriodEnd).getTime();
+    }
     if (!['active', 'past_due', 'paused'].includes(b.subscription.status)) return true;
     if (!b.subscription.currentPeriodEnd) return true;
     const end = new Date(b.subscription.currentPeriodEnd).getTime();
