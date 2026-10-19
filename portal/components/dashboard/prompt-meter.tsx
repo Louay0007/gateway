@@ -40,7 +40,7 @@ export function PromptMeter({
           {alias === 'fast' ? 'Fast (Sonnet 5)' : alias === 'smart' ? 'Smart (Opus 5.5)' : alias === 'frontier' ? 'Frontier (Opus 5.5)' : alias}
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
-          {used.toLocaleString()} / {limit.toLocaleString()} prompts
+          {(limit - used).toLocaleString()} / {limit.toLocaleString()} prompts remaining
         </span>
       </div>
       <Progress
