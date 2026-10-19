@@ -143,6 +143,16 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       OPS_ALERT_EMAIL: ${OPS_ALERT_EMAIL:-}
 
+      # Admin console gate. The operations console has NO IP allowlist at
+      # the edge any more, so this shared secret is the only
+      # pre-authentication layer in front of the staff login form.
+      #
+      # It MUST be set. `gatePassed()` in app/admin/layout.tsx treats an
+      # unset secret as "gate disabled" and returns true — so if this line
+      # is missing, /admin is simply open to the internet. The gate route
+      # answers 503 rather than failing open for the same reason.
+      ADMIN_GATE_SECRET: ${ADMIN_GATE_SECRET:?set in .env}
+
       # D17 manual payments (La Poste Tunisienne) — the customer pages
       # and the admin queue both run in this container.
       D17_RECEIVER_PHONE: ${D17_RECEIVER_PHONE:-}
@@ -240,6 +250,12 @@ services:
       PORTAL_DOMAIN: ${PORTAL_DOMAIN:?set in .env}
     volumes:
       - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The admin gate page. Served by the `handle /admin` block in the
+      # Caddyfile (root * /etc/caddy, try_files /admin-gate.html). It was
+      # NOT mounted, so /admin returned 404 — the gate was unreachable and
+      # the console fell through to Next.js. Mounted read-only; it is a
+      # static file with no secrets in it.
+      - ./config/admin-gate.html:/etc/caddy/admin-gate.html:ro
       - caddydata:/data
       - caddyconfig:/config
     # HOST NETWORKING, and this is load-bearing rather than stylistic.

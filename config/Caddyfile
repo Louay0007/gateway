@@ -226,16 +226,25 @@
 # That is the same pattern already used for `opencode web` above. One
 # leaked master key now requires shell access, not one HTTP request.
 #
-# This host is still IP-gated, because the portal's own staff gate is
-# enforced in the application and the IP allowlist is defence in depth —
-# it stops an unauthenticated caller from ever reaching a login form on
-# the operations host.
+# This host is NOT IP-gated any more (removed 2026-10-19). The
+# application gate is now the only pre-auth layer, so its two supporting
+# properties are load-bearing and must not regress:
 #
-# Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl -s ifconfig.me).
+#   1. ADMIN_GATE_SECRET must be set in .env AND passed to the portal
+#      service in docker-compose.yml. `gatePassed()` returns TRUE when the
+#      secret is unset — the gate is disabled, not locked. Unset means the
+#      console is open to the internet.
+#   2. /api/admin/gate is throttled (lib/admin/gate-throttle.ts) with
+#      progressive per-IP backoff, because a single shared code with no
+#      rate limit is brute-forceable.
+#
+# The staff role check in app/admin/layout.tsx is the second layer and is
+# unchanged: the gate only decides whether a login form is rendered.
+#
+# To restore an IP allowlist as defence in depth, add back a
+# `@blocked not remote_ip ...` + `respond @blocked 403` here. Note that
+# Caddy does NOT reload this bind-mounted file — restart the service.
 {$CONSOLE_DOMAIN} {
-	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32
-	respond @blocked "Forbidden" 403
-
 	# The same 2MB control-plane ceiling as the portal vhost, plus the
 	# 4MB D17-proof carve-out: staff open payment screenshots through
 	# /api/admin/d17/[id]/screenshot here, and a proof can be up to 3MB.
