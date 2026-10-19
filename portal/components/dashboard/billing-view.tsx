@@ -52,6 +52,7 @@ import type {
 } from "@/lib/api/types";
 import { centsDt, centsUsd, compact, usd, usdToTnd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 /**
  * Per-model token pricing from prices/models.yaml.
@@ -685,12 +686,18 @@ function PlanComparisonTable({
 
   const features = [
     { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => centsDt(p.priceCents) },
-    { key: "fast", label: "Fast prompts", getValue: (p: typeof plans[0]) => `${(p.promptLimits as Record<string, number>)?.fast ?? 0} / period` },
-    { key: "smart", label: "Smart prompts", getValue: (p: typeof plans[0]) => `${(p.promptLimits as Record<string, number>)?.smart ?? 0} / period` },
+    { key: "fast", label: "Fast prompts (Sonnet 5)", getValue: (p: typeof plans[0]) => {
+      const limit = (p.promptLimits as Record<string, number>)?.fast;
+      return limit ? `${limit.toLocaleString()} / period` : "—";
+    }},
+    { key: "smart", label: "Smart prompts (Opus 5.5)", getValue: (p: typeof plans[0]) => {
+      const limit = (p.promptLimits as Record<string, number>)?.smart;
+      return limit ? `${limit.toLocaleString()} / period` : "—";
+    }},
     { key: "frontier", label: "Frontier prompts", getValue: (p: typeof plans[0]) => {
       const limit = (p.promptLimits as Record<string, number>)?.frontier;
-      return limit ? `${limit} / period` : "—";
-    }},
+      return limit ? `${limit.toLocaleString()} / period` : "—";
+    }, hideIfAllEmpty: true },
     { key: "rpm", label: "Requests / minute", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
     { key: "tpm", label: "Tokens / minute", getValue: (p: typeof plans[0]) => compact(p.tpmLimit ?? 0) },
     { key: "keys", label: "API keys", getValue: (p: typeof plans[0]) => p.maxKeys.toString() },
@@ -715,14 +722,20 @@ function PlanComparisonTable({
               <tr className="border-b bg-gray-50/30">
                 <th className="px-4 py-3 text-left font-medium text-gray-500">Feature</th>
                 {plans.map((p) => (
-                  <th key={p.code} className="px-4 py-3 text-center">
+                  <th
+                    key={p.code}
+                    className={cn(
+                      "px-4 py-3 text-center",
+                      p.code === "pro" && "bg-emerald-50/50",
+                    )}
+                  >
                     <div className="flex flex-col items-center gap-1">
                       <span className="font-semibold text-gray-900">{p.name}</span>
                       {p.code === currentPlanCode && (
                         <Badge className="bg-emerald-600 text-white text-xs">Current</Badge>
                       )}
                       {p.code === "pro" && p.code !== currentPlanCode && (
-                        <Badge variant="outline" className="text-xs">Popular</Badge>
+                        <Badge className="bg-emerald-600 text-white text-xs">Popular</Badge>
                       )}
                     </div>
                   </th>
@@ -730,11 +743,25 @@ function PlanComparisonTable({
               </tr>
             </thead>
             <tbody>
-              {features.map((feat, i) => (
+              {features
+                .filter((feat) => {
+                  if (!(feat as { hideIfAllEmpty?: boolean }).hideIfAllEmpty) return true;
+                  return plans.some((p) => {
+                    const val = feat.getValue(p);
+                    return val != null && val !== "—" && val !== "";
+                  });
+                })
+                .map((feat, i) => (
                 <tr key={feat.key} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}>
                   <td className="px-4 py-3 font-medium text-gray-700">{feat.label}</td>
                   {plans.map((p) => (
-                    <td key={p.code} className="px-4 py-3 text-center tabular-nums text-gray-600">
+                    <td
+                      key={p.code}
+                      className={cn(
+                        "px-4 py-3 text-center tabular-nums text-gray-600",
+                        p.code === "pro" && "bg-emerald-50/30 font-medium text-gray-900",
+                      )}
+                    >
                       {feat.getValue(p)}
                     </td>
                   ))}
