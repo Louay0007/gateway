@@ -63,6 +63,26 @@ export async function currentUser() {
   return user;
 }
 
+/**
+ * Does the caller hold a session that still RESOLVES to a live user?
+ *
+ * The auth pages and the product shell are two halves of one decision, and
+ * they must never disagree. `/sign-in` used to redirect on `auth()` alone,
+ * which only proves a JWT parses — not that it is still valid. A token whose
+ * `password_changed_at` stamp predates the row (which is exactly what a
+ * password change produces, by design) still satisfies `auth()`, so
+ * /sign-in bounced to /dashboard, whose shell gate calls `currentUser()`,
+ * gets null, and bounces straight back: ERR_TOO_MANY_REDIRECTS with no way
+ * to reach the form that would replace the stale cookie.
+ *
+ * Gating the redirect on the SAME resolution the shell uses keeps the two
+ * ends in agreement: a stale token falls through to the form, and signing
+ * in mints a token whose stamp matches the row.
+ */
+export async function hasLiveSession(): Promise<boolean> {
+  return (await currentUser()) !== null;
+}
+
 // Re-exported so existing callers keep importing it from here.
 export { sessionIsFresh };
 

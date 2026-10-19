@@ -13,7 +13,7 @@
 
 import { redirect } from 'next/navigation';
 import type { Metadata } from "next";
-import { auth } from '@/auth';
+import { currentUser } from '@/lib/auth/authorize';
 import { store } from '@/lib/auth/device/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApproveForm } from './device-approve-form';
@@ -26,13 +26,17 @@ export default async function DevicePage({
   searchParams: Promise<{ user_code?: string }>;
 }) {
   const { user_code } = await searchParams;
-  const session = await auth();
+  // currentUser() and not auth(): a token that parses but no longer resolves
+  // (stale password stamp) would render an ApproveForm whose submit then
+  // fails the membership check server-side. Sending it back to /sign-in is
+  // also what keeps the sign-in/device pair from redirecting forever.
+  const user = await currentUser();
   const code = user_code ? await store.findByUserCode(user_code) : null;
 
   if (!user_code) {
     redirect('/sign-in');
   }
-  if (!session?.user) {
+  if (!user) {
     // After sign-in the portal returns here to finish the approval.
     redirect(
       `/sign-in?callbackUrl=${encodeURIComponent(
@@ -57,7 +61,7 @@ export default async function DevicePage({
       if (isExpired(code.expiresAt)) {
         return <ExpiredCode />;
       }
-      return <ApproveForm userCode={code.userCode} email={session.user.email ?? ''} />;
+      return <ApproveForm userCode={code.userCode} email={user.email} />;
   }
 }
 

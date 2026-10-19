@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { auth } from "@/auth";
+import { hasLiveSession } from "@/lib/auth/authorize";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 
@@ -12,8 +12,9 @@ export const metadata: Metadata = {
 };
 
 export default async function SignUpPage() {
-  const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  // Same gate as /sign-in: a parseable-but-stale token must reach a form
+  // that replaces it, not a redirect pair it can never satisfy.
+  if (await hasLiveSession()) redirect("/dashboard");
   return (
     <AuthShell
       title="Create your account"
