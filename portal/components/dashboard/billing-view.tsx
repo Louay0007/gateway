@@ -123,10 +123,10 @@ export function BillingView() {
     if (!['active', 'past_due', 'paused'].includes(b.subscription.status)) return true;
     if (!b.subscription.currentPeriodEnd) return true;
     const end = new Date(b.subscription.currentPeriodEnd).getTime();
-    return Date.now() >= end - 7 * 86400000;
+    return Date.now() >= end - 2 * 86400000;
   })();
   const renewalOpensLabel = b?.subscription?.currentPeriodEnd
-    ? new Date(new Date(b.subscription.currentPeriodEnd).getTime() - 7 * 86400000).toLocaleDateString(
+    ? new Date(new Date(b.subscription.currentPeriodEnd).getTime() - 2 * 86400000).toLocaleDateString(
         "en-US",
         { month: "long", day: "numeric", timeZone: "UTC" },
       )
@@ -292,12 +292,14 @@ export function BillingView() {
       ) : null}
 
       {b.state === "pending" ? (
-        <PendingState
+        <PendingBanner
           planName={plan?.name ?? "Your"}
           d17Status={b.d17PaymentStatus}
           subscriptionId={b.subscription?.id ?? null}
         />
-      ) : plan ? (
+      ) : null}
+
+      {plan ? (
         <>
           {/* Stats Grid */}
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -380,7 +382,7 @@ export function BillingView() {
                     disabled={busy !== null || !isRenewableNow}
                     title={
                       !isRenewableNow
-                        ? `Renewal opens ${renewalOpensLabel} — 7 days before your period ends.`
+                        ? `Renewal opens ${renewalOpensLabel} — 2 days before your period ends.`
                         : undefined
                     }
                     onClick={() => void beginCheckout(plan.code, "d17")}
@@ -809,31 +811,21 @@ function PlanComparisonTable({
 }
 
 /**
- * PendingState — the `incomplete` subscription.
+ * PendingBanner — compact notice for `incomplete` subscriptions.
  *
- * WHY THIS IS SPLIT BY `d17PaymentStatus`.
+ * Rendered ABOVE the billing details so the user can still see their plan,
+ * usage, keys and payment history while a D17 payment is in progress.
+ * The old full-page takeover hid everything behind "Finish your payment",
+ * which meant someone who opened billing to check their spend or cancel
+ * saw none of it.
  *
- * `beginCheckout` sets the subscription to `incomplete` the moment the
- * customer opens checkout, which creates a `pending_payment` row BEFORE
- * any money has moved. So "pending" does not mean "we are verifying your
- * payment" — for most of its life it means the customer has not sent
- * anything yet.
- *
- * Collapsing the two into one "your payment is being verified" message is
- * a lie in the common case: it tells someone sitting on the instructions
- * page that we are checking a transfer they never made, and there is
- * nothing to wait for. The only status that actually means "we are
- * verifying" is `proof_submitted` — the row moves there when the customer
- * submits the authorization number, and only then is there something for a
- * human to check.
- *
- * So the wording follows the row:
- *   pending_payment   → instructions not completed yet; offer the checkout
- *   proof_submitted   → genuinely awaiting verification (the user's case)
- *   rejected/expired  → that attempt is over; offer a fresh one
- *   null              → no payment row yet; start checkout
+ * Status-specific wording:
+ *   proof_submitted   → awaiting staff verification
+ *   rejected/expired  → that attempt ended; link to restart
+ *   pending_payment   → checkout started but nothing sent yet
+ *   null              → no payment row; link to checkout
  */
-function PendingState({
+function PendingBanner({
   planName,
   d17Status,
   subscriptionId,
@@ -843,59 +835,44 @@ function PendingState({
   subscriptionId: string | null;
 }) {
   const checkoutHref = subscriptionId ? `/checkout/d17/${subscriptionId}` : null;
-
-  // `proof_submitted` is the ONLY status that means a human is looking at
-  // something. Everything else is "not sent yet" or "that attempt ended".
   const awaitingVerification = d17Status === "proof_submitted";
   const ended =
     d17Status === "rejected"
       ? "Your last proof was rejected."
       : d17Status === "expired"
-        ? "Your payment window closed before we received a transfer."
+        ? "Your payment window closed without a transfer."
         : null;
 
+  const title = awaitingVerification
+    ? "Payment pending verification"
+    : ended ?? "Finish your payment to activate";
+
+  const description = awaitingVerification
+    ? `Your ${planName} plan will activate once we confirm your D17 transfer — usually within hours.`
+    : ended
+      ? "Start a new payment whenever you are ready."
+      : `Complete the transfer on the checkout page to activate your ${planName} plan.`;
+
   return (
-    <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-      <Image
-        src="/images/d17-logo.webp"
-        alt="D17"
-        width={80}
-        height={80}
-        className="opacity-80"
-      />
-
-      {awaitingVerification ? (
-        <>
-          <p className="text-lg font-medium text-gray-900">
-            Payment pending verification
+    <Card className="border-amber-500/40 bg-amber-500/5">
+      <CardContent className="flex flex-wrap items-center gap-3 py-4">
+        <Clock className="size-5 text-amber-600" />
+        <div className="flex-1">
+          <p className="text-sm">
+            <span className="font-medium">{title}</span>{" "}
+            <span className="text-muted-foreground">{description}</span>
           </p>
-          <p className="max-w-sm text-sm text-gray-500">
-            Your {planName} plan will activate once we confirm your D17
-            transfer. This usually takes a few hours.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-lg font-medium text-gray-900">
-            {ended ?? "Finish your payment to activate"}
-          </p>
-          <p className="max-w-sm text-sm text-gray-500">
-            {ended
-              ? "Start a new payment whenever you are ready — nothing has been charged twice."
-              : `Transfer the amount on the checkout page, then submit your proof. Your ${planName} plan activates as soon as we confirm it.`}
-          </p>
-        </>
-      )}
-
-      {checkoutHref && !awaitingVerification ? (
-        <Link
-          href={checkoutHref}
-          className="mt-2 inline-flex items-center justify-center rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
-        >
-          {ended ? "Start a new payment" : "Continue payment"}
-        </Link>
-      ) : null}
-    </div>
+        </div>
+        {checkoutHref && !awaitingVerification ? (
+          <Link
+            href={checkoutHref}
+            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800"
+          >
+            {ended ? "Start new payment" : "Continue payment"}
+          </Link>
+        ) : null}
+      </CardContent>
+    </Card>
   );
 }
 

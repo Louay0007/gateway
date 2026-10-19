@@ -206,18 +206,17 @@ function ProfileCard() {
       </CardHeader>
       <CardContent className="grid gap-6 sm:max-w-md">
         <div className="flex items-center gap-4">
-          <Avatar className="size-16">
-            {data.image ? (
-              <img
-                src={data.image}
-                alt={data.name || ""}
-                className="aspect-square size-full rounded-full object-cover"
-              />
-            ) : null}
-            <AvatarFallback className="text-lg font-medium">
+          {data.image ? (
+            <img
+              src={data.image}
+              alt={data.name || ""}
+              className="size-16 shrink-0 rounded-full object-cover ring-1 ring-border"
+            />
+          ) : (
+            <div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-muted text-lg font-medium ring-1 ring-border">
               {initialsFor(data.name, data.email)}
-            </AvatarFallback>
-          </Avatar>
+            </div>
+          )}
           <div className="grid gap-1.5">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">{data.name || data.email}</span>
