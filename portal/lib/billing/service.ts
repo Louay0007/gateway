@@ -43,6 +43,7 @@ import {
   billingEvents,
   entitlements,
   organizations,
+  paymentsD17,
   plans,
   subscriptions,
   usageRecords,
@@ -369,7 +370,12 @@ export async function beginCheckout(
   const existing = await loadSubscription(organizationId);
 
   if (existing) {
-    const live = ['active', 'past_due', 'paused'].includes(existing.status);
+    // trialing is live: a redeemed trial grants full access for its window
+    // (lib/trial/service.ts, migration 0017). Omitting it here would let
+    // beginCheckout clobber an active trial by resetting status to
+    // incomplete — the same class of bug that destroyed activated D17
+    // subscriptions when a second checkout ran after approval.
+    const live = ['active', 'past_due', 'paused', 'trialing'].includes(existing.status);
     if (live) {
       if (existing.planId !== plan.id) {
         throw new BillingError(
@@ -384,13 +390,32 @@ export async function beginCheckout(
       // In window: fall through to provider.begin, which creates a new
       // payment row for the next period (d17.ts reuses an open row if one
       // is already alive, so double-clicking checkout cannot pile up).
+    } else {
+      // Non-live but a paid D17 payment exists: the subscription was
+      // activated and then clobbered (or the activation raced with a
+      // second checkout). Refuse rather than create another pending
+      // payment on top of money already received. The customer should
+      // contact support or use the admin retry-entitlement-sync surface;
+      // starting a new checkout would orphan the paid row.
+      const paidD17 = await db.query.paymentsD17.findFirst({
+        where: and(
+          eq(paymentsD17.subscriptionId, existing.id),
+          eq(paymentsD17.status, 'paid' as never),
+        ),
+      });
+      if (paidD17) {
+        throw new BillingError(
+          'conflict',
+          'A payment for this subscription was already approved. Contact support if your plan has not activated.',
+        );
+      }
     }
   }
 
   const now = new Date();
   const isRenewal = Boolean(
     existing &&
-      ['active', 'past_due', 'paused'].includes(existing.status) &&
+      ['active', 'past_due', 'paused', 'trialing'].includes(existing.status) &&
       existing.planId === plan.id,
   );
 
