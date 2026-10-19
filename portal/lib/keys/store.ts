@@ -26,8 +26,12 @@ import type {
   OrgForKeys,
 } from '@/lib/keys/types';
 
-/** Statuses that keep an org alive; mirrors `subscriptions_one_live_idx`. */
-const LIVE_STATUSES = ['active', 'past_due', 'paused'] as const;
+/** Statuses that keep an org alive; mirrors `subscriptions_one_live_idx`.
+ * `trialing` is live: a redeemed trial grants full access for its window
+ * (models + budget from the trial plan), ended only by the expiry job
+ * flipping the status to `canceled`. Without it, key creation on a trial
+ * org resolved no plan and the trial could never be used. */
+const LIVE_STATUSES = ['active', 'trialing', 'past_due', 'paused'] as const;
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;

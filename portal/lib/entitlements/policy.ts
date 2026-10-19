@@ -47,6 +47,14 @@ export type Effect = 'full' | 'cut';
 export const STATUS_EFFECT: Record<string, Effect> = {
     active:     'full',
   past_due:   'full',
+  // trialing must be FULL, not cut: a trial grants live access for its
+  // window (redeemed at /dashboard/redeem), and its budget is the plan's
+  // own caps, not CUT_BUDGET. Expiry flips the subscription to `canceled`
+  // (lib/jobs/trial-expiry.ts), which IS cut — the only thing that ends a
+  // trial is the status change, never this table's default. Without this
+  // entry the `?? 'cut'` fallback cut every trial at redemption: the
+  // entitlement cache held models: [] and no key could ever be minted.
+  trialing:   'full',
   unpaid:     'cut',
   canceled:   'cut',
   paused:     'cut',
