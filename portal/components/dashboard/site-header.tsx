@@ -214,18 +214,17 @@ function HeaderUserMenu({ onNavigate }: { onNavigate: () => void }) {
       <DropdownMenuTrigger
         render={
           <Button variant="ghost" size="icon" className="ml-1 rounded-full" aria-label="Account menu">
-            <Avatar className="size-8">
-              {user?.image ? (
-                <img
-                  src={user.image}
-                  alt={user.name || ""}
-                  className="aspect-square size-full rounded-full object-cover"
-                />
-              ) : null}
-              <AvatarFallback className="text-xs font-medium">
+            {user?.image ? (
+              <img
+                src={user.image}
+                alt={user.name || ""}
+                className="size-8 shrink-0 rounded-full object-cover ring-1 ring-border"
+              />
+            ) : (
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-medium ring-1 ring-border">
                 {user ? user.initials : "…"}
-              </AvatarFallback>
-            </Avatar>
+              </div>
+            )}
           </Button>
         }
       />
