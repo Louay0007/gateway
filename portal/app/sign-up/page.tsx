@@ -6,7 +6,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { SignUpForm } from "@/components/auth/sign-up-form";
 
 export const metadata: Metadata = {
-  title: "Create account",
+  title: "Create Your Zaino AI Account",
   description:
     "Sign up for Zaino AI — get instant API keys, usage-based billing, and D17 payment for Tunisia.",
 };

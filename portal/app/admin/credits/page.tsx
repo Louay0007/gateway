@@ -17,7 +17,7 @@ import {
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 
-export const metadata: Metadata = { title: "Credits" };
+export const metadata: Metadata = { title: "Credit Ledger" };
 export const dynamic = "force-dynamic";
 
 /**

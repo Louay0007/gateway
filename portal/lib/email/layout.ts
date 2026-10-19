@@ -22,7 +22,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EmailAttachment } from './types';
 
-const PORTAL_URL = 'https://portal.zaino.soon.it';
+const PORTAL_URL = 'https://zaino.soon.it';
 export const SUPPORT_EMAIL = 'contact.zaino.ai@gmail.com';
 
 /** CID referenced by the header <img>. Must match the attachment's contentId. */

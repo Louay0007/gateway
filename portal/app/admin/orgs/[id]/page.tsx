@@ -18,7 +18,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-export const metadata: Metadata = { title: "Account" };
+export const metadata: Metadata = { title: "Organization Details" };
 export const dynamic = "force-dynamic";
 
 /**

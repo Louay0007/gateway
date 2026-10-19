@@ -6,7 +6,7 @@ import { AuthShell } from "@/components/auth/auth-shell";
 import { SignInForm } from "@/components/auth/sign-in-form";
 
 export const metadata: Metadata = {
-  title: "Sign in",
+  title: "Sign In to Zaino AI",
   description:
     "Sign in to Zaino AI — manage API keys, view usage, and handle billing for your organisation.",
 };

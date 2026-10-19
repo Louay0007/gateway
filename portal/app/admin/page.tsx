@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import type { Metadata } from "next";
 import crypto from "node:crypto";
 import { redirect } from "next/navigation";
 
@@ -22,6 +23,8 @@ async function gatePassed(): Promise<boolean> {
 }
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = { title: "Operations Console" };
 
 export default async function AdminGatePage() {
   if (await gatePassed()) {

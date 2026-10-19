@@ -5,7 +5,7 @@ import { MarketingFooter } from "@/components/marketing/footer";
 import { DocsContent } from "@/components/docs/docs-content";
 
 export const metadata: Metadata = {
-  title: "Documentation",
+  title: "API Documentation",
   description:
     "First request in two minutes: OpenAI- and Anthropic-compatible snippets, the three model tiers, and exact Codex and Claude Code configs for Zaino.",
 };

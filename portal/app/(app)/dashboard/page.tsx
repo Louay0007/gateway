@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { DashboardOverview } from "@/components/dashboard/dashboard-overview";
 
-export const metadata: Metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Dashboard Overview" };
 
 /**
  * /dashboard — a shell. The data lives in `DashboardOverview` because it

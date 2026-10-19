@@ -14,7 +14,7 @@ import { devSignBody } from "@/lib/billing/dev";
 import { centsUsd, centsDt } from "@/lib/dashboard/format";
 import { log } from "@/lib/log";
 
-export const metadata: Metadata = { title: "Complete payment" };
+export const metadata: Metadata = { title: "Complete Your Payment" };
 export const dynamic = "force-dynamic";
 
 /**

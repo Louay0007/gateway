@@ -12,10 +12,13 @@
  */
 
 import { redirect } from 'next/navigation';
+import type { Metadata } from "next";
 import { auth } from '@/auth';
 import { store } from '@/lib/auth/device/store';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ApproveForm } from './device-approve-form';
+
+export const metadata: Metadata = { title: "Approve Desktop Sign-In" };
 
 export default async function DevicePage({
   searchParams,

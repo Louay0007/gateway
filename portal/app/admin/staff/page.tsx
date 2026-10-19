@@ -10,7 +10,7 @@ import { db } from "@/db";
 import { staffUsers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export const metadata: Metadata = { title: "Staff" };
+export const metadata: Metadata = { title: "Staff Management" };
 export const dynamic = "force-dynamic";
 
 /**

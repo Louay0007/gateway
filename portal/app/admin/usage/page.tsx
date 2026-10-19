@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 
-export const metadata: Metadata = { title: "Usage & margin" };
+export const metadata: Metadata = { title: "Usage & Margin Analytics" };
 export const dynamic = "force-dynamic";
 
 /**

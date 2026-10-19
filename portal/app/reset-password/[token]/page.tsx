@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { CompleteResetForm } from "@/components/auth/reset-forms";
 
-export const metadata: Metadata = { title: "Choose a new password" };
+export const metadata: Metadata = { title: "Choose a New Password" };
 
 export default async function ResetTokenPage({
   params,

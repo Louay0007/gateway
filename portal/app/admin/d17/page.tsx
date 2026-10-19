@@ -10,7 +10,7 @@ import { d17Reconciliation, listD17Queue } from "@/lib/billing/d17-admin";
 
 const QUEUE_STATUSES = ["proof_submitted", "rejected", "paid", "expired"];
 
-export const metadata: Metadata = { title: "D17 verification queue" };
+export const metadata: Metadata = { title: "D17 Payment Verification" };
 export const dynamic = "force-dynamic";
 
 /**

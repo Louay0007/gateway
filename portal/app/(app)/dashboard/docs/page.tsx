@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { DocsContent } from "@/components/docs/docs-content";
 
-export const metadata: Metadata = { title: "Docs" };
+export const metadata: Metadata = { title: "API Documentation" };
 
 /**
  * /dashboard/docs — the same integration guide, inside the product

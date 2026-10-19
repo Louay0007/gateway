@@ -32,14 +32,19 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://zaino.soon.it'),
   title: {
-    default: 'Zaino AI — one API for every model',
+    default: 'Zaino AI — One API for Every Model',
     template: '%s | Zaino AI',
   },
   description:
     'A single OpenAI- and Anthropic-compatible API for every model, with usage-based limits, instant keys, and D17 payment for Tunisia.',
+  icons: {
+    icon: '/icon',
+    apple: '/apple-icon',
+  },
   openGraph: {
-    title: 'Zaino AI — one API for every model',
+    title: 'Zaino AI — One API for Every Model',
     description:
       'A single OpenAI- and Anthropic-compatible API for every model, with usage-based limits and instant keys.',
     type: 'website',

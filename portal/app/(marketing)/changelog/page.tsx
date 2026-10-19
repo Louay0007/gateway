@@ -4,7 +4,7 @@ import ChangelogContent from '@/components/marketing/changelog-content';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 
 export const metadata: Metadata = {
-  title: 'Changelog — Zaino AI',
+  title: 'Product Changelog',
   description:
     'Product updates, new features, and improvements across Zaino AI integrations and the desktop app.',
 };

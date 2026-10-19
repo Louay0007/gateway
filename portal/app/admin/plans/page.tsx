@@ -6,7 +6,7 @@ import { listPlansAdmin } from "@/lib/admin/plans";
 import { staffAtLeast, type StaffRole } from "@/lib/auth/authorize";
 import { currentStaffRole } from "@/lib/auth/authorize";
 
-export const metadata: Metadata = { title: "Plans" };
+export const metadata: Metadata = { title: "Subscription Plans" };
 export const dynamic = "force-dynamic";
 
 /**

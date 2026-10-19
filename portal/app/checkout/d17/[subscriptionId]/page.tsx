@@ -19,7 +19,7 @@ import { loadD17Payment } from "@/lib/billing/d17";
 import { D17_LANGS, d17Dir, isD17Lang, t17 } from "@/lib/i18n/d17";
 import Logo from "@/assets/logo/logo";
 
-export const metadata: Metadata = { title: "Pay with D17" };
+export const metadata: Metadata = { title: "D17 Payment Checkout" };
 export const dynamic = "force-dynamic";
 
 /**

@@ -11,7 +11,7 @@ import CTA from '@/components/shadcn-space/blocks/cta-01/cta';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 
 export const metadata: Metadata = {
-  title: 'One API for every model, priced for the way Tunisia pays',
+  title: 'Zaino AI — One API for Every Model',
   description:
     'OpenAI- and Anthropic-compatible API endpoints with spend ceilings that hold, instant keys, and D17 payment for Tunisia.',
 };

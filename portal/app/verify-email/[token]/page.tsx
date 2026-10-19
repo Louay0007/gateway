@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { ConfirmEmailForm } from "@/components/auth/verify-email-forms";
 
-export const metadata: Metadata = { title: "Confirm your email" };
+export const metadata: Metadata = { title: "Confirm Your Email" };
 
 /**
  * /verify-email/[token] — the page the confirmation mail links to.

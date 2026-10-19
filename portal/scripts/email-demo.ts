@@ -39,8 +39,8 @@ interface Demo {
   html: string;
 }
 
-const HOUR_LINK = 'https://portal.zaino.soon.it/verify-email?token=demo-token-abc123';
-const MIN_LINK = 'https://portal.zaino.soon.it/reset-password?token=demo-token-xyz789';
+const HOUR_LINK = 'https://zaino.soon.it/verify-email?token=demo-token-abc123';
+const MIN_LINK = 'https://zaino.soon.it/reset-password?token=demo-token-xyz789';
 
 const demos: Demo[] = [
   {
@@ -79,33 +79,33 @@ const demos: Demo[] = [
   },
   {
     name: '03-d17-received-fr',
-    subject: d17EmailTemplates('fr').receivedSubject({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', hours: '24' }),
-    text: d17EmailTemplates('fr').receivedBody({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', hours: '24' }),
-    html: wrapEmail(textToHtml(d17EmailTemplates('fr').receivedBody({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', hours: '24' }))),
+    subject: d17EmailTemplates('fr').receivedSubject({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', hours: '24' }),
+    text: d17EmailTemplates('fr').receivedBody({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', hours: '24' }),
+    html: wrapEmail(textToHtml(d17EmailTemplates('fr').receivedBody({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', hours: '24' }))),
   },
   {
     name: '04-d17-received-ar',
-    subject: d17EmailTemplates('ar').receivedSubject({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', hours: '24' }),
-    text: d17EmailTemplates('ar').receivedBody({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', hours: '24' }),
-    html: wrapEmail(textToHtml(d17EmailTemplates('ar').receivedBody({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', hours: '24' })), { dir: 'rtl' }),
+    subject: d17EmailTemplates('ar').receivedSubject({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', hours: '24' }),
+    text: d17EmailTemplates('ar').receivedBody({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', hours: '24' }),
+    html: wrapEmail(textToHtml(d17EmailTemplates('ar').receivedBody({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', hours: '24' })), { dir: 'rtl' }),
   },
   {
     name: '05-d17-approved-fr',
-    subject: d17EmailTemplates('fr').approvedSubject({ plan: 'Scale', amount: '40,000 TND' }),
-    text: d17EmailTemplates('fr').approvedBody({ plan: 'Scale', amount: '40,000 TND' }),
-    html: wrapEmail(textToHtml(d17EmailTemplates('fr').approvedBody({ plan: 'Scale', amount: '40,000 TND' }))),
+    subject: d17EmailTemplates('fr').approvedSubject({ plan: 'Scale', amount: '40.000' }),
+    text: d17EmailTemplates('fr').approvedBody({ plan: 'Scale', amount: '40.000' }),
+    html: wrapEmail(textToHtml(d17EmailTemplates('fr').approvedBody({ plan: 'Scale', amount: '40.000' }))),
   },
   {
     name: '06-d17-rejected-fr',
     subject: d17EmailTemplates('fr').rejectedSubject({}),
-    text: d17EmailTemplates('fr').rejectedBody({ amount: '40,000 TND', reason: 'The authorization number does not match our records — please re-check the receipt from your transfer SMS and resubmit.' }),
-    html: wrapEmail(textToHtml(d17EmailTemplates('fr').rejectedBody({ amount: '40,000 TND', reason: 'The authorization number does not match our records — please re-check the receipt from your transfer SMS and resubmit.' }))),
+    text: d17EmailTemplates('fr').rejectedBody({ amount: '40.000', reason: 'The authorization number does not match our records — please re-check the receipt from your transfer SMS and resubmit.' }),
+    html: wrapEmail(textToHtml(d17EmailTemplates('fr').rejectedBody({ amount: '40.000', reason: 'The authorization number does not match our records — please re-check the receipt from your transfer SMS and resubmit.' }))),
   },
   {
     name: '07-d17-ops-admin',
-    subject: d17EmailTemplates('fr').adminSubject({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910' }),
-    text: d17EmailTemplates('fr').adminBody({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', org: 'Acme Tunis', phone: '+216 22 333 444', submittedAt: new Date().toISOString() }),
-    html: wrapEmail(textToHtml(d17EmailTemplates('fr').adminBody({ plan: 'Scale', amount: '40,000 TND', auth: 'D17-8842910', org: 'Acme Tunis', phone: '+216 22 333 444', submittedAt: new Date().toISOString() }))),
+    subject: d17EmailTemplates('fr').adminSubject({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910' }),
+    text: d17EmailTemplates('fr').adminBody({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', org: 'Acme Tunis', phone: '+216 22 333 444', submittedAt: new Date().toISOString() }),
+    html: wrapEmail(textToHtml(d17EmailTemplates('fr').adminBody({ plan: 'Scale', amount: '40.000', auth: 'D17-8842910', org: 'Acme Tunis', phone: '+216 22 333 444', submittedAt: new Date().toISOString() }))),
   },
   {
     name: '08-ops-alert-attention',

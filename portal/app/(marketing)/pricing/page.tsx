@@ -8,7 +8,7 @@ import type { PlanSummary } from "@/lib/billing/state";
 import { centsDt } from "@/lib/dashboard/format";
 
 export const metadata: Metadata = {
-  title: "Pricing",
+  title: "Pricing Plans",
   description:
     "Two plans, priced in US dollars and payable monthly — by D17 transfer at La Poste from Tunisia.",
 };

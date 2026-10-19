@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 
-export const metadata: Metadata = { title: "Accounts" };
+export const metadata: Metadata = { title: "Organization Accounts" };
 export const dynamic = "force-dynamic";
 
 /**

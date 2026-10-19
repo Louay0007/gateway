@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { UsageView } from "@/components/dashboard/usage-view";
 
-export const metadata: Metadata = { title: "Usage" };
+export const metadata: Metadata = { title: "Usage Analytics" };
 
 export default function UsagePage() {
   return (
