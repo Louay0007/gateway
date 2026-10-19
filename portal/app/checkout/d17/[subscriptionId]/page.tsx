@@ -87,7 +87,18 @@ export default async function D17CheckoutPage({
     }));
 
   // ── Already activated ────────────────────────────────────────────────
-  if (sub.status === "active" && payment?.status === "paid") {
+  //
+  // Keyed on the SUBSCRIPTION, not the payment row. `payment.status` lags:
+  // approval flips the subscription to `active` inside applyCallback() and
+  // only afterwards writes `status = 'paid'` on the row, so for a moment —
+  // and indefinitely if that write fails — a genuinely subscribed customer
+  // is still `proof_submitted` and would be shown the proof form again,
+  // invited to pay twice for a plan they already own.
+  //
+  // Access is gated by the entitlement, not by this row, so the
+  // subscription is the only honest signal that the plan is live.
+  if (sub.status === "active") {
+    const paidAt = payment?.verifiedAt ? new Date(payment.verifiedAt) : null;
     return (
       <CheckoutShell lang={lang} dir={dir}>
         <div className="mx-auto max-w-lg py-10 text-center">
@@ -95,10 +106,28 @@ export default async function D17CheckoutPage({
           <p className="text-sm leading-relaxed text-gray-600">
             {t("d17.email_approved_body", {
               plan: plan?.name ?? "",
-              amount: formatTndMillimes(payment.amountMillimes),
+              amount: payment ? formatTndMillimes(payment.amountMillimes) : "",
             })}
           </p>
-          <Link href="/dashboard" className="mt-8 inline-flex items-center justify-center rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800">
+          {paidAt ? (
+            <p className="mt-2 text-xs text-gray-400">
+              {paidAt.toLocaleString(lang === "fr" ? "fr-TN" : "en-US", {
+                dateStyle: "medium",
+                timeStyle: "short",
+                timeZone: "UTC",
+              })}{" "}
+              UTC
+            </p>
+          ) : null}
+          {/* To BILLING, and carrying ?state=active — that query param is the
+              only thing that lights the dashboard's "Payment received" banner.
+              The dev provider set it; the real D17 flow never did, so a
+              customer paying by bank transfer finished checkout and landed on
+              a page that said nothing about their payment having worked. */}
+          <Link
+            href="/dashboard/billing?state=active"
+            className="mt-8 inline-flex items-center justify-center rounded-lg bg-black px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800"
+          >
             {t("d17.back_dashboard")}
           </Link>
         </div>

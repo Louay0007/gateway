@@ -39,6 +39,8 @@ export interface SubscriptionBundle {
   state: PlanState;
   plan: PlanSummary | null;
   subscription: {
+    /** Also the D17 checkout path segment: /checkout/d17/[subscriptionId]. */
+    id: string;
     status: string;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
@@ -62,6 +64,12 @@ export interface SubscriptionBundle {
   };
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
+  /**
+   * Latest D17 payment status for this subscription, or null when there is
+   * no payment row. This is what separates "you have not sent anything yet"
+   * (`pending_payment`) from "we are checking what you sent"
+   * (`proof_submitted`) — see PendingState in the billing view.
+   */
   d17PaymentStatus: string | null;
 }
 

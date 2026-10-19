@@ -153,6 +153,8 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   state: PlanState;
   plan: PlanSummary | null;
   subscription: {
+    /** Also the D17 checkout path segment — see the projection below. */
+    id: string;
     status: string;
     currentPeriodStart: string | null;
     currentPeriodEnd: string | null;
@@ -251,6 +253,12 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     plan,
     subscription: subscription
       ? {
+          // The id is the D17 checkout page's path segment
+          // (/checkout/d17/[subscriptionId]). Exposing it to the customer's
+          // own session is not a disclosure — the route re-checks org
+          // ownership — and without it the pending state cannot offer a
+          // "continue your transfer" link.
+          id: subscription.id,
           status: subscription.status,
           currentPeriodStart: subscription.currentPeriodStart?.toISOString() ?? null,
           currentPeriodEnd: subscription.currentPeriodEnd?.toISOString() ?? null,
