@@ -37,7 +37,7 @@ export function PromptMeter({
     <div className={cn("grid gap-2", className)}>
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">
-          {alias === 'fast' ? 'Fast (GLM 5.3)' : alias === 'smart' ? 'Smart (Sonnet 5)' : alias === 'frontier' ? 'Frontier (Opus 5.5)' : alias}
+          {alias === 'fast' ? 'Fast (Sonnet 5)' : alias === 'smart' ? 'Smart (Opus 5.5)' : alias === 'frontier' ? 'Frontier (Opus 5.5)' : alias}
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">
           {used.toLocaleString()} / {limit.toLocaleString()} prompts

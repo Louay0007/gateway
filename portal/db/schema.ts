@@ -540,16 +540,53 @@ export const authLoginAttempts = pgTable('auth_login_attempts', {
   lastIdx: index('auth_login_attempts_last_idx').on(t.lastFailureAt),
 }));
 
-export type User         = typeof users.$inferSelect;
-export type NewUser      = typeof users.$inferInsert;
-export type Org          = typeof organizations.$inferSelect;
-export type Member       = typeof organizationMembers.$inferSelect;
-export type Plan         = typeof plans.$inferSelect;
-export type Subscription = typeof subscriptions.$inferSelect;
-export type Entitlement  = typeof entitlements.$inferSelect;
-export type ApiKey       = typeof apiKeys.$inferSelect;
-export type DeviceCode   = typeof deviceCodes.$inferSelect;
-export type AuthUser     = typeof authUsers.$inferSelect;
+// ───────────────────────────────────────────────────────────────────────
+//  Trial codes — promotional free-trial redemption system (0017)
+// ───────────────────────────────────────────────────────────────────────
+export const trialCodes = pgTable('trial_codes', {
+  id:              uuid('id').primaryKey().defaultRandom(),
+  code:            text('code').notNull().unique(),
+  createdBy:       text('created_by').notNull().default('system'),
+  maxRedemptions:  integer('max_redemptions').notNull().default(0), // 0 = unlimited
+  redeemedCount:   integer('redeemed_count').notNull().default(0),
+  models:          text('models').array().notNull().default(['fast', 'smart']),
+  promptLimits:    jsonb('prompt_limits').notNull().default({}),
+  trialDays:       integer('trial_days').notNull().default(3),
+  validFrom:       timestamp('valid_from', { withTimezone: true }).notNull(),
+  validUntil:      timestamp('valid_until', { withTimezone: true }).notNull(),
+  expiresAt:       timestamp('expires_at', { withTimezone: true }).notNull(),
+  active:          boolean('active').notNull().default(true),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  activeIdx: index('trial_codes_active_idx').on(t.active, t.validFrom, t.validUntil),
+}));
+
+export const trialRedemptions = pgTable('trial_redemptions', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  trialCodeId:    uuid('trial_code_id').notNull().references(() => trialCodes.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId:         uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subscriptionId: uuid('subscription_id').notNull().references(() => subscriptions.id, { onDelete: 'cascade' }),
+  redeemedAt:     timestamp('redeemed_at', { withTimezone: true }).notNull().defaultNow(),
+  expiresAt:      timestamp('expires_at', { withTimezone: true }).notNull(),
+}, (t) => ({
+  orgCodeUnique: unique('trial_redemptions_org_code_unique').on(t.organizationId, t.trialCodeId),
+  orgIdx:        index('trial_redemptions_org_idx').on(t.organizationId),
+  expiryIdx:     index('trial_redemptions_expiry_idx').on(t.expiresAt),
+}));
+
+export type User             = typeof users.$inferSelect;
+export type NewUser          = typeof users.$inferInsert;
+export type Org              = typeof organizations.$inferSelect;
+export type Member           = typeof organizationMembers.$inferSelect;
+export type Plan             = typeof plans.$inferSelect;
+export type Subscription     = typeof subscriptions.$inferSelect;
+export type Entitlement      = typeof entitlements.$inferSelect;
+export type ApiKey           = typeof apiKeys.$inferSelect;
+export type DeviceCode       = typeof deviceCodes.$inferSelect;
+export type TrialCode        = typeof trialCodes.$inferSelect;
+export type TrialRedemption  = typeof trialRedemptions.$inferSelect;
+export type AuthUser         = typeof authUsers.$inferSelect;
 
 /** The five org roles, as a type. IMPLEMENTATION.md §1.2. */
 export type OrgRole = (typeof orgRole.enumValues)[number];

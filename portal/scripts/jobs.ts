@@ -34,6 +34,7 @@ import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
 import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
 import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
 import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
+import { runTrialExpiry } from '@/lib/jobs/trial-expiry';
 import { log } from '@/lib/log';
 
 /** A lock older than this is assumed to belong to a dead process. */
@@ -81,6 +82,11 @@ const JOBS: readonly Job[] = [
     name: 'detect_anomalies',
     everyMs: 30 * 60_000,
     run: () => detectAnomalies(),
+  },
+  {
+    name: 'expire_trials',
+    everyMs: 60 * 60_000,
+    run: () => runTrialExpiry(),
   },
 ];
 
