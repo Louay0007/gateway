@@ -180,6 +180,9 @@ services:
       - ./prices:/app/prices:ro
       # D17 proof screenshots: outside the web root, staff-only reads.
       - ./data/d17-uploads:/app/data/d17-uploads
+      # Self-hosted desktop installers, read by /api/downloads to list
+      # what's published. Read-only; Caddy serves the bytes directly.
+      - ./data/downloads:/app/data/downloads:ro
     ports:
       # LOOPBACK ONLY. Caddy is the sole public entry point; publishing
       # this on 0.0.0.0 would serve the dashboard without TLS and without
@@ -269,6 +272,11 @@ services:
       # console fell through to Next.js. Read-only; a static file with no
       # secrets in it.
       - ./config/admin-gate.html:/etc/caddy/admin-gate.html:ro
+      # Self-hosted desktop installers, served directly by the
+      # `route /downloads/*` block (root * /opt/gateway/data/downloads).
+      # The host dir is the single source of truth; the portal lists it
+      # via its own ./data/downloads mount for /api/downloads.
+      - ./data/downloads:/opt/gateway/data/downloads:ro
       - caddydata:/data
       - caddyconfig:/config
     # HOST NETWORKING, and this is load-bearing rather than stylistic.

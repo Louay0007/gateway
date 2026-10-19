@@ -34,12 +34,14 @@ import { cn } from "@/lib/utils";
  *   2. Three platform cards with per-arch / per-format rows underneath.
  *   3. 3-step setup, system requirements, short FAQ.
  *
- * Asset resolution is two-layered. Pinned v1.0.1 URLs work the moment the
- * GitHub release is published; a live call to the Releases API then
- * replaces them with the exact published asset names (Tauri-generated
- * Linux/Windows names carry sanitization quirks no static list can
- * guarantee). If the release isn't published yet, the page says so
- * instead of serving 404s.
+ * Asset resolution is three-layered, in order:
+ *   1. SELF-HOSTED (/api/downloads → /downloads/v1.0.1/* on this host):
+ *      direct VPS downloads, no GitHub in the path. Preferred — this is
+ *      what every button uses once files are published here.
+ *   2. GITHUB RELEASE (pinned v1.0.1 URLs + live Releases API match):
+ *      fallback while the self-hosted mirror fills up, and the permanent
+ *      fallback for files never mirrored here. If the release isn't
+ *      published yet the page says so instead of serving 404s.
  */
 
 const REPO = "Louay0007/zaino-ai-agent";
@@ -53,9 +55,11 @@ interface AssetRow {
   id: string;
   label: string;
   hint: string;
-  /** Pinned URL — replaced by the live API match when available. */
-  href: string | null;
-  /** Extension matcher against the live release assets. */
+  /** OS/arch/format the self-hosted API match must carry. */
+  wants: { os: "macos" | "windows" | "linux"; arch: string; label: string };
+  /** GitHub fallback URL — used until the self-hosted mirror has it. */
+  fallbackHref: string | null;
+  /** Extension matcher against the live GitHub release assets. */
   match: (name: string) => boolean;
 }
 
@@ -78,14 +82,16 @@ const PLATFORMS: Platform[] = [
         id: "mac-arm64",
         label: "Apple Silicon",
         hint: "M1, M2, M3, M4 · arm64",
-        href: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_aarch64.dmg`,
+        wants: { os: "macos", arch: "arm64", label: "Apple Silicon" },
+        fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_aarch64.dmg`,
         match: (n) => n.endsWith(".dmg") && /aarch64|arm64/i.test(n),
       },
       {
         id: "mac-x64",
         label: "Intel",
         hint: "x86_64",
-        href: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_x86_64.dmg`,
+        wants: { os: "macos", arch: "x64", label: "Intel" },
+        fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_x86_64.dmg`,
         match: (n) => n.endsWith(".dmg") && /x86_64|x64(?!.*arm)/i.test(n) && !/aarch64|arm64/i.test(n),
       },
     ],
@@ -100,7 +106,8 @@ const PLATFORMS: Platform[] = [
         id: "win-x64",
         label: "Windows 10+",
         hint: "x64 setup · .exe",
-        href: `${PINNED_BASE}/Zaino.AI.Agent_${PINNED_VERSION}_x64-setup.exe`,
+        wants: { os: "windows", arch: "x64", label: "Windows 10+" },
+        fallbackHref: `${PINNED_BASE}/Zaino.AI.Agent_${PINNED_VERSION}_x64-setup.exe`,
         match: (n) => n.endsWith("-setup.exe") && !n.endsWith(".sig"),
       },
     ],
@@ -115,21 +122,24 @@ const PLATFORMS: Platform[] = [
         id: "linux-appimage",
         label: "AppImage",
         hint: "Runs anywhere · x86_64",
-        href: null,
+        wants: { os: "linux", arch: "x64", label: "AppImage" },
+        fallbackHref: null,
         match: (n) => n.endsWith(".AppImage") && !n.endsWith(".sig"),
       },
       {
         id: "linux-deb",
         label: ".deb",
         hint: "Debian · Ubuntu",
-        href: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_amd64.deb`,
+        wants: { os: "linux", arch: "x64", label: ".deb" },
+        fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_amd64.deb`,
         match: (n) => n.endsWith(".deb"),
       },
       {
         id: "linux-rpm",
         label: ".rpm",
         hint: "Fedora · RHEL",
-        href: null,
+        wants: { os: "linux", arch: "x64", label: ".rpm" },
+        fallbackHref: null,
         match: (n) => n.endsWith(".rpm") && !n.endsWith(".sig"),
       },
     ],
@@ -140,6 +150,15 @@ interface LiveAsset {
   name: string;
   url: string;
   size: number;
+}
+
+interface HostedFile {
+  name: string;
+  url: string;
+  size: number;
+  os: string;
+  arch: string;
+  label: string;
 }
 
 function detectOs(): OsId {
@@ -206,6 +225,7 @@ const FAQS: { q: string; a: string }[] = [
 
 export default function DownloadContent() {
   const [os, setOs] = React.useState<OsId>(null);
+  const [hosted, setHosted] = React.useState<HostedFile[] | null>(null);
   const [live, setLive] = React.useState<LiveAsset[] | null>(null);
   const [releaseMissing, setReleaseMissing] = React.useState(false);
 
@@ -215,6 +235,17 @@ export default function DownloadContent() {
 
   React.useEffect(() => {
     let cancelled = false;
+    // Layer 1: self-hosted mirror on this host. Preferred for every button.
+    fetch("/api/downloads")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.files) return;
+        setHosted(data.files as HostedFile[]);
+      })
+      .catch(() => {
+        /* GitHub fallback below still works without the mirror */
+      });
+    // Layer 2: GitHub release as fallback while the mirror fills up.
     fetch(`https://api.github.com/repos/${REPO}/releases/tags/v${PINNED_VERSION}`)
       .then((r) => {
         if (r.status === 404) {
@@ -233,7 +264,7 @@ export default function DownloadContent() {
         );
       })
       .catch(() => {
-        /* pinned URLs remain — the page still works offline of the API */
+        /* self-hosted layer above still works offline of the API */
       });
     return () => {
       cancelled = true;
@@ -241,14 +272,22 @@ export default function DownloadContent() {
   }, []);
 
   const resolveRow = React.useCallback(
-    (row: AssetRow): { href: string | null; size: string } => {
+    (row: AssetRow): { href: string | null; size: string; direct: boolean } => {
+      // Self-hosted first: exact os/arch/label match from /api/downloads.
+      if (hosted) {
+        const hit = hosted.find(
+          (f) => f.os === row.wants.os && f.arch === row.wants.arch && f.label === row.wants.label,
+        );
+        if (hit) return { href: hit.url, size: formatBytes(hit.size), direct: true };
+      }
+      // GitHub live match second, pinned URL last.
       if (live) {
         const hit = live.find((a) => row.match(a.name));
-        if (hit) return { href: hit.url, size: formatBytes(hit.size) };
+        if (hit) return { href: hit.url, size: formatBytes(hit.size), direct: false };
       }
-      return { href: row.href, size: "" };
+      return { href: row.fallbackHref, size: "", direct: false };
     },
-    [live],
+    [hosted, live],
   );
 
   const primary = React.useMemo(() => {
@@ -318,6 +357,12 @@ export default function DownloadContent() {
             }
           />
         </div>
+        {primary?.direct ? (
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-700">
+            <Check className="size-3.5" />
+            Direct download from our server — no account needed
+          </p>
+        ) : null}
         {releaseMissing ? (
           <p className="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 text-sm text-amber-700">
             <Info className="size-4 shrink-0" />

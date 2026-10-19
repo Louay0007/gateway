@@ -135,6 +135,26 @@
 		max_size 2MB
 	}
 
+	# ── Self-hosted desktop installers (/downloads/*) ─────────────────
+	# Zaino AI Agent .dmg/.exe/.AppImage/.deb/.rpm live in
+	# /opt/gateway/data/downloads/<version>/<file> on the host. Served
+	# directly by Caddy — no Next.js hop, resumable range requests, and
+	# Content-Disposition: attachment so browsers download instead of
+	# trying to render a 100MB binary. The portal's /api/downloads route
+	# lists what's actually on disk; this block serves the bytes.
+	# Path traversal is impossible: `file_server` roots at the downloads
+	# dir and Caddy cleans `..` before resolving; dotfiles and .sig
+	# sidecars are hidden explicitly below.
+	route /downloads/* {
+		root * /opt/gateway/data/downloads
+		@hidden path */.* *.sig
+		respond @hidden "Not found" 404
+		header Content-Disposition "attachment"
+		file_server browse {
+			hide .* *.sig
+		}
+	}
+
 	reverse_proxy 127.0.0.1:3000 {
 		# Required by the Stripe webhook route: without it, Caddy may
 		# buffer the request body and Stripe's signature check fails
