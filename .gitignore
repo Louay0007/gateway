@@ -29,6 +29,18 @@ test-results/
 # Editor/agent workspace markers. Machine-local identity, not project
 # content, and this repository is public.
 .freebuff/
+.claude/
+
+# ── Operator scratch (never commit) ───────────────────────────────────
+# `_rescue/` holds pg_dump archives of the LIVE portal database plus
+# extracted D17 payment evidence — real authorization numbers, sender
+# phone numbers, key hashes and the full audit log. The repository is
+# PUBLIC, so a `git add -A` here would publish customer and payment data.
+# Backups belong off-box; this is a local copy, not project content.
+_rescue/
+
+# Screenshots of the running checkout UI. They capture real session state.
+*.png
 
 # ── Local data (never commit) ─────────────────────────────────────────
 # D17 proof screenshots: user-uploaded images. Local/dev only until the
