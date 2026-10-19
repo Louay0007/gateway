@@ -233,8 +233,11 @@
 #
 # Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl -s ifconfig.me).
 {$CONSOLE_DOMAIN} {
-	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32
-	respond @blocked "Forbidden" 403
+	# IP allowlist REMOVED: the admin gate secret (ADMIN_GATE_SECRET) is now
+	# the sole access control. The gate page and /api/admin/gate route are
+	# reachable from any IP; the HMAC-signed cookie minted by the correct
+	# secret is what grants entry. This avoids the recurring 403 problem
+	# when the operator's IP changes.
 
 	# The same 2MB control-plane ceiling as the portal vhost, plus the
 	# 4MB D17-proof carve-out: staff open payment screenshots through
