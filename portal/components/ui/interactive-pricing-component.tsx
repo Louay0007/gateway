@@ -2,7 +2,8 @@
 
 import React, { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useApi } from '@/lib/api/use-api';
+import type { ProfileView } from '@/lib/api/types';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -100,7 +101,13 @@ export default function PricingComponent({
   showComparison = true,
 }: PricingComponentProps) {
   const router = useRouter();
-  const { data: session } = useSession();
+  // Auth-aware CTA without next-auth's SessionProvider: the provider is
+  // not mounted in the marketing tree (see app/layout.tsx), so useSession()
+  // returns undefined and crashes prerender. /api/profile answers 401 when
+  // signed out — same pattern as PricingPreview — so a successful fetch
+  // means authenticated and an error means anonymous.
+  const profile = useApi<ProfileView>('/api/profile');
+  const session = profile.data ? { user: profile.data } : null;
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(defaultBillingCycle);
   const [activeTab, setActiveTab] = useState<'pricing' | 'comparison'>('pricing');
 
