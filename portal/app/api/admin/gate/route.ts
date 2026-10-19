@@ -50,7 +50,14 @@ export async function POST(req: NextRequest) {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
-    path: "/admin",
+    // Path must be "/" not "/admin" because admin API routes live under
+    // /api/admin/* (e.g. /api/admin/d17/[id]/screenshot). A cookie scoped
+    // to /admin would never reach those endpoints, causing "Not signed in"
+    // on every gate-authenticated API call. The cookie is httpOnly + secure
+    // + sameSite strict, so broadening the path does not leak it to
+    // customer-facing code — only JS on this host could read it, and
+    // sameSite strict blocks cross-site sends entirely.
+    path: "/",
     maxAge: TTL_SECONDS,
   });
 
