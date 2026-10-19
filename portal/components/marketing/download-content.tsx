@@ -75,7 +75,7 @@ const PLATFORMS: Platform[] = [
   {
     id: "macos",
     name: "macOS",
-    tagline: "Signed & notarized DMG",
+    tagline: "Apple Silicon DMG (unsigned preview)",
     icon: <Apple className="size-5" />,
     rows: [
       {
@@ -85,14 +85,6 @@ const PLATFORMS: Platform[] = [
         wants: { os: "macos", arch: "arm64", label: "Apple Silicon" },
         fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_aarch64.dmg`,
         match: (n) => n.endsWith(".dmg") && /aarch64|arm64/i.test(n),
-      },
-      {
-        id: "mac-x64",
-        label: "Intel",
-        hint: "x86_64",
-        wants: { os: "macos", arch: "x64", label: "Intel" },
-        fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_x86_64.dmg`,
-        match: (n) => n.endsWith(".dmg") && /x86_64|x64(?!.*arm)/i.test(n) && !/aarch64|arm64/i.test(n),
       },
     ],
   },
@@ -199,12 +191,16 @@ const STEPS = [
 ];
 
 const REQUIREMENTS: { os: string; detail: string }[] = [
-  { os: "macOS", detail: "macOS 12 Monterey or later · Apple Silicon or Intel" },
+  { os: "macOS", detail: "macOS 12 Monterey or later · Apple Silicon (Intel coming soon)" },
   { os: "Windows", detail: "Windows 10 1809 or later · x64 · WebView2 embedded" },
   { os: "Linux", detail: "Ubuntu 24.04+ / Debian 12+ for .deb · FUSE for AppImage" },
 ];
 
 const FAQS: { q: string; a: string }[] = [
+  {
+    q: 'macOS says "damaged" or "can\'t be opened" — what do I do?',
+    a: 'The current preview build is not yet notarized by Apple. After dragging the app to Applications, open Terminal and run: xattr -cr /Applications/Zaino\\ AI\\ Agent.app — then launch it normally. This one-time step removes the quarantine flag. Signed & notarized builds are coming in the next release.',
+  },
   {
     q: "Do I need a paid plan to use the desktop app?",
     a: "The app itself is free. You need a Zaino API key with prompt quota — any plan works, including trial credit. Fast (Sonnet 5) and Smart (Opus 5.5) draw from your plan's prompt limits.",
