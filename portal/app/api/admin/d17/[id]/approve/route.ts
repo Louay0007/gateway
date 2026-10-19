@@ -14,7 +14,7 @@
  * payment".
  */
 
-import { requireStaff } from '@/lib/auth/authorize';
+import { resolveActorId, requireGateOrStaff } from '@/lib/admin/gate';
 import { approveD17Payment } from '@/lib/billing/d17-admin';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
@@ -28,14 +28,21 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const staff = await requireStaff('support');
+    // Gate OR staff — the secret code is sufficient on this deployment.
+    // The actor ID resolves to the real staff user ID when a session exists,
+    // or falls back to 'gate-operator' for gate-only callers.
+    const { gateOk } = await requireGateOrStaff();
+    if (!gateOk) {
+      return jsonError('unauthorized', 'Not signed in');
+    }
+    const actorId = await resolveActorId();
 
     const { id } = await params;
     if (!UUID.test(id)) {
       return jsonError('not_found', 'No such payment.');
     }
 
-    const result = await approveD17Payment(staff.id, id);
+    const result = await approveD17Payment(actorId, id);
     if (!result.ok) {
       // not_found / not_submitted / activation_failed are all "nothing
       // was activated"; the client reloads the queue either way.

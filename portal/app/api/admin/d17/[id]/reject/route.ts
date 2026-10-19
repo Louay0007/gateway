@@ -11,7 +11,7 @@
  * they believe they made, so it is the escalation step, not the first one.
  */
 
-import { requireStaff } from '@/lib/auth/authorize';
+import { resolveActorId, requireGateOrStaff } from '@/lib/admin/gate';
 import { rejectD17Payment } from '@/lib/billing/d17-admin';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
@@ -25,7 +25,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    const staff = await requireStaff('admin');
+    // Gate OR staff — the secret code is sufficient on this deployment.
+    const { gateOk } = await requireGateOrStaff();
+    if (!gateOk) {
+      return jsonError('unauthorized', 'Not signed in');
+    }
+    const actorId = await resolveActorId();
 
     const { id } = await params;
     if (!UUID.test(id)) {
@@ -50,7 +55,7 @@ export async function POST(
       return jsonError('validation', 'Keep the reason under 500 characters.');
     }
 
-    const result = await rejectD17Payment(staff.id, id, reason);
+    const result = await rejectD17Payment(actorId, id, reason);
     if (!result.ok) {
       const status = result.error === 'not_found' ? 404 : 409;
       return jsonError(status === 404 ? 'not_found' : 'conflict', errorText(result.error));

@@ -53,6 +53,9 @@ export async function gateCookieValid(): Promise<boolean> {
   }
 }
 
+/** Placeholder actor ID for gate-only operators in audit logs and DB rows. */
+export const GATE_ACTOR_ID = 'gate-operator';
+
 /**
  * Gate-or-staff check for admin API routes.
  *
@@ -70,4 +73,28 @@ export async function requireGateOrStaff(): Promise<{
 }> {
   const [gateOk, role] = await Promise.all([gateCookieValid(), currentStaffRole()]);
   return { gateOk, role };
+}
+
+/**
+ * Resolve the actor ID for audit/DB writes from a gate-or-staff check.
+ *
+ * Returns the real staff user ID when a staff session exists, otherwise
+ * falls back to `GATE_ACTOR_ID` for gate-only operators. This lets
+ * approve/reject routes write audit rows and `verifiedBy` columns
+ * without demanding a staff login — the gate secret IS the credential
+ * on this deployment.
+ */
+export async function resolveActorId(): Promise<string> {
+  const { role } = await requireGateOrStaff();
+  // When there's a staff session, currentStaffRole already resolved it.
+  // We need the actual user ID though, not just the role.
+  if (role) {
+    // Re-read the session to get the user ID. currentStaffRole reads
+    // the same session internally, so this is one extra lookup only
+    // for staff users — gate-only callers skip it entirely.
+    const { auth } = await import('@/auth');
+    const session = await auth();
+    if (session?.user?.id) return session.user.id;
+  }
+  return GATE_ACTOR_ID;
 }
