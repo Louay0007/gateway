@@ -144,11 +144,10 @@
 	# lists what's actually on disk; this block serves the bytes.
 	# Path traversal is impossible: `handle_path` strips the prefix then
 	# `file_server` roots at the downloads dir, and Caddy cleans `..`
-	# before resolving; dotfiles and .sig sidecars are hidden below.
+	# before resolving. The `hide` directive prevents serving dotfiles
+	# and .sig sidecars, returning a standard 404 for them.
 	handle_path /downloads/* {
 		root * /opt/gateway/data/downloads
-		@hidden path */.* *.sig
-		respond @hidden "Not found" 404
 		header Content-Disposition "attachment"
 		file_server browse {
 			hide .* *.sig
