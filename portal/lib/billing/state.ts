@@ -22,13 +22,18 @@ export type PlanState =
  * Internal row states → customer-facing states.
  *
  * `incomplete` is "payment never completed" — what the dashboard calls
- * `pending`. Legacy `trialing` status is no longer used; trials have been
- * removed from the platform. If one ever
- * does, full access is the intended reading (PLATFORM.md §5.1), and a
- * broken-looking state on a paid account is worse than the alias.
+ * `pending`.
+ *
+ * `trialing` is a LIVE status again (free trial codes, migration 0017:
+ * redeem → `subscriptions.status = 'trialing'` → full access for the
+ * window). The client vocabulary has no `trialing` branch and the intended
+ * reading of a trial is full access (PLATFORM.md §5.1), so it maps to
+ * `active`; casting it straight through would hand the dashboard a state
+ * it cannot render.
  */
 export function planStateFromStatus(status: string): PlanState {
   if (status === 'incomplete') return 'pending';
+  if (status === 'trialing') return 'active';
   return status as PlanState;
 }
 
