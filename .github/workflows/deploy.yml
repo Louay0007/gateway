@@ -83,16 +83,35 @@ jobs:
       # `make health` prints FAIL and still exits 0 — it is a human
       # readout, not a gate. These checks assert, so a broken deploy marks
       # the run red instead of scrolling past.
+      #
+      # They also RETRY. Changing a service's environment recreates its
+      # container, and the first version of this step asserted 8s after the
+      # recreate and failed with curl code 000 — connection refused — while
+      # the gateway was merely still booting. It called a working deploy
+      # broken. A readiness gate has to wait for readiness.
       - name: Verify the deploy actually serves
         run: |
-          set -euo pipefail
+          set -uo pipefail
 
-          code=$(curl -sS -m 10 -o /dev/null -w '%{http_code}' \
-            http://127.0.0.1:4000/health/readiness || true)
-          [ "$code" = "200" ] || { echo "::error::gateway readiness returned $code"; exit 1; }
+          code=000
+          for i in $(seq 1 45); do
+            code=$(curl -sS -m 5 -o /dev/null -w '%{http_code}' \
+              http://127.0.0.1:4000/health/readiness 2>/dev/null || echo 000)
+            [ "$code" = "200" ] && break
+            echo "  gateway not ready (HTTP $code), attempt $i/45"
+            sleep 4
+          done
+          [ "$code" = "200" ] \
+            || { echo "::error::gateway readiness returned $code after 45 attempts"; exit 1; }
           echo "gateway readiness : 200"
 
-          health=$(curl -sS -m 10 http://127.0.0.1:3000/api/health || true)
+          health=""
+          for i in $(seq 1 45); do
+            health=$(curl -sS -m 5 http://127.0.0.1:3000/api/health 2>/dev/null || echo "")
+            echo "$health" | grep -q '"database":true' && break
+            echo "  portal not healthy yet, attempt $i/45"
+            sleep 4
+          done
           echo "$health" | grep -q '"database":true' \
             || { echo "::error::portal reports database:false — $health"; exit 1; }
           echo "portal health     : ok"
