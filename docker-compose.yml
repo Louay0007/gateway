@@ -68,6 +68,14 @@ services:
       # Upstream. Never read from a request field. See DESIGN.md §6.2.
       UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:?set in .env}
       UPSTREAM_API_KEY: ${UPSTREAM_API_KEY:?set in .env}
+      # GhostCLI credential behind the `fast` and `smart` models.
+      # config/litellm.yaml reads it as os.environ/GHOSTCLI_API_KEY. Without
+      # this line the key exists in .env but never reaches the container, and
+      # every fast/smart request fails with an api_key error — which took
+      # BOTH paid tiers down while `frontier` (UPSTREAM_API_KEY) kept
+      # working. Any os.environ/ reference in litellm.yaml needs a matching
+      # line here; nothing else checks that pairing.
+      GHOSTCLI_API_KEY: ${GHOSTCLI_API_KEY:?set in .env}
       LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX: ${LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX:-false}
 
       STORE_MODEL_IN_DB: "True"

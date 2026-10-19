@@ -39,8 +39,11 @@ test-results/
 # Backups belong off-box; this is a local copy, not project content.
 _rescue/
 
-# Screenshots of the running checkout UI. They capture real session state.
-*.png
+# session state. Anchored to the repo ROOT on purpose: a bare `*.png` would
+# also swallow every image asset under portal/public/images/ (mascot, logos,
+# app shots — seven are already tracked), so a new marketing asset would
+# vanish on `git add` with no error. Root-only catches the scratch shots.
+/*.png
 
 # ── Local data (never commit) ─────────────────────────────────────────
 # D17 proof screenshots: user-uploaded images. Local/dev only until the
