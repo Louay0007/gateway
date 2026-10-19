@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookOpen,
   CreditCard,
+  Gift,
   KeyRound,
   LayoutDashboard,
   Settings,
@@ -24,6 +25,7 @@ export const navMain: NavItem[] = [
   { title: "Usage", href: "/dashboard/usage", icon: BarChart3 },
   { title: "API keys", href: "/dashboard/keys", icon: KeyRound },
   { title: "Billing", href: "/dashboard/billing", icon: CreditCard },
+  { title: "Redeem", href: "/dashboard/redeem", icon: Gift },
 ];
 
 /**
