@@ -3,6 +3,9 @@ import Link from "next/link";
 
 import { PricingPreview } from "@/components/marketing/pricing-preview";
 import Navbar from "@/components/shadcn-space/blocks/hero-33/navbar";
+import { listPlans } from "@/lib/billing/service";
+import type { PlanSummary } from "@/lib/billing/state";
+import { centsDt } from "@/lib/dashboard/format";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -18,7 +21,14 @@ export const metadata: Metadata = {
  * link that shipped. It carries the same hero + pricing treatment as the
  * landing page so the two read as one site.
  */
-export default function PricingPage() {
+export default async function PricingPage() {
+  // The badge reads the same catalog the cards below it render. It used to
+  // be a hardcoded string that had drifted a long way from the database —
+  // it advertised 59/307 DT while the plans actually cost 50/90 — so the
+  // page contradicted the pricing table two inches below it. One source,
+  // and no way for the two to disagree again.
+  const plans = await listPlans();
+
   return (
     <>
       <Navbar />
@@ -26,7 +36,7 @@ export default function PricingPage() {
         <section className="bg-white py-16 sm:py-24">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <div className="max-w-2xl">
-              <Badge />
+              <Badge plans={plans} />
               <h1 className="mt-3 text-4xl font-semibold tracking-tight text-black sm:text-5xl">
                 Pay monthly, in dollars, or by D17
               </h1>
@@ -53,10 +63,21 @@ export default function PricingPage() {
   );
 }
 
-function Badge() {
+function Badge({ plans }: { plans: PlanSummary[] }) {
+  // `listPlans()` already returns the catalog in `sort_order`; sorting a
+  // copy by price would put the wrong plan first for any future tier whose
+  // price is not monotonic with its position.
+  const line = plans
+    .map((p) => `${p.name} ${centsDt(p.priceCents)} / ${p.interval}`)
+    .join(' · ');
+
+  // No catalog (cold DB, migration mid-flight) must not render an empty
+  // pill — better to show nothing than " · ".
+  if (!line) return null;
+
   return (
     <span className="inline-flex h-7 w-fit items-center rounded-full border border-black px-3 text-sm font-normal text-black">
-      Starter 59 DT / month · Pro 307 DT / month
+      {line}
     </span>
   );
 }

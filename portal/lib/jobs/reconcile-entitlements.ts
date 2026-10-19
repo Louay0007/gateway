@@ -14,13 +14,28 @@
  * is out of date and push it again. It is idempotent, so running it
  * hourly against everyone is cheaper than the alternative.
  *
- * Two populations, deliberately different:
+ * Three populations, deliberately different:
  *
  *   RETRY    pending/failed rows whose next_retry_at has arrived. This is
  *            the queue the admin console (A-09) reads and retries by
  *            hand; the job drains it automatically.
  *   BACKSTOP synced rows that have not been refreshed in an hour, which
  *            catches silent drift with no error anywhere.
+ *   ORPHAN   organizations with NO entitlement row at all.
+ *
+ * The third one exists because the first two both start `FROM
+ * entitlements`, which made this job structurally blind to the one state
+ * that mattered most. If a subscription row is removed by any route that
+ * does not itself call sync — a direct DELETE, a restore from a dump, an
+ * operator mistake — the org's entitlement is emptied along with it (it is
+ * FK'd to the org) and every key keeps whatever budget the gateway already
+ * had. The reconciler could not see the org to cut it: the row it would
+ * have looked for is the row that disappeared. Observed live — a billing
+ * wipe left two keys holding live budgets on an org with no subscription.
+ *
+ * Deleting a subscription is supposed to go through cancel/deleteAccount,
+ * and both of those sync. This population is the net for the routes that
+ * do not.
  */
 
 import { sql } from 'drizzle-orm';
@@ -34,6 +49,26 @@ const BACKSTOP_INTERVAL_MINUTES = 60;
 /** Bound one pass so a bad night cannot hold the lock indefinitely. */
 const MAX_ORGS_PER_PASS = 100;
 
+/**
+ * How far back to look for orgs with no entitlement row.
+ *
+ * Bounded on purpose: an org that has been around longer than this and
+ * still has no entitlement has simply never subscribed, and re-syncing
+ * every historical org on every pass is work with no purpose. The window
+ * comfortably covers the incident that motivated it — a subscription
+ * removed during a wipe or a restore, noticed the same day.
+ *
+ * A no-subscription org stays in this population for the whole window and
+ * is re-cut on every pass, because `syncOrganizationEntitlements` answers
+ * "no subscription" with `forceCut` and writes no row to record that it
+ * did. That is deliberate repetition over silent omission: the cut is
+ * idempotent and cheap, and the alternative is the exact failure this
+ * population exists to catch — an org the job can no longer see, holding
+ * live gateway budgets. The population is bounded by MAX_ORGS_PER_PASS and
+ * by the lookback, so the cost cannot grow without limit.
+ */
+const ORPHAN_LOOKBACK_DAYS = 30;
+
 export interface ReconcileEntitlementsResult {
   scanned: number;
   synced: number;
@@ -41,6 +76,9 @@ export interface ReconcileEntitlementsResult {
 }
 
 export async function reconcileEntitlements(): Promise<ReconcileEntitlementsResult> {
+  // The two entitlement-rooted populations first, then the orphan sweep —
+  // de-duplicated, because an org can only be missing its row or be due for
+  // a refresh, but the UNION is written not to care.
   const due = (await db.execute(sql`
     SELECT e.organization_id
       FROM entitlements e
@@ -53,7 +91,16 @@ export async function reconcileEntitlements(): Promise<ReconcileEntitlementsResu
             AND (e.synced_at IS NULL
                  OR e.synced_at < now() - (${BACKSTOP_INTERVAL_MINUTES} * interval '1 minute')))
        )
-     ORDER BY e.next_retry_at ASC
+
+    UNION
+
+    SELECT o.id AS organization_id
+      FROM organizations o
+     WHERE o.status IN ('active', 'suspended')
+       AND NOT EXISTS (SELECT 1 FROM entitlements e WHERE e.organization_id = o.id)
+       AND o.created_at > now() - (${ORPHAN_LOOKBACK_DAYS} * interval '1 day')
+
+     ORDER BY 1 ASC
      LIMIT ${MAX_ORGS_PER_PASS}
   `)) as unknown as { organization_id: string }[];
 

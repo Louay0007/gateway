@@ -177,6 +177,20 @@ export async function approveD17Payment(
     return { ok: false, error: 'activation_failed' };
   }
 
+  // Mark the payment PAID IMMEDIATELY after activation, before any
+  // bookkeeping. This ordering is load-bearing.
+  //
+  // Everything below this line is cosmetic — period correction, audit row,
+  // confirmation email. Everything above it is the money path. When the
+  // paid-UPDATE came last, any throw in the bookkeeping left the payment
+  // reading `proof_submitted` while the subscription was already active and
+  // the entitlement already pushed: a customer who had paid, holding a
+  // permanently-stuck row in the admin queue that staff could re-approve
+  // forever. The activation is idempotent, but the QUEUE STATE was a lie,
+  // and the lie outlived the bug that caused it.
+  //
+  // So: state first, cosmetics after, and the cosmetics are individually
+  // guarded so none of them can block the others.
   await db
     .update(paymentsD17)
     .set({
@@ -191,29 +205,43 @@ export async function approveD17Payment(
   // period. At begin() time the period was provisional (old end or now);
   // approval is when the real start/end are known. Without this the
   // history would show the guess, not the period the customer paid for.
-  const rolled = await db.query.subscriptions.findFirst({
-    where: eq(subscriptions.id, payment.subscriptionId),
-  });
-  if (rolled?.currentPeriodStart && rolled?.currentPeriodEnd) {
-    await db
-      .update(paymentsD17)
-      .set({
-        periodStart: rolled.currentPeriodStart,
-        periodEnd: rolled.currentPeriodEnd,
-        updatedAt: new Date(),
-      })
-      .where(eq(paymentsD17.id, paymentId));
+  try {
+    const rolled = await db.query.subscriptions.findFirst({
+      where: eq(subscriptions.id, payment.subscriptionId),
+    });
+    if (rolled?.currentPeriodStart && rolled?.currentPeriodEnd) {
+      await db
+        .update(paymentsD17)
+        .set({
+          periodStart: rolled.currentPeriodStart,
+          periodEnd: rolled.currentPeriodEnd,
+          updatedAt: new Date(),
+        })
+        .where(eq(paymentsD17.id, paymentId));
+    }
+  } catch (e) {
+    log.error('d17: period correction failed after approval', {
+      paymentId,
+      error: e instanceof Error ? e.message : String(e),
+    });
   }
 
-  await appendAudit({
-    actorType: 'user',
-    actorId: staffId,
-    organizationId: payment.organizationId,
-    action: 'd17.approved',
-    targetType: 'payment_d17',
-    targetId: payment.id,
-    after: { planCode: plan?.code ?? null, authorizationNumber: payment.authorizationNumber },
-  });
+  try {
+    await appendAudit({
+      actorType: 'user',
+      actorId: staffId,
+      organizationId: payment.organizationId,
+      action: 'd17.approved',
+      targetType: 'payment_d17',
+      targetId: payment.id,
+      after: { planCode: plan?.code ?? null, authorizationNumber: payment.authorizationNumber },
+    });
+  } catch (e) {
+    log.error('d17: audit write failed after approval', {
+      paymentId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
 
   // Customer confirmation — in the language they chose at checkout.
   // Pre-0016 rows have lang=NULL; fall back to French for those.
