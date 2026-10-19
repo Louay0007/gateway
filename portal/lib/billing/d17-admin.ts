@@ -87,15 +87,26 @@ export async function listD17Queue(
     .limit(200);
 
   // Rejections so far (the "resubmit once" budget).
+  //
+  // The IN-list MUST be built with `sql.join`, not by interpolating a JS
+  // array. Interpolating an array into a raw `sql` template binds it as ONE
+  // parameter, not a Postgres array — `${ids}::text[]` therefore sent a bare
+  // scalar and Postgres answered `malformed array literal: "<uuid>"` (22P02),
+  // which 500'd /admin/d17 whenever the queue held exactly one payment.
+  // `lib/auth/throttle.ts` documents this same trap and avoids it with the
+  // query builder; there is no `sql.array()` in drizzle-orm 0.38.4, so
+  // `sql.join` over individually-bound values is the equivalent here. Every
+  // id stays a bound parameter — this is not string concatenation.
   const ids = rows.map((r) => r.paymentId);
   const rejectionCounts = new Map<string, number>();
   if (ids.length) {
+    const idList = sql.join(ids.map((id) => sql`${id}`), sql`, `);
     const counts = (await db.execute(sql`
       SELECT target_id, count(*)::int AS n
         FROM audit_log
        WHERE action = 'd17.rejected'
          AND target_type = 'payment_d17'
-         AND target_id = ANY(${ids}::text[])
+         AND target_id IN (${idList})
        GROUP BY target_id
     `)) as unknown as { target_id: string; n: number }[];
     for (const c of counts) rejectionCounts.set(c.target_id, Number(c.n));

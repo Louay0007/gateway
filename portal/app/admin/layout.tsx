@@ -28,6 +28,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { AdminSidebar } from "@/components/admin/admin-sidebar";
 import { Button } from "@/components/ui/button";
@@ -71,13 +72,29 @@ export default async function AdminLayout({
 }: {
   children: ReactNode;
 }) {
-  // Gate check runs BEFORE the staff role check. When the cookie is
-  // missing or invalid, render only {children} — which at /admin is the
-  // gate form (a client component). The full console shell (sidebar,
-  // toaster) must NOT render until the gate passes, but the gate form
-  // itself must be visible so the operator can enter the code.
+  // Gate check runs BEFORE the staff role check.
+  //
+  // REDIRECT, not `return <>{children}</>`.
+  //
+  // The previous version rendered the children with the shell suppressed,
+  // on the reasoning that "at /admin, children IS the gate form". That is
+  // true for exactly one route. For /admin/ops, /admin/orgs, /admin/d17,
+  // /admin/audit, /admin/plans, /admin/staff, /admin/credits and
+  // /admin/usage the children are the ACTUAL CONSOLE, so the gate was
+  // suppressing chrome while still serving the page — /admin/ops returned
+  // 200 with "Job health" and the job table to a caller holding no cookie
+  // at all.
+  //
+  // It was not exploitable only because the IP allowlist in config/Caddyfile
+  // meant almost nobody could reach it. That allowlist has been removed: the
+  // console is public and this secret is the only pre-auth layer, so
+  // rendering children ungated would be a live exposure.
+  //
+  // /admin is the one route that must stay reachable — it renders its own
+  // gate form (app/admin/page.tsx) and redirects onward once the cookie is
+  // valid, so this cannot loop.
   if (!(await gatePassed())) {
-    return <>{children}</>;
+    redirect("/admin");
   }
 
   // When the gate cookie is valid, the secret code IS the authentication.
