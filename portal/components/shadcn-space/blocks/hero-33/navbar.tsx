@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { ChevronRight, Equal, X } from "lucide-react";
 
 const navLinks = [
+  { title: "Download", href: "/download" },
   { title: "Docs", href: "/docs" },
   { title: "Changelog", href: "/changelog" },
   { title: "Sign in", href: "/sign-in" },

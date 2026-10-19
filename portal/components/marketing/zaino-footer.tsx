@@ -8,6 +8,7 @@ const columns = [
     title: 'Product',
     links: [
       { label: 'Overview', href: '/' },
+      { label: 'Desktop app', href: '/download' },
       { label: 'Pricing', href: '/#pricing' },
       { label: 'Docs', href: '/docs' },
       { label: 'API Reference', href: '/docs' },
