@@ -8,16 +8,18 @@
  * No upstream model name is rendered, exported, or embedded in any snippet
  * — the alias IS the product (HANDOFF §1).
  */
-export const PUBLIC_BASE_URL = "https://api.15-224-52-176.sslip.io/v1";
+export const PUBLIC_BASE_URL = "https://api.zaino.soon.it/v1";
 
-export const CONTEXT_WINDOW = 262144;
-export const MAX_OUTPUT_TOKENS = 32768;
+export const CONTEXT_WINDOW = 1000000;
+export const MAX_OUTPUT_TOKENS = 128000;
 
 export type Tier = {
   alias: string;
+  poweredBy: string;
   tagline: string;
   inputPerMtok: string;
   outputPerMtok: string;
+  cacheReadPerMtok: string;
   plans: string;
   bestFor: string[];
   badge: string;
@@ -26,27 +28,33 @@ export type Tier = {
 export const TIERS: Tier[] = [
   {
     alias: "fast",
+    poweredBy: "Claude Sonnet 5",
     tagline: "High-volume work — drafts, classification, bulk transforms.",
-    inputPerMtok: "$0.15",
-    outputPerMtok: "$0.60",
+    inputPerMtok: "$3",
+    outputPerMtok: "$15",
+    cacheReadPerMtok: "$0.30",
     plans: "Starter · Pro",
     bestFor: ["Chat & copilots", "Bulk jobs", "First drafts"],
     badge: "Cheapest",
   },
   {
     alias: "smart",
+    poweredBy: "Claude Opus 5.5",
     tagline: "Everyday balanced tier — the default for most integrations.",
-    inputPerMtok: "$0.30",
-    outputPerMtok: "$1.20",
+    inputPerMtok: "$15",
+    outputPerMtok: "$75",
+    cacheReadPerMtok: "$1.50",
     plans: "Starter · Pro",
     bestFor: ["Agents", "Tool calling", "Support bots"],
     badge: "Most used",
   },
   {
     alias: "frontier",
-    tagline: "Highest-priced tier for the hardest reasoning workloads.",
-    inputPerMtok: "$0.60",
-    outputPerMtok: "$2.40",
+    poweredBy: "Claude Fable 5.1",
+    tagline: "Mythos-class reasoning for the hardest long-running workloads.",
+    inputPerMtok: "$10",
+    outputPerMtok: "$50",
+    cacheReadPerMtok: "$0.25",
     plans: "Pro only",
     bestFor: ["Deep reasoning", "Multi-step agents", "Hard tasks"],
     badge: "Pro",

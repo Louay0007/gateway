@@ -73,7 +73,7 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
           </ol>
         </div>
         <dl className="mt-10 grid max-w-3xl gap-3 sm:grid-cols-3">
-          <HeroFact label="Base URL" value="api…sslip.io/v1" mono />
+          <HeroFact label="Base URL" value="api.zaino.soon.it/v1" mono />
           <HeroFact label="Auth" value="Bearer zn-…" mono />
           <HeroFact label="Models" value="fast · smart · frontier" />
         </dl>

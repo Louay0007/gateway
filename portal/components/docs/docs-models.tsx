@@ -60,28 +60,43 @@ export function ModelsSection() {
                 </Badge>
               </div>
 
-              <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
+              <p className="mt-3 text-xs font-medium text-foreground/80">
+                Powered by {t.poweredBy}
+              </p>
+
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {t.tagline}
               </p>
 
-              <dl className="mt-6 grid grid-cols-2 gap-4">
-                <div className="rounded-2xl bg-muted px-4 py-4">
+              <dl className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-muted px-3 py-3">
                   <dt className="text-[10px] tracking-widest text-muted-foreground uppercase font-semibold">
                     Input
                   </dt>
-                  <dd className="mt-1 text-xl font-bold tabular-nums text-foreground">
+                  <dd className="mt-1 text-lg font-bold tabular-nums text-foreground">
                     {t.inputPerMtok}
                   </dd>
                   <dd className="mt-0.5 text-[10px] text-muted-foreground">
                     per 1M tokens
                   </dd>
                 </div>
-                <div className="rounded-2xl bg-muted px-4 py-4">
+                <div className="rounded-2xl bg-muted px-3 py-3">
                   <dt className="text-[10px] tracking-widest text-muted-foreground uppercase font-semibold">
                     Output
                   </dt>
-                  <dd className="mt-1 text-xl font-bold tabular-nums text-foreground">
+                  <dd className="mt-1 text-lg font-bold tabular-nums text-foreground">
                     {t.outputPerMtok}
+                  </dd>
+                  <dd className="mt-0.5 text-[10px] text-muted-foreground">
+                    per 1M tokens
+                  </dd>
+                </div>
+                <div className="rounded-2xl bg-muted px-3 py-3">
+                  <dt className="text-[10px] tracking-widest text-muted-foreground uppercase font-semibold">
+                    Cache Read
+                  </dt>
+                  <dd className="mt-1 text-lg font-bold tabular-nums text-foreground">
+                    {t.cacheReadPerMtok}
                   </dd>
                   <dd className="mt-0.5 text-[10px] text-muted-foreground">
                     per 1M tokens
@@ -101,17 +116,17 @@ export function ModelsSection() {
               </ul>
 
               <p className="mt-auto pt-6 border-t border-border text-xs text-muted-foreground">
-                {t.plans} · 262k context · 32k max output
+                {t.plans} · 1M context · 128k max output
               </p>
             </article>
           );
         })}
       </div>
       <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground">
-        Rates are nominal development figures so budgets stay exercisable —
-        the provider publishes no pricing. They will be replaced with real
-        numbers before customer money depends on them. Your plan's
-        multiplier (Starter ×1.30, Pro ×1.25) applies on top.
+        Pricing reflects upstream Anthropic rates for Claude Sonnet 5, Opus 5.5,
+        and Fable 5.1 via GhostCLI. Your plan's multiplier (Starter ×1.30,
+        Pro ×1.25) applies on top. Cache reads are billed separately at the
+        rates shown above.
       </p>
     </Section>
   );
