@@ -14,6 +14,23 @@ export const metadata: Metadata = {
 };
 
 /**
+ * Rendered per request, not at build time.
+ *
+ * This page is a server component that calls `listPlans()` — a database
+ * query. Without this, Next tries to prerender it during `next build`, and
+ * the build container has no database: it fails with
+ * `connect ECONNREFUSED 127.0.0.1:5432` on the placeholder DSN the
+ * Dockerfile sets. That took the whole image build down, not just this page.
+ *
+ * The Dockerfile documents the invariant this restores — "every page that
+ * touches the database is `force-dynamic`" — and this file was the only
+ * one breaking it. It is also the correct behaviour regardless: prices come
+ * from the `plans` table, so prerendering would freeze a stale snapshot
+ * into the image.
+ */
+export const dynamic = "force-dynamic";
+
+/**
  * /pricing — the page three components already linked to.
  *
  * The navbar, the hero CTA, the footer and the old `PricingPreview` all
