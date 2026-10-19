@@ -33,7 +33,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Which Claude models are available?',
     answer:
-      'Availability depends on your plan. Starter includes GLM 5.3 and Sonnet 5. Pro adds Opus 5.5 with higher request quotas. Enterprise provides unlimited access to all current models including Sonnet 5, Opus 5.5, GLM 5.3, Fable 5.1, and GPT-6 Astra, plus early access to new model releases.',
+      'Availability depends on your plan. Starter includes Sonnet 5 and Opus 5.5. Pro adds higher request quotas. Enterprise provides unlimited access to all current models including Sonnet 5, Opus 5.5, Fable 5.1, and GPT-6 Astra, plus early access to new model releases.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',

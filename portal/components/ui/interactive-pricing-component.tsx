@@ -42,7 +42,7 @@ const zainoPlans: PricingPlan[] = [
     monthlyPrice: 60,
     annualPrice: 48,
     features: [
-      { name: '500 GLM 5.3 requests/mo', included: true },
+      { name: '500 Sonnet 5 requests/mo', included: true },
       { name: '250 Sonnet 5 requests/mo', included: true },
       { name: 'Basic agent workflows', included: true },
       { name: 'Community support', included: true },
@@ -78,7 +78,7 @@ const zainoPlans: PricingPlan[] = [
     features: [
       { name: 'Unlimited Sonnet 5 requests', included: true },
       { name: 'Unlimited Opus 5.5 requests', included: true },
-      { name: 'Unlimited GLM 5.3 requests', included: true },
+      { name: 'Unlimited Sonnet 5 requests', included: true },
       { name: 'Fable 5.1 access', included: true },
       { name: 'GPT-6 Astra access', included: true },
       { name: 'Dedicated support & SLA', included: true },
