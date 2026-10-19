@@ -14,6 +14,7 @@
  */
 
 import { AuthzError } from '@/lib/auth/errors';
+import { DeviceServiceError } from '@/lib/auth/device/types';
 import { BillingError } from '@/lib/billing';
 import { KeyServiceError } from '@/lib/keys/types';
 import { log } from '@/lib/log';
@@ -67,6 +68,17 @@ export function errorResponse(error: unknown): Response {
   }
   if (error instanceof BillingError) {
     return jsonError(error.code, error.message);
+  }
+  // DeviceServiceError carries its own status + code (conflict/409 for key
+  // limit, payment_required/402 for inactive plan, etc.). Without this
+  // branch every device-auth failure answered 500 "Something went wrong",
+  // which is what the desktop app saw on /api/auth/device/verify when the
+  // trial org hit its 1-key ceiling.
+  if (error instanceof DeviceServiceError) {
+    const code = (STATUS as Record<string, number>)[error.code] != null
+      ? (error.code as ApiErrorCode)
+      : 'internal';
+    return jsonError(code, error.message);
   }
 
   log.error('unhandled api error', {
