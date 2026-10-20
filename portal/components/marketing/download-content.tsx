@@ -371,6 +371,9 @@ export default function DownloadContent() {
         ) : null}
       </div>
 
+      {/* ── Installation commands (Claude Code CLI) ──────────────────── */}
+      <InstallCommands />
+
       {/* ── Platform cards ───────────────────────────────── */}
       <div id="platforms" className="mt-16 grid scroll-mt-24 gap-6 md:grid-cols-3">
         {PLATFORMS.map((platform) => {
@@ -484,9 +487,6 @@ export default function DownloadContent() {
           );
         })}
       </div>
-
-      {/* ── Installation commands (Claude Code CLI) ──────────────────── */}
-      <InstallCommands />
 
       {/* ── Setup steps ──────────────────────────────────── */}
       <div className="mt-16">
