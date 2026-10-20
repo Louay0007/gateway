@@ -62,11 +62,31 @@ const logos = [
   },
 ];
 
+/**
+ * Force light mode on the landing page only.
+ *
+ * This inline script runs before first paint to strip `dark` from <html>
+ * and set `light`, ensuring the landing page always renders with white
+ * backgrounds regardless of the visitor's saved theme preference. Other
+ * marketing routes (docs, download, pricing, etc.) respect the user's
+ * theme through the root ThemeProvider.
+ */
+const forceLightScript = `
+(function(){
+  var h = document.documentElement;
+  h.classList.remove('dark');
+  h.classList.add('light');
+  try { localStorage.setItem('theme', 'light'); } catch(e){}
+})();
+`;
+
 export default function LandingPage() {
   return (
     <>
-      <Navbar />
-      <main>
+      <script dangerouslySetInnerHTML={{ __html: forceLightScript }} />
+      <div className="light light-surface">
+        <Navbar />
+        <main>
         <Hero33 />
         <section className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <h2 className="mb-6 text-center font-medium text-foreground text-lg tracking-tight md:text-2xl">
@@ -85,6 +105,7 @@ export default function LandingPage() {
         <CTA />
         <ZainoFooter />
       </main>
+      </div>
     </>
   );
 }
