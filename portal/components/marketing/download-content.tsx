@@ -8,8 +8,8 @@ import {
   Download,
   Info,
   KeyRound,
+  MessageSquare,
   Package,
-  Sparkles,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -43,8 +43,8 @@ function WindowsLogo({ className }: { className?: string }) {
 
 function LinuxLogo({ className }: { className?: string }) {
   return (
-    <svg viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
-      <path d="M280.4 148.3c7.7-10.6 15.3-23.7 15.3-39.3 0-30.5-16.4-56.8-43.7-70.6C239.7 32.2 224.5 28 208 28c-38.5 0-72.4 20.6-90.5 51.5-12.4 21.2-16.6 46.3-11.8 70.6 1.8 9.1 4.7 17.9 8.5 26.3-26.8 14.5-49.5 36.4-64.3 63.3-19.8 35.8-24.4 78.3-12.7 117.5 6.3 21.1 17.4 40.5 32.3 56.8 18.6 20.3 43.2 34.3 70.3 40.1 13.8 3 28 3.6 42 1.8 22.7-2.9 44.2-11.8 62.3-25.7 23.5-18 39.8-44.1 45.7-73.1 4.3-21.2 3.3-43.2-2.9-63.9-7.5-25.1-22.8-47.2-43.7-63.3 11.5-16.3 20.3-34.6 25.7-54.1 2.7-9.7 4.1-19.7 4.1-29.8 0-3.4-.2-6.8-.5-10.2zM168 384c-17.7 0-32-14.3-32-32s14.3-32 32-32 32 14.3 32 32-14.3 32-32 32zm112 0c-17.7 0-32-14.3-32-32s14.3-32 32-32 32 14.3 32 32-14.3 32-32 32z" />
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M12 2C8.5 2 6 4.5 6 7c0 1.5.5 3 1.5 4C6 12.5 5 14 5 16c0 2.5 2 4 4.5 4h5c2.5 0 4.5-1.5 4.5-4 0-2-1-3.5-2.5-5 1-1 1.5-2.5 1.5-4 0-2.5-2.5-5-6-5zm-2 9c-.5 0-1-.5-1-1s.5-1 1-1 1 .5 1 1-.5 1-1 1zm4 0c-.5 0-1-.5-1-1s.5-1 1-1 1 .5 1 1-.5 1-1 1z"/>
     </svg>
   );
 }
@@ -207,7 +207,7 @@ const STEPS = [
     body: "Create an API key from your Zaino dashboard, then paste it in the app. It lives in your OS keychain — never on disk.",
   },
   {
-    icon: <Sparkles className="size-4" />,
+    icon: <MessageSquare className="size-4" />,
     title: "Pick a model and chat",
     body: "Fast runs on Sonnet 5, Smart on Opus 5.5. Frontier (Fable 5.1) unlocks soon — the app updates itself when it lands.",
   },
