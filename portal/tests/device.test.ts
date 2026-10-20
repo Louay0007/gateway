@@ -373,7 +373,7 @@ describe('approveDeviceCode', () => {
     ).rejects.toMatchObject({ status: 400 });
   });
 
-  it('refuses double approval with 409 and keeps a single key', async () => {
+  it('is idempotent on double approval (no second key minted)', async () => {
     const { device, keys, created } = await setup();
     await approveDeviceCode(deps(device, keys), {
       userCode: created.userCode,
@@ -381,14 +381,13 @@ describe('approveDeviceCode', () => {
       organizationId: 'org-1',
       role: OWNER,
     });
-    await expect(
-      approveDeviceCode(deps(device, keys), {
-        userCode: created.userCode,
-        actorUserId: 'user-1',
-        organizationId: 'org-1',
-        role: OWNER,
-      }),
-    ).rejects.toMatchObject({ status: 409 });
+    const second = await approveDeviceCode(deps(device, keys), {
+      userCode: created.userCode,
+      actorUserId: 'user-1',
+      organizationId: 'org-1',
+      role: OWNER,
+    });
+    expect(second.approved).toBe(true);
     expect(keys.self.gateway.generated).toBe(1);
   });
 
