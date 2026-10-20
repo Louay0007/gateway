@@ -60,7 +60,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
             </div>
             {/* Center: Zaino AI */}
             <div className='flex flex-col justify-center'>
-              <Circle ref={zainoRef} className='h-20 w-20 bg-white border-gray-200 shadow-lg'>
+              <Circle ref={zainoRef} className='h-20 w-20 bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 shadow-lg'>
                 <ZainoLogo />
               </Circle>
             </div>
