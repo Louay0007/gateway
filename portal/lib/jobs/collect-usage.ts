@@ -166,16 +166,21 @@ export async function collectUsage(opts?: {
       memberUserId = (found as unknown as { id: string }[])[0]?.id ?? null;
     }
 
-    // Each inference request = 1 user prompt. Non-inference calls
-    // (/v1/models, etc.) have distinct routes and don't count.
-    // The desktop app displays prompt-count based usage (migration 0013):
-    // every inference request counts as 1 prompt, regardless of wire format.
-    // Routes that count as 1 prompt:
-    //   - chat_completions (OpenAI-style)
-    //   - responses (Anthropic-style)
-    //   - messages (Anthropic Messages API, used by Claude via Zaino gateway)
-    //   - chat (mapped from chat_completions via routeForCallType)
-    const promptCount = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat') ? 1 : 0;
+    // Count user messages from the request's messages array when available
+    // (requires store_prompts_in_spend_logs: true in litellm.yaml). This
+    // gives the actual number of user messages sent in the chat, not just
+    // 1 per API call. Falls back to 1 per inference request for rows where
+    // messages are not stored (older logs or non-inference calls).
+    const isInferenceRoute = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat');
+    let promptCount = 0;
+    if (isInferenceRoute) {
+      if (Array.isArray(row.messages) && row.messages.length > 0) {
+        const userMsgCount = row.messages.filter((m) => m?.role === 'user').length;
+        promptCount = userMsgCount > 0 ? userMsgCount : 1;
+      } else {
+        promptCount = 1;
+      }
+    }
 
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (

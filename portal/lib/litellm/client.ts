@@ -404,6 +404,12 @@ export interface SpendLogRow {
   } | null;
   cache_hit_rate?: number;
   startTimeSeconds?: number;
+  /**
+   * Full messages array from the request, populated when
+   * `store_prompts_in_spend_logs: true` is set in litellm.yaml.
+   * Each entry has at least `role` and `content`.
+   */
+  messages?: Array<{ role?: string; content?: unknown }>;
 }
 
 /**
