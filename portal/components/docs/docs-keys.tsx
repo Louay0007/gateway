@@ -84,7 +84,7 @@ x-api-key: zn-…              # equivalent`}
           size="lg"
           nativeButton={false}
           render={<Link href={dashboard ? "/dashboard/keys" : "/sign-up"} />}
-          className="shrink-0 rounded-full bg-white text-black hover:bg-zinc-200"
+          className="shrink-0 rounded-full bg-white dark:bg-gray-800 text-black dark:text-white hover:bg-zinc-200 dark:hover:bg-gray-700"
         >
           {dashboard ? "Manage keys" : "Get an API key"}
           <ArrowRight className="size-4" />

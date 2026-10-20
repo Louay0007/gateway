@@ -56,7 +56,7 @@ export function AuthField({
   const errorId = error ? `${id}-error` : undefined;
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-black">
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-gray-900 dark:text-gray-100">
         {label}
       </label>
       <div className="relative">
@@ -71,11 +71,11 @@ export function AuthField({
           aria-invalid={error ? true : undefined}
           aria-describedby={[describedBy, errorId].filter(Boolean).join(" ") || undefined}
           className={cn(
-            "h-11 w-full rounded-lg border bg-white text-base text-black outline-none",
-            "placeholder:text-gray-400 transition-colors duration-150",
-            "focus:border-black focus:ring-2 focus:ring-black/10",
+            "h-11 w-full rounded-lg border bg-white text-base text-gray-900 outline-none dark:bg-gray-950 dark:text-gray-100",
+            "placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-colors duration-150",
+            "focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:focus:border-gray-100 dark:focus:ring-gray-100/10",
             isPassword ? "pr-11 pl-3.5" : "px-3.5",
-            error ? "border-red-500" : "border-gray-300",
+            error ? "border-red-500" : "border-gray-300 dark:border-gray-700",
           )}
         />
         {isPassword ? (
@@ -85,7 +85,7 @@ export function AuthField({
             onMouseDown={(e) => e.preventDefault()}
             aria-label={revealed ? "Hide password" : "Show password"}
             aria-pressed={revealed}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-500 transition-colors duration-150 hover:text-black focus-visible:ring-2 focus-visible:ring-black/40 focus-visible:outline-none motion-reduce:transition-none"
+            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-500 transition-colors duration-150 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100 focus-visible:ring-2 focus-visible:ring-gray-900/40 dark:focus-visible:ring-gray-100/40 focus-visible:outline-none motion-reduce:transition-none"
           >
             {revealed ? (
               <EyeOff className="size-4.5" aria-hidden />

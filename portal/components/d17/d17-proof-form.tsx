@@ -153,7 +153,7 @@ export function D17ProofForm({
           describedBy="d17-auth-hint"
           onChange={() => clearFieldError("authorizationNumber")}
         />
-        <p id="d17-auth-hint" className="text-xs leading-relaxed text-gray-500">
+        <p id="d17-auth-hint" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           {t("d17.field_auth_hint")}
         </p>
         {fieldErrors.authorizationNumber && (
@@ -175,7 +175,7 @@ export function D17ProofForm({
           describedBy="d17-phone-hint"
           onChange={() => clearFieldError("senderPhone")}
         />
-        <p id="d17-phone-hint" className="text-xs leading-relaxed text-gray-500">
+        <p id="d17-phone-hint" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           {t("d17.field_phone_hint")}
         </p>
         {fieldErrors.senderPhone && (
@@ -188,10 +188,10 @@ export function D17ProofForm({
 
       {/* Screenshot upload */}
       <div className="grid gap-2">
-        <Label htmlFor="d17-screenshot" className="text-sm font-medium text-gray-900">
+        <Label htmlFor="d17-screenshot" className="text-sm font-medium text-gray-900 dark:text-gray-100">
           {t("d17.field_screenshot")}
         </Label>
-        <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50/50 p-1 transition-colors hover:border-gray-400 focus-within:border-black focus-within:ring-1 focus-within:ring-black/20">
+        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 p-1 transition-colors hover:border-gray-400 dark:hover:border-gray-600 focus-within:border-black dark:focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-black/20 dark:focus-within:ring-gray-300/20">
           <Input
             id="d17-screenshot"
             name="screenshot"
@@ -199,10 +199,10 @@ export function D17ProofForm({
             accept="image/png,image/jpeg,image/webp"
             aria-describedby="d17-screenshot-hint"
             onChange={() => clearFieldError("screenshot")}
-            className="border-0 bg-transparent file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-700 file:shadow-sm file:transition-colors hover:file:bg-gray-50"
+            className="border-0 bg-transparent file:mr-3 file:rounded-md file:border-0 file:bg-white dark:file:bg-gray-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-700 dark:file:text-gray-300 file:shadow-sm file:transition-colors hover:file:bg-gray-50 dark:hover:file:bg-gray-700"
           />
         </div>
-        <p id="d17-screenshot-hint" className="text-xs leading-relaxed text-gray-500">
+        <p id="d17-screenshot-hint" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
           {t("d17.field_screenshot_hint")}
         </p>
         {fieldErrors.screenshot && (
@@ -215,7 +215,7 @@ export function D17ProofForm({
 
       {/* Confirmation checkbox */}
       <div className="grid gap-2 pt-1">
-        <div className="flex items-start gap-3 rounded-lg border border-gray-200 bg-gray-50/50 p-3">
+        <div className="flex items-start gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-3">
           <input
             id="d17-confirm"
             name="confirm"
@@ -230,7 +230,7 @@ export function D17ProofForm({
           />
           <Label
             htmlFor="d17-confirm"
-            className="cursor-pointer text-sm font-normal leading-relaxed text-gray-700"
+            className="cursor-pointer text-sm font-normal leading-relaxed text-gray-700 dark:text-gray-300"
           >
             {t("d17.field_confirm")}
           </Label>
@@ -260,7 +260,7 @@ export function D17ProofForm({
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"
+          className="flex items-center gap-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300"
         >
           <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
           {t("d17.state_submitted_explain")}

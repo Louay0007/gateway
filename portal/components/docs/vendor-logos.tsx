@@ -30,7 +30,7 @@ function Tile({
   return (
     <span
       className={cn(
-        "flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white p-2",
+        "flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-border bg-white dark:bg-gray-900 p-2",
         className,
       )}
     >

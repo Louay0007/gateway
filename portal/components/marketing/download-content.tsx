@@ -327,10 +327,10 @@ export default function DownloadContent() {
           <span className="size-1.5 rounded-full bg-emerald-600" />
           v{PINNED_VERSION} · now available
         </Badge>
-        <h1 className="text-4xl font-semibold tracking-tight text-black md:text-5xl">
+        <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 md:text-5xl">
           Zaino AI Agent for desktop
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-base text-black/60">
+        <p className="mx-auto mt-4 max-w-xl text-base text-gray-600 dark:text-gray-400">
           Fast on Sonnet 5, Smart on Opus 5.5 — your gateway models in a
           native app for macOS, Windows, and Linux.
         </p>
@@ -377,7 +377,7 @@ export default function DownloadContent() {
           />
         </div>
         {primary?.direct ? (
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-700">
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
             <Check className="size-3.5" />
             Direct download from our server — no account needed
           </p>
@@ -401,15 +401,15 @@ export default function DownloadContent() {
               className={cn(
                 "relative flex flex-col overflow-hidden transition-all duration-200 hover:shadow-md",
                 isDetected
-                  ? "border-black ring-1 ring-black shadow-sm"
-                  : "border-black/10 hover:border-black/20",
+                  ? "border-gray-900 dark:border-gray-100 ring-1 ring-gray-900 dark:ring-gray-100 shadow-sm"
+                  : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
               )}
             >
               {isDetected ? (
-                <div className="absolute inset-x-0 top-0 h-1 bg-black" />
+                <div className="absolute inset-x-0 top-0 h-1 bg-gray-900 dark:bg-gray-100" />
               ) : null}
               {isDetected ? (
-                <Badge className="absolute right-4 top-4 z-10 bg-black text-white hover:bg-black/90">
+                <Badge className="absolute right-4 top-4 z-10 bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600">
                   <Check className="mr-1 size-3" />
                   Detected
                 </Badge>
@@ -420,8 +420,8 @@ export default function DownloadContent() {
                     className={cn(
                       "flex size-12 items-center justify-center rounded-2xl transition-colors",
                       isDetected
-                        ? "bg-black text-white"
-                        : "bg-gray-100 text-black group-hover:bg-black group-hover:text-white",
+                        ? "bg-gray-900 dark:bg-gray-700 text-white"
+                        : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 group-hover:bg-gray-900 dark:group-hover:bg-gray-700 group-hover:text-white",
                     )}
                   >
                     {platform.icon}
@@ -443,18 +443,18 @@ export default function DownloadContent() {
                       className={cn(
                         "group/row flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors",
                         isDetected
-                          ? "border-black/10 bg-black/[0.02]"
-                          : "border-black/5 hover:border-black/10 hover:bg-gray-50",
+                          ? "border-gray-200 dark:border-gray-800 bg-gray-900/[0.02] dark:bg-gray-100/[0.02]"
+                          : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800",
                       )}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-black">
+                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
                           {row.label}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-black/50">
+                        <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
                           {row.hint}
                           {resolved.size ? (
-                            <span className="font-medium text-black/70">
+                            <span className="font-medium text-gray-700 dark:text-gray-300">
                               {" "}
                               · {resolved.size}
                             </span>
@@ -468,8 +468,8 @@ export default function DownloadContent() {
                           className={cn(
                             "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition-all",
                             isDetected
-                              ? "bg-black text-white hover:bg-black/85"
-                              : "border-black/10 text-black hover:border-black hover:bg-black hover:text-white",
+                              ? "bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600"
+                              : "border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100 hover:border-gray-900 dark:hover:border-gray-100 hover:bg-gray-900 dark:hover:bg-gray-700 hover:text-white",
                           )}
                           nativeButton={false}
                           render={
@@ -483,7 +483,7 @@ export default function DownloadContent() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 shrink-0 rounded-lg border-black/10 px-3 text-xs font-medium text-black/60 hover:border-black/20 hover:text-black"
+                          className="h-8 shrink-0 rounded-lg border-gray-200 dark:border-gray-800 px-3 text-xs font-medium text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
                           nativeButton={false}
                           render={
                             <a
@@ -507,7 +507,7 @@ export default function DownloadContent() {
 
       {/* ── Setup steps ──────────────────────────────────── */}
       <div className="mt-16">
-        <h2 className="text-center text-2xl font-semibold tracking-tight text-black">
+        <h2 className="text-center text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
           Up and running in three steps
         </h2>
         <div className="mt-8 grid gap-5 md:grid-cols-3">
@@ -515,15 +515,15 @@ export default function DownloadContent() {
             <Card key={step.title}>
               <CardContent className="grid gap-3 pt-1">
                 <div className="flex items-center gap-3">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-black text-sm font-semibold text-white">
+                  <span className="flex size-8 items-center justify-center rounded-full bg-gray-900 dark:bg-gray-700 text-sm font-semibold text-white">
                     {i + 1}
                   </span>
-                  <span className="flex size-8 items-center justify-center rounded-lg bg-black/5 text-black">
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
                     {step.icon}
                   </span>
                 </div>
-                <p className="font-medium text-black">{step.title}</p>
-                <p className="text-sm leading-relaxed text-black/60">{step.body}</p>
+                <p className="font-medium text-gray-900 dark:text-gray-100">{step.title}</p>
+                <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">{step.body}</p>
               </CardContent>
             </Card>
           ))}
@@ -544,12 +544,12 @@ export default function DownloadContent() {
             {REQUIREMENTS.map((r) => (
               <div
                 key={r.os}
-                className="flex flex-col gap-0.5 rounded-lg bg-black/[0.03] px-3 py-2.5 sm:flex-row sm:items-baseline sm:gap-3"
+                className="flex flex-col gap-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 px-3 py-2.5 sm:flex-row sm:items-baseline sm:gap-3"
               >
-                <span className="shrink-0 text-sm font-medium text-black">
+                <span className="shrink-0 text-sm font-medium text-gray-900 dark:text-gray-100">
                   {r.os}
                 </span>
-                <span className="text-sm text-black/60">{r.detail}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{r.detail}</span>
               </div>
             ))}
           </CardContent>
@@ -562,22 +562,22 @@ export default function DownloadContent() {
             </CardTitle>
             <CardDescription>Models, locked tiers, updates</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2 text-sm text-black/70">
+          <CardContent className="grid gap-2 text-sm text-gray-700 dark:text-gray-300">
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               Fast — powered by Sonnet 5 for everyday speed.
             </p>
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               Smart — powered by Opus 5.5 for hard reasoning.
             </p>
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               Frontier (Fable 5.1) stays hidden until Pro metering lands —
               then it appears via auto-update.
             </p>
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" />
+              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
               In-app updates from our official GitHub releases. Nothing to
               reinstall, ever.
             </p>
@@ -587,22 +587,22 @@ export default function DownloadContent() {
 
       {/* ── FAQ ──────────────────────────────────────────── */}
       <div className="mx-auto mt-16 max-w-3xl">
-        <h2 className="text-center text-2xl font-semibold tracking-tight text-black">
+        <h2 className="text-center text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
           Frequently asked
         </h2>
         <div className="mt-8 grid gap-3">
           {FAQS.map((f) => (
             <details
               key={f.q}
-              className="group rounded-xl border border-black/10 bg-white px-5 py-4 open:shadow-sm"
+              className="group rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-5 py-4 open:shadow-sm"
             >
-              <summary className="cursor-pointer list-none text-sm font-medium text-black [&::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer list-none text-sm font-medium text-gray-900 dark:text-gray-100 [&::-webkit-details-marker]:hidden">
                 <span className="flex items-center justify-between gap-4">
                   {f.q}
-                  <ArrowUpRight className="size-4 shrink-0 text-black/40 transition-transform group-open:rotate-90" />
+                  <ArrowUpRight className="size-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-90" />
                 </span>
               </summary>
-              <p className="mt-2 text-sm leading-relaxed text-black/60">{f.a}</p>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{f.a}</p>
             </details>
           ))}
         </div>

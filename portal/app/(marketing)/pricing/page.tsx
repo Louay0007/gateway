@@ -50,14 +50,14 @@ export default async function PricingPage() {
     <>
       <Navbar />
       <main className="light-surface pt-16">
-        <section className="bg-white py-16 sm:py-24">
+        <section className="bg-white dark:bg-gray-950 py-16 sm:py-24">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <div className="max-w-2xl">
               <Badge plans={plans} />
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-black sm:text-5xl">
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-5xl">
                 Pay monthly, in dollars, or by D17
               </h1>
-              <p className="mt-5 text-lg text-gray-600">
+              <p className="mt-5 text-lg text-gray-600 dark:text-gray-400">
                 Every plan includes usage, enforces a hard spend ceiling at the
                 gateway, and hands you the key the moment payment clears.
               </p>
@@ -65,11 +65,11 @@ export default async function PricingPage() {
           </div>
         </section>
         <PricingPreview />
-        <div className="border-t border-gray-200/60 bg-white py-12">
+        <div className="border-t border-gray-200/60 dark:border-gray-800 bg-white dark:bg-gray-950 py-12">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <Link
               href="/"
-              className="text-sm text-gray-600 underline-offset-4 hover:text-black hover:underline"
+              className="text-sm text-gray-600 dark:text-gray-400 underline-offset-4 hover:text-gray-900 dark:hover:text-gray-100 hover:underline"
             >
               ← Back to the homepage
             </Link>
@@ -93,7 +93,7 @@ function Badge({ plans }: { plans: PlanSummary[] }) {
   if (!line) return null;
 
   return (
-    <span className="inline-flex h-7 w-fit items-center rounded-full border border-black px-3 text-sm font-normal text-black">
+    <span className="inline-flex h-7 w-fit items-center rounded-full border border-gray-900 dark:border-gray-700 px-3 text-sm font-normal text-gray-900 dark:text-gray-100">
       {line}
     </span>
   );

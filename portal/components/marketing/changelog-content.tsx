@@ -255,13 +255,13 @@ export default function ChangelogContent() {
       {/* Page Header */}
       <div className="page-header mb-6">
         <h1
-          className="text-5xl font-bold tracking-tight text-black sm:text-6xl"
+          className="text-5xl font-bold tracking-tight text-gray-900 dark:text-gray-100 sm:text-6xl"
           style={{ perspective: '800px' }}
         >
           {splitWords('Changelog')}
         </h1>
       </div>
-      <p className="page-subtitle mb-20 text-lg leading-relaxed text-black/50">
+      <p className="page-subtitle mb-20 text-lg leading-relaxed text-gray-500 dark:text-gray-400">
         Product updates, new features, and improvements across Zaino AI integrations and the desktop app.
       </p>
 
@@ -270,22 +270,22 @@ export default function ChangelogContent() {
         <article key={entry.version} className="changelog-entry">
           {/* Version + Date */}
           <div className="version-badge mb-8 flex items-center gap-4">
-            <span className="inline-flex items-center rounded-full bg-black px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white">
+            <span className="inline-flex items-center rounded-full bg-gray-900 dark:bg-gray-700 px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white">
               {entry.version}
             </span>
-            <time className="text-sm font-medium text-black/40">{entry.date}</time>
+            <time className="text-sm font-medium text-gray-500 dark:text-gray-400">{entry.date}</time>
           </div>
 
           {/* Title */}
           <h2
-            className="entry-title mb-6 text-3xl font-bold leading-tight text-black sm:text-4xl"
+            className="entry-title mb-6 text-3xl font-bold leading-tight text-gray-900 dark:text-gray-100 sm:text-4xl"
             style={{ perspective: '800px' }}
           >
             {splitWords(entry.title)}
           </h2>
 
           {/* Description */}
-          <p className="entry-description mb-14 text-lg leading-relaxed text-black/60">
+          <p className="entry-description mb-14 text-lg leading-relaxed text-gray-600 dark:text-gray-400">
             {entry.description}
           </p>
 
@@ -293,10 +293,10 @@ export default function ChangelogContent() {
           <div className="space-y-20">
             {entry.details.map((detail, i) => (
               <div key={i} className="detail-block">
-                <h3 className="detail-heading mb-3 text-xl font-semibold text-black">
+                <h3 className="detail-heading mb-3 text-xl font-semibold text-gray-900 dark:text-gray-100">
                   {detail.heading}
                 </h3>
-                <p className="detail-body mb-6 text-base leading-relaxed text-black/55">
+                <p className="detail-body mb-6 text-base leading-relaxed text-gray-600 dark:text-gray-400">
                   {detail.body}
                 </p>
               </div>
@@ -304,7 +304,7 @@ export default function ChangelogContent() {
           </div>
 
           {/* Divider */}
-          <hr className="mt-20 border-black/[0.08]" />
+          <hr className="mt-20 border-gray-200 dark:border-gray-800" />
         </article>
       ))}
     </div>

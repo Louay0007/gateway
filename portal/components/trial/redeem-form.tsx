@@ -61,14 +61,14 @@ export function RedeemForm() {
       </div>
 
       {status === "error" && (
-        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{message}</span>
         </div>
       )}
 
       {status === "success" && (
-        <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <div className="flex items-start gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800 dark:border-green-900 dark:bg-green-950/30 dark:text-green-300">
           <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{message}</span>
         </div>
@@ -77,7 +77,7 @@ export function RedeemForm() {
       <Button
         type="submit"
         disabled={status === "loading" || status === "success" || !code.trim()}
-        className="w-full bg-black text-white hover:bg-zinc-800"
+        className="w-full bg-gray-900 text-white hover:bg-zinc-800 dark:bg-gray-700 dark:hover:bg-gray-600"
       >
         {status === "loading" ? (
           <>

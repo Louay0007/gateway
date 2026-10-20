@@ -41,15 +41,15 @@ const columns = [
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-gray-200/60 py-12 bg-white">
+    <footer className="border-t border-gray-200/60 dark:border-gray-800 py-12 bg-white dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="flex flex-col justify-between gap-10 sm:flex-row">
           <div>
             <div className="flex items-center gap-2.5">
               <Logo tone="light" wordmark={false} />
-              <p className="font-semibold tracking-tight text-black">Zaino AI</p>
+              <p className="font-semibold tracking-tight text-gray-900 dark:text-gray-100">Zaino AI</p>
             </div>
-            <p className="mt-2 max-w-xs text-sm text-gray-600">
+            <p className="mt-2 max-w-xs text-sm text-gray-600 dark:text-gray-400">
               One API for every model, priced for the way Tunisia pays.
             </p>
           </div>

@@ -61,14 +61,14 @@ const CTA = ({ className }: CTAProps) => {
                 ref={btnRef}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
-                className="relative text-sm font-medium rounded-full h-12 p-1 ps-6 pe-14 w-fit overflow-hidden bg-white text-black hover:bg-white/90 cursor-pointer border-0"
+                className="relative text-sm font-medium rounded-full h-12 p-1 ps-6 pe-14 w-fit overflow-hidden bg-white dark:bg-gray-900 text-black dark:text-gray-100 hover:bg-white/90 dark:hover:bg-gray-800 cursor-pointer border-0"
               >
                 <span ref={textRef} className="relative z-10">
                   Get Started Now
                 </span>
                 <div
                   ref={iconRef}
-                  className="absolute right-1 w-10 h-10 bg-black text-white rounded-full flex items-center justify-center"
+                  className="absolute right-1 w-10 h-10 bg-gray-900 dark:bg-gray-700 text-white rounded-full flex items-center justify-center"
                 >
                   <ArrowUpRight size={16} />
                 </div>

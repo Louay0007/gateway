@@ -36,12 +36,12 @@ export function PlanCard({
   return (
     <Card
       className={`relative flex flex-col ${
-        isRecommended ? 'border-emerald-300 shadow-md ring-1 ring-emerald-200' : ''
+        isRecommended ? 'border-emerald-300 dark:border-emerald-700 shadow-md ring-1 ring-emerald-200 dark:ring-emerald-800' : ''
       } ${isCurrent ? 'border-primary ring-1 ring-primary/20' : ''}`}
     >
       {isRecommended && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-          <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">{ctaLabel === 'Choisir ce plan' || ctaLabel === 'اختر هذه الخطة' ? 'Recommandé' : 'Recommended'}</Badge>
+          <Badge className="bg-emerald-600 dark:bg-emerald-600 text-white hover:bg-emerald-700 dark:hover:bg-emerald-500">{ctaLabel === 'Choisir ce plan' || ctaLabel === 'اختر هذه الخطة' ? 'Recommandé' : 'Recommended'}</Badge>
         </div>
       )}
       <CardHeader className="text-center">
@@ -52,7 +52,7 @@ export function PlanCard({
         <ul className="grid gap-2">
           {features.map((feat, i) => (
             <li key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" aria-hidden="true" />
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
               <span>{feat}</span>
             </li>
           ))}

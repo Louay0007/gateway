@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 
 export default function ChangelogPage() {
   return (
-    <div className="min-h-screen bg-white text-black">
+    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
       <Navbar tone="light" />
       <ChangelogContent />
       <ZainoFooter />

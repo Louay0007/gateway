@@ -27,7 +27,7 @@ export default async function VerifyEmailPage({
       footer={
         <>
           Back to{" "}
-          <Link href="/dashboard" className="text-black underline-offset-4 hover:underline">
+          <Link href="/dashboard" className="text-gray-900 dark:text-gray-100 underline-offset-4 hover:underline">
             your dashboard
           </Link>
         </>

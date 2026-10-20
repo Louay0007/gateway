@@ -90,13 +90,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {!verified ? (
                 <div
                   role="status"
-                  className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/30 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-start gap-3">
                     <MailWarning className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden />
                     <div>
-                      <p className="text-sm font-medium text-black">Confirm your email address</p>
-                      <p className="mt-0.5 text-sm text-gray-700">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Confirm your email address</p>
+                      <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300">
                         You can browse, but creating an API key or starting a
                         subscription needs a confirmed address — it is where we
                         send payment updates.

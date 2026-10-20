@@ -94,7 +94,7 @@ const Navbar = ({
         <div className="flex items-center gap-4 lg:gap-6">
           <a href="/" className="shrink-0">
             <span className="flex items-center gap-2.5">
-              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black dark:ring-1 dark:ring-white/20">
+              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-900 dark:bg-gray-700 dark:ring-1 dark:ring-white/20">
                 <img
                   src="/logo/zaino-curved-z-white.png"
                   alt="Zaino AI logo"

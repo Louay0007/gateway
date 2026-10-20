@@ -343,12 +343,12 @@ export function BillingView() {
           </div>
 
           {/* D17 Payment Method Hero Card */}
-          <Card className="overflow-hidden border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-gray-50">
+          <Card className="overflow-hidden border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 via-white to-gray-50 dark:from-emerald-950 dark:via-gray-900 dark:to-gray-950">
             <CardContent className="p-0">
               <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr] md:items-center md:gap-8">
                 {/* D17 Logo */}
                 <div className="flex justify-center md:justify-start">
-                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-emerald-200 bg-white shadow-sm md:size-28">
+                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 shadow-sm md:size-28">
                     <Image
                       src="/images/d17-logo.webp"
                       alt="D17 DigiPost Bank"
@@ -362,26 +362,26 @@ export function BillingView() {
                 {/* D17 Info */}
                 <div className="text-center md:text-left">
                   <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-                    <h3 className="text-lg font-semibold text-gray-900">Pay with D17</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pay with D17</h3>
                     <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">
                       La Poste Tunisia
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm text-gray-600">
+                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                     Transfer via DigiPost Bank (D17) at any La Poste counter or through the D17 mobile app. 
                     Proof of payment is verified manually — usually within hours.
                   </p>
-                  <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 md:justify-start">
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 dark:text-gray-400 md:justify-start">
                     <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="size-3.5 text-emerald-600" />
+                      <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                       Secure manual verification
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <Clock className="size-3.5 text-emerald-600" />
+                      <Clock className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                       Usually confirmed within hours
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <BadgeCheck className="size-3.5 text-emerald-600" />
+                      <BadgeCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
                       No credit card required
                     </span>
                   </div>
@@ -390,7 +390,7 @@ export function BillingView() {
                 {/* Action Button */}
                 <div className="flex justify-center md:justify-end">
                   {trialActive ? (
-                    <span className="text-sm text-emerald-700 font-medium px-4 py-3">
+                    <span className="text-sm text-emerald-700 dark:text-emerald-400 font-medium px-4 py-3">
                       Free trial active until{" "}
                       {b?.subscription?.currentPeriodEnd
                         ? new Date(b.subscription.currentPeriodEnd).toLocaleDateString("en-US", {
@@ -428,27 +428,27 @@ export function BillingView() {
               </div>
 
               {/* How it works strip */}
-              <div className="border-t border-emerald-100 bg-emerald-50/50 px-6 py-4">
+              <div className="border-t border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/30 px-6 py-4">
                 <div className="grid gap-4 text-sm sm:grid-cols-3">
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">1</span>
                     <div>
-                      <p className="font-medium text-gray-900">Start checkout</p>
-                      <p className="text-xs text-gray-500">Get your unique transfer amount</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Start checkout</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Get your unique transfer amount</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">2</span>
                     <div>
-                      <p className="font-medium text-gray-900">Transfer via D17</p>
-                      <p className="text-xs text-gray-500">At La Poste or D17 app</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Transfer via D17</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">At La Poste or D17 app</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">3</span>
                     <div>
-                      <p className="font-medium text-gray-900">Submit proof</p>
-                      <p className="text-xs text-gray-500">Authorization number activates your plan</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Submit proof</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Authorization number activates your plan</p>
                     </div>
                   </div>
                 </div>
@@ -468,7 +468,7 @@ export function BillingView() {
                         variant={
                           b.subscription?.cancelAtPeriodEnd ? "outline" : "secondary"
                         }
-                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-emerald-100 text-emerald-800 hover:bg-emerald-200"}
+                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/70"}
                       >
                         {b.subscription?.cancelAtPeriodEnd
                           ? "Cancels at period end"
@@ -636,7 +636,7 @@ export function BillingView() {
                 disabled={busy !== null}
                 onClick={() => void changePlan(p.code)}
                 className={`grid gap-3 rounded-lg border p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 disabled:opacity-50 ${
-                  p.code === plan?.code ? "border-emerald-500 ring-1 ring-emerald-200" : ""
+                  p.code === plan?.code ? "border-emerald-500 dark:border-emerald-700 ring-1 ring-emerald-200 dark:ring-emerald-800" : ""
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -733,9 +733,9 @@ function PlanComparisonTable({
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-gray-50/50">
+      <CardHeader className="border-b bg-gray-50/50 dark:bg-gray-800/50">
         <CardTitle className="flex items-center gap-2">
-          <Landmark className="size-5 text-emerald-600" />
+          <Landmark className="size-5 text-emerald-600 dark:text-emerald-400" />
           Compare plans
         </CardTitle>
         <CardDescription>
@@ -746,18 +746,18 @@ function PlanComparisonTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50/30">
-                <th className="px-4 py-3 text-left font-medium text-gray-500">Feature</th>
+              <tr className="border-b bg-gray-50/30 dark:bg-gray-800/50">
+                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Feature</th>
                 {plans.map((p) => (
                   <th
                     key={p.code}
                     className={cn(
                       "px-4 py-3 text-center",
-                      p.code === "pro" && "bg-emerald-50/50",
+                      p.code === "pro" && "bg-emerald-50/50 dark:bg-emerald-900/30",
                     )}
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <span className="font-semibold text-gray-900">{p.name}</span>
+                      <span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>
                       {p.code === currentPlanCode && (
                         <Badge className="bg-emerald-600 text-white text-xs">Current</Badge>
                       )}
@@ -779,14 +779,14 @@ function PlanComparisonTable({
                   });
                 })
                 .map((feat, i) => (
-                <tr key={feat.key} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}>
-                  <td className="px-4 py-3 font-medium text-gray-700">{feat.label}</td>
+                <tr key={feat.key} className={i % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/30 dark:bg-gray-800/50"}>
+                  <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-200">{feat.label}</td>
                   {plans.map((p) => (
                     <td
                       key={p.code}
                       className={cn(
-                        "px-4 py-3 text-center tabular-nums text-gray-600",
-                        p.code === "pro" && "bg-emerald-50/30 font-medium text-gray-900",
+                        "px-4 py-3 text-center tabular-nums text-gray-600 dark:text-gray-300",
+                        p.code === "pro" && "bg-emerald-50/30 dark:bg-emerald-900/30 font-medium text-gray-900 dark:text-gray-100",
                       )}
                     >
                       {feat.getValue(p)}
@@ -795,8 +795,8 @@ function PlanComparisonTable({
                 </tr>
               ))}
               {/* Token pricing row */}
-              <tr className="border-t bg-white">
-                <td className="px-4 py-3 font-medium text-gray-700">Token pricing</td>
+              <tr className="border-t bg-white dark:bg-gray-900">
+                <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-200">Token pricing</td>
                 {plans.map((p) => (
                   <td key={p.code} className="px-4 py-3">
                     <div className="grid gap-1 text-xs">
@@ -806,8 +806,8 @@ function PlanComparisonTable({
                           if (!price) return null;
                           return (
                             <div key={modelId} className="flex items-center justify-center gap-1">
-                              <span className="text-gray-500">{price.label}:</span>
-                              <span className="tabular-nums text-gray-600">
+                              <span className="text-gray-500 dark:text-gray-400">{price.label}:</span>
+                              <span className="tabular-nums text-gray-600 dark:text-gray-300">
                                 {usdPerMtok(price.input)} / {usdPerMtok(price.output)}
                               </span>
                             </div>
@@ -816,8 +816,8 @@ function PlanComparisonTable({
                       ) : (
                         Object.entries(MODEL_PRICES).map(([id, price]) => (
                           <div key={id} className="flex items-center justify-center gap-1">
-                            <span className="text-gray-500">{price.label}:</span>
-                            <span className="tabular-nums text-gray-600">
+                            <span className="text-gray-500 dark:text-gray-400">{price.label}:</span>
+                            <span className="tabular-nums text-gray-600 dark:text-gray-300">
                               {usdPerMtok(price.input)} / {usdPerMtok(price.output)}
                             </span>
                           </div>
@@ -828,7 +828,7 @@ function PlanComparisonTable({
                 ))}
               </tr>
               {/* CTA row */}
-              <tr className="border-t bg-gray-50/50">
+              <tr className="border-t bg-gray-50/50 dark:bg-gray-800/50">
                 <td className="px-4 py-4"></td>
                 {plans.map((p) => (
                   <td key={p.code} className="px-4 py-4 text-center">
@@ -854,8 +854,8 @@ function PlanComparisonTable({
           </table>
         </div>
       </CardContent>
-      <div className="border-t bg-gray-50/50 px-4 py-3">
-        <p className="text-xs text-gray-500">
+      <div className="border-t bg-gray-50/50 dark:bg-gray-800/50 px-4 py-3">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           Prompt limits reset each billing period. Token prices shown are upstream USD rates (input / output per million tokens).
           Your DT cost is calculated at the current D17 exchange rate.
         </p>
@@ -920,7 +920,7 @@ function PendingBanner({
         {checkoutHref && !awaitingVerification ? (
           <Link
             href={checkoutHref}
-            className="inline-flex items-center justify-center rounded-lg bg-black px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800"
+            className="inline-flex items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-700 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800 dark:hover:bg-gray-600"
           >
             {ended ? "Start new payment" : "Continue payment"}
           </Link>

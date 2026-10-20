@@ -109,7 +109,7 @@ export function D17StatusCard({
       aria-live="polite"
     >
       <div className="flex items-start gap-3.5">
-        <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/60`}>
+        <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-white/60 dark:bg-gray-900/60`}>
           <Icon
             className={`size-4.5 ${config.colorClass} ${
               config.pulse ? 'd17-status-pulse' : ''
@@ -121,14 +121,14 @@ export function D17StatusCard({
           <p className={`text-sm font-semibold leading-tight ${config.colorClass}`}>
             {t(config.titleKey)}
           </p>
-          <p className="text-sm leading-relaxed text-gray-700">{t(config.explainKey)}</p>
+          <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">{t(config.explainKey)}</p>
           {status === 'rejected' && rejectReason && (
-            <p className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 py-1.5 text-xs font-medium text-red-700">
+            <p className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-red-200 dark:border-red-800 bg-white dark:bg-gray-900 px-2.5 py-1.5 text-xs font-medium text-red-700 dark:text-red-400">
               {t('d17.rejected_banner', { reason: rejectReason })}
             </p>
           )}
           {status === 'proof_submitted' && flaggedReview && (
-            <p className="mt-0.5 text-xs font-medium text-amber-800">{t('d17.waiting_review')}</p>
+            <p className="mt-0.5 text-xs font-medium text-amber-800 dark:text-amber-400">{t('d17.waiting_review')}</p>
           )}
         </div>
       </div>

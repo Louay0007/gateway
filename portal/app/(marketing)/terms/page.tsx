@@ -15,14 +15,14 @@ export default function TermsPage() {
       <div className="light-surface">
         <Navbar tone="light" />
       </div>
-      <main className="bg-white py-16 sm:py-24">
+      <main className="bg-white dark:bg-gray-950 py-16 sm:py-24">
         <article className="mx-auto max-w-3xl px-4 lg:px-8">
-          <h1 className="text-4xl font-semibold tracking-tight text-black sm:text-5xl">
+          <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-5xl">
             Terms of Service
           </h1>
-          <p className="mt-4 text-sm text-gray-500">Last updated: October 17, 2026</p>
+          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">Last updated: October 17, 2026</p>
 
-          <div className="prose prose-gray mt-10 max-w-none text-gray-600">
+          <div className="prose prose-gray mt-10 max-w-none text-gray-600 dark:text-gray-400">
             <Section title="1. The service">
               <p>
                 Zaino AI provides an OpenAI- and Anthropic-compatible API gateway that routes
@@ -129,11 +129,11 @@ export default function TermsPage() {
             <Section title="12. Contact">
               <p>
                 Legal inquiries:{" "}
-                <a href="mailto:legal@zaino.ai" className="text-black underline-offset-4 hover:underline">
+                <a href="mailto:legal@zaino.ai" className="text-gray-900 dark:text-gray-100 underline-offset-4 hover:underline">
                   legal@zaino.ai
                 </a>
                 . Support:{" "}
-                <a href="mailto:contact.zaino.ai@gmail.com" className="text-black underline-offset-4 hover:underline">
+                <a href="mailto:contact.zaino.ai@gmail.com" className="text-gray-900 dark:text-gray-100 underline-offset-4 hover:underline">
                   contact.zaino.ai@gmail.com
                 </a>
                 .
@@ -150,7 +150,7 @@ export default function TermsPage() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="mt-8">
-      <h2 className="text-lg font-semibold text-black">{title}</h2>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h2>
       <div className="mt-2 [&>p]:leading-relaxed [&>ul]:mt-2">{children}</div>
     </section>
   );

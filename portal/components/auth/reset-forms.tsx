@@ -20,9 +20,9 @@ export function RequestResetForm() {
   const [state, action] = useActionState(requestResetAction, {} as ResetRequestState);
   if (state.done) {
     return (
-      <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-center">
-        <p className="text-sm font-medium text-black">Check your inbox</p>
-        <p className="mt-1 text-sm text-gray-600">
+      <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 px-4 py-5 text-center">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Check your inbox</p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           If an account exists for that address, a reset link is on its way.
           It expires in 30 minutes.
         </p>
@@ -59,9 +59,9 @@ export function CompleteResetForm({ token }: { token: string }) {
   const [state, action] = useActionState(completeResetAction, {} as ResetConfirmState);
   if (state.done) {
     return (
-      <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-center">
-        <p className="text-sm font-medium text-black">Password updated</p>
-        <p className="mt-1 text-sm text-gray-600">
+      <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 px-4 py-5 text-center">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Password updated</p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           You can now sign in with the new password.
         </p>
       </div>

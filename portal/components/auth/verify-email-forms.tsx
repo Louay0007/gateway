@@ -23,10 +23,10 @@ export function ConfirmEmailForm({ token }: { token: string }) {
     return (
       <div
         role="status"
-        className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-5 text-center"
+        className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 px-4 py-5 text-center"
       >
-        <p className="text-sm font-medium text-black">Email confirmed</p>
-        <p className="mt-1 text-sm text-gray-600">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Email confirmed</p>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
           {state.email ? `${state.email} is verified. ` : ""}You can create an
           API key and start a subscription.
         </p>
@@ -56,7 +56,7 @@ export function ResendVerification() {
 
   if (state.done) {
     return (
-      <p role="status" className="text-sm text-gray-600">
+      <p role="status" className="text-sm text-gray-600 dark:text-gray-400">
         Sent. Check your inbox for the confirmation link.
       </p>
     );

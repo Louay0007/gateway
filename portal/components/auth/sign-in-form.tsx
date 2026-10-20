@@ -43,7 +43,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
         <div className="mt-2 min-h-11 text-right">
           <Link
             href="/reset-password"
-            className="inline-flex min-h-11 items-center rounded text-sm text-gray-600 underline-offset-4 hover:text-black hover:underline focus-visible:ring-2 focus-visible:ring-black/40 focus-visible:outline-none"
+            className="inline-flex min-h-11 items-center rounded text-sm text-gray-600 underline-offset-4 hover:text-gray-900 hover:underline dark:text-gray-400 dark:hover:text-gray-100 focus-visible:ring-2 focus-visible:ring-gray-900/40 dark:focus-visible:ring-gray-100/40 focus-visible:outline-none"
           >
             Forgot password?
           </Link>

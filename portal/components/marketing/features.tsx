@@ -42,14 +42,14 @@ const features = [
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="border-t border-gray-200/60 py-20 sm:py-28 bg-white">
+    <section id="features" className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-gray-950">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium text-gray-600">Why this gateway</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-black">
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Why this gateway</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900 dark:text-gray-100">
             Everything an integration needs, nothing it doesn't
           </h2>
-          <p className="mt-4 text-gray-600">
+          <p className="mt-4 text-gray-600 dark:text-gray-400">
             One endpoint, honest limits, and billing that works with local
             payment methods — built for shipping, not for a demo.
           </p>
@@ -59,13 +59,13 @@ export function FeaturesSection() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group rounded-xl border border-gray-200 bg-white p-6 transition-colors hover:border-gray-400/50"
+              className="group rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6 transition-colors hover:border-gray-400/50 dark:hover:border-gray-600"
             >
-              <div className="flex size-10 items-center justify-center rounded-lg border border-gray-200 bg-white">
-                <feature.icon className="size-5 text-black" aria-hidden />
+              <div className="flex size-10 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                <feature.icon className="size-5 text-gray-900 dark:text-gray-100" aria-hidden />
               </div>
-              <h3 className="mt-4 font-medium text-black">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600">
+              <h3 className="mt-4 font-medium text-gray-900 dark:text-gray-100">{feature.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
                 {feature.body}
               </p>
             </div>

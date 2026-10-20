@@ -27,7 +27,7 @@ export function Section({
       <p
         className={cn(
           "text-sm font-medium",
-          tone === "light" ? "text-gray-600" : "text-muted-foreground",
+          tone === "light" ? "text-gray-600 dark:text-gray-400" : "text-muted-foreground",
         )}
       >
         {kicker}
@@ -36,7 +36,7 @@ export function Section({
         id={`${id}-title`}
         className={cn(
           "mt-2 text-2xl font-semibold tracking-tight text-balance sm:text-3xl",
-          tone === "light" ? "text-black" : "text-foreground",
+          tone === "light" ? "text-black dark:text-white" : "text-foreground",
         )}
       >
         {title}
@@ -44,7 +44,7 @@ export function Section({
       <div
         className={cn(
           "mt-3 max-w-3xl leading-relaxed",
-          tone === "light" ? "text-gray-600" : "text-muted-foreground",
+          tone === "light" ? "text-gray-600 dark:text-gray-400" : "text-muted-foreground",
         )}
       >
         {body}
