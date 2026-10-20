@@ -39,9 +39,14 @@ async function main() {
       sortOrder: -1,
       priceCents: 0,
       interval: 'month',
-      includedSpendCents: 0,
+      // Trial uses prompt-based limits (300 fast + 300 smart), not dollar caps.
+      // But LiteLLM enforces max_budget as a hard ceiling regardless — a $0
+      // budget means CUT_BUDGET ($0.000001) which exhausts after one prompt.
+      // Set a generous dollar cap that won't be hit before the prompt limit
+      // kicks in (~$5 covers 300 prompts on Sonnet/Opus comfortably).
+      includedSpendCents: 500,
       overageMarkupBps: 0,
-      hardCapCents: 0,
+      hardCapCents: 500,
       rpmLimit: 10,
       tpmLimit: 50000,
       maxConcurrentRequests: 2,

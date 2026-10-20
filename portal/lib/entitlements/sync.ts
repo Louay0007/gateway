@@ -142,6 +142,7 @@ export async function syncOrganizationEntitlements(
       includedSpendCents: live.included_spend_cents,
       hardCapCents: live.hard_cap_cents,
       rateMultiplierBps: live.rate_multiplier_bps,
+      planCode: live.plan_code,
     },
     effect,
   );

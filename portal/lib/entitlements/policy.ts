@@ -80,11 +80,19 @@ export function effectForStatus(status: string): Effect {
  * directly would let the customer spend $130 before the cutoff — the
  * exact overshoot this function exists to prevent.
  *
+ * TRIAL PLANS: trial plans use prompt-based limits (e.g., 300 fast + 300 smart)
+ * rather than dollar caps. Their `includedSpendCents` and `hardCapCents` may be
+ * set to a generous value (e.g., 500 cents = $5) just to satisfy LiteLLM's
+ * requirement that max_budget > 0, but the real enforcement is prompt_count.
+ * For trial plans, we set a high budget ($10,000) so LiteLLM never blocks on
+ * dollar spend before the prompt limit kicks in.
+ *
  * Rules, in order:
  *   1. A cut always wins → CUT_BUDGET.
- *   2. Use the hard cap if the plan has one, converted to upstream.
- *   3. Otherwise use the included allowance, converted the same way.
- *   4. If the result is zero, return CUT_BUDGET — never 0.
+ *   2. Trial plans (planCode === 'trial') → $10,000 upstream (effectively unlimited).
+ *   3. Use the hard cap if the plan has one, converted to upstream.
+ *   4. Otherwise use the included allowance, converted the same way.
+ *   5. If the result is zero, return CUT_BUDGET — never 0.
  *
  * OVERAGE (`overage_markup_bps`) is deliberately NOT a second multiplier
  * here. Customer cost is upstream × rate_multiplier for EVERY row,
@@ -94,8 +102,17 @@ export function effectForStatus(status: string): Effect {
  * display and for the day overage gets its own price. Applying both would
  * bill Starter overage at 1.30 × 1.30. Enforced by test, not by hope.
  */
-export function resolveBudgetUsd(plan: BudgetColumns, effect: Effect): number {
+export function resolveBudgetUsd(
+  plan: BudgetColumns & { planCode?: string },
+  effect: Effect,
+): number {
   if (effect === 'cut') return CUT_BUDGET;
+
+  // Trial plans use prompt-based limits, not dollar caps. Set a high budget
+  // so LiteLLM never blocks on dollar spend before the prompt limit kicks in.
+  if (plan.planCode === 'trial') {
+    return 10000.0; // $10,000 upstream — effectively unlimited for trials
+  }
 
   const m = plan.rateMultiplierBps > 0 ? plan.rateMultiplierBps / 10000 : 1;
   const capCents = plan.hardCapCents ?? plan.includedSpendCents;
