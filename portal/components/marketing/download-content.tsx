@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import {
-  Apple,
-  AppWindow,
   ArrowUpRight,
   Check,
   Cpu,
@@ -12,7 +10,6 @@ import {
   KeyRound,
   Package,
   Sparkles,
-  Terminal,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -25,6 +22,32 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+
+/* ── Platform logos (official SVG paths) ─────────────────────────── */
+
+function AppleLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 384 512" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 52.3-11.4 69.5-34.3z" />
+    </svg>
+  );
+}
+
+function WindowsLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28L448 480V268.4H203.8v177.9zm0-380.7v177.4H448V32L203.8 65.6z" />
+    </svg>
+  );
+}
+
+function LinuxLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M280.4 148.3c7.7-10.6 15.3-23.7 15.3-39.3 0-30.5-16.4-56.8-43.7-70.6C239.7 32.2 224.5 28 208 28c-38.5 0-72.4 20.6-90.5 51.5-12.4 21.2-16.6 46.3-11.8 70.6 1.8 9.1 4.7 17.9 8.5 26.3-26.8 14.5-49.5 36.4-64.3 63.3-19.8 35.8-24.4 78.3-12.7 117.5 6.3 21.1 17.4 40.5 32.3 56.8 18.6 20.3 43.2 34.3 70.3 40.1 13.8 3 28 3.6 42 1.8 22.7-2.9 44.2-11.8 62.3-25.7 23.5-18 39.8-44.1 45.7-73.1 4.3-21.2 3.3-43.2-2.9-63.9-7.5-25.1-22.8-47.2-43.7-63.3 11.5-16.3 20.3-34.6 25.7-54.1 2.7-9.7 4.1-19.7 4.1-29.8 0-3.4-.2-6.8-.5-10.2zM168 384c-17.7 0-32-14.3-32-32s14.3-32 32-32 32 14.3 32 32-14.3 32-32 32zm112 0c-17.7 0-32-14.3-32-32s14.3-32 32-32 32 14.3 32 32-14.3 32-32 32z" />
+    </svg>
+  );
+}
 
 /**
  * Download page content — Zaino AI Agent desktop installers.
@@ -76,7 +99,7 @@ const PLATFORMS: Platform[] = [
     id: "macos",
     name: "macOS",
     tagline: "Apple Silicon DMG (unsigned preview)",
-    icon: <Apple className="size-5" />,
+    icon: <AppleLogo className="size-5" />,
     rows: [
       {
         id: "mac-arm64",
@@ -92,7 +115,7 @@ const PLATFORMS: Platform[] = [
     id: "windows",
     name: "Windows",
     tagline: "NSIS installer, WebView2 included",
-    icon: <AppWindow className="size-5" />,
+    icon: <WindowsLogo className="size-5" />,
     rows: [
       {
         id: "win-x64",
@@ -108,7 +131,7 @@ const PLATFORMS: Platform[] = [
     id: "linux",
     name: "Linux",
     tagline: "AppImage, .deb and .rpm",
-    icon: <Terminal className="size-5" />,
+    icon: <LinuxLogo className="size-5" />,
     rows: [
       {
         id: "linux-appimage",
