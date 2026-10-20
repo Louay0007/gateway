@@ -104,19 +104,8 @@ export function DashboardOverview() {
         <StatCard
           label="Spend this period"
           value={usdToTnd(b.usage.costCustomerUsd)}
-          hint={
-            plan ? `${plan.name} · ${centsUsd(plan.includedSpendCents)} included` : "No plan"
-          }
+          hint={plan ? plan.name : "No plan"}
           icon={Wallet}
-          footer={
-            plan ? (
-              <SpendMeter
-                spentUsd={b.usage.costCustomerUsd}
-                includedCents={plan.includedSpendCents}
-                hardCapCents={plan.hardCapCents}
-              />
-            ) : undefined
-          }
         />
         <StatCard
           label="Requests"

@@ -190,11 +190,10 @@ export function UsageView() {
           label="Prompts"
           value={Object.values(bundle.data?.usage.promptsByModel ?? {}).reduce((a, b) => a + b, 0).toLocaleString()}
           hint={
-            bundle.data?.plan?.promptLimits
-              ? Object.entries(bundle.data.plan.promptLimits)
-                  .filter(([, v]) => v > 0)
-                  .map(([k, v]) => `${k}: ${bundle.data?.usage.promptsByModel?.[k] ?? 0}/${v}`)
-                  .join(" · ") || "No prompt limits"
+            bundle.data?.usage.promptsByModel && Object.keys(bundle.data.usage.promptsByModel).length > 0
+              ? Object.entries(bundle.data.usage.promptsByModel)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join(" · ")
               : "Per-model counts"
           }
           icon={MessageSquare}
