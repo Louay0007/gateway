@@ -27,5 +27,9 @@ export function verifyIdentifierFor(email: string): string {
  * wrong route and every link failed silently.
  */
 export function verifyLink(rawToken: string): string {
-  return `${appOrigin()}/verify-email/${encodeURIComponent(rawToken)}`;
+  // Do NOT encodeURIComponent here: Next.js [token] route param is already
+  // decoded by the framework before reaching the page component. Double-
+  // encoding corrupts base64url tokens that contain % sequences, making
+  // every confirmation link fail with "invalid token".
+  return `${appOrigin()}/verify-email/${rawToken}`;
 }

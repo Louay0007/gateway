@@ -45,5 +45,9 @@ export function identifierFor(email: string): string {
  * shows it.
  */
 export function resetLink(rawToken: string): string {
-  return `${appOrigin()}/reset-password/${encodeURIComponent(rawToken)}`;
+  // Do NOT encodeURIComponent here: Next.js [token] route param is already
+  // decoded by the framework before reaching the page component. Double-
+  // encoding corrupts base64url tokens that contain % sequences, making
+  // every reset link fail with "invalid or expired".
+  return `${appOrigin()}/reset-password/${rawToken}`;
 }
