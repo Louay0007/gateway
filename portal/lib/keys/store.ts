@@ -191,6 +191,7 @@ export const store: KeyStore = {
         litellmKeyHash: row.litellmKeyHash,
         expiresAt: row.expiresAt,
         createdAt: row.createdAt,
+        kind: row.kind,
       })
       .returning({ id: apiKeys.id });
 
