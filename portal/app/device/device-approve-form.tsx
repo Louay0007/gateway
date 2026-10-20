@@ -14,18 +14,28 @@ export function ApproveForm({
   email: string;
 }) {
   const [status, setStatus] = useState<'idle' | 'submitting' | 'done' | 'error'>('idle');
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
   async function approve() {
     setStatus('submitting');
+    setErrorMsg('');
     try {
       const res = await fetch('/api/auth/device/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ user_code: userCode }),
       });
-      if (!res.ok) throw new Error('approve failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg =
+          typeof body?.error === 'string'
+            ? body.error
+            : `Approval failed (${res.status})`;
+        throw new Error(msg);
+      }
       setStatus('done');
-    } catch {
+    } catch (e) {
+      setErrorMsg(e instanceof Error ? e.message : 'Approval failed');
       setStatus('error');
     }
   }
@@ -44,8 +54,7 @@ export function ApproveForm({
       <CardContent>
         {status === 'error' ? (
           <p className="text-sm text-destructive">
-            Approval failed — try again, or start a new sign-in in Zaino
-            Desktop.
+            {errorMsg || 'Approval failed — try again, or start a new sign-in in Zaino Desktop.'}
           </p>
         ) : null}
         <div className="mt-4 mb-2 text-xs text-muted-foreground">

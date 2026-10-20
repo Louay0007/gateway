@@ -280,6 +280,13 @@ export async function approveDeviceCode(
   if (!code) {
     throw new DeviceServiceError('Unknown sign-in code.', 'validation', 400);
   }
+  // Idempotent approval: if the code was already approved (e.g. by a
+  // duplicate click or a retried request), return success instead of 409.
+  // The desktop app's poll will still collect the key exactly once because
+  // consume() nulls the plaintext after the first successful poll.
+  if (code.status === 'approved') {
+    return { userCode: input.userCode, approved: true };
+  }
   if (code.status !== 'pending') {
     throw new DeviceServiceError(
       `This sign-in code is already ${code.status}.`,
