@@ -103,13 +103,20 @@ export function effectForStatus(status: string): Effect {
  * bill Starter overage at 1.30 × 1.30. Enforced by test, not by hope.
  */
 export function resolveBudgetUsd(
-  plan: BudgetColumns & { planCode?: string },
+  plan: BudgetColumns & { planCode?: string, promptLimits?: Record<string, number> | null },
   effect: Effect,
 ): number {
   if (effect === 'cut') return CUT_BUDGET;
 
-  // Trial plans use prompt-based limits, not dollar caps. Set a high budget
-  // so LiteLLM never blocks on dollar spend before the prompt limit kicks in.
+  // All plans: if prompt_limits are configured (migration 0013), the real
+  // enforcement is prompt_count, not dollar budget. Set a high upstream
+  // budget so LiteLLM's max_budget never blocks before the prompt limit
+  // kicks in at the desktop app level.
+  const hasPromptLimits =
+    plan.promptLimits && Object.values(plan.promptLimits).some((v) => typeof v === 'number' && v > 0);
+  if (hasPromptLimits) return 10000.0; // $10,000 upstream — effectively unlimited
+
+  // Fallback: use dollar budget for plans without prompt_limits config.
   if (plan.planCode === 'trial') {
     return 10000.0; // $10,000 upstream — effectively unlimited for trials
   }
