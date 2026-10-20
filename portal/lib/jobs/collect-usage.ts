@@ -174,8 +174,20 @@ export async function collectUsage(opts?: {
     const isInferenceRoute = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat');
     let promptCount = 0;
     if (isInferenceRoute) {
+      // Try to get messages from row.messages first, then from proxy_server_request
+      let messages: Array<{ role?: string }> | null = null;
       if (Array.isArray(row.messages) && row.messages.length > 0) {
-        const userMsgCount = row.messages.filter((m) => m?.role === 'user').length;
+        messages = row.messages;
+      } else if (row.proxy_server_request) {
+        const psr = typeof row.proxy_server_request === 'string'
+          ? JSON.parse(row.proxy_server_request)
+          : row.proxy_server_request;
+        if (Array.isArray(psr?.messages)) {
+          messages = psr.messages;
+        }
+      }
+      if (messages && messages.length > 0) {
+        const userMsgCount = messages.filter((m) => m?.role === 'user').length;
         promptCount = userMsgCount > 0 ? userMsgCount : 1;
       } else {
         promptCount = 1;

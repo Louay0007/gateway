@@ -410,6 +410,11 @@ export interface SpendLogRow {
    * Each entry has at least `role` and `content`.
    */
   messages?: Array<{ role?: string; content?: unknown }>;
+  /**
+   * Full proxy server request body (JSON). Always present in spend logs.
+   * Contains the original request including `messages` array.
+   */
+  proxy_server_request?: Record<string, unknown> | string;
 }
 
 /**
