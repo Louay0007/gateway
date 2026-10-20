@@ -79,6 +79,7 @@ services:
       LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX: ${LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX:-false}
 
       STORE_MODEL_IN_DB: "True"
+      STORE_PROMPTS_IN_SPEND_LOGS: "True"
     volumes:
       - ./config:/app/config:ro
     ports:
