@@ -44,7 +44,7 @@ export function RequestResetForm() {
           {state.error}
         </p>
       ) : null}
-      <AuthSubmitButton label="Send reset link" pendingLabel="Sending\u2026" />
+      <AuthSubmitButton label="Send reset link" pendingLabel="Sending…" />
     </form>
   );
 }
@@ -91,7 +91,7 @@ export function CompleteResetForm({ token }: { token: string }) {
           {state.error}
         </p>
       ) : null}
-      <AuthSubmitButton label="Set new password" pendingLabel="Saving\u2026" />
+      <AuthSubmitButton label="Set new password" pendingLabel="Saving…" />
     </form>
   );
 }

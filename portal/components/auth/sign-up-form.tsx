@@ -61,7 +61,7 @@ export function SignUpForm() {
           {state.error}
         </p>
       ) : null}
-      <AuthSubmitButton label="Create account" pendingLabel="Creating account\u2026" />
+      <AuthSubmitButton label="Create account" pendingLabel="Creating account…" />
     </form>
   );
 }

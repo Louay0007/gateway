@@ -200,7 +200,7 @@ export default async function AdminGatePage() {
             var errorMsg = document.getElementById('admin-gate-error-msg');
             if (!code) return;
             btn.disabled = true;
-            btn.textContent = 'Verifying\\u2026';
+            btn.textContent = 'Verifying…';
             errorDiv.classList.remove('show');
             fetch('/api/admin/gate', {
               method: 'POST',
@@ -218,7 +218,7 @@ export default async function AdminGatePage() {
                 });
               }
             }).catch(function() {
-              errorMsg.textContent = 'Network error \\u2014 please try again';
+              errorMsg.textContent = 'Network error — please try again';
               errorDiv.classList.add('show');
               btn.disabled = false;
               btn.textContent = 'Enter console';

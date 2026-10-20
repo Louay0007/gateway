@@ -54,7 +54,7 @@ export function SignInForm({ callbackUrl }: { callbackUrl: string }) {
           {state.error}
         </p>
       ) : null}
-      <AuthSubmitButton label="Sign in" pendingLabel="Signing in\u2026" />
+      <AuthSubmitButton label="Sign in" pendingLabel="Signing in…" />
     </form>
   );
 }

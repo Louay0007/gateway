@@ -42,7 +42,7 @@ export function ConfirmEmailForm({ token }: { token: string }) {
           {state.error}
         </p>
       ) : null}
-      <AuthSubmitButton label="Confirm my email" pendingLabel="Confirming\u2026" />
+      <AuthSubmitButton label="Confirm my email" pendingLabel="Confirming…" />
     </form>
   );
 }
@@ -69,7 +69,7 @@ export function ResendVerification() {
           {state.error}
         </p>
       ) : null}
-      <AuthSubmitButton label="Resend confirmation email" pendingLabel="Sending\u2026" />
+      <AuthSubmitButton label="Resend confirmation email" pendingLabel="Sending…" />
     </form>
   );
 }
