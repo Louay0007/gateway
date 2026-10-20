@@ -213,7 +213,54 @@ const STEPS = [
   },
 ];
 
-const REQUIREMENTS: { os: string; detail: string }[] = [
+/* ── Installation commands (Claude.ai pattern with SVG logos) ───────────────────────────────────────── */
+
+const INSTALL_COMMANDS = [
+  {
+    os: "macOS / Linux / WSL",
+    title: "bash",
+    command: "curl -fsSL https://claude.ai/install.sh | bash",
+    description: "Install Claude Code CLI",
+    icon: <AppleLogo className="size-4" />,
+  },
+  {
+    os: "Windows PowerShell",
+    title: "powershell",
+    command: "irm https://claude.ai/install.ps1 | iex",
+    description: "Install Claude Code CLI",
+    icon: <WindowsLogo className="size-4" />,
+  },
+  {
+    os: "Windows CMD",
+    title: "cmd",
+    command: "curl -fsSL https://claude.ai/install.cmd -o install.cmd && install.cmd",
+    description: "Install Claude Code CLI",
+    icon: <WindowsLogo className="size-4" />,
+  },
+];
+
+/* ── Platform logos (official SVG paths) ───────────────────────────────────────── */
+
+function AppleLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 384 512" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 52.3-11.4 69.5-34.3z" />
+    </svg>
+  );
+}
+
+function WindowsLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 448 512" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M0 93.7l183.6-25.3v177.4H0V93.7zm0 324.6l183.6 25.3V268.4H0v149.9zm203.8 28L448 480V268.4H203.8v177.9zm0-380.7v177.4H448V32L203.8 65.6z" />
+    </svg>
+  );
+}
+
+function LinuxLogo({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+      <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 0 0-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 0 0-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.529 3.405h.013c.213 0 .396.062.584.198.19.135.33.332.438.533.105.259.158.459.166.724 0-.02.006-.04.006-.06v.105a.086.086 0 0 1-.004-.021l-.004-.024a1.807 1.807 0 0 1-.15.706.953.953 0 0 1-.213.335.71.71 0 0 0-.088-.042c-.104-.045-.198-.064-.284-.133a1.312 1.312 0 0 0-.22-.066c.05-.06.146-.133.183-.198.053-.128.082-.264.088-.402v-.02a1.21 1.21 0 0 0-.061-.4c-.045-.134-.101-.2-.183-.333-.084-.066-.167-.132-.267-.132h-.016c-.093 0-.176.03-.262.132a.8.8 0 0 0-.205.334 1.18 1.18 0 0 0-.09.4v.019c.002.089.008.179.02.267-.193-.067-.438-.135-.607-.202a1.635 1.635 0 0 1-.018-.2v-.02a1.772 1.772 0 0 1 .15-.768 1.08 1.08 0 0 1 .43-.533.985.985 0 0 1 .594-.2zm-2.962.059h.036c.142 0 .27.048.399.135.146.129.264.288.344.465.09.199.14.4.153.667v.004c.007.134.006.2-.002.266v.08c-.03.007-.056.018-.083.024-.152.055-.274.135-.393.2.012-.09.013-.18.003-.267v-.015c-.012-.133-.04-.2-.082-.333a.613.613 0 0 0-.166-.267.248.248 0 0 0-.183-.064h-.021c-.071.006-.13.04-.186.132a.552.552 0 0 0-.12.27.944.944 0 0 0-.023.33v.015c.012.135... (truncated)
   { os: "macOS", detail: "macOS 12 Monterey or later · Apple Silicon (Intel coming soon)" },
   { os: "Windows", detail: "Windows 10 1809 or later · x64 · WebView2 embedded" },
   { os: "Linux", detail: "Ubuntu 24.04+ / Debian 12+ for .deb · FUSE for AppImage" },
@@ -525,6 +572,31 @@ export default function DownloadContent() {
                 <p className="font-medium text-gray-900 dark:text-gray-100">{step.title}</p>
                 <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">{step.body}</p>
               </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Installation commands ───────────────────────────────────────── */}
+      <div className="mt-16">
+        <h2 className="text-center text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+          Install the CLI
+        </h2>
+        <div className="mt-8 grid gap-5 md:grid-cols-3">
+          {INSTALL_COMMANDS.map((cmd) => (
+            <Card key={cmd.os} className="flex flex-col p-4 bg-gray-50 dark:bg-gray-900 rounded-xl">
+              <div className="flex items-center gap-3 mb-3">
+                <span className="flex size-8 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700 text-sm font-semibold text-gray-900 dark:text-gray-100">
+                  {cmd.icon}
+                </span>
+                <div>
+                  <p className="font-medium text-gray-900 dark:text-gray-100">{cmd.os}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{cmd.description}</p>
+                </div>
+              </div>
+              <code className="mt-2 flex rounded-md bg-gray-900 dark:bg-gray-800 p-3 text-sm text-gray-200 overflow-x-auto">
+                {cmd.command}
+              </code>
             </Card>
           ))}
         </div>
