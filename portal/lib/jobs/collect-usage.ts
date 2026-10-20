@@ -168,11 +168,14 @@ export async function collectUsage(opts?: {
 
     // Each inference request = 1 user prompt. Non-inference calls
     // (/v1/models, etc.) have distinct routes and don't count.
-    // `messages` is the Anthropic Messages API route used by Claude via
-    // the Zaino gateway proxy — it was missing here, which caused every
-    // Claude prompt to record prompt_count=0 and never increment the
-    // per-model usage counters the desktop app displays.
-    const promptCount = (route === 'chat_completions' || route === 'responses' || route === 'messages') ? 1 : 0;
+    // The desktop app displays prompt-count based usage (migration 0013):
+    // every inference request counts as 1 prompt, regardless of wire format.
+    // Routes that count as 1 prompt:
+    //   - chat_completions (OpenAI-style)
+    //   - responses (Anthropic-style)
+    //   - messages (Anthropic Messages API, used by Claude via Zaino gateway)
+    //   - chat (mapped from chat_completions via routeForCallType)
+    const promptCount = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat') ? 1 : 0;
 
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (
