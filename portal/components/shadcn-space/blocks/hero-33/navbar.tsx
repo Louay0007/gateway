@@ -52,51 +52,10 @@ const Navbar = ({
     const signinRight = nav.querySelector<HTMLElement>("[data-signin-right]");
 
     const applyColors = (scrolled: boolean) => {
-      // On landing page (forceLight), always use light navbar colors.
-      // On other pages, respect the user's theme preference.
-      const useLightBg = forceLight || scrolled;
-      const useDarkText = forceLight ? true : !isDarkTheme;
-
-      if (useLightBg) {
-        // Light background (scrolled or forced light)
-        const textColor = "#000000";
-        const mutedColor = "rgba(0,0,0,0.6)";
-        const sepColor = "rgba(0,0,0,0.15)";
-
-        nav.style.backgroundColor = "rgba(255,255,255,0.92)";
-        nav.style.backdropFilter = "blur(16px)";
-        (nav.style as any).webkitBackdropFilter = "blur(16px)";
-        nav.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
-
-        if (wordmark) wordmark.style.color = textColor;
-        if (sep) sep.style.backgroundColor = sepColor;
-        if (signinRight) signinRight.style.color = textColor;
-
-        links.forEach((link) => {
-          link.style.color = mutedColor;
-          link.style.backgroundColor = "transparent";
-        });
-      } else if (useDarkText) {
-        // Dark theme, not scrolled — dark background with light text
-        const textColor = "#ffffff";
-        const mutedColor = "rgba(255,255,255,0.7)";
-        const sepColor = "rgba(255,255,255,0.2)";
-
-        nav.style.backgroundColor = "rgba(15,23,42,0.92)";
-        nav.style.backdropFilter = "blur(16px)";
-        (nav.style as any).webkitBackdropFilter = "blur(16px)";
-        nav.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
-
-        if (wordmark) wordmark.style.color = textColor;
-        if (sep) sep.style.backgroundColor = sepColor;
-        if (signinRight) signinRight.style.color = textColor;
-
-        links.forEach((link) => {
-          link.style.color = mutedColor;
-          link.style.backgroundColor = "transparent";
-        });
-      } else {
-        // Transparent (landing page hero, not scrolled)
+      // Landing page (forceLight): always transparent with white text until
+      // scrolled, then white glass. Dark/light mode does NOT affect the
+      // landing navbar — it stays transparent over the hero regardless.
+      if (forceLight && !scrolled) {
         nav.style.backgroundColor = "transparent";
         nav.style.backdropFilter = "none";
         (nav.style as any).webkitBackdropFilter = "none";
@@ -108,6 +67,48 @@ const Navbar = ({
 
         links.forEach((link) => {
           link.style.color = "rgba(255,255,255,0.7)";
+          link.style.backgroundColor = "transparent";
+        });
+        return;
+      }
+
+      // Scrolled on landing, or any state on non-landing pages
+      const isDark = !forceLight && isDarkTheme;
+
+      if (isDark) {
+        const textColor = "#ffffff";
+        const mutedColor = "rgba(255,255,255,0.7)";
+        const sepColor = "rgba(255,255,255,0.2)";
+
+        nav.style.backgroundColor = scrolled ? "rgba(15,23,42,0.92)" : "transparent";
+        nav.style.backdropFilter = scrolled ? "blur(16px)" : "none";
+        (nav.style as any).webkitBackdropFilter = scrolled ? "blur(16px)" : "none";
+        nav.style.borderBottom = scrolled ? "1px solid rgba(255,255,255,0.06)" : "none";
+
+        if (wordmark) wordmark.style.color = textColor;
+        if (sep) sep.style.backgroundColor = sepColor;
+        if (signinRight) signinRight.style.color = textColor;
+
+        links.forEach((link) => {
+          link.style.color = mutedColor;
+          link.style.backgroundColor = "transparent";
+        });
+      } else {
+        const textColor = "#000000";
+        const mutedColor = "rgba(0,0,0,0.6)";
+        const sepColor = "rgba(0,0,0,0.15)";
+
+        nav.style.backgroundColor = scrolled ? "rgba(255,255,255,0.92)" : "transparent";
+        nav.style.backdropFilter = scrolled ? "blur(16px)" : "none";
+        (nav.style as any).webkitBackdropFilter = scrolled ? "blur(16px)" : "none";
+        nav.style.borderBottom = scrolled ? "1px solid rgba(0,0,0,0.06)" : "none";
+
+        if (wordmark) wordmark.style.color = textColor;
+        if (sep) sep.style.backgroundColor = sepColor;
+        if (signinRight) signinRight.style.color = textColor;
+
+        links.forEach((link) => {
+          link.style.color = mutedColor;
           link.style.backgroundColor = "transparent";
         });
       }
