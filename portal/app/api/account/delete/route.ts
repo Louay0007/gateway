@@ -23,6 +23,7 @@ import { z } from 'zod';
 import { AccountError, deleteAccount } from '@/lib/account/service';
 import { requireActiveOrg, roleAtLeast } from '@/lib/auth/authorize';
 import { errorResponse, jsonError } from '@/lib/api/errors';
+import { signOut } from '@/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -55,6 +56,12 @@ export async function POST(request: Request): Promise<Response> {
       userId: ctx.userId,
       confirmSlug: parsed.data.confirmSlug,
     });
+
+    // Sign out the user immediately so the JWT session cookie is cleared.
+    // Without this, the browser retains a valid session token that points to
+    // a deleted org, causing 404s on every dashboard API call until the
+    // cookie naturally expires.
+    await signOut({ redirect: false });
 
     return Response.json({ deleted: true, ...result });
   } catch (e) {

@@ -486,15 +486,16 @@ function DangerCard() {
       return;
     }
 
-    // The org is now `deleted`, so every dashboard route answers 404. There
-    // is nowhere in the product to show a confirmation, so say it here.
+    // The org is now `deleted` and the server has cleared the session cookie.
+    // Redirect to sign-in so the user lands on a valid page instead of
+    // seeing 404s from stale dashboard API calls.
     toast.success(
       `Account deleted. ${result.data.revokedKeys} key${result.data.revokedKeys === 1 ? "" : "s"} revoked.`,
       { duration: 8000 },
     );
     setOpen(false);
     setTyped("");
-    window.location.assign("/");
+    window.location.assign("/sign-in");
   }
 
   if (loading) return null;
