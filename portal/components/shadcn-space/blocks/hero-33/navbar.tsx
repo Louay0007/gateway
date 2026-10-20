@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Logo from "@/assets/logo/logo";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -30,6 +30,17 @@ const Navbar = ({
 }) => {
   const navRef = useRef<HTMLElement>(null);
   const forceLight = tone === "light";
+  const [isDarkTheme, setIsDarkTheme] = useState(false);
+
+  useEffect(() => {
+    // Detect current dark mode state and watch for changes
+    const checkDark = () => setIsDarkTheme(document.documentElement.classList.contains("dark"));
+    checkDark();
+
+    const observer = new MutationObserver(checkDark);
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const nav = navRef.current;
@@ -41,24 +52,65 @@ const Navbar = ({
     const signinRight = nav.querySelector<HTMLElement>("[data-signin-right]");
 
     const applyColors = (scrolled: boolean) => {
-      const isDark = forceLight || scrolled;
-      const textColor = isDark ? "#000000" : "#ffffff";
-      const mutedColor = isDark ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.7)";
-      const sepColor = isDark ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)";
+      // On landing page (forceLight), always use light navbar colors.
+      // On other pages, respect the user's theme preference.
+      const useLightBg = forceLight || scrolled;
+      const useDarkText = forceLight ? true : !isDarkTheme;
 
-      nav.style.backgroundColor = isDark ? "rgba(255,255,255,0.92)" : "transparent";
-      nav.style.backdropFilter = isDark ? "blur(16px)" : "none";
-      (nav.style as any).webkitBackdropFilter = isDark ? "blur(16px)" : "none";
-      nav.style.borderBottom = isDark ? "1px solid rgba(0,0,0,0.06)" : "none";
+      if (useLightBg) {
+        // Light background (scrolled or forced light)
+        const textColor = "#000000";
+        const mutedColor = "rgba(0,0,0,0.6)";
+        const sepColor = "rgba(0,0,0,0.15)";
 
-      if (wordmark) wordmark.style.color = textColor;
-      if (sep) sep.style.backgroundColor = sepColor;
-      if (signinRight) signinRight.style.color = textColor;
+        nav.style.backgroundColor = "rgba(255,255,255,0.92)";
+        nav.style.backdropFilter = "blur(16px)";
+        (nav.style as any).webkitBackdropFilter = "blur(16px)";
+        nav.style.borderBottom = "1px solid rgba(0,0,0,0.06)";
 
-      links.forEach((link) => {
-        link.style.color = mutedColor;
-        link.style.backgroundColor = "transparent";
-      });
+        if (wordmark) wordmark.style.color = textColor;
+        if (sep) sep.style.backgroundColor = sepColor;
+        if (signinRight) signinRight.style.color = textColor;
+
+        links.forEach((link) => {
+          link.style.color = mutedColor;
+          link.style.backgroundColor = "transparent";
+        });
+      } else if (useDarkText) {
+        // Dark theme, not scrolled — dark background with light text
+        const textColor = "#ffffff";
+        const mutedColor = "rgba(255,255,255,0.7)";
+        const sepColor = "rgba(255,255,255,0.2)";
+
+        nav.style.backgroundColor = "rgba(15,23,42,0.92)";
+        nav.style.backdropFilter = "blur(16px)";
+        (nav.style as any).webkitBackdropFilter = "blur(16px)";
+        nav.style.borderBottom = "1px solid rgba(255,255,255,0.06)";
+
+        if (wordmark) wordmark.style.color = textColor;
+        if (sep) sep.style.backgroundColor = sepColor;
+        if (signinRight) signinRight.style.color = textColor;
+
+        links.forEach((link) => {
+          link.style.color = mutedColor;
+          link.style.backgroundColor = "transparent";
+        });
+      } else {
+        // Transparent (landing page hero, not scrolled)
+        nav.style.backgroundColor = "transparent";
+        nav.style.backdropFilter = "none";
+        (nav.style as any).webkitBackdropFilter = "none";
+        nav.style.borderBottom = "none";
+
+        if (wordmark) wordmark.style.color = "#ffffff";
+        if (sep) sep.style.backgroundColor = "rgba(255,255,255,0.2)";
+        if (signinRight) signinRight.style.color = "#ffffff";
+
+        links.forEach((link) => {
+          link.style.color = "rgba(255,255,255,0.7)";
+          link.style.backgroundColor = "transparent";
+        });
+      }
     };
 
     // Apply immediately
@@ -82,7 +134,7 @@ const Navbar = ({
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [active, forceLight]);
+  }, [active, forceLight, isDarkTheme]);
 
   return (
     <nav
@@ -106,7 +158,6 @@ const Navbar = ({
               <span
                 data-wordmark=""
                 className="text-lg font-semibold tracking-tight transition-colors duration-300"
-                style={{ color: forceLight ? "#000000" : "#ffffff" }}
               >
                 Zaino AI
               </span>
@@ -116,7 +167,6 @@ const Navbar = ({
             orientation="vertical"
             data-sep=""
             className="hidden h-6 my-auto lg:block transition-colors duration-300"
-            style={{ backgroundColor: forceLight ? "rgba(0,0,0,0.15)" : "rgba(255,255,255,0.2)" }}
           />
           <div className="hidden items-center gap-1 lg:flex">
             {navLinks.map((link) => (
@@ -125,10 +175,6 @@ const Navbar = ({
                 href={link.href}
                 data-navlink={link.title}
                 className="rounded-full px-3 py-1.5 text-base font-medium whitespace-nowrap transition-colors duration-300"
-                style={{
-                  color: forceLight ? "rgba(0,0,0,0.6)" : "rgba(255,255,255,0.7)",
-                  backgroundColor: "transparent",
-                }}
               >
                 {link.title}
               </a>
@@ -140,7 +186,6 @@ const Navbar = ({
             href="/sign-in"
             data-signin-right=""
             className="whitespace-nowrap text-base font-medium transition-colors duration-300"
-            style={{ color: forceLight ? "#000000" : "#ffffff" }}
           >
             Sign in
           </a>

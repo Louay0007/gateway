@@ -46,7 +46,7 @@ export function MarketingFooter() {
         <div className="flex flex-col justify-between gap-10 sm:flex-row">
           <div>
             <div className="flex items-center gap-2.5">
-              <Logo tone="light" wordmark={false} />
+              <Logo tone="auto" wordmark={false} />
               <p className="font-semibold tracking-tight text-gray-900 dark:text-gray-100">Zaino AI</p>
             </div>
             <p className="mt-2 max-w-xs text-sm text-gray-600 dark:text-gray-400">
@@ -56,13 +56,13 @@ export function MarketingFooter() {
           <div className="flex gap-14">
             {columns.map((column) => (
               <div key={column.title}>
-                <p className="text-sm font-medium text-black">{column.title}</p>
+                <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{column.title}</p>
                 <ul className="mt-3 space-y-2">
                   {column.links.map((link) => (
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="text-sm text-gray-600 transition-colors hover:text-black"
+                        className="text-sm text-gray-600 dark:text-gray-400 transition-colors hover:text-gray-900 dark:hover:text-gray-100"
                       >
                         {link.label}
                       </a>
@@ -73,7 +73,7 @@ export function MarketingFooter() {
             ))}
           </div>
         </div>
-        <p className="mt-10 text-xs text-gray-500">
+        <p className="mt-10 text-xs text-gray-500 dark:text-gray-400">
           © {new Date().getFullYear()} Zaino AI. Usage is non-refundable once
           consumed.
         </p>
