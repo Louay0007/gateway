@@ -47,10 +47,14 @@ import { cn } from "@/lib/utils";
  *      published yet the page says so instead of serving 404s.
  */
 
-const REPO = "Louay0007/zaino-ai-agent";
-const PINNED_VERSION = "1.0.1";
+// OpenCode Desktop is released by upstream OpenCode (sst/opencode); the
+// Zaino build is the same app pointed at the gateway (see
+// docs/opencode-desktop.md for the provider config it ships). Until the
+// portal hosts its own signed build, every button below resolves against
+// the upstream release. The legacy `Louay0007/zaino-ai-agent` Tauri builds
+// are kept in git history only — nothing on this page points at them.
+const REPO = "sst/opencode";
 const RELEASE_PAGE = `https://github.com/${REPO}/releases/latest`;
-const PINNED_BASE = `https://github.com/${REPO}/releases/download/v${PINNED_VERSION}`;
 
 type OsId = "macos" | "windows" | "linux" | null;
 
@@ -86,8 +90,16 @@ const PLATFORMS: Platform[] = [
         label: "Apple Silicon",
         hint: "M1, M2, M3, M4 · arm64",
         wants: { os: "macos", arch: "arm64", label: "Apple Silicon" },
-        fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_aarch64.dmg`,
-        match: (n) => n.endsWith(".dmg") && /aarch64|arm64/i.test(n),
+        fallbackHref: null,
+        match: (n) => n === "opencode-desktop-mac-arm64.dmg",
+      },
+      {
+        id: "mac-x64",
+        label: "Intel",
+        hint: "Intel Macs · x64",
+        wants: { os: "macos", arch: "x64", label: "Intel" },
+        fallbackHref: null,
+        match: (n) => n === "opencode-desktop-mac-x64.dmg",
       },
     ],
   },
@@ -100,10 +112,10 @@ const PLATFORMS: Platform[] = [
       {
         id: "win-x64",
         label: "Windows 10+",
-        hint: "x64 setup · .exe",
+        hint: "x64 · .exe",
         wants: { os: "windows", arch: "x64", label: "Windows 10+" },
-        fallbackHref: `${PINNED_BASE}/Zaino.AI.Agent_${PINNED_VERSION}_x64-setup.exe`,
-        match: (n) => n.endsWith("-setup.exe") && !n.endsWith(".sig"),
+        fallbackHref: null,
+        match: (n) => n === "opencode-desktop-win-x64.exe",
       },
     ],
   },
@@ -126,8 +138,8 @@ const PLATFORMS: Platform[] = [
         label: ".deb",
         hint: "Debian · Ubuntu",
         wants: { os: "linux", arch: "x64", label: ".deb" },
-        fallbackHref: `${PINNED_BASE}/zaino-ai-agent_${PINNED_VERSION}_amd64.deb`,
-        match: (n) => n.endsWith(".deb"),
+        fallbackHref: null,
+        match: (n) => n === "opencode-desktop-linux-amd64.deb",
       },
       {
         id: "linux-rpm",
@@ -227,6 +239,7 @@ export default function DownloadContent() {
   const [hosted, setHosted] = React.useState<HostedFile[] | null>(null);
   const [live, setLive] = React.useState<LiveAsset[] | null>(null);
   const [releaseMissing, setReleaseMissing] = React.useState(false);
+  const [releaseTag, setReleaseTag] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     setOs(detectOs());
@@ -244,8 +257,9 @@ export default function DownloadContent() {
       .catch(() => {
         /* GitHub fallback below still works without the mirror */
       });
-    // Layer 2: GitHub release as fallback while the mirror fills up.
-    fetch(`https://api.github.com/repos/${REPO}/releases/tags/v${PINNED_VERSION}`)
+    // Layer 2: the upstream release. `latest` moves on every OpenCode
+    // release, and the asset names below are stable across releases.
+    fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
       .then((r) => {
         if (r.status === 404) {
           if (!cancelled) setReleaseMissing(true);
@@ -256,6 +270,7 @@ export default function DownloadContent() {
       })
       .then((data) => {
         if (cancelled || !data?.assets) return;
+        if (typeof data?.tag_name === "string") setReleaseTag(data.tag_name);
         setLive(
           (data.assets as { name: string; browser_download_url: string; size: number }[])
             .filter((a) => !a.name.endsWith(".sig"))
@@ -305,14 +320,14 @@ export default function DownloadContent() {
       <div className="mx-auto max-w-3xl text-center">
         <Badge variant="secondary" className="mb-4">
           <span className="size-1.5 rounded-full bg-emerald-600" />
-          v{PINNED_VERSION} · now available
+          {releaseTag ? `${releaseTag} · now available` : "Latest release"}
         </Badge>
         <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 md:text-5xl">
           OpenCode Desktop
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-gray-600 dark:text-gray-400">
-          Fast on Sonnet 5, Smart on Opus 5.5 — your gateway models in a
-          native app for macOS, Windows, and Linux.
+          The official Zaino desktop client — Fast, Smart and Frontier,
+          ready to sign in with your gateway account.
         </p>
         <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
           {primary?.href ? (
@@ -365,7 +380,7 @@ export default function DownloadContent() {
         {releaseMissing ? (
           <p className="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 text-sm text-amber-700">
             <Info className="size-4 shrink-0" />
-            v{PINNED_VERSION} installers are being published right now — if a
+            Installers are being published right now — if a
             button misses, grab it from the release page.
           </p>
         ) : null}
@@ -541,7 +556,7 @@ export default function DownloadContent() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Package className="size-4" />
-              What&apos;s inside v{PINNED_VERSION}
+              What&apos;s inside
             </CardTitle>
             <CardDescription>Models, locked tiers, updates</CardDescription>
           </CardHeader>
