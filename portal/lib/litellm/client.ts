@@ -417,6 +417,14 @@ export interface SpendLogRow {
   proxy_server_request?: Record<string, unknown> | string;
 }
 
+/** The day after a `YYYY-MM-DD` date, in the same format. */
+function dayAfter(date: string): string {
+  const parsed = new Date(`${date}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  parsed.setUTCDate(parsed.getUTCDate() + 1);
+  return parsed.toISOString().slice(0, 10);
+}
+
 /**
  * Spend logs for a window. The response shape varies by LiteLLM version
  * (bare array vs {data: []} vs {spend_logs: []}); normalise defensively.
@@ -435,19 +443,28 @@ export interface SpendLogRow {
  * data remains" — a 500 that reads like a server error rather than a bad
  * argument. Callers pass date-only, which this keeps.
  *
+ * THE END DATE IS EXCLUSIVE on the endpoint. `start_date=2026-10-21&
+ * end_date=2026-10-21` returns NOTHING; the day's rows appear only when the
+ * end date is the next day. A same-day window therefore collects zero rows
+ * and the ledger silently stops growing.
+ *
+ * This function takes the INCLUSIVE range a caller means and widens it by
+ * one day here, so no caller can get that wrong. `endDate` is the last day
+ * to INCLUDE, the way every other function in this codebase reads.
+ *
  * PAGINATION: this endpoint ignores `page`/`page_size` and returns every
  * row in the window. The window filter is what bounds the work; the
  * collector also filters by timestamp client-side.
  */
 export async function getSpendLogs(input: {
-  startDate: string;   // YYYY-MM-DD
-  endDate: string;     // YYYY-MM-DD
+  startDate: string;   // YYYY-MM-DD, inclusive
+  endDate: string;     // YYYY-MM-DD, inclusive
   page?: number;
   pageSize?: number;
 }): Promise<SpendLogRow[]> {
   const q = new URLSearchParams({
     start_date: input.startDate,
-    end_date:   input.endDate,
+    end_date:   dayAfter(input.endDate),
     summarize:  'false',
   });
 
