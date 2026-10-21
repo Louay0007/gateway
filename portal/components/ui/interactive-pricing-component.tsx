@@ -59,8 +59,8 @@ const zainoPlans: PricingPlan[] = [
     monthlyPrice: 90,
     annualPrice: 72,
     features: [
-      { name: '1000 Haiku 5.5 requests/mo', included: true },
-      { name: '500 Sonnet 5.5 requests/mo', included: true },
+      { name: '1000 Sonnet 5.5 requests/mo', included: true },
+      { name: '500 Opus 5.5 requests/mo', included: true },
       { name: 'Advanced agent workflows', included: true },
       { name: 'Priority support', included: true },
       { name: 'Priority queue', included: true },

@@ -44,7 +44,7 @@ export const TIERS: Tier[] = [
     inputPerMtok: "$3.00",
     outputPerMtok: "$15.00",
     cacheReadPerMtok: "$0.30",
-    plans: "Starter · Pro",
+    plans: "Pro",
     bestFor: ["Agents", "Tool calling", "Support bots"],
     badge: "Most used",
   },

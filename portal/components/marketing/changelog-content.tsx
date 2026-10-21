@@ -21,6 +21,23 @@ interface ChangelogEntry {
 
 const entries: ChangelogEntry[] = [
   {
+    version: 'v1.2.0',
+    date: 'Oct 22, 2026',
+    title: 'Pro Refocus — 1,000 Smart + 500 Frontier',
+    description:
+      'Pro is now the power plan: 1,000 Sonnet 5.5 (Smart) prompts and 500 Opus 5.5 (Frontier) prompts per period. Fast (Haiku 5.5) stays Starter-only, so each tier has a clear job.',
+    details: [
+      {
+        heading: 'What changed',
+        body: 'Pro moves from {fast, smart, frontier} to {smart, frontier} with {smart: 1000, frontier: 500} prompt limits. Starter is unchanged at {fast, smart}. Existing Pro keys lose `fast` on the next entitlement sync; dashboards, docs, pricing, FAQ and the plan comparison table all show the new shape.',
+      },
+      {
+        heading: 'Why',
+        body: 'Fast is the high-volume Starter tier. Bundling it into Pro blurred the tiers and let Pro spend dilute across three models. Pro now concentrates its allowance where it matters: balanced everyday work (Smart) and the hardest reasoning (Frontier).',
+      },
+    ],
+  },
+  {
     version: 'v1.1.0',
     date: 'Oct 21, 2026',
     title: 'New Fleet — Fast (Haiku 5.5), Smart (Sonnet 5.5), Frontier (Opus 5.5)',

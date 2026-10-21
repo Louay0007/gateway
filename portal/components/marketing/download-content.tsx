@@ -30,7 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 
 /**
- * Download page content — Zaino AI Agent desktop installers.
+ * Download page content — the Zaino AI Agent desktop app.
  *
  * UX follows the Claude / Cursor download pattern:
  *   1. Auto-detect the visitor's OS and surface it as the primary button.
@@ -47,12 +47,10 @@ import { cn } from "@/lib/utils";
  *      published yet the page says so instead of serving 404s.
  */
 
-// OpenCode Desktop is released by upstream OpenCode (sst/opencode); the
-// Zaino build is the same app pointed at the gateway (see
-// docs/opencode-desktop.md for the provider config it ships). Until the
-// portal hosts its own signed build, every button below resolves against
-// the upstream release. The legacy `Louay0007/zaino-ai-agent` Tauri builds
-// are kept in git history only — nothing on this page points at them.
+// The desktop app below is the Zaino AI Agent — powered by OpenCode
+// (upstream releases at sst/opencode), pointed at the Zaino gateway (see
+// docs/opencode-desktop.md). Until the portal hosts its own signed build,
+// every button resolves against the upstream release.
 const REPO = "sst/opencode";
 const RELEASE_PAGE = `https://github.com/${REPO}/releases/latest`;
 
@@ -190,7 +188,7 @@ function formatBytes(bytes: number): string {
 const STEPS = [
   {
     icon: <Download className="size-4" />,
-    title: "Install OpenCode Desktop",
+    title: "Install Zaino AI Agent",
     body: "Download the installer for your OS above and run it. No admin rights needed on macOS and Windows.",
   },
   {
@@ -229,8 +227,8 @@ const FAQS: { q: string; a: string }[] = [
     a: "Yes. The key is stored in your OS keychain and held only in memory while the app runs. Config files and logs only ever see a reference to the environment variable — never the key itself.",
   },
   {
-    q: "I still see the old Zaino AI Agent download. Which one should I use?",
-    a: "OpenCode Desktop is the official client and receives all new features. The legacy Zaino AI Agent build is kept for one release as a fallback and is no longer updated.",
+    q: "Is this the same as the old Zaino AI Agent download?",
+    a: "Yes — this page, this app, one name. Older bookmarks pointing at early builds land here, on the same client, signed in the same way.",
   },
 ];
 
@@ -257,7 +255,7 @@ export default function DownloadContent() {
       .catch(() => {
         /* GitHub fallback below still works without the mirror */
       });
-    // Layer 2: the upstream release. `latest` moves on every OpenCode
+    // Layer 2: the upstream OpenCode release. `latest` moves on every
     // release, and the asset names below are stable across releases.
     fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
       .then((r) => {
@@ -323,7 +321,7 @@ export default function DownloadContent() {
           {releaseTag ? `${releaseTag} · now available` : "Latest release"}
         </Badge>
         <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 md:text-5xl">
-          OpenCode Desktop
+          Zaino AI Agent
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-gray-600 dark:text-gray-400">
           The official Zaino desktop client — Fast, Smart and Frontier,

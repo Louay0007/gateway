@@ -33,7 +33,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Which models are available?',
     answer:
-      'Availability depends on your plan. Starter includes Haiku 5.5 and Sonnet 5.5. Pro adds Opus 5.5 and higher request quotas. Enterprise provides unlimited access to all current models plus early access to new model releases.',
+      'Availability depends on your plan. Starter includes Haiku 5.5 (Fast). Pro includes Sonnet 5.5 (Smart, 1,000 prompts) and Opus 5.5 (Frontier, 500 prompts). Enterprise provides unlimited access to all current models plus early access to new model releases.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',
