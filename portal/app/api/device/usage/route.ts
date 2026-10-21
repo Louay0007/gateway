@@ -17,6 +17,7 @@
  * no spend figures, no admin data.
  */
 
+import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { apiKeys, organizations } from '@/db/schema';
@@ -27,16 +28,17 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 async function orgIdForKey(key: string): Promise<string | null> {
-  // The desktop sends the zn- form; api_keys.litellm_key_hash stores the
-  // sk- form's hash. But the key itself is the same body below the prefix,
-  // and policy.ts hashes the CUSTOMER key (zn- form) into key_hash while
-  // storing the LITELLM token id in litellm_key_hash. The desktop sends
-  // the zn- plaintext as its Bearer token, so match against key_hash.
+  // The desktop sends the zn- form as its Bearer token. `api_keys.key_hash`
+  // stores the SHA-256 hex of that plaintext (lib/keys/policy.ts keyHashFor),
+  // NOT the plaintext itself — so the lookup has to hash before comparing.
+  // Comparing the raw plaintext against key_hash can never match, which
+  // made this endpoint answer 401 for every caller, including valid keys.
+  const hash = createHash('sha256').update(key, 'utf8').digest('hex');
   const [row] = await db.execute(sql`
     SELECT ak.organization_id
       FROM api_keys ak
       JOIN organizations o ON o.id = ak.organization_id
-     WHERE ak.key_hash = ${key}
+     WHERE ak.key_hash = ${hash}
        AND ak.revoked_at IS NULL
        AND o.status = 'active'
      LIMIT 1
