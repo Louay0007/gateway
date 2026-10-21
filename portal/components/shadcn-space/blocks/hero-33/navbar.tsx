@@ -12,6 +12,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { MaintenanceBanner } from "@/components/marketing/maintenance-banner";
 import { ChevronRight, Equal, X } from "lucide-react";
 
 const navLinks = [
@@ -24,9 +25,12 @@ const navLinks = [
 const Navbar = ({
   active,
   tone,
+  banner,
 }: {
   tone?: "dark" | "light";
   active?: string;
+  /** Optional notice strip rendered under the nav row (maintenance, alerts). */
+  banner?: string;
 }) => {
   const navRef = useRef<HTMLElement>(null);
   const forceLight = tone === "light";
@@ -271,6 +275,7 @@ const Navbar = ({
           </SheetContent>
         </Sheet>
       </div>
+      {banner ? <MaintenanceBanner message={banner} /> : null}
     </nav>
   );
 };

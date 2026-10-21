@@ -157,6 +157,13 @@ pull: ## Pull a new gateway image (review release notes first)
 # tools: rsync does not read the agent the way ssh(1) does, so a
 # `ssh -i` alias in ~/.ssh/config is silently ignored by rsync and the
 # deploy fails with "Permission denied (publickey)".
+#
+# `data/` is EXCLUDED from rsync. It holds the D17 payment-proof uploads
+# (bind-mounted into the portal container, owned by the container's uid),
+# and `--delete` tries to unlink the ones the dev box does not have — the
+# unlink fails with EACCES, rsync exits 23, and the `&&` chain aborts
+# BEFORE the rebuild. Worse, a deploy that could delete those files would
+# be deleting customer payment evidence. Runtime state, not source.
 deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	@: "$${HOST:?set HOST=user@ip}"
 	@DIR="$${DIR:-/opt/gateway}"; \
@@ -168,6 +175,7 @@ deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	  --exclude 'backup-*.tar.gz' --exclude 'latency.csv' \
 	  --exclude 'portal/node_modules/' --exclude 'portal/.next/' \
 	  --exclude 'docker-compose.mock.yml' --exclude 'mock-upstream.log' \
+	  --exclude 'data/' \
 	  ./ "$${HOST}:$${DIR}/" && \
 	ssh $$SSH_OPTS -t "$${HOST}" "cd $${DIR} && if [ -f .env ]; then \
 	    make db-init && make db-migrate && \
