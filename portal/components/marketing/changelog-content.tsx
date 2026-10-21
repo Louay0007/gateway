@@ -21,6 +21,35 @@ interface ChangelogEntry {
 
 const entries: ChangelogEntry[] = [
   {
+    version: 'v1.1.0',
+    date: 'Oct 21, 2026',
+    title: 'AiPilot Fleet — Fast (Haiku 5.5), Smart (Sonnet 5.5), Frontier (Opus 5.5)',
+    description:
+      'Zaino is back live on a brand-new upstream. The gateway now serves three AiPilot models behind our three aliases: Fast rides Haiku 5.5, Smart rides Sonnet 5.5, and Frontier — back in the Pro plan — rides Opus 5.5. The dashboard, docs, and pricing now reflect the real models and rates.',
+    details: [
+      {
+        heading: 'Fast — Haiku 5.5',
+        body: 'High-volume work at $1.00 / $5.00 per Mtok: drafts, classification, bulk transforms, chat and copilots. Available on Starter and Pro. Request it with "model": "fast".',
+      },
+      {
+        heading: 'Smart — Sonnet 5.5',
+        body: 'Everyday balanced tier at $3.00 / $15.00 per Mtok: agents, tool calling, support bots. Available on Starter and Pro. Request it with "model": "smart".',
+      },
+      {
+        heading: 'Frontier returns — Opus 5.5',
+        body: 'Mythos-class reasoning at $15.00 / $75.00 per Mtok for the hardest long-running workloads: deep reasoning, multi-step agents, hard tasks. Pro only, with 250 prompts per period. Request it with "model": "frontier". Frontier was held back during the migration and is now fully metered and billed.',
+      },
+      {
+        heading: 'Token pricing, corrected everywhere',
+        body: 'Every surface that still showed the old model names or rates has been updated in one pass: the customer docs (/docs models), the pricing preview, the dashboard billing table, the prompt meters, the download page, the FAQ, and the redeem page. No upstream name ever reaches the customer surface — only fast, smart, frontier.',
+      },
+      {
+        heading: 'What changed under the hood',
+        body: 'The gateway upstream switched to AiPilot (aipilot-weld.vercel.app/v1). The price table, LiteLLM catalog, reconcile script, and pricing-consistency suite were all moved to haiku-5.5 / sonnet-5.5 / opus-5.5 in one commit, and the Pro plan allowlist plus prompt limits were restored to include frontier.',
+      },
+    ],
+  },
+  {
     version: 'v1.0.1',
     date: 'Oct 17, 2026',
     title: 'Official Launch — Codex & Claude Code Integrations, Desktop App',

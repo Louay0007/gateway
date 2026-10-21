@@ -85,7 +85,7 @@ export default function LandingPage() {
     <>
       <script dangerouslySetInnerHTML={{ __html: forceLightScript }} />
       <div className="light light-surface">
-        <Navbar banner="zaino is under maintenance" />
+        <Navbar banner="🟢 Zaino is back — Fast (Haiku 5.5), Smart (Sonnet 5.5) & Frontier (Opus 5.5) are live" />
         <main>
         <Hero33 />
         <section className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
