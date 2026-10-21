@@ -21,7 +21,6 @@ import { db } from '@/db';
 import { getSpendLogs, extractUsage, statusCodeForRow, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
 import { loadAliasMap, toAlias, aliasForRow, routeForCallType, UNKNOWN_ALIAS, type AliasMap } from '@/lib/pricing/alias';
-import { countPrompts, userMessagesOf } from './prompt-count';
 
 const PRICE_VERSION = '2026-10-15';   // bump when prices/models.yaml changes
 
@@ -59,16 +58,6 @@ export interface CollectResult {
   unmappedModels: string[];
   window: { start: string; end: string };
 }
-
-/**
- * The user-message count each key carried on its previous request.
- *
- * Process-local and rebuilt on every pass: the collector is idempotent, and
- * the count it derives only needs to compare a request against the one
- * before it. A restart loses the baseline, and the next request for a key
- * then counts its whole history — over-counting once, never under-counting.
- */
-const userMessagesSeen = new Map<string, number>();
 
 export async function collectUsage(opts?: {
   lookbackMinutes?: number;
@@ -187,32 +176,22 @@ export async function collectUsage(opts?: {
       memberUserId = (found as unknown as { id: string }[])[0]?.id ?? null;
     }
 
-    // Count the prompts a request ADDS, not the ones it carries.
+    // ── Prompt counting: ONE inference request = ONE prompt. ──────────
     //
     // A chat client resends its whole conversation on every turn, so the
-    // request body holds one user message per turn so far. Counting the
-    // messages in the body charges a 3-turn session 1+2+3 = 6 prompts for
-    // 3 prompts sent. The count that matches what a customer experiences is
-    // the number of user messages BEYOND the ones already sent — which is
-    // what the request adds on top of the previous turn.
+    // request body holds one user message per turn so far. The old code
+    // counted messages in the body and diffed against the previous request
+    // per key in process memory — which over-counted on restart, misjudged
+    // tool-result continuations, and needed row ordering to be right.
     //
-    // `messages_before` is the count the previous request for this key
-    // carried. LiteLLM's spend log does not expose it, so it is tracked
-    // here per key, in request order. A key that has not been seen starts
-    // at 0, which makes its first request count its whole history — the
-    // conservative direction: it can over-count once, never under-count.
-    //
-    // Falls back to 1 per inference request when the messages are not
-    // stored (older rows, or a client that sent none).
+    // The exact rule is simpler: every message a user sends triggers
+    // exactly one inference request (tool calls the model makes are
+    // continuations *within* that request, not new prompts). So the
+    // prompt count of a row is 1 when its route is inference, 0 otherwise.
+    // No parsing, no per-key memory, no restart skew — idempotent by
+    // construction, since the value depends only on the row itself.
     const isInferenceRoute = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat');
-    let promptCount = 0;
-    if (isInferenceRoute) {
-      promptCount = countPrompts(
-        { messages: userMessagesOf(row) },
-        row.api_key ?? '',
-        userMessagesSeen,
-      );
-    }
+    const promptCount = isInferenceRoute ? 1 : 0;
 
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (

@@ -9,31 +9,32 @@
 
 model_list:
   # ════════════════════════════════════════════════════════════════════
-  # THREE ALIASES, ONE UPSTREAM — NVIDIA NIM via integrate.api.nvidia.com
+  # THREE ALIASES, ONE UPSTREAM — Zaino official infrastructure
   # ════════════════════════════════════════════════════════════════════
-  # `fast` / `smart` / `frontier` all route to
-  # nvidia/nemotron-3.5-super-vl-120b-a12b. The catalog keeps three names
-  # while the fleet has one model behind them; restoring real deployments
-  # is a matter of giving each alias its own entry below.
+  #   fast     → haiku-5.5    (1M context, 64k max output)
+  #   smart    → sonnet-5.5   (1M context, 64k max output)
+  #   frontier → opus-5.5     (1M context, 64k max output)
   #
-  # WHY THE ALIASES STAY SEPARATE even though the model is the same:
-  # customers' plans, keys and ledgers are all expressed in aliases
-  # (plans.models, api_keys.models, usage_records.model). Collapsing to one
-  # name would silently invalidate every Pro plan allowlist and every key
-  # already issued for `smart`. Keeping the aliases keeps those rows true
-  # and makes the swap back to a real fleet a config edit, not a migration.
+  # Context/output verified against the provider's own /v1/models
+  # (context_window 1048576, max 65536 output) and mirrored in
+  # portal/components/docs/docs-data.ts CONTEXT_WINDOW / MAX_OUTPUT_TOKENS.
   #
-  # Nominal rates are NON-ZERO on purpose: the upstream is free, and a $0
-  # model makes every budget a no-op and hides pipeline bugs. Mirrored in
-  # prices/models.yaml exactly (one table, two consumers — enforced by
+  # WHY THE ALIASES STAY SEPARATE: customers' plans, keys and ledgers are
+  # all expressed in aliases (plans.models, api_keys.models,
+  # usage_records.model). Collapsing to one name would silently invalidate
+  # every Pro plan allowlist and every key already issued. Keeping the
+  # aliases keeps those rows true and makes a future swap a config edit,
+  # not a migration.
+  #
+  # Rates are NON-ZERO on purpose: a $0 model makes every budget a no-op
+  # and hides pipeline bugs. Mirrored in prices/models.yaml exactly (one
+  # table, two consumers — enforced by
   # portal/tests/pricing-consistency.test.ts).
   #
-  # NVIDIA NIM is OpenAI-compatible at /v1/chat/completions. It does NOT
-  # serve /v1/messages or /v1/responses, so only chat/completions is
-  # declared on every entry — declaring an endpoint the upstream lacks makes
-  # LiteLLM forward into a 404, which is what kills codex-cli.
-  # LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX must be true because the base URL
-  # already carries /v1.
+  # Only /v1/chat/completions is declared on every entry — declaring an
+  # endpoint the upstream lacks makes LiteLLM forward into a 404, which is
+  # what kills codex-cli. The edge shim translates /v1/responses → chat
+  # before LiteLLM, and LiteLLM translates /v1/messages itself.
   #
   # Upstream credential lives in .env as UPSTREAM_API_KEY (never committed).
   - model_name: fast
@@ -50,6 +51,8 @@ model_list:
       output_cost_per_token: 0.000005
       cache_creation_input_token_cost: 0.000002
       cache_read_input_token_cost: 0.0000001
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
 
   - model_name: smart
     litellm_params:
@@ -65,6 +68,8 @@ model_list:
       output_cost_per_token: 0.000015
       cache_creation_input_token_cost: 0.000006
       cache_read_input_token_cost: 0.0000003
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
 
   - model_name: frontier
     litellm_params:
@@ -80,6 +85,8 @@ model_list:
       output_cost_per_token: 0.000075
       cache_creation_input_token_cost: 0.00003
       cache_read_input_token_cost: 0.0000015
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Routing

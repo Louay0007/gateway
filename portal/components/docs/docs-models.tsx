@@ -116,7 +116,7 @@ export function ModelsSection() {
               </ul>
 
               <p className="mt-auto pt-6 border-t border-border text-xs text-muted-foreground">
-                {t.plans} · 1M context · 128k max output
+                {t.plans} · 1M context · 64k max output
               </p>
             </article>
           );

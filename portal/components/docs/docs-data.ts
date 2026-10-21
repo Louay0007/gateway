@@ -10,8 +10,8 @@
  */
 export const PUBLIC_BASE_URL = "https://api.zaino.soon.it/v1";
 
-export const CONTEXT_WINDOW = 1000000;
-export const MAX_OUTPUT_TOKENS = 128000;
+export const CONTEXT_WINDOW = 1048576;
+export const MAX_OUTPUT_TOKENS = 65536;
 
 export type Tier = {
   alias: string;
