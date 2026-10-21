@@ -178,18 +178,18 @@ function formatBytes(bytes: number): string {
 const STEPS = [
   {
     icon: <Download className="size-4" />,
-    title: "Install the app",
+    title: "Install OpenCode Desktop",
     body: "Download the installer for your OS above and run it. No admin rights needed on macOS and Windows.",
   },
   {
     icon: <KeyRound className="size-4" />,
-    title: "Sign in with your device key",
-    body: "Create an API key from your Zaino dashboard, then paste it in the app. It lives in your OS keychain — never on disk.",
+    title: "Sign in with Zaino",
+    body: "The app opens your browser to approve the device — no key to copy. The key it receives lives in your OS keychain, never on disk.",
   },
   {
     icon: <MessageSquare className="size-4" />,
     title: "Pick a model and chat",
-    body: "Fast runs on Sonnet 5, Smart on Opus 5.5. Frontier (Fable 5.1) unlocks soon — the app updates itself when it lands.",
+    body: "Fast for everyday speed, Smart for hard reasoning. Only the models your plan allows appear in the picker.",
   },
 ];
 
@@ -201,24 +201,24 @@ const REQUIREMENTS: { os: string; detail: string }[] = [
 
 const FAQS: { q: string; a: string }[] = [
   {
-    q: 'macOS says "damaged" or "can\'t be opened" — what do I do?',
-    a: 'The current preview build is not yet notarized by Apple. After dragging the app to Applications, open Terminal and run: xattr -cr /Applications/Zaino\\ AI\\ Agent.app — then launch it normally. This one-time step removes the quarantine flag. Signed & notarized builds are coming in the next release.',
+    q: "Do I need a paid plan to use the desktop app?",
+    a: "The app itself is free. You need a Zaino account with prompt quota — any plan works, including trial credit. Fast and Smart draw from your plan's prompt limits, and only the models your plan allows appear in the picker.",
   },
   {
-    q: "Do I need a paid plan to use the desktop app?",
-    a: "The app itself is free. You need a Zaino API key with prompt quota — any plan works, including trial credit. Fast (Sonnet 5) and Smart (Opus 5.5) draw from your plan's prompt limits.",
+    q: "How do I sign in?",
+    a: "On first launch, choose “Sign in with Zaino”. The app opens your browser to approve the device, then hands the key to your OS keychain. There is no key to copy and no key on disk. If the browser flow is unavailable, a paste-a-key fallback is provided.",
   },
   {
     q: "How do updates work?",
-    a: "The app checks our GitHub releases in the background and installs updates in place. You'll see the release notes the first time you open a new version.",
+    a: "The app checks for updates in the background and installs them in place. You'll see the release notes the first time you open a new version.",
   },
   {
     q: "Is my API key safe on my machine?",
-    a: "Yes. The key is stored in your OS keychain and held only in memory while the app runs. Config files and logs only ever see per-send dummy tokens — never your real key.",
+    a: "Yes. The key is stored in your OS keychain and held only in memory while the app runs. Config files and logs only ever see a reference to the environment variable — never the key itself.",
   },
   {
-    q: "When does Frontier (Fable 5.1) unlock?",
-    a: "Frontier is hidden from the model picker for now while we finish Pro-plan metering. It will appear automatically via an app update — no reinstall needed.",
+    q: "I still see the old Zaino AI Agent download. Which one should I use?",
+    a: "OpenCode Desktop is the official client and receives all new features. The legacy Zaino AI Agent build is kept for one release as a fallback and is no longer updated.",
   },
 ];
 
