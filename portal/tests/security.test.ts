@@ -83,25 +83,21 @@ describe('password policy', () => {
  * most expensive possible mistake in this system. Every cut/zero path must
  * resolve to CUT_BUDGET, never 0.
  */
-describe('budget resolution — 0 is unlimited, not deny', () => {
+describe('budget resolution — token budget is effectively unlimited', () => {
   const freePlan = { includedSpendCents: 0, hardCapCents: 0, rateMultiplierBps: 13000 };
   const noCapPlan = { includedSpendCents: 2000, hardCapCents: null, rateMultiplierBps: 13000 };
   const cappedPlan = { includedSpendCents: 18000, hardCapCents: 60000, rateMultiplierBps: 12500 };
 
-  it('never resolves a zero-allowance plan to 0', () => {
-    expect(resolveBudgetUsd(freePlan, 'full')).toBe(CUT_BUDGET);
+  it('never resolves to 0 — the gateway must not deny on a zero allowance', () => {
+    expect(resolveBudgetUsd(freePlan, 'full')).toBeGreaterThan(0);
     expect(resolveBudgetUsd(freePlan, 'cut')).toBe(CUT_BUDGET);
   });
 
-  it('falls back to included spend when there is no hard cap, converted to upstream', () => {
-    // $20 customer at 1.30× = $15.38 upstream. The gateway tracks upstream.
-    expect(resolveBudgetUsd(noCapPlan, 'full')).toBeCloseTo(2000 / 100 / 1.3, 6);
-  });
-
-  it('prefers the hard cap when present, converted to upstream', () => {
-    // $600 customer at 1.25× = $480 upstream. Returning $600 directly
-    // would let the customer spend $750 before the cutoff.
-    expect(resolveBudgetUsd(cappedPlan, 'full')).toBeCloseTo(60000 / 100 / 1.25, 6);
+  it('returns an effectively unlimited budget for every non-cut plan', () => {
+    // The only enforcement is prompt count (desktop app). Token budgets
+    // must never block a request before the prompt limit kicks in.
+    expect(resolveBudgetUsd(noCapPlan, 'full')).toBe(10000.0);
+    expect(resolveBudgetUsd(cappedPlan, 'full')).toBe(10000.0);
   });
 
   it('cuts to CUT_BUDGET regardless of plan', () => {

@@ -203,16 +203,16 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('resolves each alias to its own tier via resolvePrice, longest key first', () => {
-    // `claude-fable-5-1` is its own key so it never collapses into a broader
-    // prefix. LiteLLM reports `openai/claude-fable-5-1` and the upstream
-    // answers `"model":"claude-fable-5-1"` — both must resolve to the same
-    // price row.
-    const prefixed = resolvePrice(priceTable, 'openai/claude-fable-5-1');
-    const bare = resolvePrice(priceTable, 'claude-fable-5-1');
+    // `nemotron-3.5-super-vl-120b-a12b` is its own key so it never collapses
+    // into a broader prefix. LiteLLM reports `openai/nvidia/...` and the
+    // upstream answers with the same model id — both must resolve to the
+    // same price row.
+    const prefixed = resolvePrice(priceTable, 'openai/nvidia/nemotron-3.5-super-vl-120b-a12b');
+    const bare = resolvePrice(priceTable, 'nemotron-3.5-super-vl-120b-a12b');
     expect(prefixed).toBeTruthy();
     expect(bare).toBeTruthy();
-    expect(prefixed).toBe(priceTable['claude-fable-5-1']);
-    expect(bare).toBe(priceTable['claude-fable-5-1']);
+    expect(prefixed).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
+    expect(bare).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
     // The two forms must resolve identically — prefix matching is an alias,
     // not a re-classification.
     expect(prefixed).toBe(bare);

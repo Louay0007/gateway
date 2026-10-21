@@ -108,24 +108,12 @@ export function resolveBudgetUsd(
 ): number {
   if (effect === 'cut') return CUT_BUDGET;
 
-  // All plans: if prompt_limits are configured (migration 0013), the real
-  // enforcement is prompt_count, not dollar budget. Set a high upstream
-  // budget so LiteLLM's max_budget never blocks before the prompt limit
-  // kicks in at the desktop app level.
-  const hasPromptLimits =
-    plan.promptLimits && Object.values(plan.promptLimits).some((v) => typeof v === 'number' && v > 0);
-  if (hasPromptLimits) return 10000.0; // $10,000 upstream — effectively unlimited
-
-  // Fallback: use dollar budget for plans without prompt_limits config.
-  if (plan.planCode === 'trial') {
-    return 10000.0; // $10,000 upstream — effectively unlimited for trials
-  }
-
-  const m = plan.rateMultiplierBps > 0 ? plan.rateMultiplierBps / 10000 : 1;
-  const capCents = plan.hardCapCents ?? plan.includedSpendCents;
-  const usdCustomer = capCents / 100;
-  const usdUpstream = usdCustomer / m;
-  return usdUpstream > 0 ? usdUpstream : CUT_BUDGET;
+  // The only enforcement is prompt count, which the desktop app enforces via
+  // /api/device/usage. Token budgets, spend caps and rpm/tpm are set to
+  // effectively unlimited here so they never block a request before the
+  // prompt limit kicks in. The upstream is (currently) free, so spend is
+  // not the constraint — prompt count is.
+  return 10000.0; // $10,000 upstream — effectively unlimited
 }
 
 /**

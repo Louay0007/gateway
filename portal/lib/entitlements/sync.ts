@@ -238,8 +238,11 @@ export async function syncOrganizationEntitlements(
           models: allowedModels,
           maxBudget: budgetUsd,
           budgetDuration: spec.budgetDuration,
-          rpmLimit: spec.rpm,
-          tpmLimit: spec.tpm,
+          // Only prompt count limits (enforced by the desktop app) gate
+          // usage. Token budgets, rpm and tpm are set to null/unlimited so
+          // LiteLLM never blocks a request before the prompt limit kicks in.
+          rpmLimit: null,
+          tpmLimit: null,
           maxParallelRequests: spec.concurrency,
         });
         keysSynced++;

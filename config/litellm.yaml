@@ -1,60 +1,85 @@
 # ═══════════════════════════════════════════════════════════════════════
 #  LiteLLM gateway configuration
 #
-#  Active deployments:
-#    fast     → GhostCLI claude-sonnet-5   (Responses API)
-#    smart    → GhostCLI claude-opus-5-5   (Responses API)
-#    frontier → GhostCLI claude-fable-5-1  (Pro-only, Responses API)
+#  Active deployment: SINGLE opencode upstream (openai-compatible).
+#  /v1/chat/completions is native; /v1/messages is translated.
+#  Determine upstream wire format with:  ./scripts/probe-upstream.sh
+#  See DESIGN.md §4 for the reasoning behind each choice.
 # ═══════════════════════════════════════════════════════════════════════
 
 model_list:
-  # ── fast: Claude Sonnet 5 via GhostCLI (Responses wire) ──────────────
+  # ════════════════════════════════════════════════════════════════════
+  # THREE ALIASES, ONE UPSTREAM — NVIDIA NIM via integrate.api.nvidia.com
+  # ════════════════════════════════════════════════════════════════════
+  # `fast` / `smart` / `frontier` all route to
+  # nvidia/nemotron-3.5-super-vl-120b-a12b. The catalog keeps three names
+  # while the fleet has one model behind them; restoring real deployments
+  # is a matter of giving each alias its own entry below.
+  #
+  # WHY THE ALIASES STAY SEPARATE even though the model is the same:
+  # customers' plans, keys and ledgers are all expressed in aliases
+  # (plans.models, api_keys.models, usage_records.model). Collapsing to one
+  # name would silently invalidate every Pro plan allowlist and every key
+  # already issued for `smart`. Keeping the aliases keeps those rows true
+  # and makes the swap back to a real fleet a config edit, not a migration.
+  #
+  # Nominal rates are NON-ZERO on purpose: the upstream is free, and a $0
+  # model makes every budget a no-op and hides pipeline bugs. Mirrored in
+  # prices/models.yaml exactly (one table, two consumers — enforced by
+  # portal/tests/pricing-consistency.test.ts).
+  #
+  # NVIDIA NIM is OpenAI-compatible at /v1/chat/completions. It does NOT
+  # serve /v1/messages or /v1/responses, so only chat/completions is
+  # declared on every entry — declaring an endpoint the upstream lacks makes
+  # LiteLLM forward into a 404, which is what kills codex-cli.
+  # LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX must be true because the base URL
+  # already carries /v1.
+  #
+  # Upstream credential lives in .env as UPSTREAM_API_KEY (never committed).
   - model_name: fast
     litellm_params:
-      model: openai/claude-sonnet-5
-      api_base: https://ghostcli.cloud/v1
-      api_key: os.environ/GHOSTCLI_API_KEY
+      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
       num_retries: 6
       cooldown_time: 3
     model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/responses"]
-      input_cost_per_token: 0.000003
-      output_cost_per_token: 0.000015
-      cache_creation_input_token_cost: 0.000006
-      cache_read_input_token_cost: 0.0000003
+      supported_endpoints: ["/v1/chat/completions"]
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      cache_creation_input_token_cost: 0.0000003
+      cache_read_input_token_cost: 0.000000015
 
-  # ── smart: Claude Opus 5.5 via GhostCLI (Responses wire) ─────────────
   - model_name: smart
     litellm_params:
-      model: openai/claude-opus-5-5
-      api_base: https://ghostcli.cloud/v1
-      api_key: os.environ/GHOSTCLI_API_KEY
+      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
       num_retries: 6
       cooldown_time: 3
     model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/responses"]
-      input_cost_per_token: 0.000015
-      output_cost_per_token: 0.000075
-      cache_creation_input_token_cost: 0.00003
-      cache_read_input_token_cost: 0.0000015
+      supported_endpoints: ["/v1/chat/completions"]
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      cache_creation_input_token_cost: 0.0000003
+      cache_read_input_token_cost: 0.000000015
 
-  # ── frontier: Claude Fable 5.1 via GhostCLI (Pro-only) ───────────────
   - model_name: frontier
     litellm_params:
-      model: openai/claude-fable-5-1
-      api_base: https://ghostcli.cloud/v1
-      api_key: os.environ/GHOSTCLI_API_KEY
+      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
       num_retries: 6
       cooldown_time: 3
     model_info:
-      supported_endpoints: ["/v1/chat/completions", "/v1/responses"]
-      input_cost_per_token: 0.00001
-      output_cost_per_token: 0.00005
-      cache_creation_input_token_cost: 0.00002
-      cache_read_input_token_cost: 0.00000025
+      supported_endpoints: ["/v1/chat/completions"]
+      input_cost_per_token: 0.00000015
+      output_cost_per_token: 0.0000006
+      cache_creation_input_token_cost: 0.0000003
+      cache_read_input_token_cost: 0.000000015
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Routing
@@ -78,10 +103,16 @@ router_settings:
 litellm_settings:
   request_timeout: 600
   num_retries: 2
+
+  # Return 429, not 402, on budget exhaustion. Clients retry 429 correctly.
   budget_exceeded_status_code: 429
+
+  # Strip params the upstream rejects instead of failing the request.
   drop_params: true
+
   success_callback: ["prometheus"]
   failure_callback: ["prometheus"]
+
   json_logs: true
 
 # ═══════════════════════════════════════════════════════════════════════
@@ -91,7 +122,13 @@ general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   database_url: os.environ/DATABASE_URL
   store_model_in_db: true
-  store_prompts_in_spend_logs: true
+
+  # PRIVACY: prompt and response content is NOT persisted.
+  store_prompts_in_spend_logs: false
+
   maximum_spend_logs_retention_period: "90d"
 
+# ═══════════════════════════════════════════════════════════════════════
+#  Bootstrap keys
+# ═══════════════════════════════════════════════════════════════════════
 key_list: []
