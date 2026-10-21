@@ -76,6 +76,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <TooltipProvider delay={400}>
       <SidebarProvider>
+        <ShellIdentityProvider>
         <a
           href="#main-content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:shadow-md"
@@ -85,8 +86,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         <AppSidebar isStaff={isStaff} />
         <SidebarInset id="main-content" className="min-w-0">
           <SiteHeader />
-          <ShellIdentityProvider>
-            <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
+          <div className="flex flex-1 flex-col gap-6 p-4 sm:p-6">
               {!verified ? (
                 <div
                   role="status"
@@ -110,8 +110,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               ) : null}
               {children}
             </div>
-          </ShellIdentityProvider>
-        </SidebarInset>
+          </SidebarInset>
+        </ShellIdentityProvider>
       </SidebarProvider>
       <Toaster position="bottom-right" />
     </TooltipProvider>
