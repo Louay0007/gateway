@@ -421,10 +421,23 @@ export interface SpendLogRow {
  * Spend logs for a window. The response shape varies by LiteLLM version
  * (bare array vs {data: []} vs {spend_logs: []}); normalise defensively.
  *
- * DATE FORMAT (verified against v1.103.1): the `/spend/logs/ui` endpoint
- * REJECTS date-only `YYYY-MM-DD` with HTTP 400 — it requires a full
- * `YYYY-MM-DD HH:MM:SS` datetime. Callers pass date-only; expand to the
- * day boundaries here so the caller's simple contract holds.
+ * ENDPOINT (verified against v1.103.1): `/spend/logs` carries the raw
+ * request body in `proxy_server_request`, and `/spend/logs/ui` does not —
+ * its `messages` field is an empty object on every row. The request body is
+ * what the prompt count is derived from (a chat client resends its history,
+ * so the count of NEW user messages is the difference between two
+ * requests), so the collector reads it from here.
+ *
+ * `summarize=false` is REQUIRED: the default is `true`, which returns one
+ * aggregated row per day instead of the individual spend rows.
+ *
+ * DATE FORMAT: plain `YYYY-MM-DD` dates. A datetime fails with "unconverted
+ * data remains" — a 500 that reads like a server error rather than a bad
+ * argument. Callers pass date-only, which this keeps.
+ *
+ * PAGINATION: this endpoint ignores `page`/`page_size` and returns every
+ * row in the window. The window filter is what bounds the work; the
+ * collector also filters by timestamp client-side.
  */
 export async function getSpendLogs(input: {
   startDate: string;   // YYYY-MM-DD
@@ -433,14 +446,13 @@ export async function getSpendLogs(input: {
   pageSize?: number;
 }): Promise<SpendLogRow[]> {
   const q = new URLSearchParams({
-    start_date: `${input.startDate} 00:00:00`,
-    end_date:   `${input.endDate} 23:59:59`,
-    page:       String(input.page ?? 1),
-    page_size:  String(input.pageSize ?? 500),
+    start_date: input.startDate,
+    end_date:   input.endDate,
+    summarize:  'false',
   });
 
   const raw = await call<SpendLogRow[] | { data?: SpendLogRow[]; spend_logs?: SpendLogRow[] }>(
-    `/spend/logs/ui?${q}`,
+    `/spend/logs?${q}`,
   );
 
   if (Array.isArray(raw)) return raw;

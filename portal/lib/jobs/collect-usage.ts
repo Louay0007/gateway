@@ -21,6 +21,7 @@ import { db } from '@/db';
 import { getSpendLogs, extractUsage, statusCodeForRow, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
 import { loadAliasMap, toAlias, aliasForRow, routeForCallType, UNKNOWN_ALIAS, type AliasMap } from '@/lib/pricing/alias';
+import { countPrompts, userMessagesOf } from './prompt-count';
 
 const PRICE_VERSION = '2026-10-15';   // bump when prices/models.yaml changes
 
@@ -59,6 +60,16 @@ export interface CollectResult {
   window: { start: string; end: string };
 }
 
+/**
+ * The user-message count each key carried on its previous request.
+ *
+ * Process-local and rebuilt on every pass: the collector is idempotent, and
+ * the count it derives only needs to compare a request against the one
+ * before it. A restart loses the baseline, and the next request for a key
+ * then counts its whole history — over-counting once, never under-counting.
+ */
+const userMessagesSeen = new Map<string, number>();
+
 export async function collectUsage(opts?: {
   lookbackMinutes?: number;
 }): Promise<CollectResult> {
@@ -83,6 +94,16 @@ export async function collectUsage(opts?: {
 
   const rows = await getSpendLogs({
     startDate, endDate, page: 1, pageSize: 500,
+  });
+
+  // Request order matters: the prompt count of a request is derived by
+  // comparing it against the one before it for the same key, so the rows
+  // have to be walked in the order they were sent.
+  rows.sort((a, b) => {
+    const left = a.startTime ? new Date(a.startTime).getTime() : 0;
+    const right = b.startTime ? new Date(b.startTime).getTime() : 0;
+    if (left !== right) return left - right;
+    return (a.request_id ?? '').localeCompare(b.request_id ?? '');
   });
 
   for (const row of rows) {
@@ -166,32 +187,31 @@ export async function collectUsage(opts?: {
       memberUserId = (found as unknown as { id: string }[])[0]?.id ?? null;
     }
 
-    // Count user messages from the request's messages array when available
-    // (requires store_prompts_in_spend_logs: true in litellm.yaml). This
-    // gives the actual number of user messages sent in the chat, not just
-    // 1 per API call. Falls back to 1 per inference request for rows where
-    // messages are not stored (older logs or non-inference calls).
+    // Count the prompts a request ADDS, not the ones it carries.
+    //
+    // A chat client resends its whole conversation on every turn, so the
+    // request body holds one user message per turn so far. Counting the
+    // messages in the body charges a 3-turn session 1+2+3 = 6 prompts for
+    // 3 prompts sent. The count that matches what a customer experiences is
+    // the number of user messages BEYOND the ones already sent — which is
+    // what the request adds on top of the previous turn.
+    //
+    // `messages_before` is the count the previous request for this key
+    // carried. LiteLLM's spend log does not expose it, so it is tracked
+    // here per key, in request order. A key that has not been seen starts
+    // at 0, which makes its first request count its whole history — the
+    // conservative direction: it can over-count once, never under-count.
+    //
+    // Falls back to 1 per inference request when the messages are not
+    // stored (older rows, or a client that sent none).
     const isInferenceRoute = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat');
     let promptCount = 0;
     if (isInferenceRoute) {
-      // Try to get messages from row.messages first, then from proxy_server_request
-      let messages: Array<{ role?: string }> | null = null;
-      if (Array.isArray(row.messages) && row.messages.length > 0) {
-        messages = row.messages;
-      } else if (row.proxy_server_request) {
-        const psr = typeof row.proxy_server_request === 'string'
-          ? JSON.parse(row.proxy_server_request)
-          : row.proxy_server_request;
-        if (Array.isArray(psr?.messages)) {
-          messages = psr.messages;
-        }
-      }
-      if (messages && messages.length > 0) {
-        const userMsgCount = messages.filter((m) => m?.role === 'user').length;
-        promptCount = userMsgCount > 0 ? userMsgCount : 1;
-      } else {
-        promptCount = 1;
-      }
+      promptCount = countPrompts(
+        { messages: userMessagesOf(row) },
+        row.api_key ?? '',
+        userMessagesSeen,
+      );
     }
 
     const inserted = await db.execute(sql`
