@@ -184,7 +184,7 @@ export function PricingPreview() {
         </div>
 
         <p className="mt-8 text-sm text-gray-600 dark:text-gray-400">
-          Token prices shown are upstream USD rates. Your DT cost is calculated
+          Token prices shown are Zaino official USD rates. Your DT cost is calculated
           at the current D17 exchange rate. Questions?{" "}
           <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-900 dark:hover:text-gray-100">
             Contact us on WhatsApp

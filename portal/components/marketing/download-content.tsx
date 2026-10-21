@@ -548,15 +548,15 @@ export default function DownloadContent() {
           <CardContent className="grid gap-2 text-sm text-gray-700 dark:text-gray-300">
             <p className="flex items-start gap-2">
               <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              Fast — powered by Haiku 5.5 for everyday speed.
+              Fast — Haiku 5.5, served on Zaino official infrastructure.
             </p>
             <p className="flex items-start gap-2">
               <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              Smart — powered by Sonnet 5.5 for hard reasoning.
+              Smart — Sonnet 5.5, served on Zaino official infrastructure.
             </p>
             <p className="flex items-start gap-2">
               <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              Frontier — powered by Opus 5.5, Pro only.
+              Frontier — Opus 5.5 on Zaino official infrastructure, Pro only.
             </p>
             <p className="flex items-start gap-2">
               <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />

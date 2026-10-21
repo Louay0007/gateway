@@ -61,7 +61,7 @@ export function ModelsSection() {
               </div>
 
               <p className="mt-3 text-xs font-medium text-foreground/80">
-                Powered by {t.poweredBy}
+                Served on Zaino official infrastructure · {t.poweredBy}
               </p>
 
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
@@ -123,7 +123,7 @@ export function ModelsSection() {
         })}
       </div>
       <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground">
-        Pricing reflects upstream AiPilot rates for Haiku 5.5, Sonnet 5.5,
+        Pricing reflects Zaino's official rates for Haiku 5.5, Sonnet 5.5,
         and Opus 5.5. Your plan's multiplier (Starter ×1.30, Pro ×1.25)
         applies on top. Cache reads are billed separately at the rates
         shown above.

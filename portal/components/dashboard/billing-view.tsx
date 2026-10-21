@@ -856,7 +856,7 @@ function PlanComparisonTable({
       </CardContent>
       <div className="border-t bg-gray-50/50 dark:bg-gray-800/50 px-4 py-3">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Prompt limits reset each billing period. Token prices shown are upstream USD rates (input / output per million tokens).
+          Prompt limits reset each billing period. Token prices shown are Zaino official USD rates (input / output per million tokens).
           Your DT cost is calculated at the current D17 exchange rate.
         </p>
       </div>
