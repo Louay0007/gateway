@@ -14,7 +14,7 @@ export function MaintenanceBanner({ message }: { message: string }) {
   return (
     <div
       role="status"
-      className="w-full border-b border-amber-500/40 bg-amber-400 px-4 py-1.5 text-center text-sm font-medium text-amber-950"
+      className="w-full border-b border-black/10 bg-white px-4 py-1.5 text-center text-sm font-medium text-black"
     >
       {message}
     </div>
