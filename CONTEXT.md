@@ -301,7 +301,7 @@ runs as a host-network container with `MOCK_HOST=0.0.0.0`.
 ## 9. Client configuration
 
 ```bash
-export ZAINO_API_KEY='zn-hChpvtar5wZ-jXeU7E4XxnKmxsq0f7RQygfToCFYwQU'
+export ZAINO_API_KEY='zn-...'
 codex -c model_provider=zaino -c model=fast
 ```
 

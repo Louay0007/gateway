@@ -4,9 +4,9 @@ import DownloadContent from '@/components/marketing/download-content';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 
 export const metadata: Metadata = {
-  title: 'Download Zaino AI Agent',
+  title: 'Download OpenCode Desktop',
   description:
-    'Native desktop app for macOS, Windows, and Linux. Fast on Sonnet 5, Smart on Opus 5.5 — your gateway models on every machine.',
+    'OpenCode Desktop — the official desktop client for the Zaino Gateway. macOS, Windows, and Linux.',
 };
 
 export default function DownloadPage() {

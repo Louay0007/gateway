@@ -88,6 +88,12 @@ prefixes, with nothing in the logs indicating a problem.
 
 ## Clients
 
+### OpenCode Desktop (official)
+
+Download from the portal download page. Sign in with the browser device flow
+(see docs/device-code-flow.md and docs/opencode-desktop.md) — no key pasting.
+The key lives in the OS keychain; config only carries `{env:ZAINO_API_KEY}`.
+
 ```bash
 # Claude Code  — note ANTHROPIC_API_KEY MUST be empty
 export ANTHROPIC_BASE_URL=https://api.zaino.soon.it

@@ -308,7 +308,7 @@ export default function DownloadContent() {
           v{PINNED_VERSION} · now available
         </Badge>
         <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 md:text-5xl">
-          Zaino AI Agent for desktop
+          OpenCode Desktop
         </h1>
         <p className="mx-auto mt-4 max-w-xl text-base text-gray-600 dark:text-gray-400">
           Fast on Sonnet 5, Smart on Opus 5.5 — your gateway models in a

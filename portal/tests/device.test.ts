@@ -346,7 +346,7 @@ describe('approveDeviceCode', () => {
     // One device key was minted and registered as kind='device'.
     expect(keys.self.rows).toHaveLength(1);
     expect(keys.self.rows[0]!.kind).toBe('device');
-    expect(keys.self.rows[0]!.name).toBe('Zaino Desktop');
+    expect(keys.self.rows[0]!.name).toBe('OpenCode Desktop');
     // The held plaintext is the minted customer key, not the gateway form.
     const held = device.rows[0]!.keyPlaintext;
     expect(held).toMatch(/^zn-/);
@@ -444,7 +444,7 @@ describe('approveDeviceCode', () => {
       id: 'key-old',
       organizationId: 'org-1',
       createdBy: 'user-1',
-      name: 'Zaino Desktop',
+      name: 'OpenCode Desktop',
       keyPrefix: 'zn-old',
       keyHash: 'hash-old',
       litellmKeyName: 'mask-old',

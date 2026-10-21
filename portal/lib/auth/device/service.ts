@@ -36,7 +36,7 @@ import { isCodeExpired, issueDeviceCode } from '@/lib/auth/device/policy';
 import type { KeyGateway } from '@/lib/keys/types';
 import type { OrgRole } from '@/db/schema';
 
-export const DEVICE_KEY_NAME = 'Zaino Desktop';
+export const DEVICE_KEY_NAME = 'OpenCode Desktop';
 export const DEVICE_KEY_TTL_DAYS = 30;
 
 function parseExpires(value: string | null): Date | null {
