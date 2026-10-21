@@ -19,9 +19,9 @@ const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent
  * Per-model token pricing from prices/models.yaml.
  */
 const MODEL_PRICES: Record<string, { input: number; output: number; label: string }> = {
-  "claude-sonnet-5": { input: 3.0, output: 15.0, label: "Fast (Sonnet 5)" },
-  "claude-opus-5-5": { input: 15.0, output: 75.0, label: "Smart (Opus 5.5)" },
-  "nemotron-3.5-super-vl-120b-a12b": { input: 0.15, output: 0.6, label: "Frontier (Nemotron)" },
+  fast: { input: 1.00, output: 5.00, label: "Fast (Haiku 5.5)" },
+  smart: { input: 3.00, output: 15.00, label: "Smart (Sonnet 5.5)" },
+  frontier: { input: 15.00, output: 75.00, label: "Frontier (Opus 5.5)" },
 };
 
 function usdPerMtok(usd: number): string {

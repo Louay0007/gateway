@@ -598,12 +598,8 @@ async function main(): Promise<void> {
   // "representative" per tier is what broke this before: a model moving
   // tiers left the probe pointing at the old row, and the increasing-order
   // check silently compared fast against fast and passed. So assert on all
-  // eleven, then take the tier representatives explicitly.
-  const deployedModels = [
-    'nemotron-3.5-lightning', 'space-bunny', 'cat-jam', 'deepseek-v4.1-flash',
-    'longcat-2.5-preview', 'mimo-v2.6', 'mimo-v2.6-flash', 'big-pickle',
-    'grok-4.6-liberated', 'muse-spark-1.3-contributor', 'muse-spark-1.2-contributor',
-  ];
+  // three, then take the tier representatives explicitly.
+  const deployedModels = ['haiku-5.5', 'sonnet-5.5', 'opus-5.5'];
 
   const unpriced = deployedModels.filter((m) => !resolvePrice(priceTable, `openai/${m}`));
   check(
@@ -614,14 +610,14 @@ async function main(): Promise<void> {
 
   // The model string LiteLLM actually reports for the `fast` alias. Kept in
   // sync with config/litellm.yaml; resolvePrice strips the provider prefix.
-  const price = resolvePrice(priceTable, 'openai/nemotron-3.5-lightning');
-  check('price table resolves the served model', Boolean(price), 'nemotron-3.5-lightning not in prices/models.yaml');
+  const price = resolvePrice(priceTable, 'openai/haiku-5.5');
+  check('price table resolves the served model', Boolean(price), 'haiku-5.5 not in prices/models.yaml');
 
   const tierRates: Record<string, number> = {};
   for (const [alias, probe] of [
-    ['fast', 'openai/nemotron-3.5-lightning'],
-    ['smart', 'openai/longcat-2.5-preview'],
-    ['frontier', 'openai/grok-4.6-liberated'],
+    ['fast', 'openai/haiku-5.5'],
+    ['smart', 'openai/sonnet-5.5'],
+    ['frontier', 'openai/opus-5.5'],
   ] as const) {
     const p = resolvePrice(priceTable, probe);
     check(`price table resolves the \`${alias}\` alias`, Boolean(p), `${probe} not in prices/models.yaml`);

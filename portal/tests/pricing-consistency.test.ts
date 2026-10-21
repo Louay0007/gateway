@@ -35,7 +35,7 @@ function stripComments(yaml: string): string[] {
     .filter((l) => l.trim().length > 0);
 }
 
-/** The bare model id: `openai/nvidia/nemotron-3.5-super-vl-120b-a12b` -> `nemotron-3.5-super-vl-120b-a12b`. */
+/** The bare model id: `aipilot/haiku-5.5` -> `haiku-5.5`. `custom_llm_provider: openai`\n * makes the request OpenAI-compatible while the first segment tracks the actual upstream. */
 function bareModel(openaiId: string): string {
   return openaiId.split('/').pop()!;
 }
@@ -181,7 +181,7 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   it('parses every deployment out of litellm.yaml (the test is not vacuous)', () => {
     expect(deployments.length).toBeGreaterThanOrEqual(1);
     for (const d of deployments) {
-      expect(d.model, `deployment "${d.alias}" has no model`).toMatch(/^openai\/.+/);
+      expect(d.model, `deployment "${d.alias}" has no model`).toMatch(/^[a-z0-9_-]+\/.+/);
     }
   });
 
@@ -203,16 +203,15 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('resolves each alias to its own tier via resolvePrice, longest key first', () => {
-    // `nemotron-3.5-super-vl-120b-a12b` is its own key so it never collapses
-    // into a broader prefix. LiteLLM reports `openai/nvidia/...` and the
-    // upstream answers with the same model id — both must resolve to the
-    // same price row.
-    const prefixed = resolvePrice(priceTable, 'openai/nvidia/nemotron-3.5-super-vl-120b-a12b');
-    const bare = resolvePrice(priceTable, 'nemotron-3.5-super-vl-120b-a12b');
+    // `haiku-5.5` is its own key so it never collapses into a broader
+    // prefix. LiteLLM reports `openai/haiku-5.5` and the upstream answers
+    // with the same model id — both must resolve to the same price row.
+    const prefixed = resolvePrice(priceTable, 'openai/haiku-5.5');
+    const bare = resolvePrice(priceTable, 'haiku-5.5');
     expect(prefixed).toBeTruthy();
     expect(bare).toBeTruthy();
-    expect(prefixed).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
-    expect(bare).toBe(priceTable['nemotron-3.5-super-vl-120b-a12b']);
+    expect(prefixed).toBe(priceTable['haiku-5.5']);
+    expect(bare).toBe(priceTable['haiku-5.5']);
     // The two forms must resolve identically — prefix matching is an alias,
     // not a re-classification.
     expect(prefixed).toBe(bare);

@@ -59,9 +59,9 @@ import { cn } from "@/lib/utils";
  * Mirrored for the client component since we cannot read YAML at runtime.
  */
 const MODEL_PRICES: Record<string, { input: number; output: number; label: string }> = {
-  "claude-sonnet-5": { input: 3.0, output: 15.0, label: "Fast (Sonnet 5)" },
-  "claude-opus-5-5": { input: 15.0, output: 75.0, label: "Smart (Opus 5.5)" },
-  "nemotron-3.5-super-vl-120b-a12b": { input: 0.15, output: 0.6, label: "Frontier (Nemotron)" },
+  fast: { input: 1.00, output: 5.00, label: "Fast (Haiku 5.5)" },
+  smart: { input: 3.00, output: 15.00, label: "Smart (Sonnet 5.5)" },
+  frontier: { input: 15.00, output: 75.00, label: "Frontier (Opus 5.5)" },
 };
 
 function usdPerMtok(usd: number): string {
@@ -713,11 +713,11 @@ function PlanComparisonTable({
 
   const features = [
     { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => centsDt(p.priceCents) },
-    { key: "fast", label: "Fast prompts (Sonnet 5)", getValue: (p: typeof plans[0]) => {
+    { key: "fast", label: "Fast prompts (Haiku 5.5)", getValue: (p: typeof plans[0]) => {
       const limit = (p.promptLimits as Record<string, number>)?.fast;
       return limit ? `${limit.toLocaleString()} / period` : "—";
     }},
-    { key: "smart", label: "Smart prompts (Opus 5.5)", getValue: (p: typeof plans[0]) => {
+    { key: "smart", label: "Smart prompts (Sonnet 5.5)", getValue: (p: typeof plans[0]) => {
       const limit = (p.promptLimits as Record<string, number>)?.smart;
       return limit ? `${limit.toLocaleString()} / period` : "—";
     }},

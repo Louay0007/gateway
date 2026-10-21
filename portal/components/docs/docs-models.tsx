@@ -123,8 +123,8 @@ export function ModelsSection() {
         })}
       </div>
       <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground">
-        Pricing reflects upstream Anthropic rates for Claude Sonnet 5, Opus 5.5,
-        and Fable 5.1. Your plan's multiplier (Starter ×1.30, Pro ×1.25)
+        Pricing reflects upstream AiPilot rates for Haiku 5.5, Sonnet 5.5,
+        and Opus 5.5. Your plan's multiplier (Starter ×1.30, Pro ×1.25)
         applies on top. Cache reads are billed separately at the rates
         shown above.
       </p>

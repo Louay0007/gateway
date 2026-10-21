@@ -2,9 +2,11 @@
 # pricing page. Do NOT hardcode values from documentation examples.
 #
 # ── CURRENT UPSTREAMS ─────────────────────────────────────────────────
-# fast/smart/frontier → NVIDIA NIM nemotron-3.5-super-vl-120b-a12b
-# All three tiers route through the NVIDIA upstream; UPSTREAM_* vars in
-# .env point at integrate.api.nvidia.com/v1.
+# fast/smart/frontier → AiPilot (aipilot-weld.vercel.app/v1)
+#   fast     → haiku-5.5
+#   smart    → sonnet-5.5
+#   frontier → opus-5.5
+# UPSTREAM_* vars in .env point at aipilot-weld.vercel.app/v1.
 #
 # Mirrored per-token in config/litellm.yaml's model_info — ONE table, TWO
 # consumers (portal resolvePrice + scripts/reconcile.sh). tests/
@@ -12,19 +14,49 @@
 #
 # Tier membership is by MEASURED latency, not quality — see HANDOFF.md
 # §5.25 before reading any alias as "the best model".
+#
+# AiPilot publishes no per-token pricing of its own, so these are the
+# Claude-equivalent list rates for the model each tier serves. They are
+# placeholders until a real invoice arrives; replace them then, in BOTH
+# files, in one commit.
 
 models:
-  # ── All three tiers: NVIDIA NIM nemotron-3.5-super-vl-120b-a12b ──
-  nemotron-3.5-super-vl-120b-a12b:
-    input_per_mtok:          0.15
-    cache_write_5m_per_mtok: 0.30
+  haiku-5.5:
+    input_per_mtok:          1.00
+    cache_write_5m_per_mtok: 2.00
     cache_write_5m_note:     2.0x input
-    cache_write_1h_per_mtok: 0.30
+    cache_write_1h_per_mtok: 2.00
     cache_write_1h_note:    2.0x input
-    cache_read_per_mtok:    0.015
+    cache_read_per_mtok:    0.10
     cache_read_note:        0.10x input
-    output_per_mtok:        0.60
+    output_per_mtok:        5.00
+
+  sonnet-5.5:
+    input_per_mtok:          3.00
+    cache_write_5m_per_mtok: 6.00
+    cache_write_5m_note:     2.0x input
+    cache_write_1h_per_mtok: 6.00
+    cache_write_1h_note:    2.0x input
+    cache_read_per_mtok:    0.30
+    cache_read_note:        0.10x input
+    output_per_mtok:        15.00
+
+  opus-5.5:
+    input_per_mtok:          15.00
+    cache_write_5m_per_mtok: 30.00
+    cache_write_5m_note:     2.0x input
+    cache_write_1h_per_mtok: 30.00
+    cache_write_1h_note:    2.0x input
+    cache_read_per_mtok:    1.50
+    cache_read_note:        0.10x input
+    output_per_mtok:        75.00
 
 # ── Alias registry ──────────────────────────────────────────────────
+# Upstream model → customer-facing alias. The collector resolves the
+# gateway's `model`/`model_group` through this map before writing a ledger
+# row, so an unmapped model becomes `unknown` and fails the suite rather
+# than leaking an upstream name onto a customer dashboard.
 aliases:
-  nemotron-3.5-super-vl-120b-a12b:    fast
+  haiku-5.5:    fast
+  sonnet-5.5:   smart
+  opus-5.5:     frontier

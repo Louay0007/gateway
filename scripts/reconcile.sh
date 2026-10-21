@@ -97,9 +97,9 @@ missing_ttl_split = 0
 # config/litellm.yaml) — so which deployment actually served a request cannot
 # change the money. Keep that invariant, or this becomes an under-count.
 ALIAS = {
-    "fast": "nemotron-3.5-super-vl-120b-a12b",
-    "smart": "nemotron-3.5-super-vl-120b-a12b",
-    "frontier": "nemotron-3.5-super-vl-120b-a12b",
+    "fast": "haiku-5.5",
+    "smart": "sonnet-5.5",
+    "frontier": "opus-5.5",
 }
 
 def usage_of(r):

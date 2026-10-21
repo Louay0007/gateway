@@ -31,9 +31,9 @@ const faqItems: FaqItem[] = [
       'Yes. Zaino AI operates under a formal cloud provider agreement with Anthropic. We are not a reseller or proxy — we are a licensed infrastructure partner that provisions dedicated Claude API capacity. This means you get the same models, same safety standards, and same reliability as direct Anthropic customers, with localized billing and support.',
   },
   {
-    question: 'Which Claude models are available?',
+    question: 'Which models are available?',
     answer:
-      'Availability depends on your plan. Starter includes Sonnet 5 and Opus 5.5. Pro adds higher request quotas. Enterprise provides unlimited access to all current models including Sonnet 5, Opus 5.5, Fable 5.1, and GPT-6 Astra, plus early access to new model releases.',
+      'Availability depends on your plan. Starter includes Haiku 5.5 and Sonnet 5.5. Pro adds Opus 5.5 and higher request quotas. Enterprise provides unlimited access to all current models plus early access to new model releases.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',

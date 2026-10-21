@@ -38,7 +38,7 @@ model_list:
   # Upstream credential lives in .env as UPSTREAM_API_KEY (never committed).
   - model_name: fast
     litellm_params:
-      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
+      model: openai/haiku-5.5
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
@@ -46,16 +46,14 @@ model_list:
       cooldown_time: 3
     model_info:
       supported_endpoints: ["/v1/chat/completions"]
-      input_cost_per_token: 0.00000015
-      output_cost_per_token: 0.0000006
-      cache_creation_input_token_cost: 0.0000003
-      cache_read_input_token_cost: 0.000000015
-      max_input_tokens: 1048576
-      max_output_tokens: 65536
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.000005
+      cache_creation_input_token_cost: 0.000002
+      cache_read_input_token_cost: 0.0000001
 
   - model_name: smart
     litellm_params:
-      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
+      model: openai/sonnet-5.5
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
@@ -63,16 +61,14 @@ model_list:
       cooldown_time: 3
     model_info:
       supported_endpoints: ["/v1/chat/completions"]
-      input_cost_per_token: 0.00000015
-      output_cost_per_token: 0.0000006
-      cache_creation_input_token_cost: 0.0000003
-      cache_read_input_token_cost: 0.000000015
-      max_input_tokens: 1048576
-      max_output_tokens: 65536
+      input_cost_per_token: 0.000003
+      output_cost_per_token: 0.000015
+      cache_creation_input_token_cost: 0.000006
+      cache_read_input_token_cost: 0.0000003
 
   - model_name: frontier
     litellm_params:
-      model: openai/nvidia/nemotron-3.5-super-vl-120b-a12b
+      model: openai/opus-5.5
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
       timeout: 240
@@ -80,12 +76,10 @@ model_list:
       cooldown_time: 3
     model_info:
       supported_endpoints: ["/v1/chat/completions"]
-      input_cost_per_token: 0.00000015
-      output_cost_per_token: 0.0000006
-      cache_creation_input_token_cost: 0.0000003
-      cache_read_input_token_cost: 0.000000015
-      max_input_tokens: 1048576
-      max_output_tokens: 65536
+      input_cost_per_token: 0.000015
+      output_cost_per_token: 0.000075
+      cache_creation_input_token_cost: 0.00003
+      cache_read_input_token_cost: 0.0000015
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Routing
