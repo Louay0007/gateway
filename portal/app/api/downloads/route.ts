@@ -12,45 +12,58 @@
  * are skipped, never served — the allowlist below is the serving policy.
  */
 
-import { readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { readdir, stat } from "node:fs/promises";
+import { join } from "node:path";
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR || '/app/data/downloads';
-const CURRENT_VERSION = '1.0.1';
+const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR || "/app/data/downloads";
+const CURRENT_VERSION = "1.1.5";
 
 interface DownloadFile {
   name: string;
   url: string;
   size: number;
-  os: 'macos' | 'windows' | 'linux';
+  os: "macos" | "windows" | "linux";
   arch: string;
   label: string;
 }
 
-function classify(name: string): Omit<DownloadFile, 'name' | 'url' | 'size'> | null {
+function classify(name: string): Omit<DownloadFile, "name" | "url" | "size"> | null {
   const lower = name.toLowerCase();
-  if (lower.endsWith('.dmg')) {
-    const arch = /aarch64|arm64/.test(lower) ? 'arm64' : 'x64';
+  // macOS: zaino-desktop-mac-arm64.dmg / zaino-desktop-mac-x64.dmg
+  if (lower.endsWith(".dmg")) {
+    const arch = /arm64|aarch64/.test(lower) ? "arm64" : "x64";
     return {
-      os: 'macos',
+      os: "macos",
       arch,
-      label: arch === 'arm64' ? 'Apple Silicon' : 'Intel',
+      label: arch === "arm64" ? "Apple Silicon" : "Intel",
     };
   }
-  if (lower.endsWith('-setup.exe')) {
-    return { os: 'windows', arch: 'x64', label: 'Windows 10+' };
+  // Windows: zaino-desktop-win-x64.exe / zaino-desktop-win-arm64.exe
+  if (lower.endsWith(".exe")) {
+    const arch = /arm64|aarch64/.test(lower) ? "arm64" : "x64";
+    return {
+      os: "windows",
+      arch,
+      label: arch === "arm64" ? "Windows ARM64" : "Windows 10+",
+    };
   }
-  if (lower.endsWith('.appimage')) {
-    return { os: 'linux', arch: 'x64', label: 'AppImage' };
+  // Linux AppImage: zaino-desktop-linux-x86_64.AppImage / zaino-desktop-linux-arm64.AppImage
+  if (lower.endsWith(".appimage")) {
+    const arch = /arm64|aarch64/.test(lower) ? "arm64" : "x64";
+    return { os: "linux", arch, label: "AppImage" };
   }
-  if (lower.endsWith('.deb')) {
-    return { os: 'linux', arch: 'x64', label: '.deb' };
+  // Linux .deb: zaino-desktop-linux-amd64.deb / zaino-desktop-linux-arm64.deb
+  if (lower.endsWith(".deb")) {
+    const arch = /arm64|aarch64/.test(lower) ? "arm64" : "x64";
+    return { os: "linux", arch, label: ".deb" };
   }
-  if (lower.endsWith('.rpm')) {
-    return { os: 'linux', arch: 'x64', label: '.rpm' };
+  // Linux .rpm: zaino-desktop-linux-x86_64.rpm / zaino-desktop-linux-aarch64.rpm
+  if (lower.endsWith(".rpm")) {
+    const arch = /arm64|aarch64/.test(lower) ? "arm64" : "x64";
+    return { os: "linux", arch, label: ".rpm" };
   }
   return null;
 }
@@ -62,7 +75,7 @@ export async function GET(): Promise<Response> {
     const entries = await readdir(dir);
     for (const name of entries) {
       // Dotfiles, signatures, and anything unclassified are never listed.
-      if (name.startsWith('.') || name.endsWith('.sig')) continue;
+      if (name.startsWith(".") || name.endsWith(".sig")) continue;
       const meta = classify(name);
       if (!meta) continue;
       try {
@@ -84,6 +97,6 @@ export async function GET(): Promise<Response> {
 
   return Response.json(
     { version: CURRENT_VERSION, files },
-    { headers: { 'Cache-Control': 'public, max-age=300' } },
+    { headers: { "Cache-Control": "public, max-age=300" } },
   );
 }

@@ -38,20 +38,20 @@ import { cn } from "@/lib/utils";
  *   3. 3-step setup, system requirements, short FAQ.
  *
  * Asset resolution is three-layered, in order:
- *   1. SELF-HOSTED (/api/downloads → /downloads/v1.0.1/* on this host):
+ *   1. SELF-HOSTED (/api/downloads → /downloads/v1.1.5/* on this host):
  *      direct VPS downloads, no GitHub in the path. Preferred — this is
  *      what every button uses once files are published here.
- *   2. GITHUB RELEASE (pinned v1.0.1 URLs + live Releases API match):
+ *   2. GITHUB RELEASE (pinned v1.1.5 URLs + live Releases API match):
  *      fallback while the self-hosted mirror fills up, and the permanent
  *      fallback for files never mirrored here. If the release isn't
  *      published yet the page says so instead of serving 404s.
  */
 
-// The desktop app below is the Zaino AI Agent — powered by OpenCode
-// (upstream releases at sst/opencode), pointed at the Zaino gateway (see
-// docs/opencode-desktop.md). Until the portal hosts its own signed build,
-// every button resolves against the upstream release.
-const REPO = "sst/opencode";
+// The desktop app below is the Zaino AI Agent — standalone desktop client
+// (releases at Louay0007/zaino-desktop), pointed at the Zaino gateway.
+// Every button resolves against the self-hosted mirror first,
+// with the GitHub release as fallback.
+const REPO = "Louay0007/zaino-desktop";
 const RELEASE_PAGE = `https://github.com/${REPO}/releases/latest`;
 
 type OsId = "macos" | "windows" | "linux" | null;
@@ -88,16 +88,16 @@ const PLATFORMS: Platform[] = [
         label: "Apple Silicon",
         hint: "M1, M2, M3, M4 · arm64",
         wants: { os: "macos", arch: "arm64", label: "Apple Silicon" },
-        fallbackHref: null,
-        match: (n) => n === "opencode-desktop-mac-arm64.dmg",
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-mac-arm64.dmg",
+        match: (n) => n === "zaino-desktop-mac-arm64.dmg",
       },
       {
         id: "mac-x64",
         label: "Intel",
         hint: "Intel Macs · x64",
         wants: { os: "macos", arch: "x64", label: "Intel" },
-        fallbackHref: null,
-        match: (n) => n === "opencode-desktop-mac-x64.dmg",
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-mac-x64.dmg",
+        match: (n) => n === "zaino-desktop-mac-x64.dmg",
       },
     ],
   },
@@ -112,8 +112,16 @@ const PLATFORMS: Platform[] = [
         label: "Windows 10+",
         hint: "x64 · .exe",
         wants: { os: "windows", arch: "x64", label: "Windows 10+" },
-        fallbackHref: null,
-        match: (n) => n === "opencode-desktop-win-x64.exe",
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-win-x64.exe",
+        match: (n) => n === "zaino-desktop-win-x64.exe",
+      },
+      {
+        id: "win-arm64",
+        label: "Windows ARM64",
+        hint: "Snapdragon / ARM · .exe",
+        wants: { os: "windows", arch: "arm64", label: "Windows ARM64" },
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-win-arm64.exe",
+        match: (n) => n === "zaino-desktop-win-arm64.exe",
       },
     ],
   },
@@ -128,24 +136,32 @@ const PLATFORMS: Platform[] = [
         label: "AppImage",
         hint: "Runs anywhere · x86_64",
         wants: { os: "linux", arch: "x64", label: "AppImage" },
-        fallbackHref: null,
-        match: (n) => n.endsWith(".AppImage") && !n.endsWith(".sig"),
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-linux-x86_64.AppImage",
+        match: (n) => n.toLowerCase().endsWith(".appimage") && !n.endsWith(".sig"),
       },
       {
         id: "linux-deb",
         label: ".deb",
         hint: "Debian · Ubuntu",
         wants: { os: "linux", arch: "x64", label: ".deb" },
-        fallbackHref: null,
-        match: (n) => n === "opencode-desktop-linux-amd64.deb",
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-linux-amd64.deb",
+        match: (n) => n === "zaino-desktop-linux-amd64.deb",
       },
       {
         id: "linux-rpm",
         label: ".rpm",
         hint: "Fedora · RHEL",
         wants: { os: "linux", arch: "x64", label: ".rpm" },
-        fallbackHref: null,
-        match: (n) => n.endsWith(".rpm") && !n.endsWith(".sig"),
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-linux-x86_64.rpm",
+        match: (n) => n.toLowerCase().endsWith(".rpm") && !/arm64|aarch64/.test(n.toLowerCase()),
+      },
+      {
+        id: "linux-arm64",
+        label: "Linux ARM64",
+        hint: "AppImage · .deb · .rpm",
+        wants: { os: "linux", arch: "arm64", label: "AppImage" },
+        fallbackHref: "https://github.com/Louay0007/zaino-desktop/releases/download/v1.1.5/zaino-desktop-linux-arm64.AppImage",
+        match: (n) => /arm64|aarch64/.test(n.toLowerCase()) && (n.toLowerCase().endsWith(".appimage") || n.toLowerCase().endsWith(".deb") || n.toLowerCase().endsWith(".rpm")),
       },
     ],
   },
@@ -204,9 +220,9 @@ const STEPS = [
 ];
 
 const REQUIREMENTS: { os: string; detail: string }[] = [
-  { os: "macOS", detail: "macOS 12 Monterey or later · Apple Silicon (Intel coming soon)" },
-  { os: "Windows", detail: "Windows 10 1809 or later · x64 · WebView2 embedded" },
-  { os: "Linux", detail: "Ubuntu 24.04+ / Debian 12+ for .deb · FUSE for AppImage" },
+  { os: "macOS", detail: "macOS 12 Monterey or later · Apple Silicon and Intel" },
+  { os: "Windows", detail: "Windows 10 1809 or later · x64 and ARM64 · WebView2 embedded" },
+  { os: "Linux", detail: "Ubuntu 24.04+ / Debian 12+ for .deb · FUSE for AppImage · x86_64 and ARM64" },
 ];
 
 const FAQS: { q: string; a: string }[] = [
@@ -255,7 +271,7 @@ export default function DownloadContent() {
       .catch(() => {
         /* GitHub fallback below still works without the mirror */
       });
-    // Layer 2: the upstream OpenCode release. `latest` moves on every
+    // Layer 2: our standalone desktop release. `latest` moves on every
     // release, and the asset names below are stable across releases.
     fetch(`https://api.github.com/repos/${REPO}/releases/latest`)
       .then((r) => {

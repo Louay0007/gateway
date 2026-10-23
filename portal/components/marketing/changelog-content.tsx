@@ -21,6 +21,31 @@ interface ChangelogEntry {
 
 const entries: ChangelogEntry[] = [
   {
+    version: 'v1.1.5',
+    date: 'Oct 22, 2026',
+    title: 'Standalone Desktop Beta — macOS, Windows & Linux',
+    description:
+      'The Zaino AI Agent ships as its own standalone desktop client for the first time: native installers for macOS (Apple Silicon + Intel), Windows (x64 + ARM64) and Linux (AppImage, .deb, .rpm on x86_64 + ARM64), with in-app auto-updates from our official GitHub releases. Download it directly from our server on the download page — no account needed.',
+    details: [
+      {
+        heading: 'Standalone client, own releases',
+        body: 'The desktop app is now built and published from its own repository (Louay0007/zaino-desktop) instead of riding upstream builds. Every installer bundles its matching sidecar CLI, so the engine and the window always agree. Installers are mirrored on our server under /downloads/v1.1.5 and stay available even if GitHub is slow.',
+      },
+      {
+        heading: 'Every platform, both architectures',
+        body: 'macOS ships Apple Silicon and Intel DMGs. Windows ships x64 and ARM64 installers with WebView2 embedded. Linux ships AppImage, .deb and .rpm for x86_64 and ARM64. System requirements on the download page now list both architectures per OS.',
+      },
+      {
+        heading: 'In-app auto-updates',
+        body: 'The Beta checks our GitHub release feed in the background and installs updates in place. You see the release notes the first time you open a new version — nothing to reinstall, ever.',
+      },
+      {
+        heading: 'Sign in with Zaino',
+        body: 'First launch opens your browser to approve the device — no key to copy. The key it receives lives in your OS keychain, never on disk. Only the models your plan allows appear in the picker: Fast and Smart on Starter, plus Frontier on Pro.',
+      },
+    ],
+  },
+  {
     version: 'v1.2.0',
     date: 'Oct 22, 2026',
     title: 'Pro Refocus — 1,000 Smart + 500 Frontier',
