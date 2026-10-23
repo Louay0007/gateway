@@ -8,8 +8,8 @@
  * accounts are burning money on `frontier`?" had no route in the entire
  * product. This is that route.
  *
- * Ordered by customer revenue, not request count. An org making 10,000
- * cheap requests is less interesting than one making 200 expensive ones,
+ * Ordered by customer revenue, not call count. An org making 10,000
+ * cheap calls is less interesting than one making 200 expensive ones,
  * and only a revenue sort surfaces that.
  *
  * `model` filters by ALIAS, never a raw upstream model name. That is not

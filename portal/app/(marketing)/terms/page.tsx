@@ -43,9 +43,9 @@ export default function TermsPage() {
 
             <Section title="3. Spend ceilings and billing">
               <p>
-                Every key has a hard spend ceiling enforced at the gateway. When the ceiling is
-                reached, further requests return 429 until the next billing cycle or until you
-                raise the ceiling. Usage is billed monthly in US dollars; Tunisian accounts may
+                Every plan has a prompt quota per model tier enforced at the gateway. When the quota is
+                reached, further inference calls return 403 until the next billing period or until you
+                upgrade. Usage is billed monthly in US dollars; Tunisian accounts may
                 pay via D17 transfer at La Poste at the published rate. Usage is non-refundable
                 once consumed.
               </p>

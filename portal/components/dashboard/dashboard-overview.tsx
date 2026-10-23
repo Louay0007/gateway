@@ -108,9 +108,9 @@ export function DashboardOverview() {
           icon={Wallet}
         />
         <StatCard
-          label="Requests"
-          value={b.usage.requests.toLocaleString()}
-          hint="This billing period"
+          label="Prompts"
+          value={(b.usage.prompts ?? 0).toLocaleString()}
+          hint="1 user message = 1 prompt · this period"
           icon={ClipboardList}
         />
         <StatCard
@@ -139,7 +139,7 @@ export function DashboardOverview() {
           keys={keys}
           planName={plan?.name ?? "your plan"}
           maxKeys={plan?.maxKeys ?? keys.length}
-          requestsThisPeriod={b.usage.requests}
+          promptsThisPeriod={b.usage.prompts ?? 0}
         />
         <RecentActivity rows={recent.data?.rows ?? []} keys={keys} />
       </div>

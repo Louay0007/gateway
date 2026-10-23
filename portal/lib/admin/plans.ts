@@ -198,6 +198,26 @@ function validatePlan(input: PlanInput): { ok: true; value: PlanInput } | { ok: 
       return { ok: false, message: `"${m}" is not a valid model alias.` };
     }
   }
+  // Prompt limits: keys must be known aliases (or at least well-formed),
+  // values non-negative integers. An alias with no entry = 0 (deny), so a
+  // plan that grants a model without a limit withholds it — fail loudly.
+  if (input.promptLimits != null) {
+    if (typeof input.promptLimits !== 'object' || Array.isArray(input.promptLimits)) {
+      return { ok: false, message: 'Prompt limits must be an object like {"fast": 500}.' };
+    }
+    for (const [k, v] of Object.entries(input.promptLimits)) {
+      if (!/^[a-z0-9][a-z0-9.-]{0,63}$/.test(k)) {
+        return { ok: false, message: `"${k}" is not a valid model alias.` };
+      }
+      if (!Number.isInteger(v) || (v as number) < 0) {
+        return { ok: false, message: `Prompt limit for "${k}" must be a whole number, zero or more.` };
+      }
+    }
+    const missing = input.models.filter((m) => (input.promptLimits as Record<string, number>)[m] == null);
+    if (missing.length > 0) {
+      return { ok: false, message: `Models without a prompt limit are denied: ${missing.join(', ')}. Add limits or remove the models.` };
+    }
+  }
   return { ok: true, value: input };
 }
 

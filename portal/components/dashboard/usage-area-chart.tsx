@@ -22,11 +22,13 @@ import {
 import type { UsageSeriesPoint } from "@/lib/api/types";
 
 /**
- * UsageAreaChart — requests and tokens over time, from a REAL series.
+ * UsageAreaChart — prompts, requests and tokens over time, from a REAL series.
  *
- * Two series separated by FORM, not luminance: requests is a dashed stroke
- * with no fill, tokens is a filled gradient area. That survives both themes
- * and colour blindness, which a hue difference does not.
+ * Three series separated by FORM, not luminance: prompts is the primary
+ * dashed stroke (counted quota: 200s on inference routes), requests is a
+ * fainter dashed stroke (every gateway call, incl. failures), tokens is a
+ * filled gradient area. That survives both themes and colour blindness,
+ * which a hue difference does not.
  *
  * IT NO LONGER BUCKETS ANYTHING. The previous version received one page of
  * ledger rows (25), grouped them by day in the browser, and printed that
@@ -57,6 +59,7 @@ export function UsageAreaChart({
       points.map((p) => ({
         date: p.bucket,
         requests: p.requests,
+        prompts: p.prompts ?? 0,
         tokens: p.inputTokens + p.outputTokens,
       })),
     [points],
@@ -65,7 +68,8 @@ export function UsageAreaChart({
   // chart-2/chart-3 sit mid-scale in both themes; chart-1 (87% lightness)
   // disappears on white.
   const chartConfig = {
-    requests: { label: "Requests", color: "var(--chart-3)" },
+    prompts: { label: "Prompts", color: "var(--chart-3)" },
+    requests: { label: "Requests", color: "var(--chart-4)" },
     tokens: { label: "Tokens", color: "var(--chart-2)" },
   } satisfies ChartConfig;
 
@@ -84,7 +88,7 @@ export function UsageAreaChart({
 
   // A series of all zeros is honest but not useful to plot — show the empty
   // state instead, while still naming the window that was checked.
-  const allZero = data.every((d) => d.requests === 0 && d.tokens === 0);
+  const allZero = data.every((d) => d.prompts === 0 && d.requests === 0 && d.tokens === 0);
 
   return (
     <Card>
@@ -92,15 +96,15 @@ export function UsageAreaChart({
         <CardTitle>Traffic</CardTitle>
         <CardDescription>
           {rangeLabel
-            ? `Requests and tokens per ${perLabel} · ${rangeLabel}`
-            : `Requests and tokens per ${perLabel}, from your ledger`}
+            ? `Prompts, requests and tokens per ${perLabel} · ${rangeLabel}`
+            : `Prompts, requests and tokens per ${perLabel}, from your ledger`}
         </CardDescription>
       </CardHeader>
       <CardContent>
         {data.length === 0 || allZero ? (
           <div className="flex h-64 flex-col items-center justify-center gap-2 text-center">
             <p className="text-sm text-muted-foreground">
-              No requests in this window.
+              No traffic in this window.
             </p>
             {emptyNote ? (
               <p className="max-w-sm text-xs text-muted-foreground">{emptyNote}</p>
@@ -166,12 +170,22 @@ export function UsageAreaChart({
               <ChartLegend content={<ChartLegendContent />} />
               <Area
                 yAxisId="left"
-                dataKey="requests"
+                dataKey="prompts"
                 type="monotone"
-                stroke="var(--color-requests)"
+                stroke="var(--color-prompts)"
                 strokeDasharray="4 4"
                 fill="none"
                 strokeWidth={2}
+              />
+              <Area
+                yAxisId="left"
+                dataKey="requests"
+                type="monotone"
+                stroke="var(--color-requests)"
+                strokeDasharray="1 3"
+                fill="none"
+                strokeWidth={1.5}
+                strokeOpacity={0.6}
               />
               <Area
                 yAxisId="right"

@@ -415,6 +415,7 @@ export const usagePeriods = pgTable('usage_periods', {
   planId:            uuid('plan_id').notNull().references(() => plans.id),
   rateMultiplierBps: integer('rate_multiplier_bps').notNull(),
   requests:          bigint('requests', { mode: 'number' }).notNull().default(0),
+  prompts:           bigint('prompts', { mode: 'number' }).notNull().default(0),
   inputTokens:       bigint('input_tokens', { mode: 'number' }).notNull().default(0),
   outputTokens:      bigint('output_tokens', { mode: 'number' }).notNull().default(0),
   cacheReadTokens:   bigint('cache_read_tokens', { mode: 'number' }).notNull().default(0),

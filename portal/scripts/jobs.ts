@@ -30,6 +30,7 @@ import './env.mjs'; // MUST be first — see scripts/env.mjs.
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { collectUsage, rollupUsage } from '@/lib/jobs/collect-usage';
+import { enforcePromptLimits } from '@/lib/jobs/enforce-prompt-limits';
 import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
 import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
 import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
@@ -52,7 +53,7 @@ interface Job {
 /**
  * Schedule table — IMPLEMENTATION.md §4.
  *
- * Seven jobs run: the metering trio (collect, rollup, reconcile), the two
+ * Eight jobs run: the metering quartet (collect, rollup, enforce, reconcile), the two
  * subscription clocks (expire_subscriptions for periods, expire_trials
  * for free trials), the ops alerting pass (send_alerts), and the
  * customer-shaped anomaly scan (detect_anomalies). A job is active only
@@ -62,6 +63,7 @@ interface Job {
  */
 const JOBS: readonly Job[] = [
   { name: 'collect_usage', everyMs: 5 * 60_000, run: () => collectUsage() },
+  { name: 'enforce_prompt_limits', everyMs: 5 * 60_000, run: () => enforcePromptLimits() },
   { name: 'rollup_usage', everyMs: 15 * 60_000, run: () => rollupUsage() },
   {
     name: 'reconcile_entitlements',

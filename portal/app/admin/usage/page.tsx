@@ -27,8 +27,8 @@ export const dynamic = "force-dynamic";
  * `requireActiveOrg()` to the caller's own account, so "which accounts
  * are burning money?" had no route anywhere in the product.
  *
- * ORDERED BY REVENUE, NOT REQUEST COUNT — the sort is the feature. An
- * account making 10,000 cheap requests is less interesting than one
+ * ORDERED BY REVENUE, NOT CALL COUNT — the sort is the feature. An
+ * account making 10,000 cheap calls is less interesting than one
  * making 200 expensive ones, and only a revenue sort makes that visible
  * at a glance.
  *
@@ -53,6 +53,7 @@ export default async function AdminUsagePage({
   const totalRevenue = rows.reduce((a, r) => a + r.usageRevenueUsd, 0);
   const totalUpstream = rows.reduce((a, r) => a + r.upstreamCostUsd, 0);
   const totalRequests = rows.reduce((a, r) => a + r.requests, 0);
+  const totalPrompts = rows.reduce((a, r) => a + (r.prompts ?? 0), 0);
   const marginPct = totalRevenue > 0 ? ((totalRevenue - totalUpstream) / totalRevenue) * 100 : null;
 
   return (
@@ -88,7 +89,7 @@ export default async function AdminUsagePage({
         ))}
       </form>
 
-      <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <AdminStat label="Revenue (listed)" value={usd(totalRevenue)} hint={`Top ${rows.length} accounts by revenue`} />
         <AdminStat label="Upstream cost" value={usd(totalUpstream)} hint="What those tokens cost" />
         <AdminStat
@@ -97,7 +98,8 @@ export default async function AdminUsagePage({
           hint={marginPct === null ? "No metered revenue in the window" : usd(totalRevenue - totalUpstream)}
           tone={marginPct === null ? "neutral" : marginPct > 0 ? "positive" : "danger"}
         />
-        <AdminStat label="Requests" value={compact(totalRequests)} hint={`Last ${windowDays} days`} />
+        <AdminStat label="Prompts" value={compact(totalPrompts)} hint={`Last ${windowDays} days · quota`} />
+        <AdminStat label="Requests" value={compact(totalRequests)} hint={`Last ${windowDays} days · incl. failures`} />
       </dl>
 
       <div className="mt-8 overflow-hidden rounded-xl border border-border bg-card">
@@ -111,6 +113,7 @@ export default async function AdminUsagePage({
               <TableRow>
                 <TableHead className="pl-6">Account</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead className="text-right">Prompts</TableHead>
                 <TableHead className="text-right">Requests</TableHead>
                 <TableHead className="text-right">Input</TableHead>
                 <TableHead className="text-right">Output</TableHead>
@@ -136,7 +139,8 @@ export default async function AdminUsagePage({
                     <TableCell>
                       <Badge variant="secondary">{r.planCode ?? "no plan"}</Badge>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.requests.toLocaleString()}</TableCell>
+                    <TableCell className="text-right tabular-nums font-medium">{r.prompts.toLocaleString()}</TableCell>
+                    <TableCell className="text-right tabular-nums text-muted-foreground">{r.requests.toLocaleString()}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{compact(r.inputTokens)}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{compact(r.outputTokens)}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{compact(r.cacheReadTokens)}</TableCell>

@@ -5,14 +5,13 @@
  *
  * `model` and `apiKeyId` exist because the Usage page filters with real
  * controls. Doing it in SQL rather than in the browser is what keeps the
- * page honest: the `total` reflects the filter, so "412 requests match"
+ * page honest: the `total` reflects the filter, so "412 rows match"
  * is a fact about the database and not about the 50 rows that happened to
  * arrive.
  *
- * `pageSize` is capped at 100 by the service. CSV export (C-04) is
- * deferred past MVP — this endpoint's shape is what it will stream from
- * when it lands, which is why `rows` is already a projection
- * (`UsageRowView`) rather than a raw table row.
+ * `pageSize` is capped at 100 by the service. `rows` is a projection
+ * (`UsageRowView`) rather than a raw table row; the CSV export streams
+ * the same shape with a `prompt_count` column (migration 0020).
  */
 
 import { z } from 'zod';

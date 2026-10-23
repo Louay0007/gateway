@@ -61,7 +61,7 @@ export default async function RedeemPage() {
             <div className="text-sm text-green-800 dark:text-green-300">
               <strong>Limits:</strong>{" "}
               {Object.entries(trial.promptLimits)
-                .map(([model, limit]) => `${limit} ${model} requests`)
+                .map(([model, limit]) => `${limit} ${model} prompts`)
                 .join(", ")}{" "}
               total across the trial period.
             </div>

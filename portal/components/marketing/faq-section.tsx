@@ -18,12 +18,12 @@ const faqItems: FaqItem[] = [
   {
     question: 'How does request-based billing work?',
     answer:
-      'We bill by requests (prompts), not tokens. Each time you send a prompt to a model — regardless of its length or the response size — it counts as one request against your plan quota. This makes costs fully predictable: a 50-word question and a 5,000-word analysis both consume exactly one request.',
+      'We bill by prompts, not tokens. One user message to the gateway is one prompt against your plan quota — regardless of conversation length or response size. Only a successful inference call (HTTP 200) counts; failures and rate-limit rejections never consume quota. A 50-word question and a 5,000-word analysis both consume exactly one prompt.',
   },
   {
-    question: 'What happens when I reach my monthly request limit?',
+    question: 'What happens when I reach my monthly prompt limit?',
     answer:
-      'Your service continues without interruption. Once you hit your plan\'s request quota, additional requests are queued at standard priority rather than being blocked. You can upgrade your plan at any time to restore full-speed access immediately, or wait for your quota to reset at the start of your next billing cycle.',
+      'Your service continues without interruption. Once you hit your plan\'s prompt quota, additional inference calls return 403 until you upgrade or the quota resets at the start of your next billing period. Token use stays metered for billing visibility, but only prompts consume quota.'
   },
   {
     question: 'Do you have an official agreement with Anthropic?',
@@ -43,7 +43,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Is my data secure and private?',
     answer:
-      'All requests are processed through Anthropic\'s enterprise-grade infrastructure with end-to-end encryption. We do not store, log, or train on your prompts or responses. Our platform complies with international data protection standards, and our full privacy policy is publicly available.',
+      'All gateway calls are processed through Anthropic\'s enterprise-grade infrastructure with end-to-end encryption. We do not store, log, or train on your prompts or responses. Our platform complies with international data protection standards, and our full privacy policy is publicly available.',
   },
   {
     question: 'Do you offer team or enterprise accounts?',

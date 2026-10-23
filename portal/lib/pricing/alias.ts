@@ -121,7 +121,39 @@ const ROUTE_BY_CALL_TYPE: Record<string, string> = {
   acompletion: 'chat',
   anthropic_messages: 'messages',
   aresponses: 'responses',
+  // Legacy / defensive: some LiteLLM versions log the OpenAI name.
+  chat_completions: 'chat',
 };
+
+/**
+ * Canonical inference routes — one user message = one prompt.
+ *
+ * `chat` covers BOTH `acompletion` and legacy `chat_completions` rows:
+ * they are the same wire format, and GROUP BY route must not split them.
+ */
+export const INFERENCE_ROUTES = ['chat', 'messages', 'responses'] as const;
+export type InferenceRoute = (typeof INFERENCE_ROUTES)[number];
+
+export function isInferenceRoute(route: string | null | undefined): boolean {
+  const r = (route ?? '').trim();
+  if ((INFERENCE_ROUTES as readonly string[]).includes(r)) return true;
+  // Legacy rows written before canonicalization.
+  return r === 'chat_completions';
+}
+
+/**
+ * Prompt rule: 1 successful inference request = 1 prompt, 0 otherwise.
+ *
+ * Failures never count — a 429, a rejected `__not_allowed__`, or a row
+ * whose status is unknown (NULL) is 0. Only `statusCode === 200` counts.
+ * Idempotent by construction: depends only on this row, no per-key memory.
+ */
+export function promptCountForRow(
+  route: string | null | undefined,
+  statusCode: number | null | undefined,
+): number {
+  return isInferenceRoute(route) && statusCode === 200 ? 1 : 0;
+}
 
 export function routeForCallType(callType: string | null | undefined, endpoint?: string | null): string {
   const ct = (callType ?? '').trim();
@@ -142,7 +174,11 @@ export function routeForCallType(callType: string | null | undefined, endpoint?:
   // Legacy rows that carried an endpoint keep it — but only if it is one of
   // the routes we actually sell, so a stale value cannot reintroduce noise.
   const ep = (endpoint ?? '').trim();
-  if (ep === 'chat' || ep === 'messages' || ep === 'responses') return ep;
+  if (ep === 'chat' || ep === 'chat_completions' || ep === 'messages' || ep === 'responses') {
+    // Canonicalize legacy `chat_completions` → `chat` so one wire format is one route.
+    if (ep === 'chat_completions') return 'chat';
+    return ep;
+  }
 
   return 'unknown';
 }

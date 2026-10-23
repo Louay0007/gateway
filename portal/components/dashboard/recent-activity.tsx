@@ -11,11 +11,15 @@ import type { KeyView, UsageRowView } from "@/lib/api/types";
 import { relativeTime } from "@/lib/dashboard/format";
 
 /**
- * RecentActivity — the latest requests through the gateway.
+ * RecentActivity — the latest gateway calls.
  *
  * Built from the SAME `/api/usage` rows the Usage page tables, so the two
- * views cannot tell different stories about the same request. That is why
+ * views cannot tell different stories about the same call. That is why
  * it takes rows rather than reading its own source.
+ *
+ * Only a 200 on an inference route counts as a prompt (migration 0020) —
+ * failures, 429s and non-inference calls are 0 prompts and never consume
+ * quota. The verb names that fact.
  *
  * `keyName` is joined in by the endpoint. The previous version mapped
  * invented key ids through a hardcoded record, which would have rendered
@@ -38,12 +42,12 @@ export function RecentActivity({
     <Card>
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
-        <CardDescription>The latest requests through the gateway</CardDescription>
+        <CardDescription>The latest gateway calls — 1 user message = 1 prompt</CardDescription>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Nothing yet. Your first request through the gateway will appear
+            Nothing yet. Your first gateway call will appear
             here.
           </p>
         ) : (
@@ -82,12 +86,12 @@ export function RecentActivity({
   );
 }
 
-/** One sentence per row. Status drives the verb, so 429s read as themselves. */
+/** One sentence per row. Only a 200 counts a prompt; failures are 0 prompts. */
 function describe(row: UsageRowView): string {
-  if (row.statusCode === 429) return "hit a limit on";
-  if (row.statusCode !== null && row.statusCode >= 400) return "failed on";
-  if (row.statusCode === null) return "failed (no status reported) on";
-  return "completed a request on";
+  if (row.statusCode === 429) return "hit a limit on (0 prompts)";
+  if (row.statusCode !== null && row.statusCode >= 400) return "failed on (0 prompts)";
+  if (row.statusCode === null) return "failed, no status reported, on (0 prompts)";
+  return "used 1 prompt on";
 }
 
 function statusVariant(

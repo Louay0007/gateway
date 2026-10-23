@@ -165,6 +165,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   period: { start: string; end: string };
   usage: {
     requests: number;
+    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
@@ -195,6 +196,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       const [row] = await db
         .select({
           requests: sql<number>`count(*)`,
+          prompts: sql<number>`coalesce(sum(${usageRecords.promptCount}), 0)`,
           inputTokens: sql<number>`coalesce(sum(${usageRecords.inputTokens}), 0)`,
           outputTokens: sql<number>`coalesce(sum(${usageRecords.outputTokens}), 0)`,
           cacheReadTokens: sql<number>`coalesce(sum(${usageRecords.cacheReadTokens}), 0)`,
@@ -229,6 +231,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
 
       return {
         requests: Number(row?.requests ?? 0),
+        prompts: Number((row as unknown as { prompts?: number })?.prompts ?? 0),
         inputTokens: Number(row?.inputTokens ?? 0),
         outputTokens: Number(row?.outputTokens ?? 0),
         cacheReadTokens: Number(row?.cacheReadTokens ?? 0),
@@ -278,6 +281,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     },
     usage: {
       requests: usage.requests,
+      prompts: usage.prompts,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       cacheReadTokens: usage.cacheReadTokens,
@@ -857,6 +861,8 @@ export interface UsageRowView {
   statusCode: number | null;
   costUpstreamUsd: number;
   costCustomerUsd: number;
+  /** 1 for a counted prompt (200 inference), 0 otherwise. Migration 0020. */
+  promptCount: number;
 }
 
 export interface UsageHistoryQuery {
@@ -886,6 +892,7 @@ export async function usageHistory(
   /** Aggregates over the same filter as `rows`. */
   totals: {
     requests: number;
+    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
@@ -924,6 +931,7 @@ export async function usageHistory(
         pageSize,
         totals: {
           requests: 0,
+          prompts: 0,
           inputTokens: 0,
           outputTokens: 0,
           cacheReadTokens: 0,
@@ -955,7 +963,8 @@ export async function usageHistory(
              u.latency_ms,
              u.status_code,
              u.cost_upstream_usd,
-             u.cost_customer_usd
+             u.cost_customer_usd,
+             u.prompt_count
         FROM usage_records u
         LEFT JOIN api_keys k ON k.id = u.api_key_id
        WHERE ${where}
@@ -981,6 +990,7 @@ export async function usageHistory(
         status_code: number | null;
         cost_upstream_usd: string | null;
         cost_customer_usd: string | null;
+        prompt_count: number | null;
       }[]
     >,
     db.execute(sql`
@@ -1000,6 +1010,7 @@ export async function usageHistory(
     // fabricated number with a real-looking unit.
     db.execute(sql`
       SELECT count(*)::int                              AS requests,
+             coalesce(sum(u.prompt_count), 0)::int        AS prompts,
              coalesce(sum(u.input_tokens), 0)::bigint     AS input_tokens,
              coalesce(sum(u.output_tokens), 0)::bigint    AS output_tokens,
              coalesce(sum(u.cache_read_tokens), 0)::bigint AS cache_read_tokens,
@@ -1009,6 +1020,7 @@ export async function usageHistory(
        WHERE ${where}
     `) as Promise<{
       requests: number;
+      prompts: number;
       input_tokens: string;
       output_tokens: string;
       cache_read_tokens: string;
@@ -1043,6 +1055,7 @@ export async function usageHistory(
     statusCode: r.status_code === null ? null : Number(r.status_code),
     costUpstreamUsd: Number(r.cost_upstream_usd ?? 0),
     costCustomerUsd: Number(r.cost_customer_usd ?? 0),
+    promptCount: Number(r.prompt_count ?? 0),
   }));
 
   return {
@@ -1052,6 +1065,7 @@ export async function usageHistory(
     pageSize,
     totals: {
       requests: Number(agg?.requests ?? 0),
+      prompts: Number((agg as unknown as { prompts?: number })?.prompts ?? 0),
       inputTokens: Number(agg?.input_tokens ?? 0),
       outputTokens: Number(agg?.output_tokens ?? 0),
       cacheReadTokens: Number(agg?.cache_read_tokens ?? 0),
@@ -1071,6 +1085,7 @@ export interface UsageSeriesPoint {
   /** Bucket start, ISO-8601 UTC. */
   bucket: string;
   requests: number;
+  prompts: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -1095,6 +1110,7 @@ export interface UsageSeries {
   points: UsageSeriesPoint[];
   totals: {
     requests: number;
+    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
@@ -1174,6 +1190,7 @@ export async function usageHistorySeries(
   const raw = (await db.execute(sql`
     WITH filtered AS (
       SELECT date_trunc(${unit}, u.occurred_at) AS bucket,
+             u.prompt_count,
              u.input_tokens,
              u.output_tokens,
              u.cache_read_tokens,
@@ -1184,6 +1201,7 @@ export async function usageHistorySeries(
     )
     SELECT gs AS bucket,
            count(f.bucket)::int                          AS requests,
+           coalesce(sum(f.prompt_count), 0)::int          AS prompts,
            coalesce(sum(f.input_tokens), 0)::bigint      AS input_tokens,
            coalesce(sum(f.output_tokens), 0)::bigint     AS output_tokens,
            coalesce(sum(f.cache_read_tokens), 0)::bigint AS cache_read_tokens,
@@ -1198,6 +1216,7 @@ export async function usageHistorySeries(
   `)) as unknown as {
     bucket: Date | string;
     requests: number;
+    prompts: number;
     input_tokens: string;
     output_tokens: string;
     cache_read_tokens: string;
@@ -1211,6 +1230,7 @@ export async function usageHistorySeries(
         ? r.bucket.toISOString()
         : new Date(String(r.bucket)).toISOString(),
     requests: Number(r.requests ?? 0),
+    prompts: Number((r as unknown as { prompts?: number }).prompts ?? 0),
     inputTokens: Number(r.input_tokens ?? 0),
     outputTokens: Number(r.output_tokens ?? 0),
     cacheReadTokens: Number(r.cache_read_tokens ?? 0),
@@ -1226,6 +1246,7 @@ export async function usageHistorySeries(
     totals: points.reduce(
       (acc, p) => ({
         requests: acc.requests + p.requests,
+        prompts: acc.prompts + p.prompts,
         inputTokens: acc.inputTokens + p.inputTokens,
         outputTokens: acc.outputTokens + p.outputTokens,
         cacheReadTokens: acc.cacheReadTokens + p.cacheReadTokens,
@@ -1234,6 +1255,7 @@ export async function usageHistorySeries(
       }),
       {
         requests: 0,
+        prompts: 0,
         inputTokens: 0,
         outputTokens: 0,
         cacheReadTokens: 0,

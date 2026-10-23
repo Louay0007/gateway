@@ -70,7 +70,7 @@ export function PricingPreview() {
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pricing</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900 dark:text-gray-100">
-            Unlimited usage. Pay only for what you consume.
+            Prompt-based plans. 1 user message = 1 prompt.
           </h2>
           <p className="mt-4 text-gray-600 dark:text-gray-400">
             Prices in Tunisian Dinars (DT), billed monthly. No spend caps, no
@@ -109,8 +109,8 @@ export function PricingPreview() {
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
-                <Feature icon={<Infinity className="size-4" />}>Unlimited usage — no spend cap</Feature>
-                <Feature>{plan.rpmLimit} requests / minute</Feature>
+                <Feature icon={<Infinity className="size-4" />}>Prompt quota per model tier — failures never count</Feature>
+                <Feature>{plan.rpmLimit} calls / minute (rate limit)</Feature>
                 <Feature>{compact(plan.tpmLimit ?? 0)} tokens / minute</Feature>
                 <Feature>{plan.maxKeys} API keys</Feature>
                 {(plan.models ?? []).length > 0 && (

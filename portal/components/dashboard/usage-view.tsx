@@ -53,7 +53,7 @@ const PAGE_SIZE = 25;
  * UsageView — the ledger, live.
  *
  * Was reading `mockUsageRows` and filtering in the browser, so "412
- * requests" meant "412 of the 36 rows I invented". Every filter now runs in
+ * rows" meant "412 of the 36 rows I invented". Every filter now runs in
  * SQL through `GET /api/usage`, which means three things become true:
  *
  *   - `total` is a fact about the database, so pagination is real and the
@@ -188,20 +188,22 @@ export function UsageView() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Prompts"
-          value={Object.values(bundle.data?.usage.promptsByModel ?? {}).reduce((a, b) => a + b, 0).toLocaleString()}
+          value={(totals?.prompts ?? 0).toLocaleString()}
           hint={
-            bundle.data?.usage.promptsByModel && Object.keys(bundle.data.usage.promptsByModel).length > 0
-              ? Object.entries(bundle.data.usage.promptsByModel)
-                  .map(([k, v]) => `${k}: ${v}`)
-                  .join(" · ")
-              : "Per-model counts"
+            filtered
+              ? "1 user message = 1 prompt"
+              : bundle.data?.promptsByModel && Object.keys(bundle.data.promptsByModel).length > 0
+                ? Object.entries(bundle.data.promptsByModel)
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join(" · ")
+                : "1 user message = 1 prompt"
           }
           icon={MessageSquare}
         />
         <StatCard
           label="Requests"
           value={(totals?.requests ?? 0).toLocaleString()}
-          hint={filtered ? "Matching these filters" : "This billing period"}
+          hint={filtered ? "Matching these filters (incl. failures)" : "All gateway calls, incl. failures"}
           icon={Activity}
         />
         <StatCard
@@ -239,9 +241,9 @@ export function UsageView() {
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle>Requests</CardTitle>
+              <CardTitle>Gateway calls</CardTitle>
               <CardDescription>
-                Every metered call, newest first — the append-only ledger
+                Every metered call, newest first — only a 200 on an inference route counts a prompt
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -350,11 +352,11 @@ export function UsageView() {
                 ) : (
                   <div className="px-6 py-16 text-center">
                     <p className="text-sm font-medium text-foreground">
-                      No requests yet
+                      No gateway calls yet
                     </p>
                     <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
                       Once your key makes its first call through the gateway, the
-                      request lands here within a few minutes.
+                      row lands here within a few minutes. Only a 200 on an inference route counts a prompt.
                     </p>
                   </div>
                 )
@@ -402,7 +404,7 @@ export function UsageView() {
                           <Badge variant="secondary">{row.model}</Badge>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {row.route === 'chat_completions' ? 'Chat' : row.route === 'responses' ? 'Response' : row.route}
+                          {row.route === 'chat' ? 'Chat' : row.route === 'responses' ? 'Response' : row.route === 'messages' ? 'Messages' : row.route}
                         </TableCell>
                         <TableCell
                           className="max-w-0 truncate text-muted-foreground"
@@ -431,7 +433,7 @@ export function UsageView() {
               {pageCount > 1 ? (
                 <div className="flex items-center justify-between px-6 py-3 text-xs text-muted-foreground">
                   <span>
-                    {(usage.data?.total ?? 0).toLocaleString()} request
+                    {(usage.data?.total ?? 0).toLocaleString()} row
                     {usage.data?.total === 1 ? "" : "s"} · page {page} of{" "}
                     {pageCount}
                   </span>
@@ -510,16 +512,18 @@ function ModelBreakdown({
 }) {
   const byModel = new Map<
     string,
-    { requests: number; tokens: number; cost: number; cache: number }
+    { requests: number; prompts: number; tokens: number; cost: number; cache: number }
   >();
   for (const row of rows) {
     const entry = byModel.get(row.model) ?? {
       requests: 0,
+      prompts: 0,
       tokens: 0,
       cost: 0,
       cache: 0,
     };
     entry.requests += 1;
+    entry.prompts += row.promptCount ?? 0;
     entry.tokens += row.inputTokens + row.outputTokens;
     entry.cost += row.costCustomerUsd;
     entry.cache += row.cacheReadTokens;
@@ -529,7 +533,7 @@ function ModelBreakdown({
   if (byModel.size === 0) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
-        No requests to break down.
+        No prompts to break down.
       </p>
     );
   }
@@ -541,15 +545,17 @@ function ModelBreakdown({
         {/* Percentages summing to 100%, matching the requests table. Model
             holds an alias badge, so it gets the flexible share. */}
         <colgroup>
-          <col className="w-[40%]" />
-          <col className="w-[15%]" />
-          <col className="w-[15%]" />
-          <col className="w-[15%]" />
-          <col className="w-[15%]" />
+          <col className="w-[34%]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+          <col className="w-[13%]" />
+          <col className="w-[14%]" />
         </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead>Model</TableHead>
+            <TableHead className="text-right">Prompts</TableHead>
             <TableHead className="text-right">Requests</TableHead>
             <TableHead className="text-right">Tokens</TableHead>
             <TableHead className="text-right">Cache read</TableHead>
@@ -560,7 +566,10 @@ function ModelBreakdown({
           {[...byModel.entries()].map(([model, e]) => (
             <TableRow key={model}>
               <TableCell className="font-medium">{model}</TableCell>
-              <TableCell className="text-right tabular-nums">
+              <TableCell className="text-right tabular-nums font-medium">
+                {e.prompts.toLocaleString()}
+              </TableCell>
+              <TableCell className="text-right tabular-nums text-muted-foreground">
                 {e.requests.toLocaleString()}
               </TableCell>
               <TableCell className="text-right tabular-nums">{compact(e.tokens)}</TableCell>

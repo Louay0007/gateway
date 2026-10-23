@@ -66,11 +66,21 @@ export async function GET(request: Request): Promise<Response> {
 
     // Project only what the desktop agent needs. Full bundle contains
     // cost figures and internal state the device client should not see.
+    // `prompts` is the period total (all aliases); `remainingByModel` lets
+    // the client block before spending a prompt it does not have.
+    const limits = bundle.plan?.promptLimits ?? {};
+    const used = bundle.promptsByModel ?? {};
+    const remainingByModel: Record<string, number> = {};
+    for (const [alias, limit] of Object.entries(limits)) {
+      remainingByModel[alias] = Math.max(0, limit - (used[alias] ?? 0));
+    }
     return Response.json({
       planCode: bundle.plan?.code ?? null,
       models: bundle.plan?.models ?? [],
-      promptLimits: bundle.plan?.promptLimits ?? {},
-      promptsByModel: bundle.promptsByModel ?? {},
+      promptLimits: limits,
+      promptsByModel: used,
+      prompts: bundle.usage.prompts ?? 0,
+      remainingByModel,
       periodStart: bundle.period.start,
       periodEnd: bundle.period.end,
     });

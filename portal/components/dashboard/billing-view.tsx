@@ -323,9 +323,9 @@ export function BillingView() {
               icon={CircleDollarSign}
             />
             <StatCard
-              label="Requests"
-              value={b.usage.requests.toLocaleString()}
-              hint="This billing period"
+              label="Prompts"
+              value={(b.usage.prompts ?? 0).toLocaleString()}
+              hint="1 user message = 1 prompt · this period"
               icon={ArrowLeftRight}
             />
             <StatCard
@@ -495,7 +495,7 @@ export function BillingView() {
               </CardHeader>
               <CardContent className="grid gap-6">
                 <PromptMeters
-                  promptsByModel={b.usage.promptsByModel ?? {}}
+                  promptsByModel={b.promptsByModel ?? {}}
                   promptLimits={plan.promptLimits ?? {}}
                 />
 
@@ -725,7 +725,7 @@ function PlanComparisonTable({
       const limit = (p.promptLimits as Record<string, number>)?.frontier;
       return limit ? `${limit.toLocaleString()} / period` : "—";
     }, hideIfAllEmpty: true },
-    { key: "rpm", label: "Requests / minute", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
+    { key: "rpm", label: "Calls / minute (rate limit)", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
     { key: "tpm", label: "Tokens / minute", getValue: (p: typeof plans[0]) => compact(p.tpmLimit ?? 0) },
     { key: "keys", label: "API keys", getValue: (p: typeof plans[0]) => p.maxKeys.toString() },
     { key: "concurrency", label: "Max concurrency", getValue: (p: typeof plans[0]) => p.maxConcurrentRequests?.toString() ?? "—" },

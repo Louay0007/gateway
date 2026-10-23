@@ -29,12 +29,12 @@ export function OverviewKeysPanel({
   keys,
   planName,
   maxKeys,
-  requestsThisPeriod,
+  promptsThisPeriod,
 }: {
   keys: KeyView[];
   planName: string;
   maxKeys: number;
-  requestsThisPeriod: number;
+  promptsThisPeriod: number;
 }) {
   const usedPct = maxKeys > 0 ? Math.min(100, Math.round((keys.length / maxKeys) * 100)) : 0;
 
@@ -100,7 +100,7 @@ export function OverviewKeysPanel({
         )}
 
         <p className="text-xs text-muted-foreground">
-          {requestsThisPeriod.toLocaleString()} requests this billing period
+          {promptsThisPeriod.toLocaleString()} prompts this billing period
           across all keys.
         </p>
       </CardContent>

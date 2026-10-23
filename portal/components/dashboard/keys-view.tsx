@@ -306,7 +306,7 @@ export function KeysView() {
             />
           ) : (
             <Table className="table-fixed">
-              {/* Same contract as the requests table: the table always spans
+              {/* Same contract as the gateway-calls table: the table always spans
                   the full card width, the flexible column absorbs the rest,
                   and long names truncate instead of stretching the layout. */}
               {/* Percentages summing to 100% so the table always fills the
@@ -457,7 +457,7 @@ export function KeysView() {
           <DialogHeader>
             <DialogTitle>Revoke “{revokeTarget?.name}”?</DialogTitle>
             <DialogDescription>
-              The gateway deletes the key immediately — requests using it will fail
+              The gateway deletes the key immediately — calls using it will fail
               with 401. Usage already recorded stays in your ledger. This cannot be
               undone.
             </DialogDescription>

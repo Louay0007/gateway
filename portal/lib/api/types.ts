@@ -54,14 +54,16 @@ export interface SubscriptionBundle {
   period: { start: string; end: string };
   usage: {
     requests: number;
+    /** Total counted prompts (200 inference rows) in the period. Migration 0020. */
+    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
     costUpstreamUsd: number;
     costCustomerUsd: number;
-    /** Per-alias prompt counts for the current billing period. Migration 0013. */
-    promptsByModel: Record<string, number>;
   };
+  /** Per-alias prompt counts for the current billing period. Migration 0013/0020. */
+  promptsByModel: Record<string, number>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
   /**
@@ -81,6 +83,7 @@ export interface UsagePageResponse {
   /** Aggregates over the same filter as `rows`. */
   totals: {
     requests: number;
+    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
@@ -95,6 +98,7 @@ export interface UsageSeriesPoint {
   /** Bucket start, ISO-8601 UTC. */
   bucket: string;
   requests: number;
+  prompts: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;

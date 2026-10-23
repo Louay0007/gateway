@@ -144,6 +144,8 @@ export interface DailyFinancial {
   usageRevenueUsd: number;
   upstreamCostUsd: number;
   grossMarginUsd: number;
+  /** Counted prompts that day; requests (all rows) stays for forensics. */
+  prompts: number;
   requests: number;
 }
 
@@ -173,6 +175,7 @@ export async function financialSeries(
       SELECT (occurred_at AT TIME ZONE 'UTC')::date AS day,
              sum(cost_customer_usd)::float8 AS revenue,
              sum(cost_upstream_usd)::float8   AS upstream,
+             COALESCE(sum(prompt_count), 0)::int AS prompts,
              count(*)::int                    AS requests
         FROM usage_records
        WHERE occurred_at > now() - (${days} * interval '1 day')
@@ -190,6 +193,7 @@ export async function financialSeries(
            COALESCE(c.collected_usd, 0)::float8 AS collected_usd,
            COALESCE(u.revenue, 0)::float8       AS usage_revenue_usd,
            COALESCE(u.upstream, 0)::float8      AS upstream_cost_usd,
+           COALESCE(u.prompts, 0)::int          AS prompts,
            COALESCE(u.requests, 0)::int         AS requests
       FROM d
       LEFT JOIN usage u ON u.day = d.day
@@ -200,6 +204,7 @@ export async function financialSeries(
     collected_usd: number;
     usage_revenue_usd: number;
     upstream_cost_usd: number;
+    prompts: number;
     requests: number;
   }[];
 
@@ -209,6 +214,7 @@ export async function financialSeries(
     usageRevenueUsd: Number(r.usage_revenue_usd),
     upstreamCostUsd: Number(r.upstream_cost_usd),
     grossMarginUsd: Number(r.usage_revenue_usd) - Number(r.upstream_cost_usd),
+    prompts: Number(r.prompts),
     requests: Number(r.requests),
   }));
 }
@@ -297,6 +303,9 @@ export interface OrgEconomicsRow {
   slug: string;
   planCode: string | null;
   status: string;
+  /** Counted prompts (200s on inference routes) — the quota number. */
+  prompts: number;
+  /** All gateway rows incl. failures — forensics, not quota. */
   requests: number;
   inputTokens: number;
   outputTokens: number;
@@ -313,7 +322,7 @@ export interface OrgEconomicsRow {
  * scoped to the CALLER's org (`requireActiveOrg`), so "who is burning
  * money on `frontier`?" had no route at all. Ordering by customer
  * revenue rather than by request count is deliberate — an org making
- * 10,000 cheap requests is less interesting than one making 200
+ * 10,000 cheap calls is less interesting than one making 200
  * expensive ones, and only the revenue sort makes that visible.
  */
 export async function orgEconomics(
@@ -326,6 +335,7 @@ export async function orgEconomics(
   const rows = (await db.execute(sql`
     SELECT o.id::text, o.name, o.slug, o.status::text AS status,
            p.code AS plan_code,
+           COALESCE(sum(ur.prompt_count), 0)::int      AS prompts,
            count(ur.id)::int                            AS requests,
            COALESCE(sum(ur.input_tokens), 0)::bigint     AS input_tokens,
            COALESCE(sum(ur.output_tokens), 0)::bigint    AS output_tokens,
@@ -347,6 +357,7 @@ export async function orgEconomics(
     slug: string;
     status: string;
     plan_code: string | null;
+    prompts: number;
     requests: number;
     input_tokens: string;
     output_tokens: string;
@@ -364,6 +375,7 @@ export async function orgEconomics(
       slug: r.slug,
       planCode: r.plan_code,
       status: r.status,
+      prompts: Number(r.prompts),
       requests: Number(r.requests),
       inputTokens: Number(r.input_tokens),
       outputTokens: Number(r.output_tokens),

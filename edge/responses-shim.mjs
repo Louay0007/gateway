@@ -141,11 +141,25 @@ export function responsesToChat(body) {
     return { ok: false, status: 400, message: 'No usable messages in `input`.' };
   }
 
+  const stream = Boolean(body.stream);
   const chat = {
     model: body.model,
     messages,
-    stream: Boolean(body.stream),
+    stream,
   };
+  // Streaming usage: LiteLLM only logs spend/tokens for a stream when the
+  // client asks for `stream_options: { include_usage: true }`. Without it
+  // every streamed turn logs spend:0/tokens:0 but would still count a
+  // prompt — a free-looking row. Codex streams, so default it on; an
+  // explicit client value wins.
+  if (stream) {
+    const so = body.stream_options;
+    if (so && typeof so === 'object' && !Array.isArray(so)) {
+      chat.stream_options = { include_usage: true, ...so };
+    } else {
+      chat.stream_options = { include_usage: true };
+    }
+  }
 
   // Responses nests tools under `function`; Chat flattens them.
   if (Array.isArray(body.tools) && body.tools.length) {

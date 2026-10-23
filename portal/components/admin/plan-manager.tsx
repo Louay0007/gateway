@@ -149,6 +149,9 @@ export function PlanManager({
                 <TableCell className="text-xs text-muted-foreground">
                   {p.rpmLimit ?? "∞"} rpm · {p.tpmLimit ? `${(p.tpmLimit / 1000).toFixed(0)}k` : "∞"} tpm
                   <span className="block">{p.models.join(", ")}</span>
+                  <span className="block font-medium text-foreground">
+                    {Object.entries(p.promptLimits ?? {}).map(([k, v]) => `${k}:${v}`).join(" · ") || "no prompt limits"}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{p.subscriberCount}</TableCell>
                 <TableCell className="pr-6 text-right">
@@ -222,6 +225,7 @@ function PlanDialog({
   const [maxKeys, setMaxKeys] = React.useState("1");
   const [trialDays, setTrialDays] = React.useState("0");
   const [models, setModels] = React.useState("");
+  const [promptLimits, setPromptLimits] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
@@ -237,6 +241,7 @@ function PlanDialog({
     setMaxKeys(plan ? String(plan.maxKeys) : "1");
     setTrialDays(plan ? String(plan.trialDays) : "0");
     setModels(plan?.models.join(", ") ?? "");
+    setPromptLimits(plan ? Object.entries(plan.promptLimits ?? {}).map(([k, v]) => `${k}:${v}`).join(", ") : "fast:500, smart:250");
   }, [open, plan]);
 
   const mult = Number.parseFloat(multiplier);
@@ -257,6 +262,12 @@ function PlanDialog({
         maxKeys: Number(maxKeys || "1"),
         trialDays: Number(trialDays || "0"),
         models: models.split(",").map((m) => m.trim()).filter(Boolean),
+        promptLimits: Object.fromEntries(
+          promptLimits.split(",").map((s) => s.trim()).filter(Boolean).map((pair) => {
+            const [k, v] = pair.split(":").map((s) => s.trim());
+            return [k, Math.max(0, Math.round(Number(v)))];
+          }).filter(([k, v]) => k && Number.isFinite(v)),
+        ),
       };
 
       const res = await fetch(plan ? `/api/admin/plans/${plan.id}` : "/api/admin/plans", {
@@ -348,6 +359,14 @@ function PlanDialog({
           <label className="grid gap-1.5 text-sm">
             <span className="font-medium">Trial days (0 = none)</span>
             <input type="number" value={trialDays} onChange={(e) => setTrialDays(e.target.value)} className={FIELD} />
+          </label>
+
+          <label className="grid gap-1.5 text-sm sm:col-span-2">
+            <span className="font-medium">Prompt limits (alias:count, comma separated)</span>
+            <input value={promptLimits} onChange={(e) => setPromptLimits(e.target.value)} className={FIELD} placeholder="fast:500, smart:250" />
+            <span className="text-xs text-muted-foreground">
+              1 user message = 1 prompt on that alias. Unknown aliases or non-numbers are dropped. Missing alias = 0 (deny).
+            </span>
           </label>
 
           <label className="grid gap-1.5 text-sm sm:col-span-2">

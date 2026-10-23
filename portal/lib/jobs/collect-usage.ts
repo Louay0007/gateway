@@ -20,7 +20,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { getSpendLogs, extractUsage, statusCodeForRow, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
-import { loadAliasMap, toAlias, aliasForRow, routeForCallType, UNKNOWN_ALIAS, type AliasMap } from '@/lib/pricing/alias';
+import { loadAliasMap, toAlias, aliasForRow, routeForCallType, promptCountForRow, UNKNOWN_ALIAS, type AliasMap } from '@/lib/pricing/alias';
 
 const PRICE_VERSION = '2026-10-15';   // bump when prices/models.yaml changes
 
@@ -190,8 +190,14 @@ export async function collectUsage(opts?: {
     // prompt count of a row is 1 when its route is inference, 0 otherwise.
     // No parsing, no per-key memory, no restart skew — idempotent by
     // construction, since the value depends only on the row itself.
-    const isInferenceRoute = (route === 'chat_completions' || route === 'responses' || route === 'messages' || route === 'chat');
-    const promptCount = isInferenceRoute ? 1 : 0;
+    // ── Prompt counting: ONE successful inference request = ONE prompt. ──
+    //
+    // 1 user message → 1 gateway request → prompt_count = 1. Tool calls the
+    // model makes are continuations *within* that request, not new prompts.
+    // Failures (429, rejected `__not_allowed__`, NULL status) are 0 — only
+    // a 200 counts. Idempotent: depends only on this row, no per-key memory.
+    const statusCode = statusCodeForRow(row);
+    const promptCount = promptCountForRow(route, statusCode);
 
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (
@@ -215,7 +221,7 @@ export async function collectUsage(opts?: {
         ${u.inputTokens}, ${u.outputTokens},
         ${u.cacheWrite5m}, ${u.cacheWrite1h}, ${u.cacheRead},
         NULL,
-        ${statusCodeForRow(row)},
+        ${statusCode},
         ${upstream}, ${customer},
         ${PRICE_VERSION},
         ${promptCount},
@@ -274,7 +280,7 @@ export async function rollupUsage(): Promise<void> {
   await db.execute(sql`
     INSERT INTO usage_periods (
       organization_id, billing_period, plan_id, rate_multiplier_bps,
-      requests, input_tokens, output_tokens, cache_read_tokens,
+      requests, prompts, input_tokens, output_tokens, cache_read_tokens,
       cost_upstream_usd, cost_customer_usd, updated_at
     )
     SELECT
@@ -290,6 +296,7 @@ export async function rollupUsage(): Promise<void> {
              AND status IN ('trialing','active','past_due','paused')
            LIMIT 1)),
       COUNT(*),
+      COALESCE(SUM(u.prompt_count), 0),
       SUM(u.input_tokens),
       SUM(u.output_tokens),
       SUM(u.cache_read_tokens),
@@ -305,6 +312,7 @@ export async function rollupUsage(): Promise<void> {
     GROUP BY u.organization_id, u.billing_period
     ON CONFLICT (organization_id, billing_period) DO UPDATE SET
       requests            = EXCLUDED.requests,
+      prompts             = EXCLUDED.prompts,
       input_tokens        = EXCLUDED.input_tokens,
       output_tokens       = EXCLUDED.output_tokens,
       cache_read_tokens   = EXCLUDED.cache_read_tokens,
