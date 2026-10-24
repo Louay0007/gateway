@@ -6,6 +6,7 @@ import { BarChart3, ClipboardList, KeyRound, Wallet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ExhaustedBanner } from "@/components/dashboard/prompt-meter";
 import { SpendMeter } from "@/components/dashboard/spend-meter";
 import {
   ErrorState,
@@ -57,6 +58,15 @@ export function DashboardOverview() {
   return (
     <>
       <RefreshingBar show={bundle.refreshing || keysApi.refreshing} />
+
+      {b.plan ? (
+        <ExhaustedBanner
+          promptsByModel={b.promptsByModel ?? {}}
+          promptLimits={b.plan.promptLimits ?? {}}
+          entitled={b.plan.models ?? []}
+          resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
+        />
+      ) : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>

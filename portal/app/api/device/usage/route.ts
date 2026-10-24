@@ -22,6 +22,11 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { apiKeys, organizations } from '@/db/schema';
 import { subscriptionBundle } from '@/lib/billing';
+import {
+  remainingByModel as computeRemaining,
+  exhaustedModels,
+  outOfPromptsMessage,
+} from '@/lib/entitlements/quota';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
 export const runtime = 'nodejs';
@@ -68,19 +73,46 @@ export async function GET(request: Request): Promise<Response> {
     // cost figures and internal state the device client should not see.
     // `prompts` is the period total (all aliases); `remainingByModel` lets
     // the client block before spending a prompt it does not have.
+    //
+    // Same pure helpers the gateway wall uses (computeAllowedModels), so
+    // the number here and the 403 there cannot disagree. Clamped at 0 —
+    // a negative remaining is still "stop".
     const limits = bundle.plan?.promptLimits ?? {};
     const used = bundle.promptsByModel ?? {};
-    const remainingByModel: Record<string, number> = {};
-    for (const [alias, limit] of Object.entries(limits)) {
-      remainingByModel[alias] = Math.max(0, limit - (used[alias] ?? 0));
+    const remaining = computeRemaining(limits, used);
+    const entitled = bundle.plan?.models ?? [];
+    const exhausted = exhaustedModels(entitled, limits, used);
+    const resetDate = bundle.period?.end ?? bundle.subscription?.currentPeriodEnd ?? null;
+
+    // Sync guard: when a `model` query names an exhausted alias, answer
+    // 429 HERE with `out of <alias> prompts` rather than letting the
+    // client spend a call the gateway wall will 403 a moment later.
+    const url = new URL(request.url);
+    const wanted = (url.searchParams.get('model') ?? '').trim().toLowerCase();
+    if (wanted && exhausted.includes(wanted)) {
+      return Response.json(
+        {
+          error: {
+            code: 'quota_exhausted',
+            message: outOfPromptsMessage(wanted, resetDate),
+            model: wanted,
+            remainingByModel: remaining,
+            periodStart: bundle.period.start,
+            periodEnd: bundle.period.end,
+          },
+        },
+        { status: 429 },
+      );
     }
+
     return Response.json({
       planCode: bundle.plan?.code ?? null,
-      models: bundle.plan?.models ?? [],
+      models: entitled,
       promptLimits: limits,
       promptsByModel: used,
       prompts: bundle.usage.prompts ?? 0,
-      remainingByModel,
+      remainingByModel: remaining,
+      exhausted,
       periodStart: bundle.period.start,
       periodEnd: bundle.period.end,
     });

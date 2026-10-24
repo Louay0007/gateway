@@ -42,7 +42,7 @@ import {
 import { ErrorState, PanelSkeleton, RefreshingBar } from "@/components/dashboard/states";
 import { PaywallState } from "@/components/dashboard/paywall-state";
 import { SpendMeter } from "@/components/dashboard/spend-meter";
-import { PromptMeters } from "@/components/dashboard/prompt-meter";
+import { PromptMeters, ExhaustedBanner } from "@/components/dashboard/prompt-meter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import type {
@@ -494,6 +494,12 @@ export function BillingView() {
                 </div>
               </CardHeader>
               <CardContent className="grid gap-6">
+                <ExhaustedBanner
+                  promptsByModel={b.promptsByModel ?? {}}
+                  promptLimits={plan.promptLimits ?? {}}
+                  entitled={plan.models ?? []}
+                  resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
+                />
                 <PromptMeters
                   promptsByModel={b.promptsByModel ?? {}}
                   promptLimits={plan.promptLimits ?? {}}

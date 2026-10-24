@@ -28,6 +28,7 @@ import {
   updateTeamModels,
   listTeamKeys,
 } from '@/lib/litellm/client';
+import { getAllowedModels } from '@/lib/entitlements/allowed-models';
 import { log } from '@/lib/log';
 
 export interface EnforcePromptLimitsResult {
@@ -40,11 +41,6 @@ export interface EnforcePromptLimitsResult {
 interface OrgPlan {
   organization_id: string;
   litellm_team_id: string | null;
-  plan_code: string;
-  models: string[];
-  prompt_limits: Record<string, number>;
-  period_start: string | null;
-  period_end: string | null;
 }
 
 export async function enforcePromptLimits(): Promise<EnforcePromptLimitsResult> {
@@ -56,51 +52,25 @@ export async function enforcePromptLimits(): Promise<EnforcePromptLimitsResult> 
   };
 
   // Live orgs with a live subscription and a team to push to.
+  // Plan/limits come from getAllowedModels per org (single wall with sync).
   const orgs = (await db.execute(sql`
     SELECT o.id AS organization_id,
-           o.litellm_team_id,
-           p.code AS plan_code,
-           p.models,
-           COALESCE(p.prompt_limits, '{}'::jsonb) AS prompt_limits,
-           s.current_period_start::text AS period_start,
-           s.current_period_end::text AS period_end
+           o.litellm_team_id
       FROM organizations o
       JOIN subscriptions s ON s.organization_id = o.id
-      JOIN plans p ON p.id = s.plan_id
      WHERE o.status = 'active'
-       AND s.status IN ('active', 'trialing', 'past_due')
+       AND s.status IN ('active', 'trialing', 'past_due', 'paused')
        AND o.litellm_team_id IS NOT NULL
   `)) as unknown as OrgPlan[];
 
   for (const org of orgs) {
     result.scanned++;
     try {
-      const limits = (org.prompt_limits ?? {}) as Record<string, number>;
-      // Window: subscription period when known, else trailing 30 days.
-      const end = org.period_end ? new Date(org.period_end) : new Date();
-      const start = org.period_start
-        ? new Date(org.period_start)
-        : new Date(end.getTime() - 30 * 86_400_000);
-
-      const used = (await db.execute(sql`
-        SELECT u.model, COALESCE(SUM(u.prompt_count), 0)::int AS prompts
-          FROM usage_records u
-         WHERE u.organization_id = ${org.organization_id}::uuid
-           AND u.occurred_at >= ${start.toISOString()}::timestamptz
-           AND u.occurred_at < ${end.toISOString()}::timestamptz
-         GROUP BY u.model
-      `)) as unknown as { model: string; prompts: number }[];
-
-      const usedBy: Record<string, number> = {};
-      for (const r of used) usedBy[r.model] = Number(r.prompts ?? 0);
-
-      // Allowed = entitled aliases whose usage is still below the limit.
-      // An alias with no limit entry (or limit <= 0) is NOT granted.
-      const allowed = (org.models ?? []).filter((alias) => {
-        const limit = Number(limits[alias] ?? 0);
-        if (!Number.isFinite(limit) || limit <= 0) return false;
-        return (usedBy[alias] ?? 0) < limit;
-      });
+      // Single wall: same helper sync() uses, so the two cannot disagree.
+      // Window + allowed computed identically; renewal restores because the
+      // new window starts with zero usage in it.
+      const wall = await getAllowedModels(org.organization_id);
+      const allowed = wall.allowed;
 
       const teamId = org.litellm_team_id!;
       await updateTeamModels(teamId, allowed);
@@ -118,7 +88,8 @@ export async function enforcePromptLimits(): Promise<EnforcePromptLimitsResult> 
       }
 
       // Narrowed = at least one entitled alias withheld.
-      const entitled = (org.models ?? []).filter(
+      const limits = wall.limits;
+      const entitled = wall.entitled.filter(
         (a) => Number(limits[a] ?? 0) > 0,
       );
       if (allowed.length < entitled.length) result.narrowed++;

@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
-import { rewriteCredential } from '../../edge/server.mjs';
+import { rewriteCredential, mapModelDeniedBody } from '../../edge/server.mjs';
 import { fileURLToPath } from 'node:url';
 
 // Absolute, so the child process is launched correctly whatever the CWD.
@@ -328,5 +328,63 @@ describe('end to end through the edge', () => {
 
     expect(r.status).toBeGreaterThanOrEqual(500);
     expect(r.status).not.toBe(200);
+  });
+
+  it('maps a gateway model-denied 403 to a per-alias message', async () => {
+    // Unit-level: the pure mapper the proxy path uses.
+    const m = mapModelDeniedBody(
+      403,
+      `{"error":{"message":"Model 'frontier' is not available for this API key"}}`,
+    );
+    expect(m?.model).toBe('frontier');
+    expect(m?.message).toMatch(/out of frontier prompts/i);
+    expect(mapModelDeniedBody(403, 'overloaded, try again')).toBeNull();
+    expect(mapModelDeniedBody(200, "Model 'frontier' is not available")).toBeNull();
+  });
+
+  it('rewrites a gateway 403 denial body at the proxy path', async () => {
+    // End-to-end through the real edge: upstream answers 403 with the
+    // generic LiteLLM wording, the client must see the mapped message.
+    const denied = http.createServer((req, res) => {
+      const body = JSON.stringify({
+        error: { message: "Model 'frontier' is not available for this API key" },
+      });
+      res.writeHead(403, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) });
+      res.end(body);
+    });
+    await new Promise((resolve) => denied.listen(0, '127.0.0.1', resolve));
+    const deniedPort = denied.address().port;
+    const { proc: edge, port: edgePort2 } = await startEdge({
+      AUTH_EDGE_UPSTREAM: `http://127.0.0.1:${deniedPort}`,
+    });
+    try {
+      const r = await new Promise((resolve, reject) => {
+        const req = http.request(
+          {
+            host: '127.0.0.1',
+            port: edgePort2,
+            path: '/v1/chat/completions',
+            method: 'POST',
+            headers: {
+              authorization: 'Bearer zn-ABCdef0123456789XYZ',
+              'content-type': 'application/json',
+              'content-length': 2,
+            },
+          },
+          (res) => {
+            let text = '';
+            res.on('data', (c) => (text += c.toString()));
+            res.on('end', () => resolve({ status: res.statusCode ?? 0, text }));
+          },
+        );
+        req.on('error', reject);
+        req.end('{}');
+      });
+      expect(r.status).toBe(403);
+      expect(r.text).toMatch(/out of frontier prompts/i);
+    } finally {
+      edge.kill('SIGKILL');
+      denied.close();
+    }
   });
 });

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ExhaustedBanner } from "@/components/dashboard/prompt-meter";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import {
   ErrorState,
@@ -184,6 +185,15 @@ export function UsageView() {
   return (
     <>
       <RefreshingBar show={usage.refreshing} />
+
+      {bundle.data?.plan ? (
+        <ExhaustedBanner
+          promptsByModel={bundle.data.promptsByModel ?? {}}
+          promptLimits={bundle.data.plan.promptLimits ?? {}}
+          entitled={bundle.data.plan.models ?? []}
+          resetDate={bundle.data.subscription?.currentPeriodEnd ?? bundle.data.period.end}
+        />
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard

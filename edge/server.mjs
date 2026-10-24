@@ -149,6 +149,58 @@ function failClosed(res, status, message) {
   res.end(body);
 }
 
+/**
+ * Map a generic LiteLLM model-denied 403 to an actionable message.
+ *
+ * LiteLLM answers a disallowed model with 403 and a body like
+ * "Model 'frontier' is not available for this API key" (wording varies by
+ * version). Customers cannot act on that — it reads as a credential bug.
+ * The edge cannot know whether the alias is quota-exhausted or simply not
+ * in the plan, so the mapped message names the model and states both, and
+ * always contains `out of <alias> prompts` for the quota case. Anything
+ * that is not a model-access denial passes through untouched.
+ *
+ * Pure (no I/O): unit-tested via the auth-edge suite.
+ */
+export function mapModelDeniedBody(status, rawText) {
+  if (status !== 403) return null;
+  const text = String(rawText ?? '');
+  if (!/not\s+(available|allowed)|not\s+allowed\s+for|excluded|no\s+access|denied|not\s+have\s+access/i.test(text)) {
+    return null;
+  }
+  const aliasHit = /\b(fast|smart|frontier)\b/i.exec(text);
+  const quotedHit = /["']([A-Za-z0-9][A-Za-z0-9\-_]{1,64})["']/.exec(text);
+  const model = aliasHit ? aliasHit[1].toLowerCase() : quotedHit ? quotedHit[1] : null;
+  const message = model
+    ? `Model '${model}' is not available for this API key — you may be out of ${model} prompts or your plan does not include it. Check usage for remaining prompts.`
+    : 'Model not available for this API key — you may be out of prompts or your plan does not include it. Check usage for remaining prompts.';
+  return { model, message };
+}
+
+/** Buffer a small upstream error body, map a model denial, answer. */
+function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders) {
+  const chunks = [];
+  upstreamRes.on('data', (c) => chunks.push(c));
+  upstreamRes.on('end', () => {
+    const raw = Buffer.concat(chunks).toString('utf8');
+    const mapped = mapModelDeniedBody(status, raw);
+    if (!mapped) {
+      // Not a model denial — pass through byte-identical.
+      res.writeHead(status, outHeaders);
+      res.end(raw);
+      log(req, started, status, rewritten, null, 'proxy');
+      return;
+    }
+    const body = JSON.stringify({ error: { message: mapped.message, type: 'auth_edge_error', model: mapped.model } });
+    res.writeHead(status, {
+      'content-type': 'application/json',
+      'content-length': Buffer.byteLength(body),
+    });
+    res.end(body);
+    log(req, started, status, rewritten, null, 'proxy:model-denied');
+  });
+}
+
 const server = http.createServer((req, res) => {
   const started = process.hrtime.bigint();
 
@@ -220,6 +272,7 @@ const server = http.createServer((req, res) => {
       headers,
     },
     (upstreamRes) => {
+      const status = upstreamRes.statusCode ?? 502;
       const outHeaders = {};
       for (const [name, value] of Object.entries(upstreamRes.headers)) {
         if (HOP_BY_HOP.has(name.toLowerCase())) continue;
@@ -227,7 +280,14 @@ const server = http.createServer((req, res) => {
         // our own content-length here would break SSE.
         outHeaders[name] = value;
       }
-      res.writeHead(upstreamRes.statusCode ?? 502, outHeaders);
+      // A model-access denial is a small JSON error, never a stream — buffer
+      // it so the customer gets `out of <alias> prompts` instead of the
+      // generic gateway wording. Everything else streams untouched.
+      if (status === 403 && (req.method === 'POST' || req.method === 'GET')) {
+        handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders);
+        return;
+      }
+      res.writeHead(status, outHeaders);
       upstreamRes.pipe(res);
       upstreamRes.on('end', () => {
         res.end();

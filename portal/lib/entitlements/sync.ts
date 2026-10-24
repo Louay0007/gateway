@@ -23,6 +23,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { entitlements, organizations, plans, subscriptions, auditLog } from '@/db/schema';
 import { updateTeamBudget, updateTeamModels, updateKeyLimits, listTeamKeys } from '@/lib/litellm/client';
+import { getAllowedModels } from '@/lib/entitlements/allowed-models';
 import {
   CUT_BUDGET,
   effectForStatus,
@@ -152,13 +153,45 @@ export async function syncOrganizationEntitlements(
     effect,
   );
 
+  // ── THE QUOTA WALL. Same helper enforce() uses: allowed = entitled
+  // WHERE used < limit in the current window. Sync used to push the full
+  // plan list, resurrecting every alias enforce had just narrowed — the
+  // leak this fix closes. Reconcile hourly now re-pushes the NARROWED
+  // list, never the full one. Renewal restores: a new window has zero
+  // usage so the wall re-allows everything.
+  let allowedModels: string[];
+  let quotaUsedBy: Record<string, number> = {};
+  if (effect === 'cut') {
+    allowedModels = [];
+  } else if (suspended) {
+    // Suspended reads as cut for the push even when the subscription is
+    // live — but quota usage is still reported for the cached spec.
+    allowedModels = [];
+  } else {
+    try {
+      const wall = await getAllowedModels(organizationId);
+      allowedModels = wall.allowed;
+      quotaUsedBy = wall.usedBy;
+    } catch (e) {
+      // Fail CLOSED on a wall read error: pushing the full list would grant
+      // quota that may already be exhausted. The sync fails, stays pending,
+      // and the retry queue re-attempts.
+      const message = `quota wall unreadable: ${e instanceof Error ? e.message : String(e)}`;
+      await db.update(entitlements)
+        .set({ status: 'failed', lastError: message })
+        .where(eq(entitlements.organizationId, organizationId));
+      log.error('entitlement sync failed', { organizationId, reason, error: message });
+      return { ok: false, error: message, effect, budgetUsd, keysSynced: 0 };
+    }
+  }
+
   const spec: EntitlementSpec = {
     effect,
     planCode: live.plan_code,
     rpm: effect === 'cut' ? null : live.rpm_limit,
     tpm: effect === 'cut' ? null : live.tpm_limit,
     concurrency: effect === 'cut' ? null : live.max_concurrent_requests,
-    models: effect === 'cut' ? [] : live.models,
+    models: allowedModels,
     maxKeys: live.max_keys,
     maxSeats: live.max_seats,
     maxBudgetUsd: budgetUsd,
@@ -196,8 +229,11 @@ export async function syncOrganizationEntitlements(
 
   // ── 2. Push down. Every key individually — a partial failure must not
   //       leave one key on an old plan while its siblings moved.
+  // `allowedModels` is the QUOTA-NARROWED list (same wall enforce uses),
+  // NOT the full plan list — pushing the full list is the leak that let
+  // over-limit aliases keep serving. `[]` = deny all when every alias is
+  // exhausted; verified via forceCut, which already pushes [] for cut orgs.
   if (org?.litellmTeamId) {
-    const allowedModels = effect === 'cut' ? [] : spec.models;
     try {
       await updateTeamBudget(org.litellmTeamId, {
         maxBudgetUsd: budgetUsd,
@@ -271,7 +307,7 @@ export async function syncOrganizationEntitlements(
     actorType: 'system',
     action: 'entitlements.synced',
     organizationId,
-    after: { effect, reason, plan: live.plan_code, budgetUsd, keysSynced, suspended },
+    after: { effect, reason, plan: live.plan_code, budgetUsd, keysSynced, suspended, allowedModels, quotaUsedBy },
   });
 
   return { ok: true, effect, budgetUsd, keysSynced };
