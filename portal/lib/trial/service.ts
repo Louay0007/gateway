@@ -201,7 +201,7 @@ export async function redeemTrialCode(
 
   return {
     ok: true,
-    message: `Free trial activated! Your trial expires on ${expiresAt.toLocaleDateString('en-TN', { year: 'numeric', month: 'long', day: 'numeric' })}.`,
+    message: `Free trial activated! Your trial expires on ${expiresAt.toLocaleDateString('en-TN', { year: 'numeric', month: 'long', day: 'numeric' })}. The free trial campaign ends 31 October.`,
     expiresAt: expiresAt.toISOString(),
   };
 }

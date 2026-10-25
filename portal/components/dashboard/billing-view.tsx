@@ -400,7 +400,7 @@ export function BillingView() {
                             timeZone: "UTC",
                           })
                         : "your trial end date"}
-                      {" "}— renewal opens when the trial ends.
+                      {" "}— renewal opens when the trial ends. Campaign ends 31 October.
                     </span>
                   ) : (
                     <Button

@@ -33,7 +33,8 @@ export default async function RedeemPage() {
         </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Enter a promo code to unlock 3 days of free access to Haiku 5.5
-            and Sonnet 5.5.
+            and Sonnet 5.5. Free trial campaign ends 31 October — redeem
+            before then.
         </p>
       </div>
 
@@ -50,7 +51,7 @@ export default async function RedeemPage() {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
-              })}.
+              })}. The free trial campaign ends 31 October.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
