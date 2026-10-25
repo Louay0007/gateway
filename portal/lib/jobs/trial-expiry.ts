@@ -18,13 +18,18 @@ import { log } from '@/lib/log';
 export async function runTrialExpiry(): Promise<{ expired: number; errors: number }> {
   const now = new Date();
 
+  // ISO string + explicit cast: every other raw-SQL date param in this
+  // codebase (collect-usage, allowed-models) does the same. A raw Date
+  // object here crashed the postgres driver every hour ("Received an
+  // instance of Date"), so expired trials were silently never cut.
+  const nowIso = now.toISOString();
   // Find all trialing subscriptions past their trial_end
   const expired = (await db.execute(sql`
     SELECT id, organization_id
       FROM subscriptions
      WHERE status = 'trialing'
        AND trial_end IS NOT NULL
-       AND trial_end < ${now}
+       AND trial_end < ${nowIso}::timestamptz
   `)) as unknown as { id: string; organization_id: string }[];
 
   if (expired.length === 0) {

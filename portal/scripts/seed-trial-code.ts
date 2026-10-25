@@ -79,8 +79,9 @@ async function main() {
       promptLimits: { fast: 300, smart: 300 },
       trialDays: 3,
       validFrom: new Date('2026-10-20T00:00:00+01:00'),
-      validUntil: new Date('2026-10-22T23:59:59+01:00'),
-      expiresAt: new Date('2026-10-22T23:59:59+01:00'),
+      // Campaign extended to end 1 Nov 00:00 Tunis (migration 0021).
+      validUntil: new Date('2026-10-31T23:59:59+01:00'),
+      expiresAt: new Date('2026-10-31T23:59:59+01:00'),
       active: true,
     });
     console.log('✓ Created ZAINO-FREE-OCT26 trial code');

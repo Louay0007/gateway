@@ -43,12 +43,14 @@ export interface JobHealthRow {
 /** Jobs the runner owns, with the interval they are expected to keep. */
 const NOMINAL_INTERVAL_SECONDS: Record<string, number> = {
   collect_usage: 300,
+  enforce_prompt_limits: 300,
   rollup_usage: 900,
   expire_subscriptions: 300,
   reconcile_entitlements: 3600,
   send_alerts: 900,
   detect_anomalies: 3600,
-  expire_trials: 300,
+  // Hourly in scripts/jobs.ts — 300s here flagged it stale on every check.
+  expire_trials: 3600,
 };
 
 export async function jobHealth(): Promise<JobHealthRow[]> {
