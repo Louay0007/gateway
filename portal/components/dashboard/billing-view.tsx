@@ -85,6 +85,7 @@ export function BillingView() {
   const b = bundle.data;
   const plan = b?.plan ?? null;
   const plans = catalog.data?.plans ?? [];
+  const promo = plans.find((p) => p.promo)?.promo ?? plan?.promo ?? null;
   const hasPlan = b ? b.state !== "no_subscription" : true;
 
   // Token-only KPIs: blended tokens are the sole quota.
@@ -239,6 +240,21 @@ export function BillingView() {
   return (
     <>
       <RefreshingBar show={bundle.refreshing} />
+
+      {promo ? (
+        <Card className="border-orange-500/40 bg-orange-500/5">
+          <CardContent className="flex flex-wrap items-center gap-3 py-4">
+            <span aria-hidden className="text-lg">🎃</span>
+            <p className="text-sm">
+              <span className="font-medium">
+                {promo.label}: {promo.percentOff}% off every plan.
+              </span>{" "}
+              Ends 1 Nov, 00:00 (Tunisia). The discount is applied automatically
+              when you pay by D17.
+            </p>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {!hasPlan ? (
         <PaywallState
@@ -477,12 +493,22 @@ export function BillingView() {
                     <CardDescription>{plan.description}</CardDescription>
                   </div>
                   <div className="text-right">
-                    <p className="flex items-baseline justify-end gap-1 text-2xl font-semibold tabular-nums">
-                      {centsDt(plan.priceCents)}
+                    <p className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-2xl font-semibold tabular-nums">
+                      {centsDt(plan.promo?.priceCents ?? plan.priceCents)}
+                      {plan.promo ? (
+                        <span className="text-sm font-normal text-muted-foreground line-through">
+                          {centsDt(plan.promo.originalPriceCents)}
+                        </span>
+                      ) : null}
                       <span className="text-sm font-normal text-muted-foreground">
                         /{plan.interval}
                       </span>
                     </p>
+                    {plan.promo ? (
+                      <p className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                        {plan.promo.percentOff}% Halloween discount applied
+                      </p>
+                    ) : null}
                     {renews ? (
                       <p className="text-xs text-muted-foreground">
                         {b.subscription?.cancelAtPeriodEnd ? "Access until" : "Renews"}{" "}
@@ -620,8 +646,13 @@ export function BillingView() {
                   <span className="font-semibold">{p.name}</span>
                   {p.code === plan?.code ? <Badge className="bg-emerald-600 text-white">Current</Badge> : null}
                 </div>
-                <p className="text-2xl font-semibold tabular-nums">
-                  {centsDt(p.priceCents)}
+                <p className="flex flex-wrap items-baseline gap-2 text-2xl font-semibold tabular-nums">
+                  {centsDt(p.promo?.priceCents ?? p.priceCents)}
+                  {p.promo ? (
+                    <span className="text-sm font-normal text-muted-foreground line-through">
+                      {centsDt(p.promo.originalPriceCents)}
+                    </span>
+                  ) : null}
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
                 </p>
                 <ul className="grid gap-1 text-sm text-muted-foreground">
@@ -693,7 +724,10 @@ function PlanComparisonTable({
   if (plans.length === 0) return null;
 
   const features = [
-    { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => centsDt(p.priceCents) },
+    { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => {
+      const price = centsDt(p.promo?.priceCents ?? p.priceCents);
+      return p.promo ? `${price} (was ${centsDt(p.promo.originalPriceCents)})` : price;
+    } },
     { key: "fast-tokens", label: "Fast tokens (Haiku 5.5)", getValue: (p: typeof plans[0]) => {
       const limit = (p.tokenLimits as Record<string, number>)?.fast;
       return limit ? `${compact(limit)} / period` : "—";

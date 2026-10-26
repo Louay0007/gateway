@@ -103,6 +103,18 @@ export function amountTndMillimes(usdCents: number, rate = usdTndRate()): number
   return Math.round(tnd * 1000);
 }
 
+/**
+ * USD plan price (cents) → the TND amount a D17 transfer asks for.
+ *
+ * Plans are advertised and collected in WHOLE dinars: 50 DT / 90 DT, and
+ * 35 DT / 63 DT during a sale. Converting the catalog's USD cents keeps a
+ * single source of truth while rounding the cash request to the amount the
+ * customer saw on the pricing page (no 49.972-style transfers).
+ */
+export function planPriceTndMillimes(usdCents: number, rate = usdTndRate()): number {
+  return Math.round((usdCents / 100) * rate) * 1000;
+}
+
 export function usdTndRate(): number {
   const raw = Number(process.env.D17_USD_TND_RATE ?? '3.1');
   if (!Number.isFinite(raw) || raw <= 0) return 3.1;

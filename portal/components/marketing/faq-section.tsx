@@ -3,6 +3,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ChevronDown } from 'lucide-react';
+import { HalloweenDots } from "@/components/marketing/halloween-dots";
 
 interface FaqItem {
   question: string;
@@ -131,14 +132,24 @@ export default function FaqSection() {
   }, []);
 
   return (
-    <section ref={containerRef} className="w-full py-20 px-4 sm:px-6 lg:px-8">
+    <section ref={containerRef} className="relative w-full py-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
+      {/* Halloween ambient background */}
+      <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-[#000000]" />
+        <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
+        <div className="absolute top-1/4 right-[5%] w-72 h-72 rounded-full bg-purple-500/10 blur-[80px] animate-[pulse_9s_ease-in-out_infinite]" />
+        <div className="absolute bottom-1/4 left-[8%] w-64 h-64 rounded-full bg-orange-500/10 blur-[80px] animate-[pulse_11s_ease-in-out_infinite_reverse]" />
+        <HalloweenDots />
+        {/* Ghost floating over the FAQ — it answers the spooky questions */}
+        <img src="/images/halloween/category-ghost.png" alt="" aria-hidden="true" className="absolute top-6 right-6 sm:right-16 w-24 sm:w-32 md:w-40 h-auto opacity-90 pointer-events-none select-none animate-[pulse_6s_ease-in-out_infinite]" />
+      </div>
       <div className="max-w-3xl mx-auto">
         {/* Heading */}
         <div data-faq-heading className="text-center mb-12">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4 text-foreground">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4 text-white">
             Frequently Asked Questions
           </h2>
-          <p className="text-lg text-muted-foreground">
+          <p className="text-lg text-white/60">
             Everything you need to know about Zaino AI and how we work.
           </p>
         </div>
@@ -149,8 +160,7 @@ export default function FaqSection() {
             <div
               key={index}
               data-faq-item
-              className="rounded-xl border border-border overflow-hidden transition-colors hover:border-primary/30"
-              style={{ backgroundColor: 'var(--muted)' }}
+              className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden transition-colors hover:border-orange-500/40"
             >
               {/* Question Button */}
               <button
@@ -159,12 +169,12 @@ export default function FaqSection() {
                 aria-expanded={openIndex === index}
                 aria-controls={`faq-answer-${index}`}
               >
-                <span className="text-base font-semibold text-foreground pr-4">
+                <span className="text-base font-semibold text-white pr-4">
                   {item.question}
                 </span>
                 <span
                   ref={setChevronRef(index)}
-                  className="shrink-0 text-muted-foreground"
+                  className="shrink-0 text-orange-400"
                 >
                   <ChevronDown className="h-5 w-5" />
                 </span>
@@ -180,7 +190,7 @@ export default function FaqSection() {
                 aria-labelledby={`faq-question-${index}`}
               >
                 <div className="px-6 pb-5 pt-0">
-                  <p className="text-sm leading-relaxed text-muted-foreground">
+                  <p className="text-sm leading-relaxed text-white/60">
                     {item.answer}
                   </p>
                 </div>
@@ -191,20 +201,20 @@ export default function FaqSection() {
 
         {/* Footer CTA */}
         <div className="text-center mt-10">
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-white/60">
             Still have questions?{' '}
             <a
               href="https://wa.me/21656794578"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-primary font-medium hover:underline underline-offset-4"
+              className="text-orange-400 font-medium hover:underline underline-offset-4"
             >
               Chat on WhatsApp
             </a>{' '}
             or call{' '}
             <a
               href="tel:+21656794578"
-              className="text-primary font-medium hover:underline underline-offset-4"
+              className="text-orange-400 font-medium hover:underline underline-offset-4"
             >
               +216 56 794 578
             </a>

@@ -29,10 +29,11 @@ import { and, desc, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import { plans, paymentsD17, subscriptions } from '@/db/schema';
 import { log } from '@/lib/log';
+import { promoView } from './promo';
 import {
-  amountTndMillimes,
   d17ReceiverPhone,
   paymentDeadline,
+  planPriceTndMillimes,
   usdTndRate,
 } from './d17-config';
 import type {
@@ -63,8 +64,23 @@ export const d17BillingProvider: BillingProvider = {
     if (!sub) throw new Error(`d17: subscription ${input.subscriptionId} not found`);
 
     const rate = usdTndRate();
-    const millimes = amountTndMillimes(plan.priceCents, rate);
+    // The promotion is applied HERE, once: the payment row is the money
+    // record, so the amount the customer is asked to transfer and the USD
+    // cents we store as paid are both the discounted price. Approving the
+    // proof later never re-prices the sale, even if the window has closed.
+    const promo = promoView(plan.priceCents);
+    const chargedUsdCents = promo?.priceCents ?? plan.priceCents;
+    const millimes = planPriceTndMillimes(chargedUsdCents, rate);
     const expiresAt = paymentDeadline();
+    if (promo) {
+      log.info('d17: promotion applied', {
+        code: promo.code,
+        plan: plan.code,
+        listPriceCents: plan.priceCents,
+        chargedUsdCents,
+        percentOff: promo.percentOff,
+      });
+    }
 
     // Which period this payment covers. For a first purchase there is no
     // period yet — provisional now → now+1mo, corrected on approval. For a
@@ -92,7 +108,7 @@ export const d17BillingProvider: BillingProvider = {
     // update path, so the customer sees one payment, not two.
     const openFields = {
       amountMillimes: millimes,
-      usdAmountCents: plan.priceCents,
+      usdAmountCents: chargedUsdCents,
       fxRate: String(rate),
       authorizationNumber: null,
       senderPhone: null,
@@ -133,7 +149,7 @@ export const d17BillingProvider: BillingProvider = {
               subscriptionId: input.subscriptionId,
               organizationId: input.organizationId,
               amountMillimes: millimes,
-              usdAmountCents: plan.priceCents,
+              usdAmountCents: chargedUsdCents,
               fxRate: String(rate),
               expiresAt,
               periodStart,

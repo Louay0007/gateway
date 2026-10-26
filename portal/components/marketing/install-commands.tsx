@@ -67,6 +67,10 @@ const COMMANDS: {
 ];
 
 export function InstallCommands() {
+  return null;
+}
+
+function InstallCommandsContent() {
   return (
     <div className="mt-16">
       <div className="mx-auto max-w-2xl text-center">

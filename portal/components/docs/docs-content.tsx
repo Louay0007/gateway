@@ -21,7 +21,7 @@ export function DocsContent({ dashboard = false }: { dashboard?: boolean }) {
   const [base, setBase] = React.useState(PUBLIC_BASE_URL);
 
   return (
-    <div className={dashboard ? "" : "light-surface"}>
+    <div>
       <DocsHero dashboard={dashboard} />
       <div className="mx-auto w-full max-w-7xl px-4 pb-20 sm:px-6 lg:px-8">
         <div className="gap-10 pt-12 lg:grid lg:grid-cols-[220px_minmax(0,1fr)]">

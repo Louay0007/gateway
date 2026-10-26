@@ -13,9 +13,9 @@ export default function TermsPage() {
   return (
     <>
       <div className="light-surface">
-        <Navbar tone="light" />
+        <Navbar />
       </div>
-      <main className="bg-white dark:bg-gray-950 py-16 sm:py-24">
+      <main className="bg-white dark:bg-black py-16 sm:py-24">
         <article className="mx-auto max-w-3xl px-4 lg:px-8">
           <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-5xl">
             Terms of Service

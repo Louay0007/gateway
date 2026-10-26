@@ -37,7 +37,7 @@ export default async function ResetTokenPage({
       footer={
         <>
           Link expired?{" "}
-          <Link href="/reset-password" className="text-black underline-offset-4 hover:underline">
+          <Link href="/reset-password" className="text-black underline-offset-4 hover:underline dark:text-white">
             Request a new one
           </Link>
         </>

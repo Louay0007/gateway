@@ -12,7 +12,6 @@ import {
   Package,
 } from "lucide-react";
 
-import { InstallCommands } from "@/components/marketing/install-commands";
 import {
   AppleLogo,
   LinuxLogo,
@@ -399,9 +398,6 @@ export default function DownloadContent() {
           </p>
         ) : null}
       </div>
-
-      {/* ── Installation commands (Claude Code CLI) ──────────────────── */}
-      <InstallCommands />
 
       {/* ── Platform cards ───────────────────────────────── */}
       <div id="platforms" className="mt-16 grid scroll-mt-24 gap-6 md:grid-cols-3">

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Navbar from '@/components/shadcn-space/blocks/hero-33/navbar';
 import Hero33 from '@/components/shadcn-space/blocks/hero-33/hero';
 import { LogoCloud } from '@/components/ui/logo-cloud-3';
+import { HalloweenDots } from '@/components/marketing/halloween-dots';
 import AnimatedBeamSection from '@/components/marketing/animated-beam-section';
 import MacbookSection from '@/components/marketing/macbook-section';
 import MobileSection from '@/components/marketing/mobile-section';
@@ -11,9 +12,9 @@ import CTA from '@/components/shadcn-space/blocks/cta-01/cta';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 
 export const metadata: Metadata = {
-  title: 'Zaino AI — One API for Every Model',
+  title: 'Zaino AI — Halloween Edition 🎃',
   description:
-    'OpenAI- and Anthropic-compatible API endpoints with spend ceilings that hold, instant keys, and D17 payment for Tunisia.',
+    'Spooky fast API access: OpenAI- and Anthropic-compatible endpoints with spend ceilings, instant keys, D17 payment, and a haunted discount this Halloween.',
 };
 
 /**
@@ -63,39 +64,49 @@ const logos = [
 ];
 
 /**
- * Force light mode on the landing page only.
+ * Force dark Halloween mode on the landing page only.
  *
- * This inline script runs before first paint to strip `dark` from <html>
- * and set `light`, ensuring the landing page always renders with white
- * backgrounds regardless of the visitor's saved theme preference. Other
- * marketing routes (docs, download, pricing, etc.) respect the user's
- * theme through the root ThemeProvider.
+ * This inline script runs before first paint to strip `light` from <html>
+ * and set `dark`, ensuring the Halloween sections (bg #000000) always
+ * render with light text regardless of the visitor's saved theme
+ * preference. Other marketing routes (docs, download, pricing, etc.)
+ * respect the user's theme through the root ThemeProvider.
  */
-const forceLightScript = `
+const forceDarkScript = `
 (function(){
   var h = document.documentElement;
-  h.classList.remove('dark');
-  h.classList.add('light');
-  try { localStorage.setItem('theme', 'light'); } catch(e){}
+  h.classList.remove('light');
+  h.classList.add('dark');
+  try { localStorage.setItem('theme', 'dark'); } catch(e){}
 })();
 `;
 
 export default function LandingPage() {
   return (
     <>
-      <script dangerouslySetInnerHTML={{ __html: forceLightScript }} />
-      <div className="light light-surface">
-        <Navbar banner="🟢 Zaino is back — Fast (Haiku 5.5), Smart (Sonnet 5.5) & Frontier (Opus 5.5) are live" />
-        <main>
+      <script dangerouslySetInnerHTML={{ __html: forceDarkScript }} />
+      <div className="dark bg-[#000000] text-white">
+        <Navbar tone="light" />
+        <main className="bg-[#000000]">
         <Hero33 />
-        <section className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
-          <h2 className="mb-6 text-center font-medium text-foreground text-lg tracking-tight md:text-2xl">
-            <span className="text-muted-foreground">Trusted by experts.</span>{" "}
-            <span className="font-semibold">Used by the leaders.</span>
+        <section className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 overflow-hidden">
+          {/* Halloween ambient background */}
+          <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
+            <div className="absolute inset-0 bg-[#000000]" />
+            <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
+            <div className="absolute top-1/4 left-[10%] w-72 h-72 rounded-full bg-orange-500/10 blur-[80px] animate-[pulse_9s_ease-in-out_infinite]" />
+            <div className="absolute bottom-1/4 right-[10%] w-64 h-64 rounded-full bg-purple-500/10 blur-[80px] animate-[pulse_11s_ease-in-out_infinite_reverse]" />
+            <HalloweenDots />
+          </div>
+          <img src="/images/halloween/item-witch-hat.png" alt="" aria-hidden="true" className="absolute -top-4 right-[12%] w-20 sm:w-28 md:w-32 h-auto opacity-90 pointer-events-none select-none rotate-6" />
+          <img src="/images/halloween/item-pumpkin.png" alt="" aria-hidden="true" className="absolute -bottom-2 left-[10%] w-20 sm:w-28 md:w-32 h-auto opacity-90 pointer-events-none select-none -rotate-6" />
+          <h2 className="mb-6 text-center font-medium text-white text-lg tracking-tight md:text-2xl">
+            <span className="text-white/60">Trusted by experts.</span>{" "}
+            <span className="font-semibold text-white">Used by the leaders.</span>
           </h2>
-          <div className="mx-auto my-4 h-px max-w-sm bg-border [mask-image:linear-gradient(to_right,transparent,black,transparent)]" />
+          <div className="mx-auto my-4 h-px max-w-sm bg-white/10 [mask-image:linear-gradient(to_right,transparent,black,transparent)]" />
           <LogoCloud logos={logos} />
-          <div className="mt-4 h-px bg-border [mask-image:linear-gradient(to_right,transparent,black,transparent)]" />
+          <div className="mt-4 h-px bg-white/10 [mask-image:linear-gradient(to_right,transparent,black,transparent)]" />
         </section>
         <AnimatedBeamSection />
         <MacbookSection />

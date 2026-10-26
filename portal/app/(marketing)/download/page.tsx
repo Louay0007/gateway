@@ -11,8 +11,8 @@ export const metadata: Metadata = {
 
 export default function DownloadPage() {
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 text-gray-900 dark:text-gray-100">
-      <Navbar tone="light" active="Download" />
+    <div className="min-h-screen bg-black pb-16 text-gray-100">
+      <Navbar active="Download" />
       <DownloadContent />
       <ZainoFooter />
     </div>

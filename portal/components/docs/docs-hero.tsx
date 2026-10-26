@@ -4,6 +4,8 @@ import { ArrowRight, BookOpen, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { promoView } from "@/lib/billing/promo";
+import { centsDt } from "@/lib/dashboard/format";
 
 /**
  * Docs hero + table of contents — shared by public /docs and
@@ -15,7 +17,7 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
     <section
       className={cn(
         "border-b",
-        dashboard ? "border-border bg-background" : "border-gray-200/60 bg-white dark:border-gray-800 dark:bg-gray-950",
+        dashboard ? "border-border bg-background" : "border-gray-200/60 bg-white dark:border-gray-800 dark:bg-black",
       )}
     >
       <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
@@ -102,6 +104,12 @@ const TOC = [
 ];
 
 export function DocsToc() {
+  // Same promotion module the checkout charges with, so the docs line can
+  // never advertise a price the D17 page will not ask for. 1613 is the
+  // Starter list price in USD cents — 50 DT at the 3.1 D17 rate
+  // (migration 0024); it is the floor.
+  const starterPromo = promoView(1613);
+  const starterPrice = centsDt(starterPromo?.priceCents ?? 1613);
   const labels: Record<string, string> = {
     quickstart: "Quickstart",
     models: "Models",
@@ -129,7 +137,9 @@ export function DocsToc() {
         <div className="mt-4 rounded-xl border border-border bg-card p-4">
           <p className="text-sm font-medium">Need a key?</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Keys are minted in seconds and shown once. Plans start at 50 DT/mo.
+            Keys are minted in seconds and shown once. Plans start at{" "}
+            {starterPrice}/mo
+            {starterPromo ? ` — Halloween special, ${starterPromo.percentOff}% off until 1 Nov.` : "."}
           </p>
           <Button size="sm" className="mt-3 w-full rounded-full" nativeButton={false} render={<Link href="/sign-up" />}>
             Get an API key

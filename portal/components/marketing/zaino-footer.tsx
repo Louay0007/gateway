@@ -1,6 +1,7 @@
 'use client';
 
 import { RuixenGradientFooter } from '@/components/ui/ruixen-gradient-footer';
+import { HalloweenDots } from "@/components/marketing/halloween-dots";
 import Logo from '@/assets/logo/logo';
 
 const columns = [
@@ -49,15 +50,28 @@ const columns = [
 
 export default function ZainoFooter() {
   return (
-    <RuixenGradientFooter>
+    <RuixenGradientFooter
+      className="relative overflow-hidden bg-[#000000] dark:bg-[#000000]"
+      style={{ backgroundColor: '#000000', backgroundImage: 'none' }}
+    >
+      {/* Halloween ambient background */}
+      <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-[#000000]" />
+        <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
+        <img src="/images/halloween/footer-tree1.png" alt="" className="absolute bottom-0 right-0 w-56 sm:w-72 h-auto opacity-80 pointer-events-none" />
+        <img src="/images/halloween/footer-tree2.png" alt="" className="absolute bottom-0 left-0 w-56 sm:w-72 h-auto opacity-80 pointer-events-none" />
+        <div className="absolute top-1/4 left-[5%] w-64 h-64 rounded-full bg-purple-500/8 blur-[80px] animate-[pulse_10s_ease-in-out_infinite]" />
+        <HalloweenDots />
+      </div>
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 pt-16">
         <div className="grid gap-10 pb-10 sm:grid-cols-2 lg:grid-cols-6">
           {/* Brand column */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-2">
               <Logo tone="auto" />
+              <img src="/images/halloween/logo-skull.png" alt="" aria-hidden="true" className="w-14 h-14 object-contain opacity-90" />
             </div>
-            <p className="mt-4 max-w-xs text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-4 max-w-xs text-sm text-white/60">
               Your ultimate Claude subscription — forget the limits. Licensed cloud infrastructure with direct Anthropic agreement, request-based billing, and D17 payment for Tunisia.
             </p>
             <div className="mt-6 flex max-w-xs gap-2">
@@ -65,11 +79,11 @@ export default function ZainoFooter() {
                 type="email"
                 aria-label="Email address"
                 placeholder="you@company.com"
-                className="h-9 w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white/50 dark:bg-gray-800/50 px-3 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-500 dark:placeholder:text-gray-400 focus:border-gray-900 dark:focus:border-gray-100 focus:outline-none"
+                className="h-9 w-full rounded-md border border-white/20 bg-white/5 px-3 text-sm text-white placeholder:text-white/40 focus:border-orange-500 focus:outline-none"
               />
               <button
                 type="button"
-                className="h-9 shrink-0 rounded-md bg-gray-900 dark:bg-gray-700 px-3 text-xs font-semibold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
+                className="h-9 shrink-0 rounded-md bg-gradient-to-r from-orange-500 to-purple-600 px-3 text-xs font-semibold uppercase tracking-wider text-white transition-opacity hover:opacity-90"
               >
                 Join
               </button>
@@ -80,13 +94,13 @@ export default function ZainoFooter() {
           <nav className="grid grid-cols-2 gap-10 text-xs uppercase tracking-wider sm:grid-cols-4 lg:col-span-4">
             {columns.map((col) => (
               <div key={col.title}>
-                <h3 className="font-semibold text-gray-900 dark:text-gray-100">{col.title}</h3>
+                <h3 className="font-semibold text-white">{col.title}</h3>
                 <ul className="mt-4 flex flex-col gap-3">
                   {col.links.map((link) => (
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="text-gray-500 dark:text-gray-400 transition-colors hover:text-gray-900 dark:hover:text-gray-100"
+                        className="text-white/50 transition-colors hover:text-orange-400"
                       >
                         {link.label}
                       </a>
@@ -99,10 +113,10 @@ export default function ZainoFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="flex flex-col items-center justify-between gap-3 border-t border-gray-200 dark:border-gray-800 pt-6 pb-2 text-xs uppercase tracking-wider text-gray-500 dark:text-gray-400 sm:flex-row">
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 pb-2 text-xs uppercase tracking-wider text-white/40 sm:flex-row">
           <span>© 2026 Zaino AI</span>
           <span className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+            <span className="size-1.5 rounded-full bg-orange-500" />
             All systems normal
           </span>
           <span>Tunis · Remote</span>

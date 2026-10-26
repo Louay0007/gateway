@@ -38,7 +38,7 @@ export function CodexSection() {
       <div>
         <StepN n={2} text="Export the key and run with the override" />
         <CodeBlock language="bash" filename="run-codex.sh" code={CODEX_RUN} />
-        <p className="mt-2 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900" role="note">
+        <p className="mt-2 flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200" role="note">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           <span>
             <code className="font-mono">-c model=fast</code> is required —

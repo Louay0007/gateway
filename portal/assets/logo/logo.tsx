@@ -44,7 +44,7 @@ const Logo = ({
         <span
           className={
             tone === "light"
-              ? "text-lg font-semibold tracking-tight text-black"
+              ? "text-lg font-semibold tracking-tight text-black dark:text-white"
               : "text-lg font-semibold tracking-tight text-foreground"
           }
         >

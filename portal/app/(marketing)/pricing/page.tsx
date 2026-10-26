@@ -45,12 +45,13 @@ export default async function PricingPage() {
   // page contradicted the pricing table two inches below it. One source,
   // and no way for the two to disagree again.
   const plans = await listPlans();
+  const promo = plans.find((p) => p.promo)?.promo ?? null;
 
   return (
     <>
       <Navbar />
-      <main className="light-surface pt-16">
-        <section className="bg-white dark:bg-gray-950 py-16 sm:py-24">
+      <main className="pt-16">
+        <section className="bg-white dark:bg-black py-16 sm:py-24">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <div className="max-w-2xl">
               <Badge plans={plans} />
@@ -61,11 +62,18 @@ export default async function PricingPage() {
                 Every plan includes usage, enforces a hard spend ceiling at the
                 gateway, and hands you the key the moment payment clears.
               </p>
+              {promo ? (
+                <div className="mt-6 inline-flex flex-wrap items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300">
+                  <span aria-hidden>🎃</span>
+                  {promo.label} — {promo.percentOff}% off every plan until 1 Nov,
+                  00:00 (Tunisia). Applied automatically at checkout.
+                </div>
+              ) : null}
             </div>
           </div>
         </section>
         <PricingPreview />
-        <div className="border-t border-gray-200/60 dark:border-gray-800 bg-white dark:bg-gray-950 py-12">
+        <div className="border-t border-gray-200/60 dark:border-gray-800 bg-white dark:bg-black py-12">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <Link
               href="/"
@@ -85,7 +93,11 @@ function Badge({ plans }: { plans: PlanSummary[] }) {
   // copy by price would put the wrong plan first for any future tier whose
   // price is not monotonic with its position.
   const line = plans
-    .map((p) => `${p.name} ${centsDt(p.priceCents)} / ${p.interval}`)
+    .map((p) => {
+      const price = p.promo?.priceCents ?? p.priceCents;
+      const was = p.promo ? ` (was ${centsDt(p.priceCents)})` : '';
+      return `${p.name} ${centsDt(price)}${was} / ${p.interval}`;
+    })
     .join(' · ');
 
   // No catalog (cold DB, migration mid-flight) must not render an empty

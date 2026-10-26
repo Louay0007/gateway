@@ -71,7 +71,7 @@ export function AuthField({
           aria-invalid={error ? true : undefined}
           aria-describedby={[describedBy, errorId].filter(Boolean).join(" ") || undefined}
           className={cn(
-            "h-11 w-full rounded-lg border bg-white text-base text-gray-900 outline-none dark:bg-gray-950 dark:text-gray-100",
+            "h-11 w-full rounded-lg border bg-white text-base text-gray-900 outline-none dark:bg-black dark:text-gray-100",
             "placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-colors duration-150",
             "focus:border-gray-900 focus:ring-2 focus:ring-gray-900/10 dark:focus:border-gray-100 dark:focus:ring-gray-100/10",
             isPassword ? "pr-11 pl-3.5" : "px-3.5",

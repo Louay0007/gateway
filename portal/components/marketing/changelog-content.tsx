@@ -21,6 +21,48 @@ interface ChangelogEntry {
 
 const entries: ChangelogEntry[] = [
   {
+    version: 'v1.3.0',
+    date: 'Oct 26, 2026',
+    title: 'Halloween Edition — 30% Off Every Plan Until 1 November',
+    description:
+      'The whole product is wearing a costume for Halloween week. Landing page, navigation, pricing, docs, sign-in, dashboard and the D17 checkout now share one spooky look — and every plan is 30% off until 1 November 2026 at 00:00 Tunisia time. Starter is 35 DT instead of 50 DT; Pro is 63 DT instead of 90 DT, applied automatically when you pay.',
+    details: [
+      {
+        heading: 'One discount, applied everywhere',
+        body: 'The Halloween promotion is a single code module, not a catalog rewrite: 30% off the list price while the window is open. Landing pricing, /pricing, the dashboard billing page, the paywall cards and the D17 checkout all read the same discounted number, so no surface can advertise a price another one will not charge. Annual billing keeps its usual 20% saving on top.',
+      },
+      {
+        heading: 'Base prices corrected to 50 DT and 90 DT',
+        body: 'Starter now lists at 50 DT and Pro at 90 DT — the numbers every marketing page had been promising — instead of the 59 DT / 307 DT the old catalog converted to. The correction is a forward-only database migration that moves the catalog itself, so entitlements, overage and reporting keep their meaning. The sale is then applied on top: 35 DT and 63 DT until 1 November.',
+      },
+      {
+        heading: 'Charged once, then locked',
+        body: 'The discount is applied at the moment the D17 payment row is created, which is the only place money moves. The amount the customer is asked to transfer and the USD cents stored as paid are both the sale price, and approving the proof later never re-prices the sale — even if the window has closed by then.',
+      },
+      {
+        heading: 'Whole-dinar transfers, in three languages',
+        body: 'D17 transfers are collected in whole dinars: 50.000 / 90.000 TND normally, 35.000 / 63.000 TND during the sale. The checkout summary shows the saving with the crossed-out original, and the promotion line is translated for FR, AR and EN. The window closes automatically at 00:00 Tunisia time on 1 November; list prices and the rest of the product are unaffected.',
+      },
+    ],
+  },
+  {
+    version: 'v1.2.0',
+    date: 'Oct 22, 2026',
+    title: 'Pro Refocus — 1,000 Smart + 500 Frontier',
+    description:
+      'Pro is now the power plan: 1,000 Sonnet 5.5 (Smart) prompts and 500 Opus 5.5 (Frontier) prompts per period. Fast (Haiku 5.5) stays Starter-only, so each tier has a clear job.',
+    details: [
+      {
+        heading: 'What changed',
+        body: 'Pro moves from {fast, smart, frontier} to {smart, frontier} with {smart: 1000, frontier: 500} prompt limits. Starter is unchanged at {fast, smart}. Existing Pro keys lose `fast` on the next entitlement sync; dashboards, docs, pricing, FAQ and the plan comparison table all show the new shape.',
+      },
+      {
+        heading: 'Why',
+        body: 'Fast is the high-volume Starter tier. Bundling it into Pro blurred the tiers and let Pro spend dilute across three models. Pro now concentrates its allowance where it matters: balanced everyday work (Smart) and the hardest reasoning (Frontier).',
+      },
+    ],
+  },
+  {
     version: 'v1.1.5',
     date: 'Oct 22, 2026',
     title: 'Standalone Desktop Beta — macOS, Windows & Linux',
@@ -42,23 +84,6 @@ const entries: ChangelogEntry[] = [
       {
         heading: 'Sign in with Zaino',
         body: 'First launch opens your browser to approve the device — no key to copy. The key it receives lives in your OS keychain, never on disk. Only the models your plan allows appear in the picker: Fast and Smart on Starter, plus Frontier on Pro.',
-      },
-    ],
-  },
-  {
-    version: 'v1.2.0',
-    date: 'Oct 22, 2026',
-    title: 'Pro Refocus — 1,000 Smart + 500 Frontier',
-    description:
-      'Pro is now the power plan: 1,000 Sonnet 5.5 (Smart) prompts and 500 Opus 5.5 (Frontier) prompts per period. Fast (Haiku 5.5) stays Starter-only, so each tier has a clear job.',
-    details: [
-      {
-        heading: 'What changed',
-        body: 'Pro moves from {fast, smart, frontier} to {smart, frontier} with {smart: 1000, frontier: 500} prompt limits. Starter is unchanged at {fast, smart}. Existing Pro keys lose `fast` on the next entitlement sync; dashboards, docs, pricing, FAQ and the plan comparison table all show the new shape.',
-      },
-      {
-        heading: 'Why',
-        body: 'Fast is the high-volume Starter tier. Bundling it into Pro blurred the tiers and let Pro spend dilute across three models. Pro now concentrates its allowance where it matters: balanced everyday work (Smart) and the hardest reasoning (Frontier).',
       },
     ],
   },

@@ -37,7 +37,7 @@ export function PricingPreview() {
 
   if (loading) {
     return (
-      <section className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-gray-950">
+      <section className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
         <div className="mx-auto max-w-4xl px-4">
           <PanelSkeleton rows={2} />
         </div>
@@ -46,7 +46,7 @@ export function PricingPreview() {
   }
   if (error) {
     return (
-      <section className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-gray-950">
+      <section className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
         <div className="mx-auto max-w-2xl px-4">
           <ErrorState error={error} onRetry={reload} />
         </div>
@@ -55,6 +55,7 @@ export function PricingPreview() {
   }
 
   const plans = data?.plans ?? [];
+  const promo = plans.find((p) => p.promo)?.promo ?? null;
 
   function handleGetStarted(planCode: string) {
     if (isAuthenticated) {
@@ -65,7 +66,7 @@ export function PricingPreview() {
   }
 
   return (
-    <section id="pricing" className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-gray-950">
+    <section id="pricing" className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pricing</p>
@@ -78,6 +79,13 @@ export function PricingPreview() {
             surprises. Pay by D17 transfer at La Poste — proof of payment is
             verified by a person, usually within hours.
           </p>
+          {promo ? (
+            <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300">
+              <span aria-hidden>🎃</span>
+              {promo.label} — {promo.percentOff}% off every plan until 1 Nov,
+              00:00 (Tunisia).
+            </div>
+          ) : null}
         </div>
 
         <div className="mt-14 grid gap-6 lg:grid-cols-2">
@@ -102,11 +110,21 @@ export function PricingPreview() {
               </div>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{plan.description}</p>
 
-              <p className="mt-6 flex items-baseline gap-1">
+              <p className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums text-gray-900 dark:text-gray-100">
-                  {centsDt(plan.priceCents)}
+                  {centsDt(plan.promo?.priceCents ?? plan.priceCents)}
                 </span>
+                {plan.promo ? (
+                  <span className="text-sm tabular-nums text-gray-500 line-through dark:text-gray-400">
+                    {centsDt(plan.promo.originalPriceCents)}
+                  </span>
+                ) : null}
                 <span className="text-sm text-gray-600 dark:text-gray-400">/{plan.interval}</span>
+                {plan.promo ? (
+                  <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:text-orange-300">
+                    −{plan.promo.percentOff}%
+                  </span>
+                ) : null}
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
@@ -214,8 +232,8 @@ function Feature({
 }) {
   return (
     <li className="flex items-start gap-2.5">
-      {icon ?? <Check className="mt-0.5 size-4 shrink-0 text-black" aria-hidden />}
-      <span className="text-gray-600">{children}</span>
+      {icon ?? <Check className="mt-0.5 size-4 shrink-0 text-black dark:text-white" aria-hidden />}
+      <span className="text-gray-600 dark:text-gray-400">{children}</span>
     </li>
   );
 }

@@ -13,6 +13,7 @@ import { AuthzError, requireActiveOrg } from "@/lib/auth/authorize";
 import {
   d17ReceiverPhone,
   formatTndMillimes,
+  planPriceTndMillimes,
   reviewWindowMinutes,
 } from "@/lib/billing/d17-config";
 import { loadD17Payment } from "@/lib/billing/d17";
@@ -78,6 +79,20 @@ export default async function D17CheckoutPage({
 
   const plan = await db.query.plans.findFirst({ where: eq(plans.id, sub.planId) });
   const payment = await loadD17Payment(subscriptionId);
+
+  // The payment row stores the price that was offered when checkout began.
+  // When it is below the catalog list price, a promotion was applied — show
+  // the saving so the customer can see why the amount is lower than the
+  // plan page they came from.
+  const promo =
+    plan && payment && payment.usdAmountCents > 0 && payment.usdAmountCents < plan.priceCents
+      ? {
+          percent: Math.round((1 - payment.usdAmountCents / plan.priceCents) * 100),
+          original: formatTndMillimes(
+            planPriceTndMillimes(plan.priceCents, Number(payment.fxRate)),
+          ),
+        }
+      : null;
 
   const langLinks = (base: string) =>
     D17_LANGS.map((l) => ({
@@ -241,6 +256,12 @@ export default async function D17CheckoutPage({
                 <dl className="divide-y divide-gray-50 px-5">
                   <SummaryRow label={t("d17.summary_plan")} value={plan?.name ?? "—"} />
                   <SummaryRow label={t("d17.summary_amount")} value={formatTndMillimes(payment.amountMillimes)} mono highlight />
+                  {promo ? (
+                    <SummaryRow
+                      label={t("d17.summary_promo", { percent: String(promo.percent) })}
+                      value={`${promo.original} TND`}
+                    />
+                  ) : null}
                   <SummaryRow label={t("d17.summary_reference")} value={`d17-${payment.id.slice(0, 8)}`} mono small />
                   <SummaryRow label={t("d17.summary_status")} value={t(statusKey[payment.status] ?? "d17.status_pending")} />
                 </dl>
@@ -331,7 +352,7 @@ function CheckoutShell({
   dir: "ltr" | "rtl";
 }) {
   return (
-    <main className="light-surface min-h-dvh bg-white dark:bg-gray-950" lang={lang} dir={dir}>
+    <main className="light-surface min-h-dvh bg-white dark:bg-black" lang={lang} dir={dir}>
       <div className="animate-hero-rise px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <Link
           href="/"

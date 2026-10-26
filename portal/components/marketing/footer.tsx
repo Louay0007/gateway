@@ -41,7 +41,7 @@ const columns = [
 
 export function MarketingFooter() {
   return (
-    <footer className="border-t border-gray-200/60 dark:border-gray-800 py-12 bg-white dark:bg-gray-950">
+    <footer className="border-t border-gray-200/60 dark:border-gray-800 py-12 bg-white dark:bg-black">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="flex flex-col justify-between gap-10 sm:flex-row">
           <div>

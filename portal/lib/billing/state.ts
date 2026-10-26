@@ -8,6 +8,9 @@
  * environment; this file imports nothing but a type.
  */
 
+import type { PromoView } from './promo';
+import { promoView } from './promo';
+
 /** What the dashboard shows, in customer language. */
 export type PlanState =
   | 'no_subscription'
@@ -43,6 +46,13 @@ export interface PlanSummary {
   name: string;
   description: string | null;
   priceCents: number;
+  /**
+   * Live seasonal discount, or null when no promotion is running. The
+   * catalog `priceCents` above stays the list price; `promo.priceCents` is
+   * what the customer actually pays. Display code must read
+   * `promo?.priceCents ?? priceCents`.
+   */
+  promo: PromoView | null;
   interval: string;
   includedSpendCents: number;
   hardCapCents: number | null;
@@ -72,7 +82,7 @@ export function summarizePlan(row: {
   rateMultiplierBps: number;
   models: string[];
   tokenLimits?: Record<string, number> | unknown;
-}): PlanSummary {
+}, now: Date = new Date()): PlanSummary {
   // JSONB columns arrive as `unknown` from Drizzle. Cast safely — a
   // malformed token value defaults to empty = UNLIMITED for that alias
   // (see quota.ts TOKEN WALL note), never Infinity from a bad number.
@@ -91,6 +101,7 @@ export function summarizePlan(row: {
     name: row.name,
     description: row.description,
     priceCents: row.priceCents,
+    promo: promoView(row.priceCents, now),
     interval: row.interval,
     includedSpendCents: row.includedSpendCents,
     hardCapCents: row.hardCapCents,

@@ -14,7 +14,7 @@ import { PlanCard } from './plan-card';
 import type { PlanSummary } from '@/lib/billing/state';
 import type { D17Lang } from '@/lib/i18n/d17';
 import { t17 } from '@/lib/i18n/d17';
-import { centsUsd, centsDt } from '@/lib/dashboard/format';
+import { centsDt, compact } from '@/lib/dashboard/format';
 
 interface PaywallStateProps {
   plans: PlanSummary[];
@@ -64,6 +64,26 @@ const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
   },
 };
 
+/** Live values from the plan row — the paywall must not disagree with the
+ * gateway. `tokenLimits` is keyed by alias (facade/migration 0023), so the
+ * bullets reflect the same budget the entitlement sync pushes. */
+function planFeatureValues(plan: PlanSummary): Record<string, string> {
+  const values: Record<string, string> = {
+    'd17.feat_keys': String(plan.maxKeys),
+    'd17.feat_rpm': plan.rpmLimit ? String(plan.rpmLimit) : '',
+    'd17.feat_tpm': plan.tpmLimit ? compact(plan.tpmLimit) : '',
+  };
+  for (const [alias, key] of [
+    ['fast', 'd17.feat_fast_tokens'],
+    ['smart', 'd17.feat_smart_tokens'],
+    ['frontier', 'd17.feat_frontier_tokens'],
+  ] as const) {
+    const limit = plan.tokenLimits?.[alias];
+    if (limit) values[key] = compact(limit);
+  }
+  return values;
+}
+
 export function PaywallState({
   plans,
   lang,
@@ -86,8 +106,9 @@ export function PaywallState({
           const isPro = plan.code === 'pro';
           const featureKeys = PLAN_FEATURES[plan.code] ?? [];
           const defaults = DEFAULT_FEATURE_VALUES[plan.code] ?? {};
+          const live = planFeatureValues(plan);
           const features = featureKeys.map((key) => {
-            const val = defaults[key];
+            const val = live[key] || defaults[key];
             return val ? t(key, { count: val, amount: val }) : t(key);
           });
 
@@ -95,7 +116,11 @@ export function PaywallState({
             <PlanCard
               key={plan.code}
               name={t(isPro ? 'd17.plan_pro_name' : 'd17.plan_starter_name')}
-              priceLabel={`${centsDt(plan.priceCents)}/mo`}
+              priceLabel={`${centsDt(plan.promo?.priceCents ?? plan.priceCents)}/mo`}
+              originalPriceLabel={
+                plan.promo ? `${centsDt(plan.promo.originalPriceCents)}/mo` : undefined
+              }
+              promoLabel={plan.promo ? `${plan.promo.percentOff}% off — Halloween` : undefined}
               features={features}
               isRecommended={isPro}
               ctaLabel={t('d17.plan_choose')}

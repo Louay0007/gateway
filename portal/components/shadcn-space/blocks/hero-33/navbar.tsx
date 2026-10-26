@@ -33,7 +33,7 @@ const Navbar = ({
   banner?: string;
 }) => {
   const navRef = useRef<HTMLElement>(null);
-  const forceLight = tone === "light";
+  const isLanding = tone === "light";
   const [isDarkTheme, setIsDarkTheme] = useState(false);
 
   useEffect(() => {
@@ -55,82 +55,84 @@ const Navbar = ({
     const links = nav.querySelectorAll<HTMLElement>("[data-navlink]");
     const signinRight = nav.querySelector<HTMLElement>("[data-signin-right]");
 
-    const applyColors = (scrolled: boolean) => {
-      // Landing page (forceLight): always transparent with white text until
-      // scrolled, then white glass. Dark/light mode does NOT affect the
-      // landing navbar — it stays transparent over the hero regardless.
-      if (forceLight && !scrolled) {
-        nav.style.backgroundColor = "transparent";
-        nav.style.backdropFilter = "none";
-        (nav.style as any).webkitBackdropFilter = "none";
-        nav.style.borderBottom = "none";
+    const applyColors = () => {
+      // Home landing only (tone="light"): orange glass over the hero
+      // artwork, black glass once scrolled past it. Everywhere else the
+      // navbar is always black.
+      if (isLanding) {
+        const hero = document.querySelector<HTMLElement>("[data-hero]");
+        const pastHero = hero
+          ? window.scrollY > hero.offsetTop + hero.offsetHeight - 120
+          : window.scrollY > 80;
 
-        if (wordmark) wordmark.style.color = "#ffffff";
-        if (sep) sep.style.backgroundColor = "rgba(255,255,255,0.2)";
-        if (signinRight) signinRight.style.color = "#ffffff";
+        if (pastHero) {
+          // Past the hero: black glass, light text
+          nav.style.background = "";
+          nav.style.backgroundColor = "rgba(0, 0, 0, 0.72)";
+          nav.style.backdropFilter = "blur(16px)";
+          (nav.style as any).webkitBackdropFilter = "blur(16px)";
+          nav.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
 
-        links.forEach((link) => {
-          link.style.color = "rgba(255,255,255,0.7)";
-          link.style.backgroundColor = "transparent";
-        });
+          if (wordmark) wordmark.style.color = "#ffffff";
+          if (sep) sep.style.backgroundColor = "rgba(255,255,255,0.2)";
+          if (signinRight) signinRight.style.color = "#ffffff";
+
+          links.forEach((link) => {
+            link.style.color = "rgba(255,255,255,0.7)";
+            link.style.backgroundColor = "transparent";
+          });
+        } else {
+          // Over the hero: orange glass, dark text
+          nav.style.background = "";
+          nav.style.backgroundColor = "rgba(255, 127, 42, 0.72)";
+          nav.style.backdropFilter = "blur(16px)";
+          (nav.style as any).webkitBackdropFilter = "blur(16px)";
+          nav.style.borderBottom = "1px solid rgba(0, 0, 0, 0.08)";
+
+          if (wordmark) wordmark.style.color = "#111111";
+          if (sep) sep.style.backgroundColor = "rgba(0,0,0,0.2)";
+          if (signinRight) signinRight.style.color = "#111111";
+
+          links.forEach((link) => {
+            link.style.color = "rgba(0,0,0,0.7)";
+            link.style.backgroundColor = "transparent";
+          });
+        }
         return;
       }
 
-      // Scrolled on landing, or any state on non-landing pages
-      const isDark = !forceLight && isDarkTheme;
+      // All pages other than the home landing: permanent black glass with
+      // white text — no scroll states, no theme dependency.
+      nav.style.background = "";
+      nav.style.backgroundColor = "rgba(0, 0, 0, 0.85)";
+      nav.style.backdropFilter = "blur(16px)";
+      (nav.style as any).webkitBackdropFilter = "blur(16px)";
+      nav.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
 
-      if (isDark) {
-        const textColor = "#ffffff";
-        const mutedColor = "rgba(255,255,255,0.7)";
-        const sepColor = "rgba(255,255,255,0.2)";
+      nav.style.color = "#ffffff";
+      if (wordmark) wordmark.style.color = "#ffffff";
+      if (sep) sep.style.backgroundColor = "rgba(255,255,255,0.2)";
+      if (signinRight) signinRight.style.color = "#ffffff";
 
-        nav.style.backgroundColor = scrolled ? "rgba(15,23,42,0.92)" : "transparent";
-        nav.style.backdropFilter = scrolled ? "blur(16px)" : "none";
-        (nav.style as any).webkitBackdropFilter = scrolled ? "blur(16px)" : "none";
-        nav.style.borderBottom = scrolled ? "1px solid rgba(255,255,255,0.06)" : "none";
-
-        if (wordmark) wordmark.style.color = textColor;
-        if (sep) sep.style.backgroundColor = sepColor;
-        if (signinRight) signinRight.style.color = textColor;
-
-        links.forEach((link) => {
-          link.style.color = mutedColor;
-          link.style.backgroundColor = "transparent";
-        });
-      } else {
-        const textColor = "#000000";
-        const mutedColor = "rgba(0,0,0,0.6)";
-        const sepColor = "rgba(0,0,0,0.15)";
-
-        nav.style.backgroundColor = scrolled ? "rgba(255,255,255,0.92)" : "transparent";
-        nav.style.backdropFilter = scrolled ? "blur(16px)" : "none";
-        (nav.style as any).webkitBackdropFilter = scrolled ? "blur(16px)" : "none";
-        nav.style.borderBottom = scrolled ? "1px solid rgba(0,0,0,0.06)" : "none";
-
-        if (wordmark) wordmark.style.color = textColor;
-        if (sep) sep.style.backgroundColor = sepColor;
-        if (signinRight) signinRight.style.color = textColor;
-
-        links.forEach((link) => {
-          link.style.color = mutedColor;
-          link.style.backgroundColor = "transparent";
-        });
-      }
+      links.forEach((link) => {
+        link.style.color = "rgba(255,255,255,0.7)";
+        link.style.backgroundColor = "transparent";
+      });
     };
 
     // Apply immediately
-    applyColors(forceLight || window.scrollY > 80);
+    applyColors();
 
     // Poll aggressively for first 2 seconds to catch any late scroll position
     let pollCount = 0;
     const pollInterval = setInterval(() => {
-      applyColors(forceLight || window.scrollY > 80);
+      applyColors();
       pollCount++;
       if (pollCount > 40) clearInterval(pollInterval);
     }, 50);
 
     // Also listen to scroll events
-    const onScroll = () => applyColors(forceLight || window.scrollY > 80);
+    const onScroll = () => applyColors();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll, { passive: true });
 
@@ -139,7 +141,7 @@ const Navbar = ({
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };
-  }, [active, forceLight, isDarkTheme]);
+  }, [active, isLanding]);
 
   return (
     <nav
@@ -160,6 +162,7 @@ const Navbar = ({
                   className="size-7 object-contain"
                 />
               </span>
+              <img src="/images/halloween/nav-bat.png" alt="" aria-hidden="true" className="hidden sm:block w-10 h-10 object-contain opacity-90" />
               <span
                 data-wordmark=""
                 className="text-lg font-semibold tracking-tight transition-colors duration-300"

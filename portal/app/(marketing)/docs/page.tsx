@@ -4,6 +4,14 @@ import Navbar from "@/components/shadcn-space/blocks/hero-33/navbar";
 import { MarketingFooter } from "@/components/marketing/footer";
 import { DocsContent } from "@/components/docs/docs-content";
 
+/**
+ * The docs TOC renders the live Starter price through the promotion
+ * module. Prerendered at build time, that line would freeze on the price
+ * of the day the image was built — advertising "35 DT until 1 Nov" months
+ * later. Render per request so the window closes on its own.
+ */
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "API Documentation",
   description:
@@ -18,13 +26,7 @@ export const metadata: Metadata = {
 export default function DocsPage() {
   return (
     <>
-      {/* light-surface pins the light tokens over the navbar's hardcoded
-          `dark` class (declared later in globals.css, equal specificity,
-          so it wins in this subtree) — otherwise the nav text renders
-          white on this page's white canvas. */}
-      <div className="light-surface">
-        <Navbar tone="light" />
-      </div>
+      <Navbar />
       <main>
         <DocsContent />
       </main>

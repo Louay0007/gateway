@@ -15,6 +15,10 @@ import { Badge } from '@/components/ui/badge';
 interface PlanCardProps {
   name: string;
   priceLabel: string;
+  /** Crossed-out list price, when the plan is on sale. */
+  originalPriceLabel?: string;
+  /** Short sale badge, e.g. "30% off". */
+  promoLabel?: string;
   features: string[];
   isRecommended?: boolean;
   isCurrent?: boolean;
@@ -26,6 +30,8 @@ interface PlanCardProps {
 export function PlanCard({
   name,
   priceLabel,
+  originalPriceLabel,
+  promoLabel,
   features,
   isRecommended = false,
   isCurrent = false,
@@ -47,6 +53,16 @@ export function PlanCard({
       <CardHeader className="text-center">
         <CardTitle className="text-lg">{name}</CardTitle>
         <p className="mt-2 text-3xl font-bold tracking-tight">{priceLabel}</p>
+        {originalPriceLabel ? (
+          <p className="mt-1 text-sm text-muted-foreground line-through tabular-nums">
+            {originalPriceLabel}
+          </p>
+        ) : null}
+        {promoLabel ? (
+          <Badge className="mt-2 bg-orange-500/15 text-orange-700 hover:bg-orange-500/20 dark:text-orange-300">
+            {promoLabel}
+          </Badge>
+        ) : null}
       </CardHeader>
       <CardContent className="flex-1">
         <ul className="grid gap-2">

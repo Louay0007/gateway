@@ -69,7 +69,7 @@ x-api-key: zn-…              # equivalent`}
         </div>
       </div>
 
-      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl bg-zinc-950 p-6 sm:flex-row sm:items-center sm:p-8">
+      <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 sm:flex-row sm:items-center sm:p-8">
         <div>
           <p className="text-xl font-semibold tracking-tight text-white">
             Ready to make your first call?

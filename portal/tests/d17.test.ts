@@ -23,6 +23,7 @@ import {
   normalizeSenderPhone,
   paymentDeadline,
   paymentWindowHours,
+  planPriceTndMillimes,
 } from '@/lib/billing/d17-config';
 
 const ENV_KEYS = [
@@ -124,6 +125,26 @@ describe('amount (USD cents -> TND millimes)', () => {
     process.env.D17_USD_TND_RATE = '3.5';
     // $10 at 3.5 = 35.000 DT
     expect(amountTndMillimes(1000)).toBe(35_000);
+  });
+});
+
+describe('planPriceTndMillimes (whole-dinar transfer amount)', () => {
+  it('asks for the advertised whole dinars, not the fractional conversion', () => {
+    // Starter 50 DT list, Pro 90 DT list.
+    expect(planPriceTndMillimes(1613, 3.1)).toBe(50_000);
+    expect(planPriceTndMillimes(2903, 3.1)).toBe(90_000);
+  });
+
+  it('applies the Halloween price to the same round numbers', () => {
+    // 30% off: 50 DT → 35 DT, 90 DT → 63 DT.
+    expect(planPriceTndMillimes(1129, 3.1)).toBe(35_000);
+    expect(planPriceTndMillimes(2032, 3.1)).toBe(63_000);
+  });
+
+  it('rounds to the nearest dinar rather than truncating', () => {
+    // 1613 cents × 3.1 = 49.9… DT → 50 DT, not 49.
+    expect(planPriceTndMillimes(1613, 3.1)).toBe(50_000);
+    expect(planPriceTndMillimes(1000, 3.1)).toBe(31_000);
   });
 });
 

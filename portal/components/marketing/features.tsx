@@ -42,7 +42,7 @@ const features = [
 
 export function FeaturesSection() {
   return (
-    <section id="features" className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-gray-950">
+    <section id="features" className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Why this gateway</p>
@@ -59,7 +59,7 @@ export function FeaturesSection() {
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 p-6 transition-colors hover:border-gray-400/50 dark:hover:border-gray-600"
+              className="group rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-black p-6 transition-colors hover:border-gray-400/50 dark:hover:border-gray-600"
             >
               <div className="flex size-10 items-center justify-center rounded-lg border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
                 <feature.icon className="size-5 text-gray-900 dark:text-gray-100" aria-hidden />

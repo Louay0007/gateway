@@ -131,10 +131,14 @@ export function initialsFor(name?: string | null, email?: string | null): string
 /** D17 rate for client-side DT display (matches server D17_USD_TND_RATE default). */
 const D17_RATE = 3.1;
 
+/** Integer USD cents → DT as a number (whole Dinars, for arithmetic/display). */
+export function centsDtNumber(cents: number): number {
+  return Math.round((cents / 100) * D17_RATE);
+}
+
 /** Integer USD cents → "50 DT" (Tunisian Dinars, no decimals for plan prices). */
 export function centsDt(cents: number): string {
-  const dt = Math.round((cents / 100) * D17_RATE);
-  return `${dt} DT`;
+  return `${centsDtNumber(cents)} DT`;
 }
 
 const tndFormatter = new Intl.NumberFormat("fr-TN", {

@@ -105,7 +105,8 @@ export async function listPlans(): Promise<PlanSummary[]> {
     .from(plans)
     .where(eq(plans.public, true))
     .orderBy(plans.sortOrder);
-  return rows.map(summarizePlan);
+  const now = new Date();
+  return rows.map((row) => summarizePlan(row, now));
 }
 
 // ───────────────────────────────────────────────────────────────────────
