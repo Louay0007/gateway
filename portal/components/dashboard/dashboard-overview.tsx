@@ -2,12 +2,21 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BarChart3, ClipboardList, KeyRound, Wallet } from "lucide-react";
+import { BarChart3, CalendarClock, Gauge, KeyRound } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { ExhaustedBanner } from "@/components/dashboard/prompt-meter";
-import { SpendMeter } from "@/components/dashboard/spend-meter";
+import {
+  QuotaExhaustedBanner,
+  QuotaMeters,
+} from "@/components/dashboard/quota-meter";
 import {
   ErrorState,
   PanelSkeleton,
@@ -24,7 +33,7 @@ import type {
   UsagePageResponse,
   UsageSeriesResponse,
 } from "@/lib/api/types";
-import { centsUsd, compact, rangeLabel, relativeTime, usd, usdToTnd } from "@/lib/dashboard/format";
+import { compact, rangeLabel, relativeTime } from "@/lib/dashboard/format";
 
 /**
  * /dashboard — the overview, live.
@@ -50,6 +59,27 @@ export function DashboardOverview() {
   const keys = keysApi.data?.keys ?? [];
   const noPlan = b?.state === "no_subscription";
 
+  // Token-only view: blended tokens are the only quota, so the summary is
+  // budgets vs used per alias — no spend, prompt or key KPIs.
+  const tokenLimits = plan?.tokenLimits ?? {};
+  const tokensByModel = b?.tokensByModel ?? {};
+  const aliases = plan?.models ?? [];
+  const usedTokens = aliases.reduce((sum, a) => sum + (tokensByModel[a] ?? 0), 0);
+  const budgeted = aliases
+    .map((a) => Number(tokenLimits[a] ?? 0))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const totalBudget = budgeted.reduce((sum, n) => sum + n, 0);
+  const hasBudget = budgeted.length > 0;
+  const remainingTokens = hasBudget ? Math.max(0, totalBudget - usedTokens) : null;
+  const periodEnd = b?.subscription?.currentPeriodEnd ?? b?.period.end ?? null;
+  const periodEndLabel = periodEnd
+    ? new Date(periodEnd).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      })
+    : "—";
+
   if (bundle.loading || keysApi.loading) return <PanelSkeleton rows={4} />;
   if (bundle.error) return <ErrorState error={bundle.error} onRetry={bundle.reload} />;
   if (keysApi.error) return <ErrorState error={keysApi.error} onRetry={keysApi.reload} />;
@@ -60,9 +90,9 @@ export function DashboardOverview() {
       <RefreshingBar show={bundle.refreshing || keysApi.refreshing} />
 
       {b.plan ? (
-        <ExhaustedBanner
-          promptsByModel={b.promptsByModel ?? {}}
-          promptLimits={b.plan.promptLimits ?? {}}
+        <QuotaExhaustedBanner
+          tokensByModel={b.tokensByModel ?? {}}
+          tokenLimits={b.plan.tokenLimits ?? {}}
           entitled={b.plan.models ?? []}
           resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
         />
@@ -110,32 +140,49 @@ export function DashboardOverview() {
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          label="Spend this period"
-          value={usdToTnd(b.usage.costCustomerUsd)}
-          hint={plan ? plan.name : "No plan"}
-          icon={Wallet}
-        />
-        <StatCard
-          label="Prompts"
-          value={(b.usage.prompts ?? 0).toLocaleString()}
-          hint="1 user message = 1 prompt · this period"
-          icon={ClipboardList}
-        />
-        <StatCard
-          label="Tokens"
-          value={compact(b.usage.inputTokens + b.usage.outputTokens)}
+          label="Tokens used"
+          value={compact(usedTokens)}
           hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
           icon={BarChart3}
         />
         <StatCard
-          label="Active keys"
-          value={String(keys.length)}
-          hint={plan ? `of ${plan.maxKeys} allowed on ${plan.name}` : undefined}
-          icon={KeyRound}
+          label="Tokens remaining"
+          value={
+            remainingTokens === null ? "Unlimited" : compact(remainingTokens)
+          }
+          hint={
+            hasBudget
+              ? `of ${compact(totalBudget)} this period`
+              : "No token budget on this plan"
+          }
+          icon={Gauge}
+        />
+        <StatCard
+          label={b.subscription?.cancelAtPeriodEnd ? "Access until" : "Renews"}
+          value={periodEndLabel}
+          hint={plan ? plan.name : "No plan"}
+          icon={CalendarClock}
         />
       </div>
+
+      {plan ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Token budgets</CardTitle>
+            <CardDescription>
+              Each model tier stops when its blended-token budget is spent.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <QuotaMeters
+              tokensByModel={tokensByModel}
+              tokenLimits={tokenLimits}
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <UsageAreaChart
         points={series.data?.points ?? []}
@@ -149,7 +196,6 @@ export function DashboardOverview() {
           keys={keys}
           planName={plan?.name ?? "your plan"}
           maxKeys={plan?.maxKeys ?? keys.length}
-          promptsThisPeriod={b.usage.prompts ?? 0}
         />
         <RecentActivity rows={recent.data?.rows ?? []} keys={keys} />
       </div>

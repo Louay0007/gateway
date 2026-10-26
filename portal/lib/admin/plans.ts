@@ -55,7 +55,8 @@ export interface PlanAdminRow {
   rateMultiplierBps: number;
   models: string[];
   trialDays: number;
-  promptLimits: Record<string, number>;
+  /** Blended-token budgets (raw tokens). 0023. */
+  tokenLimits: Record<string, number>;
   /** Live org count on this plan — deleting one with customers is a trap. */
   subscriberCount: number;
   createdAt: string;
@@ -67,7 +68,8 @@ export async function listPlansAdmin(): Promise<PlanAdminRow[]> {
            p.price_cents, p.interval::text AS interval,
            p.included_spend_cents, p.overage_markup_bps, p.hard_cap_cents,
            p.rpm_limit, p.tpm_limit, p.max_concurrent_requests, p.max_keys,
-           p.rate_multiplier_bps, p.models, p.trial_days, p.prompt_limits,
+           p.rate_multiplier_bps, p.models, p.trial_days,
+           COALESCE(p.token_limits, '{}'::jsonb) AS token_limits,
            p.created_at,
            (SELECT count(*) FROM subscriptions s
              WHERE s.plan_id = p.id AND s.status IN ('active','trialing','past_due','unpaid')
@@ -93,7 +95,7 @@ export async function listPlansAdmin(): Promise<PlanAdminRow[]> {
     rate_multiplier_bps: number;
     models: string[];
     trial_days: number;
-    prompt_limits: Record<string, number>;
+    token_limits: Record<string, number>;
     created_at: Date | string;
     subscriber_count: number;
   }[];
@@ -118,7 +120,7 @@ export async function listPlansAdmin(): Promise<PlanAdminRow[]> {
     rateMultiplierBps: Number(r.rate_multiplier_bps),
     models: r.models ?? [],
     trialDays: Number(r.trial_days),
-    promptLimits: r.prompt_limits ?? {},
+    tokenLimits: r.token_limits ?? {},
     subscriberCount: Number(r.subscriber_count),
     createdAt: new Date(r.created_at).toISOString(),
   }));
@@ -141,7 +143,8 @@ export interface PlanInput {
   rateMultiplierBps: number;
   models: string[];
   trialDays?: number;
-  promptLimits?: Record<string, number>;
+  /** Blended-token budgets in raw tokens. Optional = unlimited. 0023. */
+  tokenLimits?: Record<string, number>;
 }
 
 export type PlanActionResult =
@@ -198,24 +201,20 @@ function validatePlan(input: PlanInput): { ok: true; value: PlanInput } | { ok: 
       return { ok: false, message: `"${m}" is not a valid model alias.` };
     }
   }
-  // Prompt limits: keys must be known aliases (or at least well-formed),
-  // values non-negative integers. An alias with no entry = 0 (deny), so a
-  // plan that grants a model without a limit withholds it — fail loudly.
-  if (input.promptLimits != null) {
-    if (typeof input.promptLimits !== 'object' || Array.isArray(input.promptLimits)) {
-      return { ok: false, message: 'Prompt limits must be an object like {"fast": 500}.' };
+  // Token limits (0023): RAW TOKENS, the only quota. A missing entry is
+  // UNLIMITED (fail-open for plans created before token budgets existed),
+  // so there is no missing-model check — well-formedness only.
+  if (input.tokenLimits != null) {
+    if (typeof input.tokenLimits !== 'object' || Array.isArray(input.tokenLimits)) {
+      return { ok: false, message: 'Token limits must be an object like {"fast": 80000000} (raw tokens).' };
     }
-    for (const [k, v] of Object.entries(input.promptLimits)) {
+    for (const [k, v] of Object.entries(input.tokenLimits)) {
       if (!/^[a-z0-9][a-z0-9.-]{0,63}$/.test(k)) {
         return { ok: false, message: `"${k}" is not a valid model alias.` };
       }
       if (!Number.isInteger(v) || (v as number) < 0) {
-        return { ok: false, message: `Prompt limit for "${k}" must be a whole number, zero or more.` };
+        return { ok: false, message: `Token limit for "${k}" must be a whole number of tokens, zero or more.` };
       }
-    }
-    const missing = input.models.filter((m) => (input.promptLimits as Record<string, number>)[m] == null);
-    if (missing.length > 0) {
-      return { ok: false, message: `Models without a prompt limit are denied: ${missing.join(', ')}. Add limits or remove the models.` };
     }
   }
   return { ok: true, value: input };
@@ -256,7 +255,7 @@ export async function createPlan(
       rateMultiplierBps: input.rateMultiplierBps,
       models: input.models,
       trialDays: input.trialDays ?? 0,
-      promptLimits: input.promptLimits ?? {},
+      tokenLimits: input.tokenLimits ?? {},
     })
     .returning({ id: plans.id });
 
@@ -313,7 +312,7 @@ export async function updatePlan(
       rateMultiplierBps: input.rateMultiplierBps,
       models: input.models,
       trialDays: input.trialDays ?? 0,
-      promptLimits: input.promptLimits ?? {},
+      tokenLimits: input.tokenLimits ?? {},
       updatedAt: new Date(),
     })
     .where(sql`${plans.id} = ${planId}::uuid`);

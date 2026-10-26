@@ -41,13 +41,13 @@ export default function TermsPage() {
               </p>
             </Section>
 
-            <Section title="3. Spend ceilings and billing">
+            <Section title="3. Token budgets and billing">
               <p>
-                Every plan has a prompt quota per model tier enforced at the gateway. When the quota is
-                reached, further inference calls return 403 until the next billing period or until you
-                upgrade. Usage is billed monthly in US dollars; Tunisian accounts may
-                pay via D17 transfer at La Poste at the published rate. Usage is non-refundable
-                once consumed.
+                Every plan has a blended-token budget per model tier enforced at the gateway. When a
+                tier&apos;s budget is spent, further inference calls on that tier return a limit-reached
+                error until the next billing period or until you upgrade. Usage is billed monthly in US
+                dollars; Tunisian accounts may pay via D17 transfer at La Poste at the published rate.
+                Usage is non-refundable once consumed.
               </p>
             </Section>
 

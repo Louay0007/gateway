@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Activity, Boxes, Coins, Database, Download, MessageSquare, RefreshCw, Search, X } from "lucide-react";
+import { Activity, Boxes, Database, Download, RefreshCw, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatCard } from "@/components/dashboard/stat-card";
-import { ExhaustedBanner } from "@/components/dashboard/prompt-meter";
+import { QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import {
   ErrorState,
@@ -46,7 +46,7 @@ import type {
   UsagePageResponse,
   UsageSeriesResponse,
 } from "@/lib/api/types";
-import { compact, dateTime, rangeLabel, usdToTnd } from "@/lib/dashboard/format";
+import { compact, dateTime, rangeLabel } from "@/lib/dashboard/format";
 
 const PAGE_SIZE = 25;
 
@@ -187,28 +187,20 @@ export function UsageView() {
       <RefreshingBar show={usage.refreshing} />
 
       {bundle.data?.plan ? (
-        <ExhaustedBanner
-          promptsByModel={bundle.data.promptsByModel ?? {}}
-          promptLimits={bundle.data.plan.promptLimits ?? {}}
+        <QuotaExhaustedBanner
+          tokensByModel={bundle.data.tokensByModel ?? {}}
+          tokenLimits={bundle.data.plan.tokenLimits ?? {}}
           entitled={bundle.data.plan.models ?? []}
           resetDate={bundle.data.subscription?.currentPeriodEnd ?? bundle.data.period.end}
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
-          label="Prompts"
-          value={(totals?.prompts ?? 0).toLocaleString()}
-          hint={
-            filtered
-              ? "1 user message = 1 prompt"
-              : bundle.data?.promptsByModel && Object.keys(bundle.data.promptsByModel).length > 0
-                ? Object.entries(bundle.data.promptsByModel)
-                    .map(([k, v]) => `${k}: ${v}`)
-                    .join(" · ")
-                : "1 user message = 1 prompt"
-          }
-          icon={MessageSquare}
+          label="Tokens"
+          value={compact(totals?.blendedTokens ?? 0)}
+          hint={`${compact(totals?.inputTokens ?? 0)} in · ${compact(totals?.outputTokens ?? 0)} out`}
+          icon={Boxes}
         />
         <StatCard
           label="Requests"
@@ -217,22 +209,10 @@ export function UsageView() {
           icon={Activity}
         />
         <StatCard
-          label="Tokens"
-          value={compact((totals?.inputTokens ?? 0) + (totals?.outputTokens ?? 0))}
-          hint={`${compact(totals?.inputTokens ?? 0)} in · ${compact(totals?.outputTokens ?? 0)} out`}
-          icon={Boxes}
-        />
-        <StatCard
           label="Cached tokens"
           value={compact(totals?.cacheReadTokens ?? 0)}
           hint="Tokens served from cache (cheaper)"
           icon={Database}
-        />
-        <StatCard
-          label="Spend"
-          value={usdToTnd(totals?.costCustomerUsd ?? 0)}
-          hint="Your cost for this period"
-          icon={Coins}
         />
       </div>
 
@@ -253,7 +233,7 @@ export function UsageView() {
             <div>
               <CardTitle>Gateway calls</CardTitle>
               <CardDescription>
-                Every metered call, newest first — only a 200 on an inference route counts a prompt
+                Every metered call, newest first — tokens are the only quota
               </CardDescription>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -366,7 +346,7 @@ export function UsageView() {
                     </p>
                     <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
                       Once your key makes its first call through the gateway, the
-                      row lands here within a few minutes. Only a 200 on an inference route counts a prompt.
+                      row lands here within a few minutes.
                     </p>
                   </div>
                 )
@@ -383,14 +363,13 @@ export function UsageView() {
                       columns get enough room to sit right-aligned without
                       their headers colliding with the values. */}
                   <colgroup>
-                    <col className="w-[13%]" />
-                    <col className="w-[9%]" />
-                    <col className="w-[9%]" />
-                    <col className="w-[22%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[12%]" />
-                    <col className="w-[13%]" />
+                    <col className="w-[14%]" />
                     <col className="w-[10%]" />
+                    <col className="w-[10%]" />
+                    <col className="w-[26%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[14%]" />
+                    <col className="w-[12%]" />
                   </colgroup>
                   <TableHeader>
                     <TableRow>
@@ -400,7 +379,6 @@ export function UsageView() {
                       <TableHead>Key</TableHead>
                       <TableHead className="text-right">Tokens</TableHead>
                       <TableHead className="text-right">Cache read</TableHead>
-                      <TableHead className="text-right">Cost</TableHead>
                       <TableHead className="pr-6 text-right">Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -423,13 +401,16 @@ export function UsageView() {
                           {row.keyName ?? <span className="text-xs">deleted key</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {compact(row.inputTokens + row.outputTokens)}
+                          {compact(
+                            row.inputTokens +
+                              row.outputTokens +
+                              row.cacheWrite5mTokens +
+                              row.cacheWrite1hTokens +
+                              row.cacheReadTokens,
+                          )}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {row.cacheReadTokens ? compact(row.cacheReadTokens) : "—"}
-                        </TableCell>
-                        <TableCell className="text-right tabular-nums">
-                          {usdToTnd(row.costCustomerUsd)}
                         </TableCell>
                         <TableCell className="pr-6 text-right">
                           <StatusBadge code={row.statusCode} />
@@ -522,20 +503,21 @@ function ModelBreakdown({
 }) {
   const byModel = new Map<
     string,
-    { requests: number; prompts: number; tokens: number; cost: number; cache: number }
+    { requests: number; tokens: number; cache: number }
   >();
   for (const row of rows) {
     const entry = byModel.get(row.model) ?? {
       requests: 0,
-      prompts: 0,
       tokens: 0,
-      cost: 0,
       cache: 0,
     };
     entry.requests += 1;
-    entry.prompts += row.promptCount ?? 0;
-    entry.tokens += row.inputTokens + row.outputTokens;
-    entry.cost += row.costCustomerUsd;
+    entry.tokens +=
+      row.inputTokens +
+      row.outputTokens +
+      row.cacheWrite5mTokens +
+      row.cacheWrite1hTokens +
+      row.cacheReadTokens;
     entry.cache += row.cacheReadTokens;
     byModel.set(row.model, entry);
   }
@@ -543,7 +525,7 @@ function ModelBreakdown({
   if (byModel.size === 0) {
     return (
       <p className="py-10 text-center text-sm text-muted-foreground">
-        No prompts to break down.
+        No usage to break down.
       </p>
     );
   }
@@ -555,30 +537,23 @@ function ModelBreakdown({
         {/* Percentages summing to 100%, matching the requests table. Model
             holds an alias badge, so it gets the flexible share. */}
         <colgroup>
-          <col className="w-[34%]" />
-          <col className="w-[13%]" />
-          <col className="w-[13%]" />
-          <col className="w-[13%]" />
-          <col className="w-[13%]" />
-          <col className="w-[14%]" />
+          <col className="w-[49%]" />
+          <col className="w-[17%]" />
+          <col className="w-[17%]" />
+          <col className="w-[17%]" />
         </colgroup>
         <TableHeader>
           <TableRow>
             <TableHead>Model</TableHead>
-            <TableHead className="text-right">Prompts</TableHead>
             <TableHead className="text-right">Requests</TableHead>
             <TableHead className="text-right">Tokens</TableHead>
             <TableHead className="text-right">Cache read</TableHead>
-            <TableHead className="text-right">Cost</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {[...byModel.entries()].map(([model, e]) => (
             <TableRow key={model}>
               <TableCell className="font-medium">{model}</TableCell>
-              <TableCell className="text-right tabular-nums font-medium">
-                {e.prompts.toLocaleString()}
-              </TableCell>
               <TableCell className="text-right tabular-nums text-muted-foreground">
                 {e.requests.toLocaleString()}
               </TableCell>
@@ -586,7 +561,6 @@ function ModelBreakdown({
               <TableCell className="text-right tabular-nums text-muted-foreground">
                 {compact(e.cache)}
               </TableCell>
-              <TableCell className="text-right tabular-nums">{usdToTnd(e.cost)}</TableCell>
             </TableRow>
           ))}
         </TableBody>

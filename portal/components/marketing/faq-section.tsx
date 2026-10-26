@@ -16,14 +16,14 @@ const faqItems: FaqItem[] = [
       'Zaino AI is a licensed cloud infrastructure provider with a direct commercial agreement with Anthropic. We provision dedicated Claude compute capacity for developers and teams in Tunisia and beyond, offering predictable pricing in local currency with D17 payment support.',
   },
   {
-    question: 'How does request-based billing work?',
+    question: 'How does usage-based billing work?',
     answer:
-      'We bill by prompts, not tokens. One user message to the gateway is one prompt against your plan quota — regardless of conversation length or response size. Only a successful inference call (HTTP 200) counts; failures and rate-limit rejections never consume quota. A 50-word question and a 5,000-word analysis both consume exactly one prompt.',
+      'Each model tier (Fast, Smart, Frontier) has a blended-token budget per billing period. Blended tokens count every token that passes through the gateway — input, output, cache writes and cache reads — so long conversations consume proportionally more of the budget. Only successful inference calls are metered; failures and rate-limit rejections never consume quota.',
   },
   {
-    question: 'What happens when I reach my monthly prompt limit?',
+    question: 'What happens when I reach my monthly token budget?',
     answer:
-      'Your service continues without interruption. Once you hit your plan\'s prompt quota, additional inference calls return 403 until you upgrade or the quota resets at the start of your next billing period. Token use stays metered for billing visibility, but only prompts consume quota.'
+      'Your service continues without interruption on models that still have budget left. Once a tier\'s blended-token budget is spent, additional inference calls on that tier return a clear "limit reached" error until you upgrade or the budget resets at the start of your next billing period.',
   },
   {
     question: 'Do you have an official agreement with Anthropic?',
@@ -33,7 +33,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Which models are available?',
     answer:
-      'Availability depends on your plan. Starter includes Haiku 5.5 (Fast). Pro includes Sonnet 5.5 (Smart, 1,000 prompts) and Opus 5.5 (Frontier, 500 prompts). Enterprise provides unlimited access to all current models plus early access to new model releases.',
+      'Availability depends on your plan. Starter includes Haiku 5.5 (Fast) and Sonnet 5.5 (Smart) with per-tier token budgets. Pro includes Sonnet 5.5 (Smart) and Opus 5.5 (Frontier) with larger budgets. Enterprise provides unlimited access to all current models plus early access to new model releases.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',

@@ -30,15 +30,15 @@ interface PaywallStateProps {
  */
 const PLAN_FEATURES: Record<string, string[]> = {
   starter: [
-    'd17.feat_fast_prompts',
-    'd17.feat_smart_prompts',
+    'd17.feat_fast_tokens',
+    'd17.feat_smart_tokens',
     'd17.feat_keys',
     'd17.feat_rpm',
     'd17.feat_tpm',
   ],
   pro: [
-    'd17.feat_smart_prompts',
-    'd17.feat_frontier_prompts',
+    'd17.feat_smart_tokens',
+    'd17.feat_frontier_tokens',
     'd17.feat_keys',
     'd17.feat_rpm',
     'd17.feat_tpm',
@@ -49,15 +49,15 @@ const PLAN_FEATURES: Record<string, string[]> = {
 /** Default feature values when the plan doesn't specify overrides. */
 const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
   starter: {
-    'd17.feat_fast_prompts': '500',
-    'd17.feat_smart_prompts': '250',
+    'd17.feat_fast_tokens': '80M',
+    'd17.feat_smart_tokens': '32M',
     'd17.feat_keys': '3',
     'd17.feat_rpm': '60',
     'd17.feat_tpm': '100,000',
   },
   pro: {
-    'd17.feat_smart_prompts': '1,000',
-    'd17.feat_frontier_prompts': '500',
+    'd17.feat_smart_tokens': '210M',
+    'd17.feat_frontier_tokens': '85M',
     'd17.feat_keys': '10',
     'd17.feat_rpm': '300',
     'd17.feat_tpm': '500,000',
@@ -77,7 +77,7 @@ export function PaywallState({
       <div className="text-center">
         <h3 className="text-lg font-semibold tracking-tight">Choose your plan</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Simple prompt-based pricing. Pay only for what you use.
+          Simple token budgets. Pay only for what you use.
         </p>
       </div>
 

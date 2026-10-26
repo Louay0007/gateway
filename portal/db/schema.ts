@@ -178,8 +178,8 @@ export const plans = pgTable('plans', {
   models:                text('models').array().notNull().default([]),
   trialDays:             integer('trial_days').notNull().default(0),
   features:              jsonb('features').notNull().default({}),
-  /** Per-alias prompt limits: {fast: 500, smart: 250}. Migration 0013. */
-  promptLimits:          jsonb('prompt_limits').notNull().default({}),
+  /** Per-alias blended-token budgets: {fast: 80000000}. The only quota. 0023. */
+  tokenLimits:           jsonb('token_limits').notNull().default({}),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -551,7 +551,8 @@ export const trialCodes = pgTable('trial_codes', {
   maxRedemptions:  integer('max_redemptions').notNull().default(0), // 0 = unlimited
   redeemedCount:   integer('redeemed_count').notNull().default(0),
   models:          text('models').array().notNull().default(['fast', 'smart']),
-  promptLimits:    jsonb('prompt_limits').notNull().default({}),
+  /** Per-code token budget override; plan fallback when empty. The only quota. 0023. */
+  tokenLimits:     jsonb('token_limits').notNull().default({}),
   trialDays:       integer('trial_days').notNull().default(3),
   validFrom:       timestamp('valid_from', { withTimezone: true }).notNull(),
   validUntil:      timestamp('valid_until', { withTimezone: true }).notNull(),

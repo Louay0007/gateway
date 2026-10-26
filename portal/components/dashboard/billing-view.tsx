@@ -8,17 +8,13 @@ import {
   ArrowLeftRight,
   BadgeCheck,
   Check,
-  CircleDollarSign,
   CreditCard,
-  Infinity,
   Landmark,
   Receipt,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
   TriangleAlert,
   Clock,
-  X,
 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -41,8 +37,7 @@ import {
 } from "@/components/ui/dialog";
 import { ErrorState, PanelSkeleton, RefreshingBar } from "@/components/dashboard/states";
 import { PaywallState } from "@/components/dashboard/paywall-state";
-import { SpendMeter } from "@/components/dashboard/spend-meter";
-import { PromptMeters, ExhaustedBanner } from "@/components/dashboard/prompt-meter";
+import { QuotaMeters, QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import type {
@@ -50,7 +45,7 @@ import type {
   SubscriptionBundle,
   PaymentHistoryItem,
 } from "@/lib/api/types";
-import { centsDt, centsUsd, compact, usd, usdToTnd } from "@/lib/dashboard/format";
+import { centsDt, compact, usd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +86,18 @@ export function BillingView() {
   const plan = b?.plan ?? null;
   const plans = catalog.data?.plans ?? [];
   const hasPlan = b ? b.state !== "no_subscription" : true;
+
+  // Token-only KPIs: blended tokens are the sole quota.
+  const tokenLimits = plan?.tokenLimits ?? {};
+  const tokensByModel = b?.tokensByModel ?? {};
+  const aliases = plan?.models ?? [];
+  const usedTokens = aliases.reduce((sum, a) => sum + (tokensByModel[a] ?? 0), 0);
+  const budgeted = aliases
+    .map((a) => Number(tokenLimits[a] ?? 0))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const totalBudget = budgeted.reduce((sum, n) => sum + n, 0);
+  const remainingTokens =
+    budgeted.length > 0 ? Math.max(0, totalBudget - usedTokens) : null;
 
   /**
    * Confirm an active plan independently of `?state=active`.
@@ -314,31 +321,23 @@ export function BillingView() {
 
       {plan ? (
         <>
-          {/* Stats Grid */}
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {/* Token KPIs — the only quota */}
+          <div className="grid gap-4 sm:grid-cols-2">
             <StatCard
-              label="Spend this period"
-              value={usdToTnd(b.usage.costCustomerUsd)}
-              hint={`${plan.name} · ${centsDt(plan.includedSpendCents)} included`}
-              icon={CircleDollarSign}
-            />
-            <StatCard
-              label="Prompts"
-              value={(b.usage.prompts ?? 0).toLocaleString()}
-              hint="1 user message = 1 prompt · this period"
+              label="Tokens used"
+              value={compact(usedTokens)}
+              hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
               icon={ArrowLeftRight}
             />
             <StatCard
-              label="Tokens"
-              value={compact(b.usage.inputTokens + b.usage.outputTokens)}
-              hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
+              label="Tokens remaining"
+              value={remainingTokens === null ? "Unlimited" : compact(remainingTokens)}
+              hint={
+                remainingTokens === null
+                  ? "No token budget on this plan"
+                  : `of ${compact(totalBudget)} this period`
+              }
               icon={Landmark}
-            />
-            <StatCard
-              label="Active keys"
-              value={String(b.keys.active)}
-              hint={`of ${b.keys.max ?? plan.maxKeys} allowed`}
-              icon={CreditCard}
             />
           </div>
 
@@ -494,38 +493,16 @@ export function BillingView() {
                 </div>
               </CardHeader>
               <CardContent className="grid gap-6">
-                <ExhaustedBanner
-                  promptsByModel={b.promptsByModel ?? {}}
-                  promptLimits={plan.promptLimits ?? {}}
+                <QuotaExhaustedBanner
+                  tokensByModel={b.tokensByModel ?? {}}
+                  tokenLimits={plan.tokenLimits ?? {}}
                   entitled={plan.models ?? []}
                   resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
                 />
-                <PromptMeters
-                  promptsByModel={b.promptsByModel ?? {}}
-                  promptLimits={plan.promptLimits ?? {}}
+                <QuotaMeters
+                  tokensByModel={b.tokensByModel ?? {}}
+                  tokenLimits={plan.tokenLimits ?? {}}
                 />
-
-                <div>
-                  <div className="mb-2 flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">Spend this period</span>
-                    <span className="tabular-nums">
-                      {usdToTnd(b.usage.costCustomerUsd)} of{" "}
-                      {centsDt(plan.includedSpendCents)}
-                    </span>
-                  </div>
-                  <SpendMeter
-                    spentUsd={b.usage.costCustomerUsd}
-                    includedCents={plan.includedSpendCents}
-                    hardCapCents={plan.hardCapCents}
-                  />
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    First {centsUsd(plan.includedSpendCents)} of usage each
-                    period is included. Beyond that, usage bills at{" "}
-                    {(plan.rateMultiplierBps / 10000).toFixed(2)}× upstream
-                    cost. The gateway stops traffic at{" "}
-                    {centsUsd(plan.hardCapCents ?? 0)} for this period.
-                  </p>
-                </div>
 
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   <Limit label="Requests / min" value={plan.rpmLimit?.toLocaleString() ?? "—"} />
@@ -583,21 +560,15 @@ export function BillingView() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-base">
-                    <CircleDollarSign className="size-4" />
-                    Usage math
+                    <RefreshCw className="size-4" />
+                    Gateway status
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="grid gap-2 text-sm">
-                  <Row label="Upstream cost" value={usdToTnd(b.usage.costUpstreamUsd)} />
-                  <Row label="Your cost" value={usdToTnd(b.usage.costCustomerUsd)} />
-                  <Row
-                    label="Plan multiplier"
-                    value={`${(plan.rateMultiplierBps / 10000).toFixed(2)}×`}
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Both figures come from the same ledger rows, so the gap
-                    between them is exactly what you were charged over what it
-                    cost to serve.
+                  <p className="text-muted-foreground">
+                    Limits are pushed to the gateway within a few minutes of a
+                    plan change. Usage is metered from the ledger, so the
+                    numbers here match what the gateway enforces.
                   </p>
                   {b.entitlement?.syncedAt ? (
                     <p className="text-xs text-muted-foreground">
@@ -654,7 +625,11 @@ export function BillingView() {
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
                 </p>
                 <ul className="grid gap-1 text-sm text-muted-foreground">
-                  <li>{centsUsd(p.includedSpendCents)} included spend</li>
+                  {Object.entries(p.tokenLimits ?? {}).map(([alias, limit]) => (
+                    <li key={alias}>
+                      {compact(limit)} {alias} tokens / period
+                    </li>
+                  ))}
                   <li>{p.maxKeys} API keys</li>
                   <li>{p.rpmLimit} req/min</li>
                   <li>{compact(p.tpmLimit ?? 0)} tok/min</li>
@@ -719,17 +694,17 @@ function PlanComparisonTable({
 
   const features = [
     { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => centsDt(p.priceCents) },
-    { key: "fast", label: "Fast prompts (Haiku 5.5)", getValue: (p: typeof plans[0]) => {
-      const limit = (p.promptLimits as Record<string, number>)?.fast;
-      return limit ? `${limit.toLocaleString()} / period` : "—";
-    }},
-    { key: "smart", label: "Smart prompts (Sonnet 5.5)", getValue: (p: typeof plans[0]) => {
-      const limit = (p.promptLimits as Record<string, number>)?.smart;
-      return limit ? `${limit.toLocaleString()} / period` : "—";
-    }},
-    { key: "frontier", label: "Frontier prompts", getValue: (p: typeof plans[0]) => {
-      const limit = (p.promptLimits as Record<string, number>)?.frontier;
-      return limit ? `${limit.toLocaleString()} / period` : "—";
+    { key: "fast-tokens", label: "Fast tokens (Haiku 5.5)", getValue: (p: typeof plans[0]) => {
+      const limit = (p.tokenLimits as Record<string, number>)?.fast;
+      return limit ? `${compact(limit)} / period` : "—";
+    }, hideIfAllEmpty: true },
+    { key: "smart-tokens", label: "Smart tokens (Sonnet 5.5)", getValue: (p: typeof plans[0]) => {
+      const limit = (p.tokenLimits as Record<string, number>)?.smart;
+      return limit ? `${compact(limit)} / period` : "—";
+    }, hideIfAllEmpty: true },
+    { key: "frontier-tokens", label: "Frontier tokens (Opus 5.5)", getValue: (p: typeof plans[0]) => {
+      const limit = (p.tokenLimits as Record<string, number>)?.frontier;
+      return limit ? `${compact(limit)} / period` : "—";
     }, hideIfAllEmpty: true },
     { key: "rpm", label: "Calls / minute (rate limit)", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
     { key: "tpm", label: "Tokens / minute", getValue: (p: typeof plans[0]) => compact(p.tpmLimit ?? 0) },
@@ -745,7 +720,7 @@ function PlanComparisonTable({
           Compare plans
         </CardTitle>
         <CardDescription>
-          Prompt-based limits per model tier — choose the plan that fits your workflow.
+          Token budgets per model tier — a tier stops when its budget is spent.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
@@ -862,8 +837,10 @@ function PlanComparisonTable({
       </CardContent>
       <div className="border-t bg-gray-50/50 dark:bg-gray-800/50 px-4 py-3">
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Prompt limits reset each billing period. Token prices shown are Zaino official USD rates (input / output per million tokens).
-          Your DT cost is calculated at the current D17 exchange rate.
+          Token budgets reset each billing period; a model stops when its
+          blended-token budget is spent. Token prices shown are Zaino official
+          USD rates (input / output per million tokens). Your DT cost is
+          calculated at the current D17 exchange rate.
         </p>
       </div>
     </Card>
@@ -1087,15 +1064,6 @@ function Limit({ label, value }: { label: string; value: string }) {
     <div className="rounded-lg border p-3">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-lg font-semibold tabular-nums">{value}</p>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium tabular-nums">{value}</span>
     </div>
   );
 }

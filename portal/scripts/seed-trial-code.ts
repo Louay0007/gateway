@@ -34,16 +34,13 @@ async function main() {
     await db.insert(plans).values({
       code: 'trial',
       name: 'Free Trial',
-      description: '3-day trial with 300 requests on Sonnet 5 and Opus 5.5.',
+      description: '3-day trial with 10M Fast + 10M Smart tokens.',
       public: false,
       sortOrder: -1,
       priceCents: 0,
       interval: 'month',
-      // Trial uses prompt-based limits (300 fast + 300 smart), not dollar caps.
-      // But LiteLLM enforces max_budget as a hard ceiling regardless — a $0
-      // budget means CUT_BUDGET ($0.000001) which exhausts after one prompt.
-      // Set a generous dollar cap that won't be hit before the prompt limit
-      // kicks in (~$5 covers 300 prompts on Sonnet/Opus comfortably).
+      // Trial enforcement is the per-alias token budget below. LiteLLM still
+      // requires max_budget > 0, so keep a generous placeholder cap.
       includedSpendCents: 500,
       overageMarkupBps: 0,
       hardCapCents: 500,
@@ -55,13 +52,25 @@ async function main() {
       rateMultiplierBps: 10000,
       models: ['fast', 'smart'],
       trialDays: 3,
-      promptLimits: { fast: 300, smart: 300 },
+      // 0023: trial blended-token budgets — 10M + 10M (~$50 COGS, free).
+      tokenLimits: { fast: 10_000_000, smart: 10_000_000 },
       features: {},
     });
     console.log('✓ Created trial plan');
   } else {
     console.log('✓ Trial plan already exists');
   }
+
+  // 0023 backfill: plans/seed rows created before token budgets existed.
+  await db.execute(sql`
+    UPDATE plans SET token_limits = '{"fast": 80000000, "smart": 32000000}'::jsonb
+     WHERE code = 'starter' AND COALESCE((token_limits ->> 'fast')::bigint, 0) = 0;
+    UPDATE plans SET token_limits = '{"smart": 210000000, "frontier": 85000000}'::jsonb
+     WHERE code = 'pro' AND COALESCE((token_limits ->> 'smart')::bigint, 0) = 0;
+    UPDATE plans SET token_limits = '{"fast": 10000000, "smart": 10000000}'::jsonb
+     WHERE code = 'trial' AND COALESCE((token_limits ->> 'fast')::bigint, 0) = 0;
+  `);
+  console.log('✓ Token budgets backfilled (starter/pro/trial)');
 
   // 2. Ensure the ZAINO-FREE-OCT26 code exists
   const [existingCode] = await db
@@ -76,7 +85,8 @@ async function main() {
       createdBy: 'system',
       maxRedemptions: 0, // unlimited
       models: ['fast', 'smart'],
-      promptLimits: { fast: 300, smart: 300 },
+      // 0023: 10M + 10M blended tokens — the only trial quota.
+      tokenLimits: { fast: 10_000_000, smart: 10_000_000 },
       trialDays: 3,
       validFrom: new Date('2026-10-20T00:00:00+01:00'),
       // Campaign extended to end 1 Nov 00:00 Tunis (migration 0021).

@@ -156,19 +156,21 @@ describe('summarizePlan — trial terms (0009)', () => {
     models: ['gpt-4o-mini'],
   };
 
-  it('defaults missing prompt limits to deny, not Infinity', () => {
-    expect(summarizePlan(base).promptLimits).toEqual({});
+  it('defaults missing token limits to empty (unlimited), not Infinity', () => {
+    expect(summarizePlan(base).tokenLimits).toEqual({});
   });
 
-  it('keeps numeric prompt limits and drops non-numeric ones', () => {
+  it('keeps numeric token limits and drops non-numeric ones', () => {
     const summary = summarizePlan({
       ...base,
-      promptLimits: { fast: 300, smart: 300, bogus: 'x' },
+      tokenLimits: { fast: 80_000_000, smart: 32_000_000, bogus: 'x' },
     });
-    expect(summary.promptLimits).toEqual({ fast: 300, smart: 300 });
+    expect(summary.tokenLimits).toEqual({ fast: 80_000_000, smart: 32_000_000 });
   });
 
   it('treats a malformed jsonb value as empty limits', () => {
-    expect(summarizePlan({ ...base, promptLimits: ['not', 'an', 'object'] }).promptLimits).toEqual({});
+    expect(
+      summarizePlan({ ...base, tokenLimits: ['not', 'an', 'object'] }).tokenLimits,
+    ).toEqual({});
   });
 });

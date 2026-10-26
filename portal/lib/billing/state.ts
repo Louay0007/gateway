@@ -52,8 +52,8 @@ export interface PlanSummary {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
-  /** Per-alias prompt limits: {fast: 500, smart: 250}. Migration 0013. */
-  promptLimits: Record<string, number>;
+  /** Per-alias blended-token budgets (raw tokens). Migration 0023. */
+  tokenLimits: Record<string, number>;
 }
 
 /** Project a plan row onto the customer-safe shape. */
@@ -71,16 +71,17 @@ export function summarizePlan(row: {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
-  promptLimits?: Record<string, number> | unknown;
+  tokenLimits?: Record<string, number> | unknown;
 }): PlanSummary {
   // JSONB columns arrive as `unknown` from Drizzle. Cast safely — a
-  // malformed value defaults to empty limits (deny), not Infinity.
-  const raw = row.promptLimits;
-  let promptLimits: Record<string, number> = {};
-  if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-    for (const [k, v] of Object.entries(raw as Record<string, unknown>)) {
+  // malformed token value defaults to empty = UNLIMITED for that alias
+  // (see quota.ts TOKEN WALL note), never Infinity from a bad number.
+  const rawTok = row.tokenLimits;
+  const tokenLimits: Record<string, number> = {};
+  if (rawTok && typeof rawTok === 'object' && !Array.isArray(rawTok)) {
+    for (const [k, v] of Object.entries(rawTok as Record<string, unknown>)) {
       if (typeof v === 'number' && Number.isFinite(v)) {
-        promptLimits[k] = v;
+        tokenLimits[k] = v;
       }
     }
   }
@@ -99,7 +100,7 @@ export function summarizePlan(row: {
     maxKeys: row.maxKeys,
     rateMultiplierBps: row.rateMultiplierBps,
     models: row.models,
-    promptLimits,
+    tokenLimits,
   };
 }
 

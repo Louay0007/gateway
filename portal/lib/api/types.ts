@@ -54,16 +54,16 @@ export interface SubscriptionBundle {
   period: { start: string; end: string };
   usage: {
     requests: number;
-    /** Total counted prompts (200 inference rows) in the period. Migration 0020. */
-    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
     costUpstreamUsd: number;
     costCustomerUsd: number;
   };
-  /** Per-alias prompt counts for the current billing period. Migration 0013/0020. */
-  promptsByModel: Record<string, number>;
+  /** Blended tokens used per alias in the window. Migration 0023. */
+  tokensByModel: Record<string, number>;
+  /** Which aliases are out of tokens. Migration 0023. */
+  exhaustedByModel: Record<string, 'tokens' | null>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
   /**
@@ -87,6 +87,8 @@ export interface UsagePageResponse {
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
+    /** Blended tokens — the quota unit (input + output + cache writes + reads). */
+    blendedTokens: number;
     costCustomerUsd: number;
     costUpstreamUsd: number;
   };
@@ -102,6 +104,8 @@ export interface UsageSeriesPoint {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  /** Blended tokens — the quota unit (input + output + cache writes + reads). */
+  blendedTokens: number;
   costCustomerUsd: number;
   costUpstreamUsd: number;
 }

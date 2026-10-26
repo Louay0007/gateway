@@ -213,7 +213,8 @@ export async function getTrialStatus(orgId: string): Promise<{
   active: boolean;
   expiresAt: string | null;
   daysRemaining: number | null;
-  promptLimits: Record<string, number>;
+  /** Blended-token budgets for the trial window. Migration 0023. */
+  tokenLimits: Record<string, number>;
   models: string[];
 } | null> {
   const [sub] = await db
@@ -221,7 +222,7 @@ export async function getTrialStatus(orgId: string): Promise<{
       status: subscriptions.status,
       trialEnd: subscriptions.trialEnd,
       models: plans.models,
-      promptLimits: plans.promptLimits,
+      tokenLimits: plans.tokenLimits,
     })
     .from(subscriptions)
     .innerJoin(plans, eq(subscriptions.planId, plans.id))
@@ -242,10 +243,10 @@ export async function getTrialStatus(orgId: string): Promise<{
   const msRemaining = sub.trialEnd.getTime() - now.getTime();
   const daysRemaining = Math.ceil(msRemaining / (24 * 60 * 60 * 1000));
 
-  const promptLimits: Record<string, number> = {};
-  if (sub.promptLimits && typeof sub.promptLimits === 'object') {
-    for (const [k, v] of Object.entries(sub.promptLimits as Record<string, unknown>)) {
-      if (typeof v === 'number' && Number.isFinite(v)) promptLimits[k] = v;
+  const tokenLimits: Record<string, number> = {};
+  if (sub.tokenLimits && typeof sub.tokenLimits === 'object') {
+    for (const [k, v] of Object.entries(sub.tokenLimits as Record<string, unknown>)) {
+      if (typeof v === 'number' && Number.isFinite(v)) tokenLimits[k] = v;
     }
   }
 
@@ -253,7 +254,7 @@ export async function getTrialStatus(orgId: string): Promise<{
     active: true,
     expiresAt: sub.trialEnd.toISOString(),
     daysRemaining,
-    promptLimits,
+    tokenLimits,
     models: sub.models ?? [],
   };
 }

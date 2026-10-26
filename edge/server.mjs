@@ -155,10 +155,10 @@ function failClosed(res, status, message) {
  * LiteLLM answers a disallowed model with 403 and a body like
  * "Model 'frontier' is not available for this API key" (wording varies by
  * version). Customers cannot act on that — it reads as a credential bug.
- * The edge cannot know whether the alias is quota-exhausted or simply not
+ * The edge cannot know whether the alias is token-exhausted or simply not
  * in the plan, so the mapped message names the model and states both, and
- * always contains `out of <alias> prompts` for the quota case. Anything
- * that is not a model-access denial passes through untouched.
+ * always contains `out of <alias>` for the quota case. Anything that is
+ * not a model-access denial passes through untouched.
  *
  * Pure (no I/O): unit-tested via the auth-edge suite.
  */
@@ -172,8 +172,8 @@ export function mapModelDeniedBody(status, rawText) {
   const quotedHit = /["']([A-Za-z0-9][A-Za-z0-9\-_]{1,64})["']/.exec(text);
   const model = aliasHit ? aliasHit[1].toLowerCase() : quotedHit ? quotedHit[1] : null;
   const message = model
-    ? `Model '${model}' is not available for this API key — you may be out of ${model} prompts or your plan does not include it. Check usage for remaining prompts.`
-    : 'Model not available for this API key — you may be out of prompts or your plan does not include it. Check usage for remaining prompts.';
+    ? `Model '${model}' is not available for this API key — you may be out of ${model} tokens or your plan does not include it. Check usage for remaining tokens.`
+    : 'Model not available for this API key — you may be out of tokens or your plan does not include it. Check usage for remaining tokens.';
   return { model, message };
 }
 
@@ -281,7 +281,7 @@ const server = http.createServer((req, res) => {
         outHeaders[name] = value;
       }
       // A model-access denial is a small JSON error, never a stream — buffer
-      // it so the customer gets `out of <alias> prompts` instead of the
+      // it so the customer gets `out of <alias> tokens` instead of the
       // generic gateway wording. Everything else streams untouched.
       if (status === 403 && (req.method === 'POST' || req.method === 'GET')) {
         handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders);

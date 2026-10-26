@@ -70,10 +70,11 @@ export function PricingPreview() {
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pricing</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900 dark:text-gray-100">
-            Prompt-based plans. 1 user message = 1 prompt.
+            Token-budget plans. One budget per model tier.
           </h2>
           <p className="mt-4 text-gray-600 dark:text-gray-400">
-            Prices in Tunisian Dinars (DT), billed monthly. No spend caps, no
+            Prices in Tunisian Dinars (DT), billed monthly. Each tier stops
+            when its blended-token budget runs out — no spend caps, no
             surprises. Pay by D17 transfer at La Poste — proof of payment is
             verified by a person, usually within hours.
           </p>
@@ -109,13 +110,21 @@ export function PricingPreview() {
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
-                <Feature icon={<Infinity className="size-4" />}>Prompt quota per model tier — failures never count</Feature>
+                <Feature icon={<Infinity className="size-4" />}>Token budget per model tier — a tier stops when its blended tokens run out. Failures never count</Feature>
                 <Feature>{plan.rpmLimit} calls / minute (rate limit)</Feature>
                 <Feature>{compact(plan.tpmLimit ?? 0)} tokens / minute</Feature>
                 <Feature>{plan.maxKeys} API keys</Feature>
                 {(plan.models ?? []).length > 0 && (
                   <Feature>Models: {(plan.models ?? []).join(", ")}</Feature>
                 )}
+                {(plan.models ?? []).map((m) => {
+                  const t = (plan.tokenLimits as Record<string, number>)?.[m];
+                  return (
+                    <Feature key={m}>
+                      {m}: {t != null ? `${compact(t)} tokens` : "no token cap"}
+                    </Feature>
+                  );
+                })}
               </ul>
 
               <div className="mt-6 rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-4">

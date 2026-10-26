@@ -165,15 +165,16 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   period: { start: string; end: string };
   usage: {
     requests: number;
-    prompts: number;
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
     costUpstreamUsd: number;
     costCustomerUsd: number;
   };
-  /** Per-alias prompt counts for the current billing period. Migration 0013. */
-  promptsByModel: Record<string, number>;
+  /** Blended tokens used per alias in the window. Migration 0023. */
+  tokensByModel: Record<string, number>;
+  /** Which aliases are exhausted on tokens. Migration 0023. */
+  exhaustedByModel: Record<string, 'tokens' | null>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
   d17PaymentStatus: string | null;
@@ -196,7 +197,6 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       const [row] = await db
         .select({
           requests: sql<number>`count(*)`,
-          prompts: sql<number>`coalesce(sum(${usageRecords.promptCount}), 0)`,
           inputTokens: sql<number>`coalesce(sum(${usageRecords.inputTokens}), 0)`,
           outputTokens: sql<number>`coalesce(sum(${usageRecords.outputTokens}), 0)`,
           cacheReadTokens: sql<number>`coalesce(sum(${usageRecords.cacheReadTokens}), 0)`,
@@ -212,32 +212,38 @@ export async function subscriptionBundle(organizationId: string): Promise<{
           ),
         );
 
-      // Per-model prompt counts for the same window. Migration 0013 added
-      // prompt_count (1 for inference rows, 0 otherwise). The model column
-      // already holds the alias (fast/smart/frontier) via aliasForRow().
-      const promptRows = await db.execute(sql`
-        SELECT u.model, coalesce(sum(u.prompt_count), 0)::int AS prompts
+      // Blended tokens per alias for the same window (0023): input + output
+      // + cache writes + cache reads. The model column already holds the
+      // alias (fast/smart/frontier) via aliasForRow(). This is the ONLY
+      // quota signal; prompt_count is no longer read here.
+      const usageRows = await db.execute(sql`
+        SELECT u.model,
+               coalesce(sum(
+                 coalesce(u.input_tokens,0) + coalesce(u.output_tokens,0)
+                 + coalesce(u.cache_write_5m_tokens,0)
+                 + coalesce(u.cache_write_1h_tokens,0)
+                 + coalesce(u.cache_read_tokens,0)
+               ), 0)::bigint AS tokens
           FROM usage_records u
          WHERE u.organization_id = ${organizationId}::uuid
            AND u.occurred_at >= ${window.start.toISOString()}::timestamptz
            AND u.occurred_at <  ${window.end.toISOString()}::timestamptz
          GROUP BY u.model
-      `) as unknown as { model: string; prompts: number }[];
+      `) as unknown as { model: string; tokens: string | number }[];
 
-      const promptsByModel: Record<string, number> = {};
-      for (const r of promptRows) {
-        if (r.model && r.prompts > 0) promptsByModel[r.model] = r.prompts;
+      const tokensByModel: Record<string, number> = {};
+      for (const r of usageRows) {
+        if (r.model) tokensByModel[r.model] = Number(r.tokens ?? 0);
       }
 
       return {
         requests: Number(row?.requests ?? 0),
-        prompts: Number((row as unknown as { prompts?: number })?.prompts ?? 0),
         inputTokens: Number(row?.inputTokens ?? 0),
         outputTokens: Number(row?.outputTokens ?? 0),
         cacheReadTokens: Number(row?.cacheReadTokens ?? 0),
         costUpstreamUsd: Number(row?.costUpstreamUsd ?? 0),
         costCustomerUsd: Number(row?.costCustomerUsd ?? 0),
-        promptsByModel,
+        tokensByModel,
         window,
       };
     })(),
@@ -273,22 +279,34 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       ? { status: ent.status, syncedAt: ent.syncedAt?.toISOString() ?? null, lastError: ent.lastError }
       : null,
     // The period the usage window actually covers: subscription period
-    // when known, calendar fallback. This is what the SpendMeter's "of
-    // $20 included" is measured against — not always the calendar month.
+    // when known, calendar fallback. Token budgets are measured against
+    // this window — not always the calendar month.
     period: {
       start: usage.window.start.toISOString(),
       end: usage.window.end.toISOString(),
     },
     usage: {
       requests: usage.requests,
-      prompts: usage.prompts,
       inputTokens: usage.inputTokens,
       outputTokens: usage.outputTokens,
       cacheReadTokens: usage.cacheReadTokens,
       costUpstreamUsd: usage.costUpstreamUsd,
       costCustomerUsd: usage.costCustomerUsd,
     },
-    promptsByModel: usage.promptsByModel,
+    tokensByModel: usage.tokensByModel,
+    // Token exhaustion per entitled alias, computed HERE (not in the
+    // client) so the banner, meters, device pre-check and gateway wall
+    // read one value.
+    exhaustedByModel: Object.fromEntries(
+      (plan?.models ?? []).map((alias) => {
+        const tLimit = Number((plan?.tokenLimits ?? {})[alias] ?? Infinity);
+        const tUsed = Number((usage.tokensByModel ?? {})[alias] ?? 0);
+        return [
+          alias,
+          Number.isFinite(tLimit) && tLimit > 0 && tUsed >= tLimit ? 'tokens' : null,
+        ];
+      }),
+    ),
     limits: plan,
     keys: { active: Number(activeKeys[0]?.count ?? 0), max: plan?.maxKeys ?? null },
     d17PaymentStatus: subscription
@@ -896,6 +914,8 @@ export async function usageHistory(
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
+    /** Blended tokens (input + output + cache writes + cache reads). 0023. */
+    blendedTokens: number;
     costCustomerUsd: number;
     costUpstreamUsd: number;
   };
@@ -935,6 +955,7 @@ export async function usageHistory(
           inputTokens: 0,
           outputTokens: 0,
           cacheReadTokens: 0,
+          blendedTokens: 0,
           costCustomerUsd: 0,
           costUpstreamUsd: 0,
         },
@@ -1014,6 +1035,11 @@ export async function usageHistory(
              coalesce(sum(u.input_tokens), 0)::bigint     AS input_tokens,
              coalesce(sum(u.output_tokens), 0)::bigint    AS output_tokens,
              coalesce(sum(u.cache_read_tokens), 0)::bigint AS cache_read_tokens,
+             coalesce(sum(
+               coalesce(u.input_tokens,0) + coalesce(u.output_tokens,0)
+               + coalesce(u.cache_write_5m_tokens,0) + coalesce(u.cache_write_1h_tokens,0)
+               + coalesce(u.cache_read_tokens,0)
+             ), 0)::bigint                               AS blended_tokens,
              coalesce(sum(u.cost_customer_usd), 0)        AS cost_customer,
              coalesce(sum(u.cost_upstream_usd), 0)        AS cost_upstream
         FROM usage_records u
@@ -1024,6 +1050,7 @@ export async function usageHistory(
       input_tokens: string;
       output_tokens: string;
       cache_read_tokens: string;
+      blended_tokens: string;
       cost_customer: string;
       cost_upstream: string;
     }[]>,
@@ -1069,6 +1096,7 @@ export async function usageHistory(
       inputTokens: Number(agg?.input_tokens ?? 0),
       outputTokens: Number(agg?.output_tokens ?? 0),
       cacheReadTokens: Number(agg?.cache_read_tokens ?? 0),
+      blendedTokens: Number(agg?.blended_tokens ?? 0),
       costCustomerUsd: Number(agg?.cost_customer ?? 0),
       costUpstreamUsd: Number(agg?.cost_upstream ?? 0),
     },
@@ -1089,6 +1117,8 @@ export interface UsageSeriesPoint {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
+  /** Blended tokens (input + output + cache writes + cache reads). 0023. */
+  blendedTokens: number;
   costCustomerUsd: number;
   costUpstreamUsd: number;
 }
@@ -1114,6 +1144,7 @@ export interface UsageSeries {
     inputTokens: number;
     outputTokens: number;
     cacheReadTokens: number;
+    blendedTokens: number;
     costCustomerUsd: number;
     costUpstreamUsd: number;
   };
@@ -1193,6 +1224,8 @@ export async function usageHistorySeries(
              u.prompt_count,
              u.input_tokens,
              u.output_tokens,
+             u.cache_write_5m_tokens,
+             u.cache_write_1h_tokens,
              u.cache_read_tokens,
              u.cost_customer_usd,
              u.cost_upstream_usd
@@ -1205,6 +1238,11 @@ export async function usageHistorySeries(
            coalesce(sum(f.input_tokens), 0)::bigint      AS input_tokens,
            coalesce(sum(f.output_tokens), 0)::bigint     AS output_tokens,
            coalesce(sum(f.cache_read_tokens), 0)::bigint AS cache_read_tokens,
+           coalesce(sum(
+             coalesce(f.input_tokens,0) + coalesce(f.output_tokens,0)
+             + coalesce(f.cache_write_5m_tokens,0) + coalesce(f.cache_write_1h_tokens,0)
+             + coalesce(f.cache_read_tokens,0)
+           ), 0)::bigint                                 AS blended_tokens,
            coalesce(sum(f.cost_customer_usd), 0)         AS cost_customer,
            coalesce(sum(f.cost_upstream_usd), 0)         AS cost_upstream
       FROM generate_series(${from.toISOString()}::timestamptz,
@@ -1220,6 +1258,7 @@ export async function usageHistorySeries(
     input_tokens: string;
     output_tokens: string;
     cache_read_tokens: string;
+    blended_tokens: string;
     cost_customer: string;
     cost_upstream: string;
   }[];
@@ -1234,6 +1273,7 @@ export async function usageHistorySeries(
     inputTokens: Number(r.input_tokens ?? 0),
     outputTokens: Number(r.output_tokens ?? 0),
     cacheReadTokens: Number(r.cache_read_tokens ?? 0),
+    blendedTokens: Number(r.blended_tokens ?? 0),
     costCustomerUsd: Number(r.cost_customer ?? 0),
     costUpstreamUsd: Number(r.cost_upstream ?? 0),
   }));
@@ -1250,6 +1290,7 @@ export async function usageHistorySeries(
         inputTokens: acc.inputTokens + p.inputTokens,
         outputTokens: acc.outputTokens + p.outputTokens,
         cacheReadTokens: acc.cacheReadTokens + p.cacheReadTokens,
+        blendedTokens: acc.blendedTokens + p.blendedTokens,
         costCustomerUsd: acc.costCustomerUsd + p.costCustomerUsd,
         costUpstreamUsd: acc.costUpstreamUsd + p.costUpstreamUsd,
       }),
@@ -1259,6 +1300,7 @@ export async function usageHistorySeries(
         inputTokens: 0,
         outputTokens: 0,
         cacheReadTokens: 0,
+        blendedTokens: 0,
         costCustomerUsd: 0,
         costUpstreamUsd: 0,
       },

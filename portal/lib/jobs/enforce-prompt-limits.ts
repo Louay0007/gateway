@@ -1,11 +1,12 @@
 /**
- * enforce_prompt_limits — server-side prompt quota enforcement.
+ * enforce_prompt_limits — server-side TOKEN quota enforcement.
  *
- * Rule: 1 successful inference request = 1 prompt. Plans cap prompts per
- * alias per subscription period (`plans.prompt_limits`). When an org has
- * used >= its limit on an alias, that alias is removed from the gateway
- * allowlist (team models + every key's models). When all entitled aliases
- * are exhausted, the allowlist becomes [] — every inference 403s.
+ * The job name is historical (migrations 0007/0020); since 0023 it enforces
+ * blended tokens only. Plans cap tokens per alias per subscription period
+ * (`plans.token_limits`). When an org has used >= its limit on an alias,
+ * that alias is removed from the gateway allowlist (team models + every
+ * key's models). When all entitled aliases are exhausted, the allowlist
+ * becomes [] — every inference 403s.
  *
  * Why narrow models instead of setting a tiny budget: LiteLLM reads a
  * budget of 0 as UNLIMITED, and budget math is customer-vs-upstream
@@ -53,6 +54,8 @@ export async function enforcePromptLimits(): Promise<EnforcePromptLimitsResult> 
 
   // Live orgs with a live subscription and a team to push to.
   // Plan/limits come from getAllowedModels per org (single wall with sync).
+  // TOKEN WALL (0023): getAllowedModels withholds every alias whose blended
+  // token budget is spent — one wall, one push.
   const orgs = (await db.execute(sql`
     SELECT o.id AS organization_id,
            o.litellm_team_id
@@ -88,10 +91,7 @@ export async function enforcePromptLimits(): Promise<EnforcePromptLimitsResult> 
       }
 
       // Narrowed = at least one entitled alias withheld.
-      const limits = wall.limits;
-      const entitled = wall.entitled.filter(
-        (a) => Number(limits[a] ?? 0) > 0,
-      );
+      const entitled = wall.entitled;
       if (allowed.length < entitled.length) result.narrowed++;
       else result.restored++;
     } catch (e) {

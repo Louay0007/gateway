@@ -30,7 +30,8 @@ export const planBodySchema = z.object({
   rateMultiplierBps: z.number().int().min(11_000).max(100_000),
   models: z.array(z.string().trim().min(1).max(64)).min(1, 'Grant at least one model.'),
   trialDays: z.number().int().min(0).max(365).optional(),
-  promptLimits: z.record(z.string(), z.number().int().min(0)).optional(),
+  /** Blended-token budgets in RAW TOKENS (not millions): {fast: 80000000}. 0023. */
+  tokenLimits: z.record(z.string(), z.number().int().min(0)).optional(),
 });
 
 /** First issue message, for the `{error:{message}}` envelope. */

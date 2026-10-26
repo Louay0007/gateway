@@ -3,15 +3,19 @@
  *
  * Used by BOTH enforce_prompt_limits (5m) and sync (plan change +
  * hourly backstop) so they cannot disagree. Rule: allowed = entitled
- * WHERE used < limit, windowed on subscription period else calendar
- * month (same as dashboard bundle). Renewal restores: new window has
- * zero usage so everything re-allows.
+ * WHERE tokens_used < token_limit, windowed on subscription period else
+ * calendar month (same as dashboard bundle). Renewal restores: a new
+ * window has zero usage so everything re-allows.
+ *
+ * Token-only since 0023. `prompt_count` stays in the ledger for analytics
+ * but is never read here.
  */
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
-  computeAllowedModels,
+  computeTokenAllowedModels,
   usageWindowFor,
+  BILLABLE_TOKEN_COLUMNS,
 } from '@/lib/entitlements/quota';
 import { effectForStatus, type Effect } from '@/lib/entitlements/policy';
 
@@ -19,8 +23,10 @@ export interface AllowedModelsResult {
   effect: Effect;
   entitled: string[];
   allowed: string[];
-  limits: Record<string, number>;
-  usedBy: Record<string, number>;
+  /** Per-alias token budgets (raw blended tokens). 0023. */
+  tokenLimits: Record<string, number>;
+  /** Blended tokens used per alias in the window. 0023. */
+  usedTokensBy: Record<string, number>;
   period: { start: Date; end: Date } | null;
   planCode: string | null;
 }
@@ -31,7 +37,7 @@ export async function getAllowedModels(
   const rows = (await db.execute(sql`
     SELECT s.status, s.current_period_start, s.current_period_end,
            p.code AS plan_code, p.models,
-           COALESCE(p.prompt_limits, '{}'::jsonb) AS prompt_limits
+           COALESCE(p.token_limits, '{}'::jsonb) AS token_limits
       FROM subscriptions s
       JOIN plans p ON p.id = s.plan_id
      WHERE s.organization_id = ${organizationId}::uuid
@@ -44,7 +50,7 @@ export async function getAllowedModels(
     current_period_end: string | null;
     plan_code: string;
     models: string[];
-    prompt_limits: Record<string, number>;
+    token_limits: Record<string, number>;
   }[];
 
   const row = rows[0];
@@ -53,8 +59,8 @@ export async function getAllowedModels(
       effect: 'cut',
       entitled: [],
       allowed: [],
-      limits: {},
-      usedBy: {},
+      tokenLimits: {},
+      usedTokensBy: {},
       period: null,
       planCode: null,
     };
@@ -62,10 +68,12 @@ export async function getAllowedModels(
 
   const effect = effectForStatus(row.status);
   const entitled: string[] = Array.isArray(row.models) ? row.models : [];
-  const rawLimits = (row.prompt_limits ?? {}) as Record<string, number>;
-  const limits: Record<string, number> = {};
-  for (const [k, v] of Object.entries(rawLimits)) {
-    if (typeof v === 'number' && Number.isFinite(v)) limits[k] = v;
+  // Token budgets. Missing = unlimited, enforced inside
+  // computeTokenAllowedModels — NOT normalized to deny.
+  const rawTokenLimits = (row as { token_limits?: unknown }).token_limits as Record<string, number> | undefined;
+  const tokenLimits: Record<string, number> = {};
+  for (const [k, v] of Object.entries(rawTokenLimits ?? {})) {
+    if (typeof v === 'number' && Number.isFinite(v)) tokenLimits[k] = v;
   }
 
   if (effect === 'cut') {
@@ -77,8 +85,8 @@ export async function getAllowedModels(
       effect,
       entitled,
       allowed: [],
-      limits: {},
-      usedBy: {},
+      tokenLimits: {},
+      usedTokensBy: {},
       period: window,
       planCode: row.plan_code,
     };
@@ -90,17 +98,21 @@ export async function getAllowedModels(
   });
 
   const usedRows = (await db.execute(sql`
-    SELECT u.model, COALESCE(SUM(u.prompt_count), 0)::int AS prompts
+    SELECT u.model,
+           COALESCE(SUM(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS tokens
       FROM usage_records u
      WHERE u.organization_id = ${organizationId}::uuid
        AND u.occurred_at >= ${window.start.toISOString()}::timestamptz
        AND u.occurred_at < ${window.end.toISOString()}::timestamptz
      GROUP BY u.model
-  `)) as unknown as { model: string; prompts: number }[];
+  `)) as unknown as { model: string; tokens: string | number }[];
 
-  const usedBy: Record<string, number> = {};
-  for (const r of usedRows) usedBy[r.model] = Number(r.prompts ?? 0);
+  const usedTokensBy: Record<string, number> = {};
+  for (const r of usedRows) {
+    usedTokensBy[r.model] = Number(r.tokens ?? 0);
+  }
 
-  const allowed = computeAllowedModels(entitled, limits, usedBy);
-  return { effect, entitled, allowed, limits, usedBy, period: window, planCode: row.plan_code };
+  // Token-only wall (0023): the only usage signal is blended tokens.
+  const allowed = computeTokenAllowedModels(entitled, tokenLimits, usedTokensBy);
+  return { effect, entitled, allowed, tokenLimits, usedTokensBy, period: window, planCode: row.plan_code };
 }

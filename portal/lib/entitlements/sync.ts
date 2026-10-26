@@ -28,7 +28,7 @@ import {
   CUT_BUDGET,
   effectForStatus,
   resolveBudgetUsd,
-  resolvePromptLimits,
+  resolveTokenLimits,
   type Effect,
 } from '@/lib/entitlements/policy';
 import { log } from '@/lib/log';
@@ -71,7 +71,7 @@ async function resolveSubscription(orgId: string) {
            p.included_spend_cents, p.hard_cap_cents, p.rpm_limit,
            p.tpm_limit, p.max_concurrent_requests, p.models,
            p.max_keys, p.max_seats, p.rate_multiplier_bps, p.trial_days,
-           p.prompt_limits
+           p.token_limits
       FROM subscriptions s
       JOIN plans p ON p.id = s.plan_id
      WHERE s.organization_id = ${orgId}
@@ -84,7 +84,7 @@ async function resolveSubscription(orgId: string) {
     rpm_limit: number | null; tpm_limit: number | null;
     max_concurrent_requests: number | null; models: string[];
     max_keys: number; max_seats: number; rate_multiplier_bps: number;
-    trial_days: number; prompt_limits: unknown;
+    trial_days: number; token_limits: unknown;
   }[];
   return rows[0] ?? null;
 }
@@ -100,8 +100,8 @@ export interface EntitlementSpec {
   maxSeats: number;
   maxBudgetUsd: number;
   budgetDuration: string;
-  /** Per-alias prompt limits for the current billing period. Migration 0013. */
-  promptLimits: Record<string, number>;
+  /** Per-alias blended-token budgets (raw tokens). Migration 0022. */
+  tokenLimits: Record<string, number>;
 }
 
 /**
@@ -148,30 +148,26 @@ export async function syncOrganizationEntitlements(
     effect,
   );
 
-  const promptLimits = resolvePromptLimits(
-    { promptLimits: live.prompt_limits as Record<string, number> | null },
+  const tokenLimits = resolveTokenLimits(
+    { tokenLimits: (live as { token_limits?: Record<string, number> | null }).token_limits ?? null },
     effect,
   );
 
-  // ── THE QUOTA WALL. Same helper enforce() uses: allowed = entitled
-  // WHERE used < limit in the current window. Sync used to push the full
-  // plan list, resurrecting every alias enforce had just narrowed — the
-  // leak this fix closes. Reconcile hourly now re-pushes the NARROWED
-  // list, never the full one. Renewal restores: a new window has zero
-  // usage so the wall re-allows everything.
+  // Token-only wall (0023): only tokens decide the allowlist. Prompts are
+  // still collected (ledger column) for analytics but never enforce.
   let allowedModels: string[];
-  let quotaUsedBy: Record<string, number> = {};
+  let quotaUsedTokensBy: Record<string, number> = {};
+  let quotaTokenLimits: Record<string, number> = {};
   if (effect === 'cut') {
     allowedModels = [];
   } else if (suspended) {
-    // Suspended reads as cut for the push even when the subscription is
-    // live — but quota usage is still reported for the cached spec.
     allowedModels = [];
   } else {
     try {
       const wall = await getAllowedModels(organizationId);
       allowedModels = wall.allowed;
-      quotaUsedBy = wall.usedBy;
+      quotaUsedTokensBy = wall.usedTokensBy;
+      quotaTokenLimits = wall.tokenLimits;
     } catch (e) {
       // Fail CLOSED on a wall read error: pushing the full list would grant
       // quota that may already be exhausted. The sync fails, stays pending,
@@ -196,7 +192,7 @@ export async function syncOrganizationEntitlements(
     maxSeats: live.max_seats,
     maxBudgetUsd: budgetUsd,
     budgetDuration: '30d',
-    promptLimits,
+    tokenLimits,
   };
 
   // ── 1. Cache the intended state FIRST, so the dashboard is correct
@@ -274,9 +270,9 @@ export async function syncOrganizationEntitlements(
           models: allowedModels,
           maxBudget: budgetUsd,
           budgetDuration: spec.budgetDuration,
-          // Only prompt count limits (enforced by the desktop app) gate
-          // usage. Token budgets, rpm and tpm are set to null/unlimited so
-          // LiteLLM never blocks a request before the prompt limit kicks in.
+          // Only the model allowlist gates usage (token wall, 0023). Token
+          // budgets, rpm and tpm are set to null/unlimited so LiteLLM never
+          // blocks a request before the allowlist is narrowed.
           rpmLimit: null,
           tpmLimit: null,
           maxParallelRequests: spec.concurrency,
@@ -307,7 +303,7 @@ export async function syncOrganizationEntitlements(
     actorType: 'system',
     action: 'entitlements.synced',
     organizationId,
-    after: { effect, reason, plan: live.plan_code, budgetUsd, keysSynced, suspended, allowedModels, quotaUsedBy },
+    after: { effect, reason, plan: live.plan_code, budgetUsd, keysSynced, suspended, allowedModels, quotaUsedTokensBy, quotaTokenLimits },
   });
 
   return { ok: true, effect, budgetUsd, keysSynced };

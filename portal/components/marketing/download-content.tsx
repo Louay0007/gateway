@@ -228,7 +228,7 @@ const REQUIREMENTS: { os: string; detail: string }[] = [
 const FAQS: { q: string; a: string }[] = [
   {
     q: "Do I need a paid plan to use the desktop app?",
-    a: "The app itself is free. You need a Zaino account with prompt quota — any plan works, including trial credit. Fast and Smart draw from your plan's prompt limits, and only the models your plan allows appear in the picker.",
+    a: "The app itself is free. You need a Zaino account with a token budget — any plan works, including trial credit. Fast and Smart draw from your plan's token budgets, and only the models your plan allows appear in the picker.",
   },
   {
     q: "How do I sign in?",

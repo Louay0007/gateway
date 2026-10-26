@@ -4,6 +4,7 @@ import { auth } from "@/auth";
 import { requireActiveOrg } from "@/lib/auth/authorize";
 import { RedeemForm } from "@/components/trial/redeem-form";
 import { getTrialStatus } from "@/lib/trial/service";
+import { compact } from "@/lib/dashboard/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import Link from "next/link";
@@ -61,8 +62,8 @@ export default async function RedeemPage() {
             </div>
             <div className="text-sm text-green-800 dark:text-green-300">
               <strong>Limits:</strong>{" "}
-              {Object.entries(trial.promptLimits)
-                .map(([model, limit]) => `${limit} ${model} prompts`)
+              {Object.entries(trial.tokenLimits ?? {})
+                .map(([model, limit]) => `${compact(limit)} ${model} tokens`)
                 .join(", ")}{" "}
               total across the trial period.
             </div>

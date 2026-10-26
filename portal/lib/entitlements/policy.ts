@@ -80,19 +80,18 @@ export function effectForStatus(status: string): Effect {
  * directly would let the customer spend $130 before the cutoff — the
  * exact overshoot this function exists to prevent.
  *
- * TRIAL PLANS: trial plans use prompt-based limits (e.g., 300 fast + 300 smart)
- * rather than dollar caps. Their `includedSpendCents` and `hardCapCents` may be
- * set to a generous value (e.g., 500 cents = $5) just to satisfy LiteLLM's
- * requirement that max_budget > 0, but the real enforcement is prompt_count.
- * For trial plans, we set a high budget ($10,000) so LiteLLM never blocks on
- * dollar spend before the prompt limit kicks in.
+ * TRIAL PLANS: trial plans use per-alias token budgets (e.g., 10M fast +
+ * 10M smart) rather than dollar caps. Their `includedSpendCents` and
+ * `hardCapCents` may be set to a generous value just to satisfy LiteLLM's
+ * requirement that max_budget > 0, but the real enforcement is the token
+ * wall in lib/entitlements/allowed-models.ts. For every live plan we set a
+ * high budget ($10,000) so LiteLLM never blocks on dollar spend before the
+ * token limit kicks in.
  *
  * Rules, in order:
  *   1. A cut always wins → CUT_BUDGET.
- *   2. Trial plans (planCode === 'trial') → $10,000 upstream (effectively unlimited).
- *   3. Use the hard cap if the plan has one, converted to upstream.
- *   4. Otherwise use the included allowance, converted the same way.
- *   5. If the result is zero, return CUT_BUDGET — never 0.
+ *   2. Otherwise → $10,000 upstream (effectively unlimited); tokens enforce.
+ *   3. If the result is zero, return CUT_BUDGET — never 0.
  *
  * OVERAGE (`overage_markup_bps`) is deliberately NOT a second multiplier
  * here. Customer cost is upstream × rate_multiplier for EVERY row,
@@ -103,16 +102,14 @@ export function effectForStatus(status: string): Effect {
  * bill Starter overage at 1.30 × 1.30. Enforced by test, not by hope.
  */
 export function resolveBudgetUsd(
-  plan: BudgetColumns & { planCode?: string, promptLimits?: Record<string, number> | null },
+  plan: BudgetColumns & { planCode?: string },
   effect: Effect,
 ): number {
   if (effect === 'cut') return CUT_BUDGET;
 
-  // The only enforcement is prompt count, which the desktop app enforces via
-  // /api/device/usage. Token budgets, spend caps and rpm/tpm are set to
-  // effectively unlimited here so they never block a request before the
-  // prompt limit kicks in. The upstream is (currently) free, so spend is
-  // not the constraint — prompt count is.
+  // Token budgets are the only quota (0023). Spend caps and rpm/tpm are
+  // set to effectively unlimited here so they never block a request
+  // before the token wall does.
   return 10000.0; // $10,000 upstream — effectively unlimited
 }
 
@@ -125,19 +122,19 @@ export function resolveBudgetUsd(
  * we would then have to unwind.
  */
 /**
- * Resolve per-alias prompt limits from the plan's JSONB column.
+ * Resolve per-alias TOKEN budgets from the plan's JSONB column.
  *
- * Migration 0013 added `prompt_limits` to plans: `{fast: 500, smart: 250}`.
- * A cut org gets all zeros so every enforcement point can compare without
- * branching on effect first. Missing aliases default to 0 (deny), not
- * Infinity — a plan that omits an alias does not grant unlimited access.
+ * Migration 0023 made tokens the only quota: `{fast: 80000000}`.
+ * A cut org gets an empty map so every enforcement point can compare
+ * without branching on effect first. A missing alias is UNLIMITED, not
+ * deny — see the token wall note in quota.ts.
  */
-export function resolvePromptLimits(
-  plan: { promptLimits?: Record<string, number> | null },
+export function resolveTokenLimits(
+  plan: { tokenLimits?: Record<string, number> | null },
   effect: Effect,
 ): Record<string, number> {
   if (effect === 'cut') return {};
-  const raw = plan.promptLimits ?? {};
+  const raw = plan.tokenLimits ?? {};
   const out: Record<string, number> = {};
   for (const [alias, limit] of Object.entries(raw)) {
     if (typeof limit === 'number' && Number.isFinite(limit) && limit >= 0) {

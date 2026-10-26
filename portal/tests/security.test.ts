@@ -94,8 +94,8 @@ describe('budget resolution — token budget is effectively unlimited', () => {
   });
 
   it('returns an effectively unlimited budget for every non-cut plan', () => {
-    // The only enforcement is prompt count (desktop app). Token budgets
-    // must never block a request before the prompt limit kicks in.
+    // Tokens are the only quota (0023). Dollar budgets must never block a
+    // request before the token wall does.
     expect(resolveBudgetUsd(noCapPlan, 'full')).toBe(10000.0);
     expect(resolveBudgetUsd(cappedPlan, 'full')).toBe(10000.0);
   });

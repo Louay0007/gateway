@@ -91,8 +91,8 @@ const fr: Dict = {
   'd17.email_approved_body':
     'Bonjour,\n\nFélicitations ! Votre paiement D17 de {amount} DT a été vérifié et votre abonnement {plan} est maintenant actif.\n\n' +
     'Votre plan Pro inclut :\n' +
-    '• 1000 prompts Smart (Sonnet 5) par mois\n' +
-    '• 500 prompts Frontier (Opus 5.5) par mois\n' +
+    '• 210M tokens Smart (Sonnet 5.5) par mois\n' +
+    '• 85M tokens Frontier (Opus 5.5) par mois\n' +
     '• 300 requêtes par minute\n' +
     '• 1,5M tokens par minute\n' +
     '• Jusqu\'à 15 clés API\n' +
@@ -141,11 +141,10 @@ const fr: Dict = {
   'd17.feat_tpm': '{count} tokens/min',
   'd17.feat_support': 'Support prioritaire',
   'd17.feat_budget': 'Budget mensuel inclus : {amount}',
-  'd17.feat_fast_prompts': '{count} prompts rapides',
-  'd17.feat_smart_prompts': '{count} prompts intelligents',
-  'd17.feat_frontier_prompts': '{count} prompts frontier',
-  'd17.prompt_meter_label': '{used} / {limit} prompts {alias}',
-  'd17.prompt_limit_exceeded': 'Limite de prompts atteinte pour {model}',
+  'd17.feat_fast_tokens': '{count} tokens rapides / période',
+  'd17.feat_smart_tokens': '{count} tokens intelligents / période',
+  'd17.feat_frontier_tokens': '{count} tokens frontier / période',
+  'd17.token_limit_exceeded': 'Budget de tokens épuisé pour {model}',
 };
 
 const ar: Dict = {
@@ -262,11 +261,10 @@ const ar: Dict = {
   'd17.feat_tpm': '{count} رمز/دقيقة',
   'd17.feat_support': 'دعم ذو أولوية',
   'd17.feat_budget': 'ميزانية شهرية مضمنة: {amount}',
-  'd17.feat_fast_prompts': '{count} طلب سريع',
-  'd17.feat_smart_prompts': '{count} طلب ذكي',
-  'd17.feat_frontier_prompts': '{count} طلب متقدم',
-  'd17.prompt_meter_label': '{used} / {limit} طلبات {alias}',
-  'd17.prompt_limit_exceeded': 'تم الوصول إلى حد الطلبات لـ {model}',
+  'd17.feat_fast_tokens': '{count} رمز سريع / الفترة',
+  'd17.feat_smart_tokens': '{count} رمز ذكي / الفترة',
+  'd17.feat_frontier_tokens': '{count} رمز متقدم / الفترة',
+  'd17.token_limit_exceeded': 'تم استهلاك ميزانية الرموز لـ {model}',
 };
 
 const en: Dict = {
@@ -334,8 +332,8 @@ const en: Dict = {
   'd17.email_approved_body':
     'Hello,\n\nCongratulations! Your D17 payment of {amount} DT has been verified and your {plan} subscription is now active.\n\n' +
     'Your Pro plan includes:\n' +
-    '• 1000 Smart prompts (Sonnet 5) per month\n' +
-    '• 500 Frontier prompts (Opus 5.5) per month\n' +
+    '• 210M Smart tokens (Sonnet 5.5) per month\n' +
+    '• 85M Frontier tokens (Opus 5.5) per month\n' +
     '• 300 requests per minute\n' +
     '• 1.5M tokens per minute\n' +
     '• Up to 15 API keys\n' +
@@ -384,11 +382,10 @@ const en: Dict = {
   'd17.feat_tpm': '{count} tokens/min',
   'd17.feat_support': 'Priority support',
   'd17.feat_budget': 'Monthly budget included: {amount}',
-  'd17.feat_fast_prompts': '{count} fast prompts',
-  'd17.feat_smart_prompts': '{count} smart prompts',
-  'd17.feat_frontier_prompts': '{count} frontier prompts',
-  'd17.prompt_meter_label': '{used} / {limit} {alias} prompts',
-  'd17.prompt_limit_exceeded': 'Prompt limit reached for {model}',
+  'd17.feat_fast_tokens': '{count} fast tokens / period',
+  'd17.feat_smart_tokens': '{count} smart tokens / period',
+  'd17.feat_frontier_tokens': '{count} frontier tokens / period',
+  'd17.token_limit_exceeded': 'Token budget exhausted for {model}',
 };
 
 const DICTS: Record<D17Lang, Dict> = { fr, ar, en };

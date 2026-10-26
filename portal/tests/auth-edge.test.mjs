@@ -337,7 +337,7 @@ describe('end to end through the edge', () => {
       `{"error":{"message":"Model 'frontier' is not available for this API key"}}`,
     );
     expect(m?.model).toBe('frontier');
-    expect(m?.message).toMatch(/out of frontier prompts/i);
+    expect(m?.message).toMatch(/out of frontier tokens/i);
     expect(mapModelDeniedBody(403, 'overloaded, try again')).toBeNull();
     expect(mapModelDeniedBody(200, "Model 'frontier' is not available")).toBeNull();
   });
@@ -381,7 +381,7 @@ describe('end to end through the edge', () => {
         req.end('{}');
       });
       expect(r.status).toBe(403);
-      expect(r.text).toMatch(/out of frontier prompts/i);
+      expect(r.text).toMatch(/out of frontier tokens/i);
     } finally {
       edge.kill('SIGKILL');
       denied.close();

@@ -17,9 +17,8 @@ import { relativeTime } from "@/lib/dashboard/format";
  * views cannot tell different stories about the same call. That is why
  * it takes rows rather than reading its own source.
  *
- * Only a 200 on an inference route counts as a prompt (migration 0020) —
- * failures, 429s and non-inference calls are 0 prompts and never consume
- * quota. The verb names that fact.
+ * Every call is metered by blended tokens; failures and 429s consume none.
+ * The verb names that fact.
  *
  * `keyName` is joined in by the endpoint. The previous version mapped
  * invented key ids through a hardcoded record, which would have rendered
@@ -42,7 +41,7 @@ export function RecentActivity({
     <Card>
       <CardHeader>
         <CardTitle>Recent activity</CardTitle>
-        <CardDescription>The latest gateway calls — 1 user message = 1 prompt</CardDescription>
+        <CardDescription>The latest gateway calls — metered by blended tokens</CardDescription>
       </CardHeader>
       <CardContent>
         {rows.length === 0 ? (
@@ -86,12 +85,12 @@ export function RecentActivity({
   );
 }
 
-/** One sentence per row. Only a 200 counts a prompt; failures are 0 prompts. */
+/** One sentence per row. Only successful calls spend tokens. */
 function describe(row: UsageRowView): string {
-  if (row.statusCode === 429) return "hit a limit on (0 prompts)";
-  if (row.statusCode !== null && row.statusCode >= 400) return "failed on (0 prompts)";
-  if (row.statusCode === null) return "failed, no status reported, on (0 prompts)";
-  return "used 1 prompt on";
+  if (row.statusCode === 429) return "hit a token limit on";
+  if (row.statusCode !== null && row.statusCode >= 400) return "failed on";
+  if (row.statusCode === null) return "failed, no status reported, on";
+  return "spent tokens on";
 }
 
 function statusVariant(

@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { usd, usdPrecise } from "@/lib/dashboard/format";
+import { compact, usd, usdPrecise } from "@/lib/dashboard/format";
 
 import type { PlanAdminRow } from "@/lib/admin/plans";
 
@@ -149,8 +149,8 @@ export function PlanManager({
                 <TableCell className="text-xs text-muted-foreground">
                   {p.rpmLimit ?? "∞"} rpm · {p.tpmLimit ? `${(p.tpmLimit / 1000).toFixed(0)}k` : "∞"} tpm
                   <span className="block">{p.models.join(", ")}</span>
-                  <span className="block font-medium text-foreground">
-                    {Object.entries(p.promptLimits ?? {}).map(([k, v]) => `${k}:${v}`).join(" · ") || "no prompt limits"}
+                  <span className="block">
+                    {Object.entries(p.tokenLimits ?? {}).map(([k, v]) => `${k}:${compact(v)}`).join(" · ") || "no token cap"}
                   </span>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{p.subscriberCount}</TableCell>
@@ -225,7 +225,7 @@ function PlanDialog({
   const [maxKeys, setMaxKeys] = React.useState("1");
   const [trialDays, setTrialDays] = React.useState("0");
   const [models, setModels] = React.useState("");
-  const [promptLimits, setPromptLimits] = React.useState("");
+  const [tokenLimits, setTokenLimits] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
@@ -241,7 +241,7 @@ function PlanDialog({
     setMaxKeys(plan ? String(plan.maxKeys) : "1");
     setTrialDays(plan ? String(plan.trialDays) : "0");
     setModels(plan?.models.join(", ") ?? "");
-    setPromptLimits(plan ? Object.entries(plan.promptLimits ?? {}).map(([k, v]) => `${k}:${v}`).join(", ") : "fast:500, smart:250");
+    setTokenLimits(plan ? Object.entries(plan.tokenLimits ?? {}).map(([k, v]) => `${k}:${v}`).join(", ") : "fast:80000000, smart:32000000");
   }, [open, plan]);
 
   const mult = Number.parseFloat(multiplier);
@@ -262,8 +262,10 @@ function PlanDialog({
         maxKeys: Number(maxKeys || "1"),
         trialDays: Number(trialDays || "0"),
         models: models.split(",").map((m) => m.trim()).filter(Boolean),
-        promptLimits: Object.fromEntries(
-          promptLimits.split(",").map((s) => s.trim()).filter(Boolean).map((pair) => {
+        // Blended-token budgets in RAW TOKENS (not millions): "fast:80000000".
+        // Empty = unlimited (fail-open for plans without token budgets).
+        tokenLimits: Object.fromEntries(
+          tokenLimits.split(",").map((s) => s.trim()).filter(Boolean).map((pair) => {
             const [k, v] = pair.split(":").map((s) => s.trim());
             return [k, Math.max(0, Math.round(Number(v)))];
           }).filter(([k, v]) => k && Number.isFinite(v)),
@@ -362,10 +364,11 @@ function PlanDialog({
           </label>
 
           <label className="grid gap-1.5 text-sm sm:col-span-2">
-            <span className="font-medium">Prompt limits (alias:count, comma separated)</span>
-            <input value={promptLimits} onChange={(e) => setPromptLimits(e.target.value)} className={FIELD} placeholder="fast:500, smart:250" />
+            <span className="font-medium">Token limits (alias:raw-tokens, comma separated — blank = unlimited)</span>
+            <input value={tokenLimits} onChange={(e) => setTokenLimits(e.target.value)} className={FIELD} placeholder="fast:80000000, smart:32000000" />
             <span className="text-xs text-muted-foreground">
-              1 user message = 1 prompt on that alias. Unknown aliases or non-numbers are dropped. Missing alias = 0 (deny).
+              Blended tokens = input + output + cache writes + cache reads. Raw tokens, not millions (80M = 80000000).
+              This is the only quota — a tier stops when its budget runs out. Blank = no token cap.
             </span>
           </label>
 
