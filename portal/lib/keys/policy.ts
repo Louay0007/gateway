@@ -212,8 +212,16 @@ export interface ModelCheck {
  * §3), so fuzzy matching here would let a near-miss alias through to a
  * gateway that rejects it with a 404 the customer cannot interpret.
  */
-export function assertModelsAllowed(requested: string[], planModels: string[]): ModelCheck {
+export function assertModelsAllowed(
+  requested: string[],
+  planModels: string[],
+  /** Aliases currently out of tokens (quota-narrowed). When a requested
+   * model is entitled but exhausted, the error says "out of tokens"
+   * instead of the misleading "not included in your plan". */
+  exhaustedModels: string[] = [],
+): ModelCheck {
   const allowed = new Set(planModels);
+  const exhausted = new Set(exhaustedModels);
 
   const seen = new Set<string>();
   const models: string[] = [];
@@ -222,6 +230,15 @@ export function assertModelsAllowed(requested: string[], planModels: string[]): 
       return { ok: false, error: 'Each model must be a non-empty name.', models };
     }
     if (!allowed.has(m)) {
+      if (exhausted.has(m)) {
+        return {
+          ok: false,
+          error: `Model "${m}" is out of tokens for this period — renews next cycle. Available now: ${
+            planModels.filter((p) => !exhausted.has(p)).join(', ') || 'none'
+          }.`,
+          models,
+        };
+      }
       return {
         ok: false,
         error: `Model "${m}" is not included in your plan. Available: ${

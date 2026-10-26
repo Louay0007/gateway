@@ -109,9 +109,35 @@ export const store: KeyStore = {
     const cached = await db.query.entitlements.findFirst({
       where: eq(entitlements.organizationId, organizationId),
     });
-    if (cached) {
-      const fromCache = planFromEntitlement(cached);
-      if (fromCache) return fromCache;
+    const fromCache = cached ? planFromEntitlement(cached) : null;
+    // When a cached entitlement exists, prefer its budget/effect/limits
+    // (they are exactly what was pushed to the gateway), but ALWAYS use
+    // the live plan's model allowlist (entitled models) for validation.
+    // The cached `effective.models` is quota-narrowed (sync writes
+    // allowed = entitled WHERE tokens_used < limit), so validating new
+    // keys against it blocks creation entirely when ANY alias is
+    // exhausted — e.g. frontier spent blocks a key that would otherwise
+    // work fine on smart. Quota is enforced at request time by the
+    // narrowed team/key models already pushed to LiteLLM (key ∩ team),
+    // not by refusing to mint. Mint with the full entitled list; the
+    // gateway intersection narrows effective access immediately.
+    if (fromCache) {
+      const liveModels = await db
+        .select({ models: plans.models })
+        .from(subscriptions)
+        .innerJoin(plans, eq(plans.id, subscriptions.planId))
+        .where(
+          and(
+            eq(subscriptions.organizationId, organizationId),
+            inArray(subscriptions.status, [...LIVE_STATUSES]),
+          ),
+        )
+        .limit(1);
+      const entitled = liveModels[0]?.models;
+      if (Array.isArray(entitled)) {
+        return { ...fromCache, models: entitled ?? [] };
+      }
+      return fromCache;
     }
 
     // Fallback: derive from the live subscription. Same numbers
