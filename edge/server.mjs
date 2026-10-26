@@ -132,6 +132,16 @@ const MODEL_ALIAS = {
   frontier: 'opus-5.5',
 };
 
+/** Concrete upstream model names the edge is allowed to forward.
+ * Anything not in this set (and not a known alias) is rejected at the
+ * edge with a clear 400, instead of being forwarded to LiteLLM where it
+ * would surface as a confusing "Model 'x' is not available" error. */
+const VALID_UPSTREAM_MODELS = new Set([
+  'haiku-5.5',
+  'sonnet-5.5',
+  'opus-5.5',
+]);
+
 /** Rewrite `model: <alias>` → `model: <upstream-model>` in a JSON request body.
  * Returns the (possibly new) body buffer; `content-length` must be updated
  * by the caller. Non-JSON bodies pass through untouched. */
@@ -147,6 +157,16 @@ function resolveModelAlias(bodyBuf) {
     return Buffer.from(JSON.stringify(parsed), 'utf8');
   }
   return bodyBuf;
+}
+
+/** Validate a resolved model name. Returns null if OK, or a 400 message
+ * if the model is unknown. Missing model is allowed (LiteLLM decides). */
+function modelRejection(model) {
+  if (!model) return null;
+  if (VALID_UPSTREAM_MODELS.has(model)) return null;
+  const aliases = Object.keys(MODEL_ALIAS).join(', ');
+  const upstream = Object.values(MODEL_ALIAS).join(', ');
+  return `Unknown model '${model}'. Use ${aliases} (or the upstream names ${upstream}).`;
 }
 
 function isMgmtPath(pathname) {
@@ -324,6 +344,19 @@ const server = http.createServer((req, res) => {
     bodyBuf = await readBody(req);
     bodyBuf = resolveModelAlias(bodyBuf);
     headers['content-length'] = bodyBuf.length;
+
+    // Reject unknown models at the edge with a clear 400 instead of
+    // forwarding to LiteLLM where they surface as "Model 'x' is not
+    // available". A missing model is allowed (LiteLLM decides).
+    try {
+      const parsed = JSON.parse(bodyBuf.toString('utf8'));
+      const reject = modelRejection(parsed.model);
+      if (reject) {
+        return failClosed(res, 400, reject);
+      }
+    } catch {
+      // Not JSON — pass through unchanged
+    }
   }
 
   const upstreamReq = http.request(
@@ -484,6 +517,15 @@ async function handleResponses(req, res, headers, started, rewritten) {
   // mirroring the proxy-path alias resolution.
   if (translated.body.model && MODEL_ALIAS[translated.body.model]) {
     translated.body.model = MODEL_ALIAS[translated.body.model];
+  }
+
+  // Reject unknown models at the edge with a clear 400 instead of
+  // forwarding to LiteLLM where they surface as "Model 'x' is not
+  // available". A missing model is allowed (LiteLLM decides).
+  const reject = modelRejection(translated.body.model);
+  if (reject) {
+    log(req, started, 400, rewritten, null, 'responses:invalid-model');
+    return failResponses(res, 400, reject);
   }
 
   const chatBody = Buffer.from(JSON.stringify(translated.body), 'utf8');
