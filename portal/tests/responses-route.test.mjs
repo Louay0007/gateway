@@ -139,10 +139,11 @@ describe('POST /v1/responses through the edge', () => {
     // have seen /v1/responses and a Responses body. This is the assertion
     // that proves the interception is live, not just unit-tested.
     expect(seen.path).toBe('/v1/chat/completions');
-    expect(seen.body.model).toBe('fast');
+    // The edge resolves the alias to a concrete model name before
+    // forwarding, so LiteLLM always receives a model it can serve even if
+    // LiteLLM's own model_list alias resolution is unavailable.
+    expect(seen.body.model).toBe('haiku-5.5');
     expect(seen.body.messages).toEqual([{ role: 'user', content: 'hello' }]);
-    // The `fast` alias only resolves on chat/completions, so this is also
-    // what keeps Codex able to use the alias at all.
     expect(seen.contentLength).toBe(String(Buffer.byteLength(JSON.stringify(seen.body))));
     expect(r.status).toBe(200);
   });

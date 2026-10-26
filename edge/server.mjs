@@ -114,6 +114,41 @@ const HOP_BY_HOP = new Set([
   'upgrade',
 ]);
 
+/** Customer-facing alias → concrete upstream model name.
+ *
+ * The edge resolves aliases before forwarding so LiteLLM always receives a
+ * concrete model name. LiteLLM's model_list maps `model_name: smart` →
+ * `litellm_params.model: openai/sonnet-5.5`, but if LiteLLM's alias
+ * resolution is temporarily unavailable (config not reloaded, DB-backed
+ * model store, runtime issue) it returns "Invalid model name passed in
+ * model=smart". Resolving here makes the edge self-sufficient.
+ *
+ * Names are upstream-model form (no `openai/` prefix) so LiteLLM passes
+ * them straight through to the upstream when it has no `model_name` match.
+ */
+const MODEL_ALIAS = {
+  fast: 'haiku-5.5',
+  smart: 'sonnet-5.5',
+  frontier: 'opus-5.5',
+};
+
+/** Rewrite `model: <alias>` → `model: <upstream-model>` in a JSON request body.
+ * Returns the (possibly new) body buffer; `content-length` must be updated
+ * by the caller. Non-JSON bodies pass through untouched. */
+function resolveModelAlias(bodyBuf) {
+  let parsed;
+  try {
+    parsed = JSON.parse(bodyBuf.toString('utf8'));
+  } catch {
+    return bodyBuf;
+  }
+  if (parsed.model && MODEL_ALIAS[parsed.model]) {
+    parsed.model = MODEL_ALIAS[parsed.model];
+    return Buffer.from(JSON.stringify(parsed), 'utf8');
+  }
+  return bodyBuf;
+}
+
 function isMgmtPath(pathname) {
   return (
     MGMT_PREFIXES.some((p) => pathname.startsWith(p)) ||
@@ -220,6 +255,9 @@ function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, sta
 const server = http.createServer((req, res) => {
   const started = process.hrtime.bigint();
 
+  (async () => {
+    try {
+
   let pathname = '/';
   try {
     pathname = new URL(req.url ?? '/', 'http://edge.invalid').pathname;
@@ -278,6 +316,16 @@ const server = http.createServer((req, res) => {
     return handleResponses(req, res, headers, started, rewritten);
   }
 
+  // Buffer + resolve model alias for chat/completions so LiteLLM always
+  // receives a concrete model name, even if LiteLLM's own model_list alias
+  // resolution is temporarily unavailable. All other routes stay a pure pipe.
+  let bodyBuf;
+  if (req.method === 'POST' && pathname === '/v1/chat/completions') {
+    bodyBuf = await readBody(req);
+    bodyBuf = resolveModelAlias(bodyBuf);
+    headers['content-length'] = bodyBuf.length;
+  }
+
   const upstreamReq = http.request(
     {
       protocol: UPSTREAM.protocol,
@@ -323,15 +371,26 @@ const server = http.createServer((req, res) => {
   // the gateway owns its own timeouts. A timeout here would cut valid
   // long-running requests.
 
-  // Pipe the request body rather than ending the upstream request empty.
-  // `pipe` ends it when the client body ends, which is correct for a GET
-  // (immediately) and for a POST with a body.
-  req.pipe(upstreamReq);
+  // Send the (possibly alias-resolved) body, or pipe the raw request for
+  // non-chat/completions routes and GETs.
+  if (bodyBuf) {
+    upstreamReq.end(bodyBuf);
+  } else {
+    req.pipe(upstreamReq);
+  }
 
   // If the client goes away mid-upload, stop the upstream work too —
   // otherwise an abandoned request keeps spending a model call.
   req.on('aborted', () => upstreamReq.destroy());
   req.on('error', () => upstreamReq.destroy());
+
+    } catch (err) {
+      log(req, started, 502, null, err, 'proxy');
+      if (!res.headersSent) {
+        failClosed(res, 502, 'The API gateway encountered an error.');
+      }
+    }
+  })();
 });
 
 function log(req, started, status, rewritten, err, route = 'proxy') {
@@ -419,6 +478,12 @@ async function handleResponses(req, res, headers, started, rewritten) {
     // success.
     log(req, started, translated.status, rewritten, null, 'responses:refused');
     return failResponses(res, translated.status, translated.message);
+  }
+
+  // Resolve model alias so LiteLLM always receives a concrete model name,
+  // mirroring the proxy-path alias resolution.
+  if (translated.body.model && MODEL_ALIAS[translated.body.model]) {
+    translated.body.model = MODEL_ALIAS[translated.body.model];
   }
 
   const chatBody = Buffer.from(JSON.stringify(translated.body), 'utf8');
