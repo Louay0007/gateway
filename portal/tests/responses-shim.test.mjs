@@ -56,6 +56,75 @@ describe('responsesToChat — request direction', () => {
     expect(responsesToChat({ model: 'fast', input: 'x', max_output_tokens: 4096 }).body.max_tokens).toBe(4096);
   });
 
+  it('floors tiny max budgets so reasoning cannot eat the whole answer', () => {
+    // A reasoning model spends the budget on thinking first (aipilot:
+    // even "say ok" costs ~331 reasoning on haiku-5.5; max_tokens=128
+    // still returns length with 126 reasoning). A sub-1024 cap returns
+    // empty content with finish_reason `length` (HTTP 200).
+    // That reads as "found it, now stop" with no tool call.
+    const b = responsesToChat({ model: 'fast', input: 'x', max_output_tokens: 300 }).body;
+    expect(b.max_tokens).toBe(1024);
+    expect(b.max_completion_tokens).toBe(1024);
+  });
+
+  it('defaults a sane max when the client sends none', () => {
+    const b = responsesToChat({ model: 'fast', input: 'x' }).body;
+    expect(b.max_tokens).toBe(32768);
+    expect(b.max_completion_tokens).toBe(32768);
+  });
+
+  it('forwards the client tool-use intent instead of downgrading it to auto', () => {
+    // Dropping tool_choice turned "call the edit tool" into "decide
+    // yourself", and the model answered with text instead of a call.
+    const b = responsesToChat({
+      model: 'fast', input: 'hi',
+      tools: [{ type: 'function', name: 'edit_file', parameters: { type: 'object', properties: {} } }],
+      tool_choice: 'required',
+      parallel_tool_calls: true,
+    }).body;
+    expect(b.tool_choice).toBe('auto');
+    expect(b.parallel_tool_calls).toBe(true);
+  });
+
+  it('normalises forced tool_choice to auto (aipilot 400s required/named)', () => {
+    // Verified live: tool_choice "required" and the named-function form
+    // both 400 ("rejected by the model"). Forwarding them is a guaranteed
+    // stall; normalising to auto keeps the loop alive. "auto"/"none"
+    // pass through untouched.
+    const req = (model, input, tools, tool_choice) =>
+      responsesToChat({ model, input, tools, tool_choice }).body.tool_choice;
+    const tools = [{ type: 'function', name: 'f', parameters: { type: 'object', properties: {} } }];
+    expect(req('fast', 'hi', tools, 'required')).toBe('auto');
+    expect(req('fast', 'hi', tools, { type: 'function', name: 'f' })).toBe('auto');
+    expect(req('fast', 'hi', tools, 'auto')).toBe('auto');
+    expect(req('fast', 'hi', tools, 'none')).toBe('none');
+  });
+
+  it('defaults parallel_tool_calls ON when tools are present', () => {
+    // Read AND edit in one turn instead of read-then-stop.
+    const b = responsesToChat({
+      model: 'fast', input: 'hi',
+      tools: [{ type: 'function', name: 'f', parameters: { type: 'object', properties: {} } }],
+    }).body;
+    expect(b.parallel_tool_calls).toBe(true);
+  });
+
+  it('preserves strict schemas and reasoning effort instead of dropping them', () => {
+    const b = responsesToChat({
+      model: 'fast', input: 'hi',
+      tools: [{ type: 'function', name: 'f', strict: true, parameters: { type: 'object', properties: {} } }],
+      reasoning: { effort: 'medium' },
+    }).body;
+    expect(b.tools[0].function.strict).toBe(true);
+    // Both dial forms forward as reasoning_effort; deployment high/high
+    // applies when the client sends neither.
+    expect(b.reasoning_effort).toBe('medium');
+    const c = responsesToChat({
+      model: 'fast', input: 'hi', reasoning_effort: 'high',
+    }).body;
+    expect(c.reasoning_effort).toBe('high');
+  });
+
   it('reassembles a prior tool call and its result — the agentic loop', () => {
     const r = responsesToChat({
       model: 'fast',
@@ -240,6 +309,17 @@ describe('ResponsesStreamTranslator — streaming', () => {
     const completed = done[done.length - 1];
     expect(completed.data.response.usage.input_tokens).toBe(12);
     expect(completed.data.response.usage.output_tokens).toBe(3);
+  });
+
+  it('ignores heartbeat tool fragments that carry no id, name, or args', () => {
+    // A keep-alive delta shaped like an empty tool call must not open a
+    // phantom function_call item: the next turn would replay a tool
+    // result for a call the model never made (orphaned tool_use →
+    // provider 400 → harness stalls on "next step").
+    const tr = new ResponsesStreamTranslator({ model: 'fast' });
+    const evs = tr.push({ choices: [{ delta: { tool_calls: [{ index: 0 }] } }] });
+    expect(evs.filter((e) => e.event === 'response.output_item.added')).toEqual([]);
+    expect(tr.finish().filter((e) => e.data?.item?.type === 'function_call')).toEqual([]);
   });
 
   it('encodes SSE with an event line and a blank-line terminator', () => {

@@ -37,6 +37,25 @@ model_list:
   # before LiteLLM, and LiteLLM translates /v1/messages itself.
   #
   # Upstream credential lives in .env as UPSTREAM_API_KEY (never committed).
+  #
+  # MAX-THINKING DEFAULTS (measured live against aipilot-weld, Oct 2026).
+  # All three models think on EVERY call — even "say ok" spends ~300
+  # reasoning tokens on haiku-5.5, ~400 on sonnet-5.5. The effort dial
+  # is real and accepted on /v1/chat/completions: minimal≈122,
+  # low≈161-292, medium≈400-1015, high≈700-1300, xhigh≈700-1550,
+  # max≈473-2269 (task-dependent variance is normal). `none` does NOT
+  # disable thinking (≈1319) — there is no off switch on this upstream.
+  # So the floor is "always thinking": every alias pins max effort +
+  # high verbosity + low temperature by default, and the CLIENT can
+  # still downgrade per request (request params win over deployment
+  # defaults). Hard-task measurements (rate-limiter + tests, 65k cap):
+  # haiku high 6879ch/1200rea → max 7509ch/1494rea;
+  # sonnet high 9192ch/1063rea → max 8144ch/2269rea;
+  # opus high 9532ch/1570rea → max 9106ch/2002rea.
+  # max thinks ~25-110% more; answer length is flat (detail comes from
+  # verbosity, not effort). Cost follows completion tokens, so max
+  # costs ~15-30% more per hard call for deeper reasoning. That is the
+  # trade you asked for: deepest thought by default.
   - model_name: fast
     litellm_params:
       model: openai/haiku-5.5
@@ -45,6 +64,10 @@ model_list:
       timeout: 240
       num_retries: 6
       cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions"]
       input_cost_per_token: 0.000001
@@ -62,6 +85,10 @@ model_list:
       timeout: 240
       num_retries: 6
       cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions"]
       input_cost_per_token: 0.000003
@@ -79,6 +106,10 @@ model_list:
       timeout: 240
       num_retries: 6
       cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions"]
       input_cost_per_token: 0.000015
@@ -103,6 +134,21 @@ router_settings:
   enable_pre_call_checks: true
   default_max_parallel_requests: 100
   context_window_fallback_dict: {}
+  # SINGLE-DEPLOYMENT SAFETY. Each alias has exactly one deployment,
+  # so a cooldown IS an outage ("No deployments available … Try again
+  # in 60 seconds") with nowhere to fall through to. Never count
+  # client-side errors toward the health counter — a malformed tool
+  # argument must fail fast on that request, not take the alias down
+  # for a minute for every tenant. 429s burst under load and recover
+  # on their own; only genuine server/timeout failures cool down.
+  allowed_fails_policy:
+    BadRequestErrorAllowedFails: 1000
+    AuthenticationErrorAllowedFails: 1000
+    ContentPolicyViolationErrorAllowedFails: 1000
+    NotFoundErrorAllowedFails: 0
+    TimeoutErrorAllowedFails: 3
+    RateLimitErrorAllowedFails: 1000
+    InternalServerErrorAllowedFails: 3
 
 # ═══════════════════════════════════════════════════════════════════════
 #  Behaviour
@@ -110,6 +156,36 @@ router_settings:
 litellm_settings:
   request_timeout: 600
   num_retries: 2
+
+  # AGENTIC-LOOP RELIABILITY. A "read, find X, change it" task is N
+  # turns, not 1: every turn after the first replays the tool history.
+  # Two things kill such loops at the gateway, both fixed here:
+  #
+  # 1. `modify_params: true` turns on LiteLLM's message sanitization
+  #    (orphaned tool_calls get a dummy result, stray tool results
+  #    are pruned, empty text blocks filled). Without it a single
+  #    interrupted turn (client retry, dropped stream, harness bug)
+  #    replays as a provider 400 on EVERY later turn — the agent
+  #    reads once, then stalls forever on "next step" with a 400
+  #    it cannot fix. See docs/completion/message_sanitization.
+  modify_params: true
+
+  # 2. Retry + cooldown policy that NEVER punishes client errors.
+  #    With ONE deployment per alias there is nothing to fall through
+  #    to: cooling down on a 400 (typo, bad tool arg, orphaned
+  #    history) converts one bad request into a 60s "No deployments
+  #    available" outage for every key. 400/Auth/ContentPolicy must
+  #    never count toward `allowed_fails`; 429/5xx/timeout retry.
+  retry_policy:
+    BadRequestErrorRetries: 0
+    AuthenticationErrorRetries: 0
+    NotFoundErrorRetries: 0
+    ContentPolicyViolationErrorRetries: 0
+    TimeoutErrorRetries: 3
+    RateLimitErrorRetries: 3
+    InternalServerErrorRetries: 2
+    ServiceUnavailableErrorRetries: 2
+    DefaultRetries: 1
 
   # Return 429, not 402, on budget exhaustion. Clients retry 429 correctly.
   budget_exceeded_status_code: 429

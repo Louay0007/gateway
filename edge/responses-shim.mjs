@@ -162,6 +162,9 @@ export function responsesToChat(body) {
   }
 
   // Responses nests tools under `function`; Chat flattens them.
+  // Preserve `strict` when the client sets it: dropping it silently
+  // changes schema validation on the upstream and can turn a valid
+  // tool call into a 400 on the very turn the agent needs to act.
   if (Array.isArray(body.tools) && body.tools.length) {
     const tools = [];
     for (const t of body.tools) {
@@ -173,6 +176,7 @@ export function responsesToChat(body) {
             ...(t.description ? { description: t.description } : {}),
             // Some clients use strict JSON Schema here; Chat wants the same.
             ...(t.parameters ? { parameters: t.parameters } : {}),
+            ...(typeof t.strict === 'boolean' ? { strict: t.strict } : {}),
           },
         });
       } else if (t?.type === 'function' && t.function) {
@@ -184,12 +188,93 @@ export function responsesToChat(body) {
     if (tools.length) chat.tools = tools;
   }
 
-  if (typeof body.max_output_tokens === 'number') chat.max_tokens = body.max_output_tokens;
-  else if (typeof body.max_tokens === 'number') chat.max_tokens = body.max_tokens;
+  // AGENTIC-LOOP FIX: never drop the client's tool-use intent.
+  // `tool_choice` ("auto" | "required" | {"type":"function",...}) and
+  // `parallel_tool_calls` exist in both APIs with the same meaning.
+  // The old code forwarded `parallel_tool_calls` only when false and
+  // dropped `tool_choice` entirely, so a client forcing a tool call
+  // ("read this, then edit it") arrived at the model as "decide
+  // yourself" — and the model answered with text ("I found it, next
+  // step is…") instead of emitting the edit tool call.
+  //
+  // AIPILOT CONTRACT (verified live against aipilot-weld, Oct 2026):
+  // `tool_choice: "required"` and the named-function form 400 with
+  // "The request was rejected by the model" — the provider only
+  // accepts the DEFAULT ("auto", i.e. field absent). Forcing is
+  // refused, not honoured, so forward the field ONLY when it is the
+  // provider-safe value and NORMALISE the unsafe ones to "auto"
+  // rather than forwarding a guaranteed 400 into the agent loop.
+  if (body.tool_choice !== undefined) {
+    const tc = body.tool_choice;
+    const isAuto = tc === 'auto';
+    const isNone = tc === 'none';
+    const isRequired = tc === 'required';
+    const isNamedFn =
+      typeof tc === 'object' && tc !== null &&
+      (tc.type === 'function' ||
+        typeof (tc.function ?? tc.name) !== 'undefined');
+    if (isAuto || isNone) {
+      chat.tool_choice = tc;
+    } else if (isRequired || isNamedFn) {
+      chat.tool_choice = 'auto';
+    } else {
+      chat.tool_choice = tc;
+    }
+  }
+  if (typeof body.parallel_tool_calls === 'boolean') {
+    chat.parallel_tool_calls = body.parallel_tool_calls;
+  } else if (Array.isArray(chat.tools) && chat.tools.length) {
+    // Default the loop ON when tools are present: one turn can read
+    // AND edit instead of read-then-stop.
+    chat.parallel_tool_calls = true;
+  }
 
+  // Reasoning budget: Responses `max_output_tokens` covers reasoning +
+  // output; Chat `max_tokens` historically covers output only. Map to
+  // BOTH `max_tokens` and `max_completion_tokens` so reasoning-heavy
+  // turns (haiku-5.5/sonnet-5.5/opus-5.5 all think) don't burn the
+  // budget on thinking and return empty content with finish_reason
+  // `length` — the silent stall that reads as "found it, now stop".
+  //
+  // AIPILOT FLOOR (measured live, Oct 2026 — even "say ok" spends
+  // ~331 reasoning tokens on haiku-5.5): max_tokens=16 → `length`
+  // with content None + reasoning_tokens 14; max_tokens=128 → still
+  // `length` (126 reasoning); max_tokens=512 → first `stop` (278
+  // reasoning, content "ok"). A max below ~512 on aipilot is an
+  // empty answer with a 200 status. Floor at 1024 so the smallest
+  // legal request still has headroom above worst-case thinking.
+  // Upper-bound only; early stops cost nothing.
+  // Default 32768 when the client sends neither (Codex catalog scale).
+  const requestedMax =
+    typeof body.max_output_tokens === 'number'
+      ? body.max_output_tokens
+      : typeof body.max_tokens === 'number'
+        ? body.max_tokens
+        : 32768;
+  const safeMax = Math.max(Math.floor(requestedMax), 1024);
+  chat.max_tokens = safeMax;
+  chat.max_completion_tokens = safeMax;
+
+  // Reasoning effort: Responses `reasoning: { effort }` → provider
+  // `reasoning_effort`. LITELLM-DEPLOYMENT DEFAULTS WIN: litellm.yaml
+  // pins every alias to high/high/0.2/0.9, so the upstream ALWAYS
+  // thinks deeply unless the CLIENT explicitly overrides. Forward the
+  // client's dial when present (it wins over the deployment default);
+  // when absent, set nothing and let the deployment default apply.
+  // Verified safe on aipilot: reasoning_effort low→max all return
+  // finish `stop` with content; high ≈ 700 thinking on easy tasks,
+  // ≈1300-1550 on hard ones. Bare-string burn seen earlier (1022/1024
+  // on max_tokens=1024) was budget starvation, not the param itself —
+  // the 1024 floor above gives every effort level room to complete.
+  if (body.reasoning && typeof body.reasoning.effort === 'string') {
+    chat.reasoning_effort = body.reasoning.effort;
+  } else if (typeof body.reasoning_effort === 'string') {
+    chat.reasoning_effort = body.reasoning_effort;
+  }
+  // Deterministic code: temperature/top_p pass through when the client
+  // sets them; otherwise the deployment defaults (0.2/0.9) apply.
   if (typeof body.temperature === 'number') chat.temperature = body.temperature;
   if (typeof body.top_p === 'number') chat.top_p = body.top_p;
-  if (body.parallel_tool_calls === false) chat.parallel_tool_calls = false;
   if (body.user) chat.user = body.user;
 
   return { ok: true, body: chat };
@@ -460,6 +545,16 @@ export class ResponsesStreamTranslator {
 
     for (const call of delta.tool_calls ?? []) {
       // A call arrives in fragments: index/name first, then argument deltas.
+      // A fragment that carries NEITHER an id, a name, NOR argument text
+      // is a keep-alive/heartbeat, not a tool-call signal. Opening a
+      // function_call item for it creates a phantom pending call with an
+      // empty name — and on the next turn the client replays a tool
+      // result for a call the model never made, which the provider
+      // rejects (orphaned tool_use) and the harness reads as "stalled".
+      const args = call.function?.arguments;
+      const hasArgs = typeof args === 'string' && args !== '';
+      const hasName = Boolean(call.function?.name ?? call.name ?? call.id);
+      if (!hasName && !hasArgs) continue;
       const key = call.index ?? 0;
       if (!this.calls.has(key)) {
         const name = call.function?.name ?? call.name ?? '';
@@ -491,8 +586,7 @@ export class ResponsesStreamTranslator {
       if (!entry.name && (call.function?.name ?? call.name)) {
         entry.name = call.function?.name ?? call.name;
       }
-      const args = call.function?.arguments;
-      if (typeof args === 'string' && args !== '') {
+      if (hasArgs) {
         if (!entry.openedArgs) {
           entry.openedArgs = true;
           events.push(this.event('response.function_call_arguments.delta', {
