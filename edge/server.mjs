@@ -60,6 +60,22 @@ const UPSTREAM = new URL(
 );
 
 /**
+ * Keep-alive pool to LiteLLM. node's default global agent has keepAlive=false,
+ * so without this every forwarded request (and every Responses-shim upstream
+ * call) opens a fresh TCP connection on loopback. Loopback is fast, but the
+ * handshake + TIME_WAIT churn still costs ~1-3 ms per request and shows up as
+ * gateway overhead under concurrency. Reusing connections removes that hop
+ * cost entirely. `keepAliveMsecs` probes idle sockets so a stale connection
+ * is never handed to a request.
+ */
+export const UPSTREAM_AGENT = new http.Agent({
+  keepAlive: true,
+  keepAliveMsecs: 30000,
+  maxSockets: 256,
+  maxFreeSockets: 64,
+});
+
+/**
  * Responses translation. codex-cli 0.156 speaks the Responses API only, and
  * the upstream serves chat/completions + /v1/messages but 404s on
  * /v1/responses. LiteLLM forwards /v1/responses rather than translating it.
@@ -270,6 +286,7 @@ const server = http.createServer((req, res) => {
       method: req.method,
       path: req.url,
       headers,
+      agent: UPSTREAM_AGENT,
     },
     (upstreamRes) => {
       const status = upstreamRes.statusCode ?? 502;
@@ -424,6 +441,7 @@ async function handleResponses(req, res, headers, started, rewritten) {
       method: 'POST',
       path: '/v1/chat/completions',
       headers: outHeaders,
+      agent: UPSTREAM_AGENT,
     },
     (upstreamRes) => { handleResponsesUpstream(upstreamRes, res, req, started, rewritten, parsed.model); },
   );
@@ -561,6 +579,14 @@ function streamResponses(upstreamRes, res, req, started, rewritten, requestedMod
     }
   });
 }
+
+// Tune the inbound server so long reasoning streams are not cut off by node's
+// default requestTimeout (5 min on recent node versions), while idle keep-alive
+// sockets still recycle promptly.
+server.keepAliveTimeout = 65000;
+server.headersTimeout = 66000;
+server.requestTimeout = 0;
+server.timeout = 0;
 
 // Listen only when executed directly. Tests import `rewriteCredential` from
 // this module; without the guard that import would bind a port as a side

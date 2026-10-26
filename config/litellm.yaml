@@ -61,7 +61,7 @@ model_list:
       model: openai/haiku-5.5
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
-      timeout: 240
+      timeout: 600
       num_retries: 6
       cooldown_time: 3
       reasoning_effort: max
@@ -82,7 +82,7 @@ model_list:
       model: openai/sonnet-5.5
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
-      timeout: 240
+      timeout: 600
       num_retries: 6
       cooldown_time: 3
       reasoning_effort: max
@@ -103,7 +103,7 @@ model_list:
       model: openai/opus-5.5
       api_base: os.environ/UPSTREAM_BASE_URL
       api_key: os.environ/UPSTREAM_API_KEY
-      timeout: 240
+      timeout: 600
       num_retries: 6
       cooldown_time: 3
       reasoning_effort: max
