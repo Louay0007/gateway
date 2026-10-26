@@ -106,7 +106,7 @@ export function QuotaExhaustedBanner({
   const planAliases =
     Array.isArray(entitled) && entitled.length > 0
       ? entitled
-      : Object.keys(tokenLimits ?? {});
+      : [];
   const out: { alias: string }[] = [];
   for (const alias of planAliases) {
     const tLimit = Number((tokenLimits ?? {})[alias] ?? Infinity);
@@ -156,15 +156,20 @@ export function QuotaExhaustedBanner({
 export function QuotaMeters({
   tokensByModel,
   tokenLimits,
+  entitled,
   className,
 }: {
   tokensByModel?: Record<string, number>;
   tokenLimits?: Record<string, number>;
+  /** Only meters for entitled aliases are shown. */
+  entitled?: string[];
   className?: string;
 }) {
   const ALIAS_ORDER = ["fast", "smart", "frontier"];
+  const allowed = entitled ? new Set(entitled) : null;
   const entries = ALIAS_ORDER.filter(
-    (alias) => (tokenLimits ?? {})[alias] != null,
+    (alias) =>
+      (tokenLimits ?? {})[alias] != null && (allowed == null || allowed.has(alias)),
   ).map((alias) => ({
     alias,
     usedTokens: (tokensByModel ?? {})[alias] ?? 0,
