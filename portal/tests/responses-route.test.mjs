@@ -139,10 +139,10 @@ describe('POST /v1/responses through the edge', () => {
     // have seen /v1/responses and a Responses body. This is the assertion
     // that proves the interception is live, not just unit-tested.
     expect(seen.path).toBe('/v1/chat/completions');
-    // The edge resolves the alias to a concrete model name before
-    // forwarding, so LiteLLM always receives a model it can serve even if
-    // LiteLLM's own model_list alias resolution is unavailable.
-    expect(seen.body.model).toBe('haiku-5.5');
+    // The customer-facing alias is forwarded as-is: the gateway's LiteLLM
+    // resolves it through model_list and its keys are allowlisted by alias —
+    // rewriting it to the upstream name would be denied with 403.
+    expect(seen.body.model).toBe('fast');
     expect(seen.body.messages).toEqual([{ role: 'user', content: 'hello' }]);
     expect(seen.contentLength).toBe(String(Buffer.byteLength(JSON.stringify(seen.body))));
     expect(r.status).toBe(200);

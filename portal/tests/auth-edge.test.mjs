@@ -342,6 +342,34 @@ describe('end to end through the edge', () => {
     expect(mapModelDeniedBody(200, "Model 'frontier' is not available")).toBeNull();
   });
 
+  it('never names the model after the JSON error key (2026-10-27 regression)', async () => {
+    // The old mapper scanned the RAW body for a quoted token; the first
+    // quoted token in any JSON error body is the `"error"` key itself, so
+    // every unnamed upstream denial became "Model 'error' is not available".
+    const raw = `{"error":{"message":"The requested model is not available for this API key"}}`;
+    const m = mapModelDeniedBody(403, raw);
+    expect(m).not.toBeNull();
+    expect(m?.model).toBeNull();
+    expect(m?.message).not.toContain("'error'");
+  });
+
+  it('uses the model the customer requested when the body names none', async () => {
+    const raw = `{"error":{"message":"The requested model is not available for this API key"}}`;
+    const m = mapModelDeniedBody(403, raw, 'smart');
+    expect(m?.model).toBe('smart');
+    expect(m?.message).toMatch(/out of smart tokens/i);
+  });
+
+  it('translates an upstream model name in the denial to the alias', async () => {
+    const m = mapModelDeniedBody(
+      403,
+      `{"error":{"message":"Model 'sonnet-5.5' is not available for this API key"}}`,
+    );
+    expect(m?.model).toBe('smart');
+    expect(m?.message).toMatch(/out of smart tokens/i);
+    expect(m?.message).not.toContain('sonnet');
+  });
+
   it('rewrites a gateway 403 denial body at the proxy path', async () => {
     // End-to-end through the real edge: upstream answers 403 with the
     // generic LiteLLM wording, the client must see the mapped message.

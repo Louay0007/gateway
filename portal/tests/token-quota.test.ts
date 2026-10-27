@@ -217,4 +217,29 @@ describe('mapGatewayModelError — generic 403 → per-alias token message', () 
     ).toBeNull();
     expect(mapGatewayModelError(200, "Model 'frontier' is not available")).toBeNull();
   });
+
+  it('never names the model after the JSON error key (2026-10-27 regression)', () => {
+    const raw = '{"error":{"message":"The requested model is not available for this API key"}}';
+    const m = mapGatewayModelError(403, raw);
+    expect(m).not.toBeNull();
+    expect(m?.model).toBeNull();
+    expect(m?.friendly).not.toContain('error');
+  });
+
+  it('uses the model the customer requested when the body names none', () => {
+    const raw = '{"error":{"message":"The requested model is not available for this API key"}}';
+    const m = mapGatewayModelError(403, raw, 'smart');
+    expect(m?.model).toBe('smart');
+    expect(m?.friendly).toMatch(/out of smart tokens/i);
+  });
+
+  it('translates an upstream model name in the denial to the alias', () => {
+    const m = mapGatewayModelError(
+      403,
+      '{"error":{"message":"Model \'sonnet-5.5\' is not available for this API key"}}',
+    );
+    expect(m?.model).toBe('smart');
+    expect(m?.friendly).toMatch(/out of smart tokens/i);
+    expect(m?.friendly).not.toContain('sonnet');
+  });
 });

@@ -142,27 +142,42 @@ const VALID_UPSTREAM_MODELS = new Set([
   'opus-5.5',
 ]);
 
-/** Rewrite `model: <alias>` → `model: <upstream-model>` in a JSON request body.
- * Returns the (possibly new) body buffer; `content-length` must be updated
- * by the caller. Non-JSON bodies pass through untouched. */
+/**
+ * Rewrite `model: <alias>` → `model: <upstream-model>` before forwarding.
+ *
+ * OFF by default, deliberately. The live gateway's LiteLLM resolves the
+ * aliases itself (`config/litellm.yaml` model_list), and its virtual keys and
+ * teams are allowlisted by ALIAS name — a request naming the resolved upstream
+ * model is denied with 403 before the router is ever consulted. With
+ * rewriting on, every alias call on the live gateway failed that way
+ * (2026-10-27: the customer saw `Model 'error' is not available`). Only set
+ * `EDGE_RESOLVE_ALIASES=1` for a LiteLLM whose own alias resolution is
+ * unavailable, and pair it with upstream-name allowlists.
+ */
+const RESOLVE_ALIASES = process.env.EDGE_RESOLVE_ALIASES === '1';
+
 function resolveModelAlias(bodyBuf) {
   let parsed;
   try {
     parsed = JSON.parse(bodyBuf.toString('utf8'));
   } catch {
-    return bodyBuf;
+    return { model: null, body: bodyBuf };
   }
-  if (parsed.model && MODEL_ALIAS[parsed.model]) {
-    parsed.model = MODEL_ALIAS[parsed.model];
-    return Buffer.from(JSON.stringify(parsed), 'utf8');
+  const model = typeof parsed?.model === 'string' ? parsed.model : null;
+  if (RESOLVE_ALIASES && model && MODEL_ALIAS[model]) {
+    return { model, body: Buffer.from(JSON.stringify(parsed), 'utf8') };
   }
-  return bodyBuf;
+  return { model, body: bodyBuf };
 }
 
-/** Validate a resolved model name. Returns null if OK, or a 400 message
- * if the model is unknown. Missing model is allowed (LiteLLM decides). */
+/** Validate the model the edge is about to forward. Returns null if OK, or a
+ * 400 message if the model is unknown. A customer alias is always valid —
+ * LiteLLM resolves it through model_list and allowlists it — and so is a
+ * concrete upstream name for a LiteLLM set up to serve them. Missing model is
+ * allowed (LiteLLM decides). */
 function modelRejection(model) {
   if (!model) return null;
+  if (MODEL_ALIAS[model]) return null;
   if (VALID_UPSTREAM_MODELS.has(model)) return null;
   const aliases = Object.keys(MODEL_ALIAS).join(', ');
   const upstream = Object.values(MODEL_ALIAS).join(', ');
@@ -220,6 +235,31 @@ function failClosed(res, status, message) {
   res.end(body);
 }
 
+/** Upstream model name → customer-facing alias, so a denial that names the
+ * routed model ('sonnet-5.5') still reaches the customer as 'smart'. */
+const UPSTREAM_TO_ALIAS = {
+  "haiku-5.5": "fast",
+  "sonnet-5.5": "smart",
+  "opus-5.5": "frontier",
+};
+
+/** Quoted tokens that are error-dialect words, never a model name. Guards
+ * the quoted-candidates fallback. */
+const NON_MODEL_TOKENS = new Set([
+  "error", "message", "model", "key", "api_key", "apikey", "invalid",
+  "invalid_request_error", "request", "access", "denied", "token", "tokens",
+  "plan", "type", "code", "status", "api", "llm", "provider", "mast", "auth",
+]);
+
+/** The customer-facing alias for a model name — alias, or upstream name,
+ * or nothing (an unknown token keeps no display identity of its own). */
+function displayAlias(model) {
+  if (typeof model !== "string" || model.length === 0) return null;
+  if (UPSTREAM_TO_ALIAS[model]) return UPSTREAM_TO_ALIAS[model];
+  if (MODEL_ALIAS[model]) return model;
+  return null;
+}
+
 /**
  * Map a generic LiteLLM model-denied 403 to an actionable message.
  *
@@ -231,17 +271,40 @@ function failClosed(res, status, message) {
  * always contains `out of <alias>` for the quota case. Anything that is
  * not a model-access denial passes through untouched.
  *
+ * The model is named by, in order: an alias word in the body, the model the
+ * CUSTOMER requested (`requestedModel`, passed by both proxy and responses
+ * paths), or a quoted token inside `error.message`. The raw body is never
+ * scanned for quoted tokens: its first quoted string is the `"error"` JSON
+ * key itself, and a message that once claimed the model was 'error' came
+ * from exactly that mistake.
+ *
  * Pure (no I/O): unit-tested via the auth-edge suite.
  */
-export function mapModelDeniedBody(status, rawText) {
+export function mapModelDeniedBody(status, rawText, requestedModel = null) {
   if (status !== 403) return null;
   const text = String(rawText ?? '');
   if (!/not\s+(available|allowed)|not\s+allowed\s+for|excluded|no\s+access|denied|not\s+have\s+access/i.test(text)) {
     return null;
   }
-  const aliasHit = /\b(fast|smart|frontier)\b/i.exec(text);
-  const quotedHit = /["']([A-Za-z0-9][A-Za-z0-9\-_]{1,64})["']/.exec(text);
-  const model = aliasHit ? aliasHit[1].toLowerCase() : quotedHit ? quotedHit[1] : null;
+  let messageText = text;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === 'object') {
+      const err = parsed.error;
+      if (err && typeof err === 'object' && typeof err.message === 'string') messageText = err.message;
+      else if (typeof parsed.message === 'string') messageText = parsed.message;
+    }
+  } catch {
+    // Plaintext body — scan as-is.
+  }
+  const bodyAlias = /\b(fast|smart|frontier)\b/i.exec(text)?.[1]?.toLowerCase() ?? null;
+  const requested = displayAlias(requestedModel);
+  const quoted = messageText.match(/["']([A-Za-z0-9][A-Za-z0-9_.\-]{1,64})["']/g) ?? [];
+  const candidates = quoted
+    .map((q) => q.slice(1, -1))
+    .filter((token) => !NON_MODEL_TOKENS.has(token.toLowerCase()))
+    .map((token) => displayAlias(token) ?? token);
+  const model = bodyAlias ?? requested ?? candidates[0] ?? null;
   const message = model
     ? `Model '${model}' is not available for this API key — you may be out of ${model} tokens or your plan does not include it. Check usage for remaining tokens.`
     : 'Model not available for this API key — you may be out of tokens or your plan does not include it. Check usage for remaining tokens.';
@@ -249,12 +312,12 @@ export function mapModelDeniedBody(status, rawText) {
 }
 
 /** Buffer a small upstream error body, map a model denial, answer. */
-function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders) {
+function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders, requestedModel = null) {
   const chunks = [];
   upstreamRes.on('data', (c) => chunks.push(c));
   upstreamRes.on('end', () => {
     const raw = Buffer.concat(chunks).toString('utf8');
-    const mapped = mapModelDeniedBody(status, raw);
+    const mapped = mapModelDeniedBody(status, raw, requestedModel);
     if (!mapped) {
       // Not a model denial — pass through byte-identical.
       res.writeHead(status, outHeaders);
@@ -336,26 +399,25 @@ const server = http.createServer((req, res) => {
     return handleResponses(req, res, headers, started, rewritten);
   }
 
-  // Buffer + resolve model alias for chat/completions so LiteLLM always
-  // receives a concrete model name, even if LiteLLM's own model_list alias
-  // resolution is temporarily unavailable. All other routes stay a pure pipe.
+  // Buffer + handle model alias for chat/completions so LiteLLM receives a
+  // name it can serve. All other routes stay a pure pipe.
   let bodyBuf;
+  let requestedModel = null;
   if (req.method === 'POST' && pathname === '/v1/chat/completions') {
-    bodyBuf = await readBody(req);
-    bodyBuf = resolveModelAlias(bodyBuf);
+    const resolved = resolveModelAlias(await readBody(req));
+    bodyBuf = resolved.body;
     headers['content-length'] = bodyBuf.length;
+    requestedModel = resolved.model;
 
     // Reject unknown models at the edge with a clear 400 instead of
     // forwarding to LiteLLM where they surface as "Model 'x' is not
     // available". A missing model is allowed (LiteLLM decides).
-    try {
-      const parsed = JSON.parse(bodyBuf.toString('utf8'));
-      const reject = modelRejection(parsed.model);
-      if (reject) {
-        return failClosed(res, 400, reject);
-      }
-    } catch {
-      // Not JSON — pass through unchanged
+    const forwarded = RESOLVE_ALIASES && requestedModel && MODEL_ALIAS[requestedModel]
+      ? MODEL_ALIAS[requestedModel]
+      : requestedModel;
+    const reject = modelRejection(forwarded);
+    if (reject) {
+      return failClosed(res, 400, reject);
     }
   }
 
@@ -382,7 +444,7 @@ const server = http.createServer((req, res) => {
       // it so the customer gets `out of <alias> tokens` instead of the
       // generic gateway wording. Everything else streams untouched.
       if (status === 403 && (req.method === 'POST' || req.method === 'GET')) {
-        handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders);
+        handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders, requestedModel);
         return;
       }
       res.writeHead(status, outHeaders);
@@ -513,9 +575,11 @@ async function handleResponses(req, res, headers, started, rewritten) {
     return failResponses(res, translated.status, translated.message);
   }
 
-  // Resolve model alias so LiteLLM always receives a concrete model name,
-  // mirroring the proxy-path alias resolution.
-  if (translated.body.model && MODEL_ALIAS[translated.body.model]) {
+  // Resolve model alias so LiteLLM receives a concrete model name, mirroring
+  // the proxy-path alias resolution — but only when alias rewriting is on
+  // (see RESOLVE_ALIASES: the default gateway's LiteLLM resolves the alias and
+  // allowlists by alias, so a rewritten name would be denied).
+  if (RESOLVE_ALIASES && translated.body.model && MODEL_ALIAS[translated.body.model]) {
     translated.body.model = MODEL_ALIAS[translated.body.model];
   }
 
@@ -573,11 +637,18 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
     const chunks = [];
     upstreamRes.on('data', (c) => chunks.push(c));
     upstreamRes.on('end', () => {
-      const raw = Buffer.concat(chunks);
+      const raw = Buffer.concat(chunks).toString('utf8');
+      const mapped = mapModelDeniedBody(status, raw, requestedModel);
       let message = 'The upstream request failed.';
-      try {
-        message = JSON.parse(raw.toString('utf8'))?.error?.message ?? message;
-      } catch { /* keep the generic message */ }
+      if (mapped) {
+        // A model denial reaches the customer with the per-alias wording,
+        // same as the proxy path — not the LiteLLM-internal name.
+        message = mapped.message;
+      } else {
+        try {
+          message = JSON.parse(raw)?.error?.message ?? message;
+        } catch { /* keep the generic message */ }
+      }
       log(req, started, status, rewritten, null, 'responses:upstream-error');
       failResponses(res, status, message);
     });

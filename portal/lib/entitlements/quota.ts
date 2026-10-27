@@ -109,15 +109,58 @@ export function outOfTokensMessage(
 export function mapGatewayModelError(
   upstreamStatus: number,
   bodyText: string,
+  requestedModel?: string | null,
 ): { model: string | null; friendly: string } | null {
   if (upstreamStatus !== 403 && upstreamStatus !== 429 && upstreamStatus !== 404) return null;
   const text = String(bodyText ?? '');
   if (!/not\s+(available|allowed)|not\s+allowed\s+for|excluded|no\s+access|denied|out\s+of.*token|quota/i.test(text)) {
     return null;
   }
-  const aliasHit = text.match(/\b(fast|smart|frontier)\b/i);
-  const quotedHit = text.match(/["']([A-Za-z0-9][A-Za-z0-9\-_]{1,64})["']/);
-  const model = aliasHit ? aliasHit[1]!.toLowerCase() : quotedHit ? quotedHit[1]! : null;
+  // Scan only inside the error MESSAGE for quoted candidates: the raw JSON's
+  // first quoted token is the `"error"` key itself, and a message that once
+  // claimed the model was 'error' came from exactly that mistake. An alias
+  // the body names, or the model the customer actually requested, wins over
+  // any guess extracted from wording.
+  let messageText = text;
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (parsed && typeof parsed === 'object') {
+      const err = (parsed as { error?: unknown }).error;
+      if (err && typeof err === 'object' && typeof (err as { message?: unknown }).message === 'string') {
+        messageText = (err as { message: string }).message;
+      } else if (typeof (parsed as { message?: unknown }).message === 'string') {
+        messageText = (parsed as { message: string }).message;
+      }
+    }
+  } catch {
+    // Plaintext body — scan as-is.
+  }
+  const bodyAlias = text.match(/\b(fast|smart|frontier)\b/i)?.[1]?.toLowerCase() ?? null;
+  const requested =
+    requestedModel && ['fast', 'smart', 'frontier'].includes(requestedModel.toLowerCase())
+      ? requestedModel.toLowerCase()
+      : null;
+  // Error-dialect words that carry no model identity, and the upstream model
+  // names → alias, so a denial naming 'sonnet-5.5' still says 'smart'.
+  const NON_MODEL_TOKENS = [
+    'error', 'message', 'model', 'key', 'api_key', 'apikey', 'invalid',
+    'invalid_request_error', 'request', 'access', 'denied', 'token', 'tokens',
+    'plan', 'type', 'code', 'status', 'api', 'llm', 'provider',
+  ];
+  const UPSTREAM_TO_ALIAS: Record<string, string> = {
+    'haiku-5.5': 'fast',
+    'sonnet-5.5': 'smart',
+    'opus-5.5': 'frontier',
+  };
+  const quoted = messageText.match(/["']([A-Za-z0-9][A-Za-z0-9_.\-]{1,64})["']/g) ?? [];
+  const extracted =
+    quoted
+      .map((q) => q.slice(1, -1))
+      .filter((token) => !NON_MODEL_TOKENS.includes(token.toLowerCase()))
+      .map((token) => UPSTREAM_TO_ALIAS[token] ?? token)
+      .find((token) => ['fast', 'smart', 'frontier'].includes(token.toLowerCase()))
+      ?.toLowerCase() ?? null;
+  const model = bodyAlias ?? requested ?? extracted;
   const friendly = model
     ? `${outOfTokensMessage(model)} Check usage for remaining tokens.`
     : 'Model not available for this API key — you may be out of tokens or your plan does not include it. Check usage for remaining tokens.';
