@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 
-import { AdminHeader, AdminSection, AdminStat } from "@/components/admin/stat-card";
+import {
+  AdminEmptyState,
+  AdminHeader,
+  AdminPage,
+  AdminSection,
+  AdminStat,
+} from "@/components/admin/stat-card";
 import { jobHealth, ledgerFreshness, standingAlerts } from "@/lib/admin/ops";
 import { dateTime, relativeTime } from "@/lib/dashboard/format";
 
@@ -49,7 +55,7 @@ export default async function AdminOpsPage() {
   const stale = jobs.filter((j) => j.stale || j.locked);
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Pipeline"
         description="Job health and ledger freshness. Usage is collected on a schedule, not streamed — if the collector has stopped, the money numbers are stale."
@@ -69,7 +75,13 @@ export default async function AdminOpsPage() {
         <AdminStat
           label="Jobs needing attention"
           value={stale.length}
-          hint={stale.length === 0 ? "Every job is current" : stale.map((j) => j.name).join(", ")}
+          hint={
+            stale.length === 0
+              ? "Every job is current"
+              : `${stale.slice(0, 2).map((j) => j.name).join(", ")}${
+                  stale.length > 2 ? ` +${stale.length - 2} more` : ""
+                }`
+          }
           tone={stale.length === 0 ? "positive" : "warning"}
         />
         <AdminStat
@@ -91,21 +103,21 @@ export default async function AdminOpsPage() {
           title="Jobs"
           description="A lock older than 15 minutes is a crashed runner holding the claim, not a running job."
         >
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6">Job</TableHead>
+                  <TableHead className="pl-4">Job</TableHead>
                   <TableHead>State</TableHead>
                   <TableHead>Last run</TableHead>
                   <TableHead>Attempts</TableHead>
-                  <TableHead className="pr-6">Last error</TableHead>
+                  <TableHead className="pr-4">Last error</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {jobs.map((j) => (
                   <TableRow key={j.name}>
-                    <TableCell className="pl-6 font-mono text-xs">{j.name}</TableCell>
+                    <TableCell className="pl-4 font-mono text-xs">{j.name}</TableCell>
                     <TableCell>
                       {j.locked && !j.stale ? (
                         <Badge variant="default">running</Badge>
@@ -126,7 +138,7 @@ export default async function AdminOpsPage() {
                       )}
                     </TableCell>
                     <TableCell className="tabular-nums">{j.attempts}</TableCell>
-                    <TableCell className="pr-6 max-w-md">
+                    <TableCell className="pr-4 max-w-md">
                       {j.lastError ? (
                         <p className="truncate font-mono text-xs text-destructive" title={j.lastError}>
                           {j.lastError}
@@ -149,9 +161,9 @@ export default async function AdminOpsPage() {
           description="One row per condition. A cleared anomaly deletes its row, so an empty list means nothing is standing — not that nothing ever happened."
         >
           {alerts.length === 0 ? (
-            <p className="rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+            <AdminEmptyState>
               Nothing standing. No alerts are active.
-            </p>
+            </AdminEmptyState>
           ) : (
             <ul className="divide-y divide-border rounded-xl border border-border bg-card">
               {alerts.map((a) => (
@@ -174,6 +186,6 @@ export default async function AdminOpsPage() {
           )}
         </AdminSection>
       </div>
-    </main>
+    </AdminPage>
   );
 }

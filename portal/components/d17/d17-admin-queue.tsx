@@ -126,20 +126,20 @@ export function D17AdminQueue({
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="pl-6">Organization</TableHead>
+            <TableHead className="pl-4">Organization</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead className="text-right">Amount</TableHead>
             <TableHead>Authorization</TableHead>
             <TableHead>Phone</TableHead>
             <TableHead>Submitted</TableHead>
             <TableHead>Status</TableHead>
-            <TableHead className="pr-6 text-right">Actions</TableHead>
+            <TableHead className="pr-4 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {items.map((row) => (
             <TableRow key={row.paymentId}>
-              <TableCell className="pl-6 font-medium">
+              <TableCell className="pl-4 font-medium">
                 <span className="flex items-center gap-2">
                   {row.organizationName}
                   {row.flaggedReview ? (
@@ -170,7 +170,7 @@ export function D17AdminQueue({
                   <p className="text-xs text-destructive">Final — contact support.</p>
                 ) : null}
               </TableCell>
-              <TableCell className="pr-6 text-right">
+              <TableCell className="pr-4 text-right">
                 {row.status === "proof_submitted" ? (
                   <div className="flex justify-end gap-2">
                     {row.screenshotPath ? (
@@ -232,12 +232,12 @@ export function D17AdminQueue({
         <h3 className="text-sm font-medium text-muted-foreground">
           Waiting for verification ({actionable.length})
         </h3>
-        <div className="rounded-xl border border-border bg-card px-0 pb-0">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card">
           {actionable.length > 0 ? (
             table(actionable)
           ) : (
-            <p className="px-6 py-10 text-center text-sm text-muted-foreground">
-              No proofs are waiting.
+            <p className="px-6 py-12 text-center text-sm text-muted-foreground">
+              No proofs are waiting. Submitted D17 transfers appear here.
             </p>
           )}
         </div>
@@ -248,7 +248,7 @@ export function D17AdminQueue({
           <h3 className="text-sm font-medium text-muted-foreground">
             Recently processed ({rest.length})
           </h3>
-          <div className="rounded-xl border border-border bg-card px-0 pb-0 opacity-80">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card opacity-80">
             {table(rest)}
           </div>
         </section>

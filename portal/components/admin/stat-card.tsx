@@ -27,6 +27,51 @@ import { cn } from "@/lib/utils";
 
 type Tone = "neutral" | "positive" | "warning" | "danger";
 
+/**
+ * The console page shell.
+ *
+ * Ten pages repeated `mx-auto w-full max-w-7xl px-4 py-8 sm:px-6`
+ * verbatim. Two of them had drifted to `py-6` and `max-w-6xl`, so moving
+ * between Accounts and Usage shifted the whole page a few pixels left and
+ * made the console feel unsettled for a reason nobody could name.
+ *
+ * `min-w-0` matters more than it looks: without it a wide table inside
+ * this container refuses to shrink below its content width, which is what
+ * made tables push the page sideways instead of scrolling inside their
+ * own card on a narrow window.
+ */
+export function AdminPage({ children }: { children: React.ReactNode }) {
+  return (
+    <main className="mx-auto w-full min-w-0 max-w-7xl px-4 py-8 sm:px-6">
+      {children}
+    </main>
+  );
+}
+
+/**
+ * One empty state for every table.
+ *
+ * Previously each page invented its own padding for "nothing here yet"
+ * (`px-6 py-16`, `px-6 py-10`, `px-4 py-8`), so an empty console looked
+ * broken in a slightly different way on every screen. `action` exists
+ * because some empty states are dead ends ("no keys") and some are a
+ * prompt ("no credits yet — record one").
+ */
+export function AdminEmptyState({
+  children,
+  action,
+}: {
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center">
+      <p className="text-sm text-muted-foreground">{children}</p>
+      {action ? <div className="mt-3 flex justify-center gap-2">{action}</div> : null}
+    </div>
+  );
+}
+
 const TONE_RING: Record<Tone, string> = {
   neutral: "",
   positive: "border-emerald-500/40",

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Download } from "lucide-react";
 
-import { AdminHeader } from "@/components/admin/stat-card";
+import { AdminHeader, AdminPage, AdminStat } from "@/components/admin/stat-card";
 import { D17AdminQueue, type D17QueueItem } from "@/components/d17/d17-admin-queue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,9 +41,10 @@ export default async function AdminD17Page() {
   ]);
 
   const canReject = staffAtLeast(role, "admin");
+  const waiting = rows.filter((r) => r.status === "proof_submitted").length;
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="D17 verification queue"
         description="Approving activates the subscription and pushes the plan's limits to the gateway. Every approval is audited and idempotent."
@@ -58,27 +59,25 @@ export default async function AdminD17Page() {
         }
       />
 
-      <dl className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Stat label="Waiting for review" value={String(rows.filter((r) => r.status === 'proof_submitted').length)} />
-        <Stat label="Verified (30 days)" value={String(recon.totals.count)} />
-        <Stat
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <AdminStat
+          label="Waiting for review"
+          value={waiting}
+          hint={waiting > 0 ? "Money claimed, not yet verified" : "Queue is clear"}
+          tone={waiting > 0 ? "warning" : "positive"}
+        />
+        <AdminStat label="Verified (30 days)" value={recon.totals.count} hint="Approved claims" />
+        <AdminStat
           label="Verified amount (30 days)"
           value={`${(recon.totals.totalMillimes / 1000).toFixed(3)} DT`}
+          hint="Collected in the last 30 days"
         />
       </dl>
 
       <div className="mt-8 grid gap-8">
         <D17AdminQueue rows={rows as D17QueueItem[]} canReject={canReject} />
       </div>
-    </main>
+    </AdminPage>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-4">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1 text-2xl font-semibold tabular-nums">{value}</dd>
-    </div>
-  );
-}

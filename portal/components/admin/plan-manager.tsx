@@ -100,11 +100,11 @@ export function PlanManager({
         )}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="pl-6">Plan</TableHead>
+              <TableHead className="pl-4">Plan</TableHead>
               <TableHead className="text-right">Price</TableHead>
               <TableHead className="text-right">Included</TableHead>
               <TableHead className="text-right">Hard cap</TableHead>
@@ -112,13 +112,13 @@ export function PlanManager({
               <TableHead className="text-right">Markup</TableHead>
               <TableHead>Limits</TableHead>
               <TableHead className="text-right">Subscribers</TableHead>
-              <TableHead className="pr-6 text-right">Actions</TableHead>
+              <TableHead className="pr-4 text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {plans.map((p) => (
               <TableRow key={p.id}>
-                <TableCell className="pl-6 font-medium">
+                <TableCell className="pl-4 font-medium">
                   {p.name}
                   <span className="block font-mono text-xs text-muted-foreground">
                     {p.code}
@@ -154,7 +154,7 @@ export function PlanManager({
                   </span>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{p.subscriberCount}</TableCell>
-                <TableCell className="pr-6 text-right">
+                <TableCell className="pr-4 text-right">
                   <div className="flex justify-end gap-1">
                     {canEdit ? (
                       <>

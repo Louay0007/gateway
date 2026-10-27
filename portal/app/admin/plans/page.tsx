@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 
-import { AdminHeader, AdminSection, AdminStat } from "@/components/admin/stat-card";
+import {
+  AdminHeader,
+  AdminPage,
+  AdminSection,
+  AdminStat,
+} from "@/components/admin/stat-card";
 import { PlanManager } from "@/components/admin/plan-manager";
 import { listPlansAdmin } from "@/lib/admin/plans";
 import { staffAtLeast, type StaffRole } from "@/lib/auth/authorize";
@@ -33,7 +38,7 @@ export default async function AdminPlansPage() {
   const subscribers = plans.reduce((a, p) => a + p.subscriberCount, 0);
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Plans"
         description="The catalog. These rows are the only entitlement truth — a key's limits and budget come from the plan it is on."
@@ -66,6 +71,6 @@ export default async function AdminPlansPage() {
           <PlanManager plans={plans} canEdit={canEdit} />
         </AdminSection>
       </div>
-    </main>
+    </AdminPage>
   );
 }

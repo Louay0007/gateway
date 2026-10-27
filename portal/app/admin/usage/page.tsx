@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AdminHeader, AdminStat } from "@/components/admin/stat-card";
+import { AdminEmptyState, AdminHeader, AdminPage, AdminStat } from "@/components/admin/stat-card";
 import { orgEconomics } from "@/lib/admin/financials";
 import { compact, usd } from "@/lib/dashboard/format";
 
@@ -57,7 +57,7 @@ export default async function AdminUsagePage({
   const marginPct = totalRevenue > 0 ? ((totalRevenue - totalUpstream) / totalRevenue) * 100 : null;
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Usage & margin"
         description="Who is spending, and what it costs us to serve them. Every figure is a model alias — no upstream model name is ever exposed."
@@ -102,16 +102,14 @@ export default async function AdminUsagePage({
         <AdminStat label="Requests" value={compact(totalRequests)} hint={`Last ${windowDays} days · incl. failures`} />
       </dl>
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="mt-8 overflow-x-auto rounded-xl border border-border bg-card">
         {rows.length === 0 ? (
-          <p className="px-6 py-16 text-center text-sm text-muted-foreground">
-            No usage has been recorded in this window.
-          </p>
+          <AdminEmptyState>No usage has been recorded in this window.</AdminEmptyState>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Account</TableHead>
+                <TableHead className="pl-4">Account</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead className="text-right">Prompts</TableHead>
                 <TableHead className="text-right">Requests</TableHead>
@@ -120,7 +118,7 @@ export default async function AdminUsagePage({
                 <TableHead className="text-right">Cache read</TableHead>
                 <TableHead className="text-right">Revenue</TableHead>
                 <TableHead className="text-right">Upstream</TableHead>
-                <TableHead className="pr-6 text-right">Margin</TableHead>
+                <TableHead className="pr-4 text-right">Margin</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -130,7 +128,7 @@ export default async function AdminUsagePage({
                   : null;
                 return (
                   <TableRow key={r.id}>
-                    <TableCell className="pl-6 font-medium">
+                    <TableCell className="pl-4 font-medium">
                       <a href={`/admin/orgs/${r.id}`} className="hover:underline">
                         {r.name}
                       </a>
@@ -146,7 +144,7 @@ export default async function AdminUsagePage({
                     <TableCell className="text-right tabular-nums text-muted-foreground">{compact(r.cacheReadTokens)}</TableCell>
                     <TableCell className="text-right tabular-nums">{usd(r.usageRevenueUsd)}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">{usd(r.upstreamCostUsd)}</TableCell>
-                    <TableCell className="pr-6 text-right tabular-nums">{m === null ? "—" : `${m}%`}</TableCell>
+                    <TableCell className="pr-4 text-right tabular-nums">{m === null ? "—" : `${m}%`}</TableCell>
                   </TableRow>
                 );
               })}
@@ -154,6 +152,6 @@ export default async function AdminUsagePage({
           </Table>
         )}
       </div>
-    </main>
+    </AdminPage>
   );
 }

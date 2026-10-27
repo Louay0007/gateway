@@ -228,7 +228,7 @@ any price or budget change.
 ## Quick start
 
 Local machine = editor + git. The stack also runs locally for proofs
-(`make verify-metering`, `make verify-d17`), but the VPS is the only place it
+(`make verify-metering`, `make verify-d17`, `make verify-grant`), but the VPS is the only place it
 serves traffic. `make verify-config` is the one check that runs without
 containers; latency numbers measured anywhere but the VPS are fiction — see
 LATENCY.md §9.
@@ -405,9 +405,9 @@ The staff-facing console is the Next.js app on its **own, IP-gated host**:
 
 | Page | What it answers |
 |---|---|
-| `/admin` | Is the pipeline healthy, is money waiting, is the business healthy |
-| `/admin/orgs` | Filterable account roster (search, plan, status, over-cap, failed sync) |
-| `/admin/orgs/[id]` | One account: keys, members, payments, credits, audit |
+| `/admin` | The access-code gate; redirects to `/admin/ops` once it passes |
+| `/admin/orgs` | Filterable account roster (search, plan, status, over-cap, failed sync) with per-row retry, suspend, credit and grant actions |
+| `/admin/orgs/[id]` | One account: keys, members, payments, credits, audit; **grant a plan by hand** (admin only, fresh period, pushed to the gateway, audited as `subscription.admin_granted`) |
 | `/admin/d17` | Approve or reject a payment proof |
 | `/admin/usage` | Per-account revenue, upstream cost and margin |
 | `/admin/credits` | The refund ledger — read back, not just recorded |
@@ -456,4 +456,5 @@ make pull          # new gateway image (review release notes)
 make verify-config # validate YAML + shell syntax
 make db-migrate    # apply pending portal migrations (before deploys do it too)
 make verify-metering # end-to-end quota/billing proof (needs live stack)
+make verify-grant   # manual plan grant proof (needs live stack)
 ```

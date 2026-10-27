@@ -1,21 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AdminHeader, AdminStat } from "@/components/admin/stat-card";
+import { AdminHeader, AdminPage, AdminStat } from "@/components/admin/stat-card";
+import { AdminOrgs } from "@/components/admin/admin-orgs";
 import { listAdminOrgsFiltered } from "@/lib/admin/orgs";
 import { listPlansAdmin } from "@/lib/admin/plans";
-import { shortDate, usd } from "@/lib/dashboard/format";
+import { currentStaffRole, staffAtLeast } from "@/lib/auth/authorize";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 
 export const metadata: Metadata = { title: "Organization Accounts" };
@@ -38,6 +30,17 @@ export const dynamic = "force-dynamic";
  * `total` comes from the service counting over the SAME WHERE as the
  * page, so "142 accounts match" is a fact about the database rather than
  * an artifact of which 25 rows arrived.
+ *
+ * THE TABLE IS `<AdminOrgs>`, NOT A LOCAL COPY. This page used to
+ * re-implement that component's table, which silently dropped every row
+ * action it owns: retry sync, suspend, reactivate and record-credit were
+ * only reachable by opening an account one at a time. Rendering the
+ * shared component restores them and keeps the roster and the drill-down
+ * from drifting apart again.
+ *
+ * `canManage` is decided from the staff role, which the layout has
+ * already resolved. Hiding the buttons is courtesy — `requireStaff('admin')`
+ * in each route is the actual authority.
  */
 export default async function AdminOrgsPage({
   searchParams,
@@ -57,7 +60,7 @@ export default async function AdminOrgsPage({
   const overCap = one("over_cap") === "true";
   const page = Math.max(1, Number(one("page") ?? "1") || 1);
 
-  const [result, plans] = await Promise.all([
+  const [result, plans, role] = await Promise.all([
     listAdminOrgsFiltered({
       q: q || undefined,
       status: status === "active" || status === "suspended" ? status : undefined,
@@ -68,36 +71,45 @@ export default async function AdminOrgsPage({
       pageSize: 25,
     }),
     listPlansAdmin(),
+    currentStaffRole(),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
+  const canManage = role !== null && staffAtLeast(role, "admin");
+  const suspended = result.rows.filter((r) => r.status === "suspended").length;
+  const overCapped = result.rows.filter(isOverCap).length;
+  const failing = result.rows.filter((r) => r.entitlementStatus === "failed").length;
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Accounts"
         description="Every customer organisation, what it is on, whether the gateway agrees, and what it has spent."
       />
 
-      <dl className="mt-6 grid gap-4 sm:grid-cols-4">
-        <AdminStat label="Matching accounts" value={result.total} hint={`Page ${result.page} of ${totalPages}`} />
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <AdminStat
+          label="Matching accounts"
+          value={result.total}
+          hint={`Page ${result.page} of ${totalPages}`}
+        />
         <AdminStat
           label="Suspended"
-          value={result.rows.filter((r) => r.status === "suspended").length}
+          value={suspended}
           hint="on this page"
-          tone={result.rows.some((r) => r.status === "suspended") ? "warning" : "neutral"}
+          tone={suspended > 0 ? "warning" : "neutral"}
         />
         <AdminStat
           label="Over cap"
-          value={result.rows.filter((r) => isOverCap(r)).length}
+          value={overCapped}
           hint="on this page"
-          tone={result.rows.some((r) => isOverCap(r)) ? "danger" : "neutral"}
+          tone={overCapped > 0 ? "danger" : "neutral"}
         />
         <AdminStat
           label="Sync failing"
-          value={result.rows.filter((r) => r.entitlementStatus === "failed").length}
+          value={failing}
           hint="on this page"
-          tone={result.rows.some((r) => r.entitlementStatus === "failed") ? "warning" : "neutral"}
+          tone={failing > 0 ? "warning" : "neutral"}
         />
       </dl>
 
@@ -109,12 +121,7 @@ export default async function AdminOrgsPage({
       >
         <label className="grid gap-1.5 text-xs font-medium">
           Search
-          <Input
-            name="q"
-            defaultValue={q}
-            placeholder="Name or slug"
-            className="h-9 w-56"
-          />
+          <Input name="q" defaultValue={q} placeholder="Name or slug" className="h-9 w-56" />
         </label>
 
         <label className="grid gap-1.5 text-xs font-medium">
@@ -147,122 +154,33 @@ export default async function AdminOrgsPage({
         </label>
 
         <label className="flex items-center gap-2 pb-2 text-xs font-medium">
-          <input
-            type="checkbox"
-            name="failed"
-            value="true"
-            defaultChecked={failed}
-            className="size-4"
-          />
+          <input type="checkbox" name="failed" value="true" defaultChecked={failed} className="size-4" />
           Sync failing
         </label>
 
         <label className="flex items-center gap-2 pb-2 text-xs font-medium">
-          <input
-            type="checkbox"
-            name="over_cap"
-            value="true"
-            defaultChecked={overCap}
-            className="size-4"
-          />
+          <input type="checkbox" name="over_cap" value="true" defaultChecked={overCap} className="size-4" />
           Over cap
         </label>
 
         <div className="flex gap-2 pb-0.5">
-          <Button type="submit" size="sm">Apply</Button>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/admin/orgs" />}
-          >
+          <Button type="submit" size="sm">
+            Apply
+          </Button>
+          <Button variant="outline" size="sm" nativeButton={false} render={<Link href="/admin/orgs" />}>
             Reset
           </Button>
         </div>
       </form>
 
       {/* ── Roster ──────────────────────────────────────────────────── */}
-      <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
-        {result.rows.length === 0 ? (
-          <p className="px-6 py-16 text-center text-sm text-muted-foreground">
-            No accounts match these filters.
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Organisation</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Gateway</TableHead>
-                <TableHead className="text-right">Revenue</TableHead>
-                <TableHead className="text-right">Upstream</TableHead>
-                <TableHead className="text-right">Keys</TableHead>
-                <TableHead className="pr-6" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {result.rows.map((o) => {
-                const over = isOverCap(o);
-                return (
-                  <TableRow key={o.id}>
-                    <TableCell className="pl-6 font-medium">
-                      {o.name}
-                      <span className="block font-mono text-xs text-muted-foreground">
-                        {o.slug}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={o.status === "active" ? "default" : "destructive"}>
-                        {o.status}
-                      </Badge>
-                      {o.subStatus ? (
-                        <span className="mt-1 block text-xs text-muted-foreground">
-                          {o.subStatus}
-                        </span>
-                      ) : null}
-                    </TableCell>
-                    <TableCell>
-                      {o.planCode ? (
-                        <Badge variant="secondary">{o.planCode}</Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">no plan</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={o.entitlementStatus === "failed" ? "destructive" : "secondary"}>
-                        {o.entitlementStatus ?? "none"}
-                      </Badge>
-                      {o.entitlementStatus === "failed" && o.entitlementError ? (
-                        <p className="mt-1 max-w-44 truncate text-xs text-destructive">
-                          {o.entitlementError}
-                        </p>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className={`text-right tabular-nums ${over ? "text-destructive" : ""}`}>
-                      {usd(o.periodCostUsd)}
-                      {over ? <span className="block text-xs">over cap</span> : null}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {usd(o.periodCostUpstreamUsd)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{o.keyCount}</TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        nativeButton={false}
-                        render={<Link href={`/admin/orgs/${o.id}`} />}
-                      >
-                        Open
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
+      <div className="mt-6">
+        <AdminOrgs
+          orgs={result.rows}
+          canManage={canManage}
+          plans={plans}
+          emptyMessage="No accounts match these filters."
+        />
       </div>
 
       {/* ── Pagination ──────────────────────────────────────────────── */}
@@ -295,7 +213,7 @@ export default async function AdminOrgsPage({
           </div>
         </nav>
       ) : null}
-    </main>
+    </AdminPage>
   );
 }
 

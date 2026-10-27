@@ -1,8 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AdminHeader, AdminStat } from "@/components/admin/stat-card";
-import { dateTime, usd, usdPrecise } from "@/lib/dashboard/format";
+import {
+  AdminEmptyState,
+  AdminHeader,
+  AdminPage,
+  AdminStat,
+} from "@/components/admin/stat-card";
+import { amountTone } from "@/components/admin/badge-tones";
+import { dateTime, formatCredit, usd, usdPrecise } from "@/lib/dashboard/format";
 
 import { Badge } from "@/components/ui/badge";
 import {
@@ -89,7 +95,7 @@ export default async function AdminCreditsPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Credit notes"
         description="Manual refunds and goodwill credits. D17 has no refund API, so every one of these is money a human transferred by hand."
@@ -105,26 +111,27 @@ export default async function AdminCreditsPage({
         />
         <AdminStat
           label="Net TND"
-          value={netTnd === 0 ? usdPrecise(0) : usd(netTnd)}
+          value={formatCredit(Math.round(netTnd * 100), "TND")}
           hint="Local currency, as actually transferred"
           tone={netTnd < 0 ? "warning" : "neutral"}
         />
       </dl>
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="mt-8 overflow-x-auto rounded-xl border border-border bg-card">
         {rows.length === 0 ? (
-          <p className="px-6 py-16 text-center text-sm text-muted-foreground">
-            No credit notes have been recorded.
-          </p>
+          <AdminEmptyState>
+            No credit notes have been recorded. Refunds are made from an
+            account's page.
+          </AdminEmptyState>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Account</TableHead>
+                <TableHead className="pl-4">Account</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Recorded by</TableHead>
-                <TableHead className="pr-6">When</TableHead>
+                <TableHead className="pr-4">When</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -132,7 +139,7 @@ export default async function AdminCreditsPage({
                 const cents = Number(c.amount_cents);
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="pl-6 font-medium">
+                    <TableCell className="pl-4 font-medium">
                       <a href={`/admin/orgs/${c.organization_id}`} className="hover:underline">
                         {c.organization_name ?? "unknown"}
                       </a>
@@ -141,21 +148,19 @@ export default async function AdminCreditsPage({
                       </span>
                     </TableCell>
                     <TableCell
-                      className={`text-right font-medium tabular-nums ${
-                        cents < 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
-                      }`}
+                      className={`text-right font-medium tabular-nums ${amountTone(cents)}`}
                     >
                       <Badge variant="outline">
                         {cents < 0 ? "refund" : "credit"}
                       </Badge>
                       <span className="mt-1 block">
                         {cents < 0 ? "−" : "+"}
-                        {usdPrecise(Math.abs(cents) / 100)} {c.currency}
+                        {formatCredit(cents, c.currency)}
                       </span>
                     </TableCell>
                     <TableCell className="max-w-md text-sm">{c.reason}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">{c.created_by}</TableCell>
-                    <TableCell className="pr-6 text-xs text-muted-foreground">
+                    <TableCell className="pr-4 text-xs text-muted-foreground">
                       {dateTime(new Date(c.created_at).toISOString())}
                     </TableCell>
                   </TableRow>
@@ -191,6 +196,6 @@ export default async function AdminCreditsPage({
           </div>
         </nav>
       ) : null}
-    </main>
+    </AdminPage>
   );
 }

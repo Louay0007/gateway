@@ -116,15 +116,15 @@ export function StaffManager({
         </p>
       )}
 
-      <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="mt-3 overflow-x-auto rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="pl-6">Operator</TableHead>
+              <TableHead className="pl-4">Operator</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Granted by</TableHead>
-              <TableHead className="pr-6">Created</TableHead>
+              <TableHead className="pr-4">Created</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -133,7 +133,7 @@ export function StaffManager({
               const isLastOwner = s.role === "owner" && !s.revokedAt && activeOwners <= 1;
               return (
                 <TableRow key={s.id} className={s.revokedAt ? "opacity-60" : undefined}>
-                  <TableCell className="pl-6 font-medium">
+                  <TableCell className="pl-4 font-medium">
                     {s.name ?? s.email}
                     <span className="block text-xs text-muted-foreground">{s.email}</span>
                   </TableCell>
@@ -181,7 +181,7 @@ export function StaffManager({
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {s.createdBy ?? "seeded"}
                   </TableCell>
-                  <TableCell className="pr-6">
+                  <TableCell className="pr-4">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs text-muted-foreground">
                         {dateTime(s.createdAt)}

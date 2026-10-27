@@ -157,3 +157,24 @@ export function usdToTnd(usdAmount: number): string {
 export function centsToTnd(cents: number): string {
   return tndFormatter.format((cents / 100) * D17_RATE);
 }
+
+/**
+ * A credit note amount, in the currency it was actually recorded in.
+ *
+ * `credit_notes.amount_cents` is cents OF ITS OWN CURRENCY — a TND note is
+ * dinars in cents, not dollars. The console used to render every note
+ * through `usd()` and append the currency code, so a 50 DT refund printed
+ * "$50.00 TND": wrong symbol, and a number that is off by the exchange
+ * rate for anyone who read it as dinars. Converting through
+ * `centsToTnd`/`usdToTnd` would be equally wrong in the other direction,
+ * because those convert DOLLARS at the D17 rate. A note already in TND
+ * needs no conversion at all.
+ *
+ * The sign is applied by the caller (refund vs credit), so this formats
+ * the magnitude.
+ */
+export function formatCredit(cents: number, currency: string): string {
+  const amount = Math.abs(cents) / 100;
+  if (currency.toUpperCase() === "TND") return tndFormatter.format(amount);
+  return usdFormatter.format(amount);
+}

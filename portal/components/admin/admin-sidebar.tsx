@@ -33,12 +33,12 @@ import {
   FileClock,
   LayoutDashboard,
   LogOut,
+  Layers,
   Receipt,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import { signOutAction } from "@/lib/auth/actions";
 import { staffAtLeast, type StaffRole } from "@/lib/auth/staff-roles";
 import { Badge } from "@/components/ui/badge";
@@ -66,15 +66,36 @@ interface AdminNavItem {
   badge?: number;
 }
 
+/**
+ * Order is OPERATIONAL, not alphabetical: the two lists an operator works
+ * from every day first, then the money views, then the settings-ish
+ * surfaces. "Pipeline" is also the landing page, because `/admin` itself
+ * is the gate form and redirects onward — so the first nav item is
+ * wherever that redirect lands.
+ *
+ * THERE IS NO "OVERVIEW" ITEM. It pointed at `/admin`, which never
+ * renders a page of its own: it shows the access-code form and 302s to
+ * `/admin/ops`. A link that always bounces is worse than no link, and
+ * the active-state logic below had to special-case it just to stop it
+ * lighting up on every route.
+ *
+ * `minRole` is the role that is OFFERED the link. Every entry is
+ * `read_only`, and that is correct rather than lazy: the corresponding
+ * GETs really are open to any staff role, and the WRITE controls inside
+ * Plans and Staff are what require `owner` (`canEdit` / `canManage` on
+ * those pages). Hiding the whole page from a `support` operator would
+ * take away read access they legitimately have; the filter exists so a
+ * future read-restricted page can express that, not so these ones can
+ * pretend to.
+ */
 const NAV: AdminNavItem[] = [
-  { title: "Overview", href: "/admin", icon: LayoutDashboard, minRole: "read_only" },
+  { title: "Pipeline", href: "/admin/ops", icon: Activity, minRole: "read_only" },
   { title: "Accounts", href: "/admin/orgs", icon: Building2, minRole: "read_only" },
   { title: "D17 queue", href: "/admin/d17", icon: Receipt, minRole: "read_only" },
-  { title: "Usage & margin", href: "/admin/usage", icon: Activity, minRole: "read_only" },
+  { title: "Usage & margin", href: "/admin/usage", icon: LayoutDashboard, minRole: "read_only" },
   { title: "Credits", href: "/admin/credits", icon: CreditCard, minRole: "read_only" },
-  { title: "Plans", href: "/admin/plans", icon: Receipt, minRole: "read_only" },
   { title: "Audit", href: "/admin/audit", icon: FileClock, minRole: "read_only" },
-  { title: "Pipeline", href: "/admin/ops", icon: Activity, minRole: "read_only" },
+  { title: "Plans", href: "/admin/plans", icon: Layers, minRole: "read_only" },
   { title: "Staff", href: "/admin/staff", icon: Users, minRole: "read_only" },
 ];
 
@@ -89,12 +110,12 @@ export function AdminSidebar({
 }) {
   const pathname = usePathname();
 
-  // `/admin` is a prefix of every admin route, so an exact-match test
-  // alone would light up "Overview" on every page.
+  // Prefix match, so the drill-down at `/admin/orgs/<id>` keeps Accounts
+  // lit — it is still the Accounts section. The bare `/admin` prefix is
+  // what made the old "Overview" entry light up on every route at once,
+  // which is why the landing entry is `/admin/ops` and not `/admin`.
   const isActive = (href: string) =>
-    href === "/admin"
-      ? pathname === "/admin"
-      : pathname === href || pathname.startsWith(`${href}/`);
+    pathname === href || pathname.startsWith(`${href}/`);
 
   const visible = NAV.filter((item) => staffAtLeast(role, item.minRole));
 
@@ -102,7 +123,7 @@ export function AdminSidebar({
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-16 justify-center border-b border-sidebar-border">
         <Link
-          href="/admin"
+          href="/admin/ops"
           aria-label="Zaino operations console"
           className="flex items-center rounded-md focus-visible:ring-2 focus-visible:ring-sidebar-ring focus-visible:outline-none"
         >

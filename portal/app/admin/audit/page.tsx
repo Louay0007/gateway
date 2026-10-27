@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { AdminHeader, AdminStat } from "@/components/admin/stat-card";
+import {
+  AdminEmptyState,
+  AdminHeader,
+  AdminPage,
+  AdminStat,
+} from "@/components/admin/stat-card";
 import { listAudit } from "@/lib/admin/orgs";
 import { dateTime } from "@/lib/dashboard/format";
 
@@ -64,7 +69,7 @@ export default async function AdminAuditPage({
   const totalPages = Math.max(1, Math.ceil(result.total / result.pageSize));
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Audit"
         description="Every recorded event, newest first. This is the record of who changed what — it is append-only and nothing here can be edited."
@@ -110,27 +115,25 @@ export default async function AdminAuditPage({
         />
       </dl>
 
-      <div className="mt-8 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="mt-8 overflow-x-auto rounded-xl border border-border bg-card">
         {result.rows.length === 0 ? (
-          <p className="px-6 py-16 text-center text-sm text-muted-foreground">
-            No events match these filters.
-          </p>
+          <AdminEmptyState>No events match these filters.</AdminEmptyState>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">When</TableHead>
+                <TableHead className="pl-4">When</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Actor</TableHead>
                 <TableHead>Account</TableHead>
                 <TableHead>Target</TableHead>
-                <TableHead className="pr-6">Change</TableHead>
+                <TableHead className="pr-4">Change</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {result.rows.map((r) => (
                 <TableRow key={r.id}>
-                  <TableCell className="pl-6 whitespace-nowrap text-xs text-muted-foreground">
+                  <TableCell className="pl-4 whitespace-nowrap text-xs text-muted-foreground">
                     {dateTime(r.createdAt)}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{r.action}</TableCell>
@@ -151,12 +154,12 @@ export default async function AdminAuditPage({
                   <TableCell className="font-mono text-xs text-muted-foreground">
                     {r.targetType ? `${r.targetType}:${(r.targetId ?? "").slice(0, 12)}` : "—"}
                   </TableCell>
-                  <TableCell className="pr-6">
-                    <details className="max-w-md">
+                  <TableCell className="pr-4">
+                    <details className="min-w-40 max-w-md">
                       <summary className="cursor-pointer text-xs text-muted-foreground hover:text-foreground">
                         {r.before || r.after ? "view" : "—"}
                       </summary>
-                      <pre className="mt-2 max-w-md overflow-x-auto rounded-md bg-muted p-2 text-[10px] leading-relaxed">
+                      <pre className="mt-2 max-h-64 max-w-md overflow-auto rounded-md bg-muted p-2 text-xs leading-relaxed">
 {JSON.stringify({ before: r.before, after: r.after }, null, 2)}
                       </pre>
                     </details>
@@ -205,7 +208,7 @@ export default async function AdminAuditPage({
           </div>
         </nav>
       ) : null}
-    </main>
+    </AdminPage>
   );
 }
 

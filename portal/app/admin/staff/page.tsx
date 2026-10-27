@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 
-import { AdminHeader, AdminSection, AdminStat } from "@/components/admin/stat-card";
+import {
+  AdminHeader,
+  AdminPage,
+  AdminSection,
+  AdminStat,
+} from "@/components/admin/stat-card";
 import { StaffManager } from "@/components/admin/staff-manager";
 import { listStaff } from "@/lib/admin/staff";
 import { STAFF_ROLE_SUMMARY, STAFF_ROLES } from "@/lib/auth/staff-roles";
@@ -46,7 +51,7 @@ export default async function AdminStaffPage() {
   const missingCredential = active.filter((s) => !s.hasCredential);
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <AdminPage>
       <AdminHeader
         title="Staff"
         description="Who can reach the operations console, and what each role is allowed to do."
@@ -91,6 +96,6 @@ export default async function AdminStaffPage() {
           />
         </AdminSection>
       </div>
-    </main>
+    </AdminPage>
   );
 }

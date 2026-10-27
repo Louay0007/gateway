@@ -9,7 +9,7 @@ LOCAL := http://127.0.0.1:4000
 .PHONY: help init probe up down restart logs ps health key report \
         reconcile smoke latency backup restore pull deploy verify-config \
         check-format verify-caddy db-init db-migrate jobs jobs-once \
-        verify-metering verify-d17 backup-drill
+        verify-metering verify-d17 verify-grant backup-drill
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -280,6 +280,11 @@ verify-d17: ## Prove the manual D17 payment path (duplicate, expiry, double-appr
 	@$(COMPOSE) build jobs
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-d17.ts
+
+verify-grant: ## Prove the manual plan grant (one row, one-live-row, idempotent window, audit, cut)
+	@$(COMPOSE) build jobs
+	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/verify-grant.ts
 
 verify-metering: ## Prove metering end-to-end (usage_records, cost, dedupe, revoke)
 	@$(MAKE) --no-print-directory mock-upstream

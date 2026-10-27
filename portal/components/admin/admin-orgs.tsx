@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, RefreshCw, ShieldCheck, Undo2, Wallet } from "lucide-react";
+import { Ban, Crown, MoreHorizontal, RefreshCw, Undo2, Wallet } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -26,6 +33,9 @@ import {
 } from "@/components/ui/table";
 import { usd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
+
+import { GrantPlanDialog } from "@/components/admin/grant-plan-dialog";
+import { entitlementTone, orgStatusTone } from "@/components/admin/badge-tones";
 
 /**
  * The row shape, taken from the service that produces it.
@@ -37,52 +47,68 @@ import { toast } from "sonner";
  * is exactly the class of bug this codebase keeps paying for.
  */
 import type { AdminOrgRow } from "@/lib/admin/orgs";
+import type { PlanAdminRow } from "@/lib/admin/plans";
 
 export type AdminOrgItem = AdminOrgRow;
-
-function statusVariant(status: string): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "active") return "default";
-  if (status === "suspended") return "destructive";
-  return "secondary";
-}
-
-function entVariant(status: string | null): "default" | "secondary" | "destructive" | "outline" {
-  if (status === "synced") return "default";
-  if (status === "failed") return "destructive";
-  return "secondary";
-}
 
 /**
  * AdminOrgs — the operations console.
  *
- * Three manual powers, each routed to the endpoint that wraps the service
- * function, then a full server refresh: suspension, reactivation and the
- * retry all change state the page cannot safely guess (the gateway's
- * answer, the new entitlement status), so the row is re-read rather than
- * patched locally — the same rule the D17 queue follows.
+ * Four manual powers, each routed to the endpoint that wraps the service
+ * function, then a full server refresh: suspension, reactivation, the
+ * entitlement retry, and a manual plan grant. All of them change state the
+ * page cannot safely guess (the gateway's answer, the new entitlement
+ * status, the period the server computed), so the row is re-read rather
+ * than patched locally — the same rule the D17 queue follows.
  *
  * `canManage` gates suspend/reactivate/credit to staff `admin`; the routes
  * enforce it regardless (hiding is courtesy, the route is the authority).
  * Retry stays open to support — it is idempotent and changes nothing a
  * customer did not ask for.
+ *
+ * ONE COMPONENT, TWO SHAPES. The roster renders the table; the drill-down
+ * passes `showDetail={false}` and gets the bare action row. That reuse is
+ * deliberate and was previously half-implemented: `/admin/orgs` hand-rolled
+ * its own copy of this table, so every row action here (retry, suspend,
+ * credit) was unreachable from the roster — an operator had to open each
+ * account individually to act on it. The page now renders this component,
+ * which is why the row actions are a menu: five buttons per row did not
+ * fit, and the table is shared, so the fix has to be in one place.
  */
 export function AdminOrgs({
   orgs,
   canManage,
+  plans = [],
   showDetail = true,
+  emptyMessage = "No organizations yet.",
 }: {
   orgs: AdminOrgItem[];
   canManage: boolean;
+  /**
+   * Catalog plans for the grant dialog. Passed in rather than fetched so
+   * the picker is correct on first paint — a client fetch would show an
+   * empty select for a beat on every page that renders actions.
+   */
+  plans?: PlanAdminRow[];
   /**
    * The drill-down reuses this component for its ACTIONS section only, so
    * it renders a bare action row instead of a one-line table — the keys,
    * members and payments next to it are already on that page.
    */
   showDetail?: boolean;
+  /**
+   * "No organizations yet" is wrong on a filtered roster: there may be
+   * hundreds of accounts and none matching the filter, and telling an
+   * operator the database is empty when they mistyped a search sends them
+   * to the wrong conclusion.
+   */
+  emptyMessage?: string;
 }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [creditTarget, setCreditTarget] = React.useState<AdminOrgItem | null>(null);
+  const [grantTarget, setGrantTarget] = React.useState<AdminOrgItem | null>(null);
+  const canGrant = canManage && plans.length > 0;
 
   async function act(orgId: string, kind: "suspend" | "reactivate" | "sync") {
     setBusy(`${orgId}:${kind}`);
@@ -151,8 +177,8 @@ export function AdminOrgs({
 
   if (orgs.length === 0) {
     return (
-      <div className="rounded-xl border border-border bg-card px-6 py-16 text-center">
-        <p className="text-sm text-muted-foreground">No organizations yet.</p>
+      <div className="rounded-xl border border-dashed border-border bg-card px-6 py-12 text-center">
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
       </div>
     );
   }
@@ -172,6 +198,17 @@ export function AdminOrgs({
               <RefreshCw />
               Retry sync
             </Button>
+            {canGrant ? (
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy !== null}
+                onClick={() => setGrantTarget(o)}
+              >
+                <Crown />
+                Grant plan
+              </Button>
+            ) : null}
             {canManage && o.status === "active" ? (
               <Button
                 variant="outline"
@@ -207,8 +244,8 @@ export function AdminOrgs({
             ) : null}
             {!canManage ? (
               <p className="text-xs text-muted-foreground">
-                Retry is available to support staff. Suspending an account and
-                recording a credit require the admin role.
+                Retry is available to support staff. Suspending an account,
+                granting a plan and recording a credit require the admin role.
               </p>
             ) : null}
           </div>
@@ -222,23 +259,32 @@ export function AdminOrgs({
             router.refresh();
           }}
         />
+        <GrantPlanDialog
+          org={grantTarget}
+          plans={plans}
+          onClose={() => setGrantTarget(null)}
+          onDone={() => {
+            setGrantTarget(null);
+            router.refresh();
+          }}
+        />
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="pl-6">Organization</TableHead>
+            <TableHead className="pl-4">Organization</TableHead>
             <TableHead>Account</TableHead>
             <TableHead>Plan</TableHead>
             <TableHead>Gateway</TableHead>
             <TableHead className="text-right">Revenue</TableHead>
             <TableHead className="text-right">Upstream</TableHead>
             <TableHead className="text-right">Keys</TableHead>
-            <TableHead className="pr-6 text-right">Actions</TableHead>
+            <TableHead className="pr-4 text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -247,14 +293,16 @@ export function AdminOrgs({
               o.hardCapCents !== null && o.periodCostUsd * 100 > o.hardCapCents;
             return (
               <TableRow key={o.id}>
-                <TableCell className="pl-6 font-medium">
-                  {o.name}
+                <TableCell className="pl-4 font-medium">
+                  <Link href={`/admin/orgs/${o.id}`} className="hover:underline">
+                    {o.name}
+                  </Link>
                   <span className="block font-mono text-xs text-muted-foreground">
                     {o.slug}
                   </span>
                 </TableCell>
                 <TableCell>
-                  <Badge variant={statusVariant(o.status)}>{o.status}</Badge>
+                  <Badge variant={orgStatusTone(o.status)}>{o.status}</Badge>
                   {o.subStatus ? (
                     <span className="mt-1 block text-xs text-muted-foreground">
                       {o.subStatus}
@@ -269,7 +317,7 @@ export function AdminOrgs({
                   )}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={entVariant(o.entitlementStatus)}>
+                  <Badge variant={entitlementTone(o.entitlementStatus)}>
                     {o.entitlementStatus ?? "none"}
                   </Badge>
                   {o.entitlementStatus === "failed" && o.entitlementError ? (
@@ -290,8 +338,8 @@ export function AdminOrgs({
                   {usd(o.periodCostUpstreamUsd)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{o.keyCount}</TableCell>
-                <TableCell className="pr-6 text-right">
-                  <div className="flex justify-end gap-2">
+                <TableCell className="pr-4 text-right">
+                  <div className="flex justify-end gap-1">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -300,48 +348,61 @@ export function AdminOrgs({
                     >
                       Open
                     </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy !== null}
-                      onClick={() => void act(o.id, "sync")}
-                    >
-                      <RefreshCw />
-                      Retry sync
-                    </Button>
-                    {canManage && o.status === "active" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy !== null}
-                        onClick={() => void act(o.id, "suspend")}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Actions for ${o.name}`}
+                            disabled={busy !== null}
+                          />
+                        }
                       >
-                        <Ban />
-                        Suspend
-                      </Button>
-                    ) : null}
-                    {canManage && o.status === "suspended" ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy !== null}
-                        onClick={() => void act(o.id, "reactivate")}
-                      >
-                        <Undo2 />
-                        Reactivate
-                      </Button>
-                    ) : null}
-                    {canManage ? (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={busy !== null}
-                        onClick={() => setCreditTarget(o)}
-                      >
-                        <Wallet />
-                        Credit
-                      </Button>
-                    ) : null}
+                        <MoreHorizontal />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-52">
+                        <DropdownMenuItem
+                          disabled={busy !== null}
+                          onClick={() => void act(o.id, "sync")}
+                        >
+                          <RefreshCw />
+                          Retry sync
+                        </DropdownMenuItem>
+                        {canGrant ? (
+                          <DropdownMenuItem onClick={() => setGrantTarget(o)}>
+                            <Crown />
+                            Grant plan
+                          </DropdownMenuItem>
+                        ) : null}
+                        {canManage ? (
+                          <DropdownMenuItem onClick={() => setCreditTarget(o)}>
+                            <Wallet />
+                            Record credit
+                          </DropdownMenuItem>
+                        ) : null}
+                        {canManage ? <DropdownMenuSeparator /> : null}
+                        {canManage && o.status === "active" ? (
+                          <DropdownMenuItem
+                            variant="destructive"
+                            disabled={busy !== null}
+                            onClick={() => void act(o.id, "suspend")}
+                          >
+                            <Ban />
+                            Suspend
+                          </DropdownMenuItem>
+                        ) : null}
+                        {canManage && o.status === "suspended" ? (
+                          <DropdownMenuItem
+                            disabled={busy !== null}
+                            onClick={() => void act(o.id, "reactivate")}
+                          >
+                            <Undo2 />
+                            Reactivate
+                          </DropdownMenuItem>
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </TableCell>
               </TableRow>
@@ -355,6 +416,15 @@ export function AdminOrgs({
         onClose={() => setCreditTarget(null)}
         onDone={() => {
           setCreditTarget(null);
+          router.refresh();
+        }}
+      />
+      <GrantPlanDialog
+        org={grantTarget}
+        plans={plans}
+        onClose={() => setGrantTarget(null)}
+        onDone={() => {
+          setGrantTarget(null);
           router.refresh();
         }}
       />
