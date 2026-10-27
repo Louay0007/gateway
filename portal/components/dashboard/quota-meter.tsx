@@ -84,9 +84,10 @@ export function QuotaMeter({
 }
 
 /**
- * Exhausted-quota banner — `Out of <alias> tokens — resets <date>`.
+ * Exhausted-quota banner — `Out of <alias> tokens for today — resets at
+ * midnight Tunis time` (0025: daily 100M budgets).
  *
- * Same source as the gateway wall (token limits vs period usage): when an
+ * Same source as the gateway wall (token limits vs daily usage): when an
  * entitled alias has 0 tokens remaining, the wall is already 403ing it.
  * Null when nothing is exhausted.
  */
@@ -116,11 +117,7 @@ export function QuotaExhaustedBanner({
     }
   }
   if (out.length === 0) return null;
-  const label = resetDate ? new Date(resetDate) : null;
-  const reset =
-    label && !Number.isNaN(label.getTime())
-      ? label.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' })
-      : null;
+  // 0025: daily budgets reset at midnight Tunis time, every day.
   return (
     <div
       role="alert"
@@ -130,10 +127,10 @@ export function QuotaExhaustedBanner({
       )}
     >
       <span className="font-medium">
-        {out.map((o) => `Out of ${o.alias} tokens`).join(' · ')}
+        {out.map((o) => `Out of ${o.alias} tokens for today`).join(' · ')}
       </span>
       <span className="text-muted-foreground">
-        {reset ? `— resets ${reset}.` : '— renews next period.'} Upgrade for more or wait for renewal.
+        — resets at midnight Tunis time. Upgrade for more or wait for tomorrow.
       </span>
       {out.map((o) => (
         <span

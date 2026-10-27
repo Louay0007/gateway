@@ -57,6 +57,7 @@ import {
   type PlanSummary,
 } from './state';
 import { syncOrganizationEntitlements } from '@/lib/entitlements/sync';
+import { usageWindowForSubscription } from '@/lib/entitlements/quota';
 import { billingProvider, resolveBillingProvider } from './index';
 import { loadD17Payment } from './d17';
 import { log } from '@/lib/log';
@@ -121,26 +122,38 @@ function currentPeriod(): { start: string; end: string } {
 }
 
 /**
- * Usage window for an org: the SUBSCRIPTION period when one exists,
+ * Usage window for an org (0025).
+ *
+ * Daily-quota subscriptions: the TUNIS CALENDAR DAY — the token wall sums
+ * today's blended tokens only (100M/day budgets). Legacy grandfathered
+ * rows (dailyQuota FALSE): the SUBSCRIPTION period when one exists,
  * calendar month otherwise.
  *
  * `billing_period` on the ledger is date_trunc('month', occurred_at) — a
- * CALENDAR month. A D17 subscription starting on the 20th spans two
- * buckets, and one bucket can hold two periods. For allowance math
- * ("$X of $20 included") the grouping key must be the period the customer
- * paid for (current_period_start → current_period_end), not the month the
- * wall clock says. The rollup keeps calendar buckets (it is a chart
- * accelerator); the bundle — the number a customer is shown — uses the
- * subscription window.
+ * CALENDAR month, kept as a chart accelerator for the rollup. The bundle —
+ * the number a customer is shown — uses the quota window, which is what the
+ * gateway wall (`getAllowedModels`) sums over. The two MUST agree: the
+ * banner, meters, device pre-check and gateway wall read one value.
  */
 function usageWindowFor(
-  subscription: { currentPeriodStart: Date | null; currentPeriodEnd: Date | null } | null,
+  subscription: {
+    currentPeriodStart: Date | null;
+    currentPeriodEnd: Date | null;
+    dailyQuota?: boolean | null;
+  } | null,
+  now?: Date,
 ): { start: Date; end: Date } {
-  if (subscription?.currentPeriodStart && subscription?.currentPeriodEnd) {
-    return { start: subscription.currentPeriodStart, end: subscription.currentPeriodEnd };
-  }
-  const p = currentPeriod();
-  return { start: new Date(p.start), end: new Date(p.end) };
+  // Shared helper — single window definition for bundle + wall.
+  return usageWindowForSubscription(
+    subscription
+      ? {
+          currentPeriodStart: subscription.currentPeriodStart,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          dailyQuota: subscription.dailyQuota,
+        }
+      : null,
+    now,
+  );
 }
 
 /**
@@ -186,14 +199,20 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       where: eq(entitlements.organizationId, organizationId),
     }),
     (async () => {
-      // Window first: subscription period when known, calendar fallback.
-      // The window must be known before the query, but planStateFor runs
-      // concurrently above — so load the subscription row here too. One
-      // extra indexed lookup is cheaper than attributing spend to the
-      // wrong period.
+      // Window first: Tunis day for daily rows, subscription period /
+      // calendar fallback for grandfathered rows. The window must be known
+      // before the query, but planStateFor runs concurrently above — so
+      // load the subscription row here too. One extra indexed lookup is
+      // cheaper than attributing spend to the wrong window.
       const subRow = await loadSubscription(organizationId);
       const window = usageWindowFor(
-        subRow ? { currentPeriodStart: subRow.currentPeriodStart, currentPeriodEnd: subRow.currentPeriodEnd } : null,
+        subRow
+          ? {
+              currentPeriodStart: subRow.currentPeriodStart,
+              currentPeriodEnd: subRow.currentPeriodEnd,
+              dailyQuota: subRow.dailyQuota,
+            }
+          : null,
       );
       const [row] = await db
         .select({
@@ -577,6 +596,10 @@ export async function applyCallback(event: ProviderEvent): Promise<{
           currentPeriodStart: start,
           currentPeriodEnd: end,
           cancelAtPeriodEnd: false,
+          // 0025 cutover: a (re)activation moves the row onto the daily
+          // Tunis-day quota. Grandfathered monthly rows flip here, at the
+          // start of the period the customer just paid for.
+          dailyQuota: true,
           lastProviderEventId: event.id,
           lastProviderEventAt: new Date(),
           updatedAt: new Date(),
@@ -668,7 +691,14 @@ export async function changePlan(
   const before = { planCode: (await loadPlan(sub.planId))?.code ?? null, status: sub.status };
   await db
     .update(subscriptions)
-    .set({ planId: plan.id, cancelAtPeriodEnd: false, updatedAt: new Date() })
+    .set({
+      planId: plan.id,
+      cancelAtPeriodEnd: false,
+      // 0025: a plan change moves onto the daily quota immediately — the
+      // new plan's limits apply from this instant, not from renewal.
+      dailyQuota: true,
+      updatedAt: new Date(),
+    })
     .where(eq(subscriptions.id, sub.id));
 
   const sync = await syncOrganizationEntitlements(organizationId, 'billing:plan-changed');

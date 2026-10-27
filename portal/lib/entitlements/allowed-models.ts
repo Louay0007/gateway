@@ -3,9 +3,10 @@
  *
  * Used by BOTH enforce_prompt_limits (5m) and sync (plan change +
  * hourly backstop) so they cannot disagree. Rule: allowed = entitled
- * WHERE tokens_used < token_limit, windowed on subscription period else
- * calendar month (same as dashboard bundle). Renewal restores: a new
- * window has zero usage so everything re-allows.
+ * WHERE tokens_used < token_limit, windowed on the Tunis calendar day
+ * for daily-quota subscriptions (0025), else the legacy monthly window
+ * (subscription period else calendar month — same as dashboard bundle).
+ * Renewal restores: a new day starts with zero usage in it.
  *
  * Token-only since 0023. `prompt_count` stays in the ledger for analytics
  * but is never read here.
@@ -14,7 +15,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   computeTokenAllowedModels,
-  usageWindowFor,
+  usageWindowForSubscription,
   BILLABLE_TOKEN_COLUMNS,
 } from '@/lib/entitlements/quota';
 import { effectForStatus, type Effect } from '@/lib/entitlements/policy';
@@ -36,6 +37,7 @@ export async function getAllowedModels(
 ): Promise<AllowedModelsResult> {
   const rows = (await db.execute(sql`
     SELECT s.status, s.current_period_start, s.current_period_end,
+           s.daily_quota,
            p.code AS plan_code, p.models,
            COALESCE(p.token_limits, '{}'::jsonb) AS token_limits
       FROM subscriptions s
@@ -48,6 +50,7 @@ export async function getAllowedModels(
     status: string;
     current_period_start: string | null;
     current_period_end: string | null;
+    daily_quota: boolean | null;
     plan_code: string;
     models: string[];
     token_limits: Record<string, number>;
@@ -76,11 +79,13 @@ export async function getAllowedModels(
     if (typeof v === 'number' && Number.isFinite(v)) tokenLimits[k] = v;
   }
 
+  const windowInput = {
+    currentPeriodStart: row.current_period_start,
+    currentPeriodEnd: row.current_period_end,
+    dailyQuota: row.daily_quota,
+  };
   if (effect === 'cut') {
-    const window = usageWindowFor({
-      currentPeriodStart: row.current_period_start,
-      currentPeriodEnd: row.current_period_end,
-    });
+    const window = usageWindowForSubscription(windowInput);
     return {
       effect,
       entitled,
@@ -92,10 +97,7 @@ export async function getAllowedModels(
     };
   }
 
-  const window = usageWindowFor({
-    currentPeriodStart: row.current_period_start,
-    currentPeriodEnd: row.current_period_end,
-  });
+  const window = usageWindowForSubscription(windowInput);
 
   const usedRows = (await db.execute(sql`
     SELECT u.model,

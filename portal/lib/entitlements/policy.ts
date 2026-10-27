@@ -120,11 +120,18 @@ export function resolveBudgetUsd(
  * every capability: empty model allowlist means no model is reachable, and
  * null rate limits fall back to the router default rather than a number
  * we would then have to unwind.
+ *
+ * SINCE 0025 the token model allowlist is the ONLY request-blocking
+ * control. rpm/tpm/concurrency are stored on the plan for display but are
+ * ALWAYS resolved to null here so LiteLLM can never block a live request
+ * before the token wall narrows the allowlist. maxBudgetUsd stays $10,000
+ * upstream as a catastrophic backstop (token wall always hits first).
  */
 /**
  * Resolve per-alias TOKEN budgets from the plan's JSONB column.
  *
- * Migration 0023 made tokens the only quota: `{fast: 80000000}`.
+ * Migration 0023 made tokens the only quota; 0025 made it DAILY
+ * (`{fast: 100000000}` per Tunis day).
  * A cut org gets an empty map so every enforcement point can compare
  * without branching on effect first. A missing alias is UNLIMITED, not
  * deny — see the token wall note in quota.ts.
@@ -174,11 +181,14 @@ export function resolveLimits(
   if (effect === 'cut') {
     return { models: [], rpm: null, tpm: null, concurrency: null, maxBudgetUsd };
   }
+  // 0025: tokens (the model allowlist) are the ONLY request-blocking
+  // control. rpm/tpm/concurrency always resolve to null even for live
+  // orgs so nothing but token exhaustion can block a request.
   return {
     models: plan.models,
-    rpm: plan.rpmLimit,
-    tpm: plan.tpmLimit,
-    concurrency: plan.maxConcurrentRequests,
+    rpm: null,
+    tpm: null,
+    concurrency: null,
     maxBudgetUsd,
   };
 }

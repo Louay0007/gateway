@@ -5,18 +5,20 @@
  * different allowlists; sync resurrected what enforce narrowed. Both now
  * compute through computeTokenAllowedModels so they cannot disagree.
  *
- * RULE (migration 0023): allowed = entitled WHERE tokens_used < token_limit.
+ * RULE (migration 0025): allowed = entitled WHERE tokens_used < token_limit.
  * tokens_used = SUM(input + output + cache_write_5m + cache_write_1h +
- * cache_read) over the subscription window (period when known, calendar
- * month otherwise). Prompts are no longer a quota; `prompt_count` stays in
- * the ledger for historical analytics only.
+ * cache_read) over the TUNIS CALENDAR DAY (00:00–24:00 Africa/Tunis) when
+ * the subscription is on daily quota, else the legacy monthly window
+ * (subscription period when known, calendar month otherwise — grandfathered
+ * rows until renewal). Prompts are no longer a quota; `prompt_count` stays
+ * in the ledger for historical analytics only.
  *
  * Units: RAW TOKENS as the ledger stores them (integers, NOT millions, NOT
- * cents): {fast: 80000000} = 80M tokens.
+ * cents): {fast: 100000000} = 100M tokens per day.
  *
  * MISSING / ZERO = UNLIMITED. Token budgets postdate plans, so a plan an
  * operator created before 0023 may have no entry — failing closed would cut
- * every such plan on the first pass after deploy. The 0023 guard forces
+ * every such plan on the first pass after deploy. The 0025 guard forces
  * budgets onto starter/pro/trial and the admin editor writes them, so the
  * fail-open only covers plans nobody configured.
  */
@@ -48,23 +50,80 @@ export function computeTokenAllowedModels(
 }
 
 export function usageWindowFor(
-  subscription: {
-    currentPeriodStart: Date | string | null;
-    currentPeriodEnd: Date | string | null;
-  } | null,
+  subscription: QuotaSubscriptionWindow | null,
   now?: Date,
 ): { start: Date; end: Date } {
-  if (subscription?.currentPeriodStart && subscription?.currentPeriodEnd) {
+  return usageWindowForSubscription(subscription, now);
+}
+
+/**
+ * Africa/Tunis offset in minutes. Tunis is UTC+1 year-round — no DST —
+ * so a fixed offset is exact, not an approximation (see also
+ * lib/billing/promo.ts Halloween window + migration 0021 notes).
+ */
+export const TUNIS_OFFSET_MINUTES = 60;
+export const TUNIS_OFFSET_MS = TUNIS_OFFSET_MINUTES * 60_000;
+export const DAY_MS = 24 * 60 * 60_000;
+
+/**
+ * The Tunis calendar day containing `now`: [00:00 Tunis, 00:00 Tunis+1d).
+ *
+ * Pure arithmetic, no locale/date-string parsing: shift the UTC clock by
+ * +60m, take the UTC calendar day of the shifted instant, shift back.
+ * DST-safe precisely because Tunis has none.
+ */
+export function tunisDayWindow(now?: Date): { start: Date; end: Date } {
+  const ref = now ?? new Date();
+  const shifted = ref.getTime() + TUNIS_OFFSET_MS;
+  const d = new Date(shifted);
+  const dayStartUtc = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  const start = new Date(dayStartUtc - TUNIS_OFFSET_MS);
+  return { start, end: new Date(start.getTime() + DAY_MS) };
+}
+
+/** True while `t` falls inside the Tunis day starting at `dayStart`. */
+export function isInTunisDay(t: Date | string | number, dayStart: Date): boolean {
+  const ts = new Date(t).getTime();
+  return (
+    Number.isFinite(ts) &&
+    ts >= dayStart.getTime() &&
+    ts < dayStart.getTime() + DAY_MS
+  );
+}
+
+export interface QuotaSubscriptionWindow {
+  currentPeriodStart: Date | string | null;
+  currentPeriodEnd: Date | string | null;
+  /** 0025: TRUE = Tunis-day window; FALSE/absent = legacy monthly window. */
+  dailyQuota?: boolean | null;
+}
+
+/**
+ * The window the token wall sums over.
+ *
+ * - daily (dailyQuota TRUE, or no subscription row at all): the Tunis
+ *   calendar day — generous budgets reset at midnight Tunis time.
+ * - legacy (dailyQuota FALSE with a period): the subscription period.
+ * - legacy fallback (dailyQuota FALSE without a period): UTC calendar month.
+ */
+export function usageWindowForSubscription(
+  subscription: QuotaSubscriptionWindow | null,
+  now?: Date,
+): { start: Date; end: Date } {
+  if (subscription?.dailyQuota === false) {
+    if (subscription?.currentPeriodStart && subscription?.currentPeriodEnd) {
+      return {
+        start: new Date(subscription.currentPeriodStart),
+        end: new Date(subscription.currentPeriodEnd),
+      };
+    }
+    const ref = now ?? new Date();
     return {
-      start: new Date(subscription.currentPeriodStart),
-      end: new Date(subscription.currentPeriodEnd),
+      start: new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1)),
+      end: new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 1)),
     };
   }
-  const ref = now ?? new Date();
-  return {
-    start: new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1)),
-    end: new Date(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 1)),
-  };
+  return tunisDayWindow(now);
 }
 
 export function remainingTokensByModel(
@@ -96,13 +155,27 @@ export function isTokenExhausted(
 export function outOfTokensMessage(
   alias: string,
   resetDate?: Date | string | null,
+  cadence: 'daily' | 'period' = 'daily',
 ): string {
-  const base = `Out of ${alias} tokens for this period`;
-  if (!resetDate) return `${base}. Upgrade for more or wait for renewal.`;
+  const base =
+    cadence === 'daily'
+      ? `Out of ${alias} tokens for today`
+      : `Out of ${alias} tokens for this period`;
+  if (!resetDate) {
+    return cadence === 'daily'
+      ? `${base} — resets at midnight Tunis time. Upgrade for more.`
+      : `${base}. Upgrade for more or wait for renewal.`;
+  }
   const d = new Date(resetDate);
-  const label = Number.isNaN(d.getTime())
-    ? null
-    : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
+  if (Number.isNaN(d.getTime())) {
+    return cadence === 'daily'
+      ? `${base} — resets at midnight Tunis time. Upgrade for more.`
+      : `${base}. Upgrade for more.`;
+  }
+  if (cadence === 'daily') {
+    return `${base} — resets at midnight Tunis time. Upgrade for more.`;
+  }
+  const label = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', timeZone: 'UTC' });
   return label ? `${base} — resets ${label}. Upgrade for more.` : `${base}. Upgrade for more.`;
 }
 
@@ -110,6 +183,7 @@ export function mapGatewayModelError(
   upstreamStatus: number,
   bodyText: string,
   requestedModel?: string | null,
+  cadence: 'daily' | 'period' = 'daily',
 ): { model: string | null; friendly: string } | null {
   if (upstreamStatus !== 403 && upstreamStatus !== 429 && upstreamStatus !== 404) return null;
   const text = String(bodyText ?? '');
@@ -162,7 +236,7 @@ export function mapGatewayModelError(
       ?.toLowerCase() ?? null;
   const model = bodyAlias ?? requested ?? extracted;
   const friendly = model
-    ? `${outOfTokensMessage(model)} Check usage for remaining tokens.`
+    ? `${outOfTokensMessage(model, null, cadence)} Check usage for remaining tokens.`
     : 'Model not available for this API key — you may be out of tokens or your plan does not include it. Check usage for remaining tokens.';
   return { model, friendly };
 }

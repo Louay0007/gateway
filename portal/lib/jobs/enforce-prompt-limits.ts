@@ -2,11 +2,12 @@
  * enforce_prompt_limits — server-side TOKEN quota enforcement.
  *
  * The job name is historical (migrations 0007/0020); since 0023 it enforces
- * blended tokens only. Plans cap tokens per alias per subscription period
+ * blended tokens only, and since 0025 the window is the TUNIS CALENDAR DAY
+ * (100M per alias per day). Plans cap tokens per alias per day
  * (`plans.token_limits`). When an org has used >= its limit on an alias,
  * that alias is removed from the gateway allowlist (team models + every
  * key's models). When all entitled aliases are exhausted, the allowlist
- * becomes [] — every inference 403s.
+ * becomes [] — every inference 403s with `Out of <alias> tokens for today`.
  *
  * Why narrow models instead of setting a tiny budget: LiteLLM reads a
  * budget of 0 as UNLIMITED, and budget math is customer-vs-upstream
@@ -15,8 +16,8 @@
  *
  * Idempotent: recomputes from the ledger every pass. An org under quota
  * is re-synced to its full plan allowlist (self-healing after drift), an
- * org over quota is narrowed. Renewal restores automatically because usage
- * is windowed on the subscription period.
+ * org over quota is narrowed. A new Tunis day restores automatically
+ * because usage is windowed on the day.
  *
  * Runs every 5 minutes beside collect_usage. Enforcement lags a collection
  * pass by design — quota is ledger truth, not gateway-cache truth.

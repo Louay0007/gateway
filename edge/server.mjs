@@ -305,9 +305,10 @@ export function mapModelDeniedBody(status, rawText, requestedModel = null) {
     .filter((token) => !NON_MODEL_TOKENS.has(token.toLowerCase()))
     .map((token) => displayAlias(token) ?? token);
   const model = bodyAlias ?? requested ?? candidates[0] ?? null;
+  // 0025: budgets reset at midnight Tunis time, every day (100M/day).
   const message = model
-    ? `Model '${model}' is not available for this API key — you may be out of ${model} tokens or your plan does not include it. Check usage for remaining tokens.`
-    : 'Model not available for this API key — you may be out of tokens or your plan does not include it. Check usage for remaining tokens.';
+    ? `Model '${model}' is not available for this API key — you may be out of ${model} tokens for today (resets at midnight Tunis time) or your plan does not include it. Check usage for remaining tokens.`
+    : 'Model not available for this API key — you may be out of tokens for today (resets at midnight Tunis time) or your plan does not include it. Check usage for remaining tokens.';
   return { model, message };
 }
 

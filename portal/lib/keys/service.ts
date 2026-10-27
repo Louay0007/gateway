@@ -149,9 +149,12 @@ export async function createApiKey(
       models: models.models,
       maxBudgetUsd,
       budgetDuration: plan.budgetDuration,
-      rpmLimit: plan.rpm,
-      tpmLimit: plan.tpm,
-      maxParallelRequests: plan.concurrency,
+      // 0025: tokens (the model allowlist) are the ONLY request-blocking
+      // control. rpm/tpm/concurrency are never pushed on keys so nothing
+      // but token exhaustion can block a request.
+      rpmLimit: null,
+      tpmLimit: null,
+      maxParallelRequests: null,
     });
   } catch (e) {
     log.error('key create: gateway refused', {

@@ -141,6 +141,8 @@ export async function redeemTrialCode(
             currentPeriodStart: now,
             currentPeriodEnd: expiresAt,
             cancelAtPeriodEnd: false,
+            // 0025: trials are daily-quota from redemption (Tunis day).
+            dailyQuota: true,
             updatedAt: now,
           })
           .where(eq(subscriptions.id, existingSub.id));
@@ -157,6 +159,8 @@ export async function redeemTrialCode(
             currentPeriodStart: now,
             currentPeriodEnd: expiresAt,
             cancelAtPeriodEnd: false,
+            // 0025: trials are daily-quota from redemption (Tunis day).
+            dailyQuota: true,
           })
           .returning({ id: subscriptions.id });
         subscriptionId = inserted!.id;

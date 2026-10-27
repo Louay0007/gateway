@@ -184,9 +184,11 @@ export async function syncOrganizationEntitlements(
   const spec: EntitlementSpec = {
     effect,
     planCode: live.plan_code,
-    rpm: effect === 'cut' ? null : live.rpm_limit,
-    tpm: effect === 'cut' ? null : live.tpm_limit,
-    concurrency: effect === 'cut' ? null : live.max_concurrent_requests,
+    // 0025: tokens (the allowlist) are the ONLY request-blocking control —
+    // always null so LiteLLM can never block before the token wall narrows.
+    rpm: null,
+    tpm: null,
+    concurrency: null,
     models: allowedModels,
     maxKeys: live.max_keys,
     maxSeats: live.max_seats,
@@ -270,12 +272,12 @@ export async function syncOrganizationEntitlements(
           models: allowedModels,
           maxBudget: budgetUsd,
           budgetDuration: spec.budgetDuration,
-          // Only the model allowlist gates usage (token wall, 0023). Token
-          // budgets, rpm and tpm are set to null/unlimited so LiteLLM never
-          // blocks a request before the allowlist is narrowed.
+          // 0025: tokens (the allowlist) are the ONLY request-blocking
+          // control. rpm/tpm/concurrency are null so LiteLLM never blocks
+          // a request before the allowlist is narrowed.
           rpmLimit: null,
           tpmLimit: null,
-          maxParallelRequests: spec.concurrency,
+          maxParallelRequests: null,
         });
         keysSynced++;
       } catch (e) {

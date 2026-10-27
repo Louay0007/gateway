@@ -201,12 +201,15 @@ function validatePlan(input: PlanInput): { ok: true; value: PlanInput } | { ok: 
       return { ok: false, message: `"${m}" is not a valid model alias.` };
     }
   }
-  // Token limits (0023): RAW TOKENS, the only quota. A missing entry is
-  // UNLIMITED (fail-open for plans created before token budgets existed),
-  // so there is no missing-model check — well-formedness only.
+  // Token limits (0025): RAW TOKENS per TUNIS DAY, the only quota.
+  // A missing entry is UNLIMITED (fail-open for plans created before
+  // token budgets existed), so there is no missing-model check —
+  // well-formedness only. rpm/tpm/concurrency are stored but NEVER
+  // pushed to the gateway (see policy.resolveLimits): the allowlist
+  // decides alone.
   if (input.tokenLimits != null) {
     if (typeof input.tokenLimits !== 'object' || Array.isArray(input.tokenLimits)) {
-      return { ok: false, message: 'Token limits must be an object like {"fast": 80000000} (raw tokens).' };
+      return { ok: false, message: 'Token limits must be an object like {"fast": 100000000} (raw tokens per day).' };
     }
     for (const [k, v] of Object.entries(input.tokenLimits)) {
       if (!/^[a-z0-9][a-z0-9.-]{0,63}$/.test(k)) {

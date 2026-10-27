@@ -71,7 +71,10 @@ export function DashboardOverview() {
   const totalBudget = budgeted.reduce((sum, n) => sum + n, 0);
   const hasBudget = budgeted.length > 0;
   const remainingTokens = hasBudget ? Math.max(0, totalBudget - usedTokens) : null;
-  const periodEnd = b?.subscription?.currentPeriodEnd ?? b?.period.end ?? null;
+  const periodEnd = b?.period.end ?? null;
+  // 0025: daily quotas — the "renews" card counts down to midnight Tunis
+  // time (tomorrow), not the billing period end. b.period.end is the Tunis
+  // day end for daily rows.
   const periodEndLabel = periodEnd
     ? new Date(periodEnd).toLocaleDateString("en-US", {
         month: "long",
@@ -102,7 +105,7 @@ export function DashboardOverview() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Overview</h2>
           <p className="text-sm text-muted-foreground">
-            Here is what your gateway has been doing this period.
+            Here is what your gateway has been doing today.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -154,15 +157,15 @@ export function DashboardOverview() {
           }
           hint={
             hasBudget
-              ? `of ${compact(totalBudget)} this period`
+              ? `of ${compact(totalBudget)} today — resets at midnight Tunis time`
               : "No token budget on this plan"
           }
           icon={Gauge}
         />
         <StatCard
-          label={b.subscription?.cancelAtPeriodEnd ? "Access until" : "Renews"}
+          label={b.subscription?.cancelAtPeriodEnd ? "Access until" : "Resets"}
           value={periodEndLabel}
-          hint={plan ? plan.name : "No plan"}
+          hint={plan ? `${plan.name} · daily` : "No plan"}
           icon={CalendarClock}
         />
       </div>
@@ -204,11 +207,11 @@ export function DashboardOverview() {
         {b.entitlement?.syncedAt
           ? `Entitlements last synced ${relativeTime(b.entitlement.syncedAt)}`
           : "Entitlements have not synced yet"}
-        {b.subscription?.currentPeriodEnd
-          ? ` · Period renews ${new Date(b.subscription.currentPeriodEnd).toLocaleDateString(
+        {b.period.end
+          ? ` · Daily budgets reset ${new Date(b.period.end).toLocaleDateString(
               "en-US",
               { month: "long", day: "numeric", timeZone: "UTC" },
-            )}`
+            )} at midnight Tunis time`
           : ""}
         .
       </p>

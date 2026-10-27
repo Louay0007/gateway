@@ -354,7 +354,7 @@ describe('createApiKey', () => {
     expect(JSON.stringify(audit.after)).not.toContain(PLAINTEXT);
   });
 
-  it('issues the key against the org team with the plan limits', async () => {
+  it('issues the key against the org team with the plan models and backstop budget only (0025)', async () => {
     const store = fakeStore();
     const gateway = fakeGateway();
 
@@ -364,8 +364,11 @@ describe('createApiKey', () => {
     expect(issued.teamId).toBe('team-1');
     expect(issued.models).toEqual(['fast', 'smart']);
     expect(issued.maxBudgetUsd).toBe(180);
-    expect(issued.rpmLimit).toBe(60);
-    expect(issued.tpmLimit).toBe(200_000);
+    // Tokens (the model allowlist) are the ONLY request-blocking control —
+    // rpm/tpm/concurrency are never pushed so nothing else can block.
+    expect(issued.rpmLimit).toBeNull();
+    expect(issued.tpmLimit).toBeNull();
+    expect(issued.maxParallelRequests).toBeNull();
     expect(issued.budgetDuration).toBe('30d');
   });
 

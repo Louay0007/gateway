@@ -178,8 +178,10 @@ export const plans = pgTable('plans', {
   models:                text('models').array().notNull().default([]),
   trialDays:             integer('trial_days').notNull().default(0),
   features:              jsonb('features').notNull().default({}),
-  /** Per-alias blended-token budgets: {fast: 80000000}. The only quota. 0023. */
+  /** Per-alias blended-token budgets: {fast: 100000000}. DAILY per Tunis day since 0025. */
   tokenLimits:           jsonb('token_limits').notNull().default({}),
+  /** Display/documentation marker: 'daily' since 0025. Enforcement reads subscriptions.daily_quota. */
+  quotaCadence:          text('quota_cadence').notNull().default('daily'),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -195,6 +197,13 @@ export const subscriptions = pgTable('subscriptions', {
   currentPeriodEnd:     timestamp('current_period_end', { withTimezone: true }),
   cancelAtPeriodEnd:    boolean('cancel_at_period_end').notNull().default(false),
   trialEnd:             timestamp('trial_end', { withTimezone: true }),
+  /**
+   * Daily-quota flag (0025). TRUE = enforce blended tokens over the Tunis
+   * calendar day (100M/day). FALSE = legacy monthly window (period else
+   * calendar month) until the next renewal flips it to TRUE. New rows
+   * default TRUE; live paid rows were backfilled FALSE.
+   */
+  dailyQuota:           boolean('daily_quota').notNull().default(true),
   lastProviderEventId:  text('last_provider_event_id'),
   lastProviderEventAt:  timestamp('last_provider_event_at', { withTimezone: true }),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

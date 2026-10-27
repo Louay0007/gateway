@@ -128,9 +128,7 @@ export function PricingPreview() {
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
-                <Feature icon={<Infinity className="size-4" />}>Token budget per model tier — a tier stops when its blended tokens run out. Failures never count</Feature>
-                <Feature>{plan.rpmLimit} calls / minute (rate limit)</Feature>
-                <Feature>{compact(plan.tpmLimit ?? 0)} tokens / minute</Feature>
+                <Feature icon={<Infinity className="size-4" />}>100M blended tokens per model tier, every day — resets at midnight Tunis time. Failures never count</Feature>
                 <Feature>{plan.maxKeys} API keys</Feature>
                 {(plan.models ?? []).length > 0 && (
                   <Feature>Models: {(plan.models ?? []).join(", ")}</Feature>
@@ -139,7 +137,7 @@ export function PricingPreview() {
                   const t = (plan.tokenLimits as Record<string, number>)?.[m];
                   return (
                     <Feature key={m}>
-                      {m}: {t != null ? `${compact(t)} tokens` : "no token cap"}
+                      {m}: {t != null ? `${compact(t)} tokens / day` : "no token cap"}
                     </Feature>
                   );
                 })}

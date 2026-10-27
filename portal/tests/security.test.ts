@@ -135,11 +135,14 @@ describe('a cut org keeps keys alive but loses every capability', () => {
     expect(limits.maxBudgetUsd).toBe(CUT_BUDGET);
   });
 
-  it('preserves limits on a full-access org', () => {
+  it('tokens (the allowlist) are the ONLY gate — rpm/tpm/concurrency always null (0025)', () => {
     const limits = resolveLimits(plan, 'full');
     expect(limits.models).toEqual(['fast']);
-    expect(limits.rpm).toBe(60);
-    expect(limits.tpm).toBe(200000);
+    expect(limits.rpm).toBeNull();
+    expect(limits.tpm).toBeNull();
+    expect(limits.concurrency).toBeNull();
+    // The $10k budget is a catastrophic backstop, not a quota.
+    expect(limits.maxBudgetUsd).toBe(10000.0);
   });
 });
 

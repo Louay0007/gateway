@@ -151,9 +151,12 @@ export async function issueDeviceKey(
       models: models.models,
       maxBudgetUsd: plan.maxBudgetUsd > 0 ? plan.maxBudgetUsd : CUT_BUDGET,
       budgetDuration: plan.budgetDuration,
-      rpmLimit: plan.rpm,
-      tpmLimit: plan.tpm,
-      maxParallelRequests: plan.concurrency,
+      // 0025: tokens (the model allowlist) are the ONLY request-blocking
+      // control. rpm/tpm/concurrency are never pushed so nothing but token
+      // exhaustion can block a request.
+      rpmLimit: null,
+      tpmLimit: null,
+      maxParallelRequests: null,
       duration: '30d',
     });
   } catch (e) {

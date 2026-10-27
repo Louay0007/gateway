@@ -351,7 +351,7 @@ export function BillingView() {
               hint={
                 remainingTokens === null
                   ? "No token budget on this plan"
-                  : `of ${compact(totalBudget)} this period`
+                  : `of ${compact(totalBudget)} today — resets at midnight Tunis time`
               }
               icon={Landmark}
             />

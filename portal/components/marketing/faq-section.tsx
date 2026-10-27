@@ -19,12 +19,12 @@ const faqItems: FaqItem[] = [
   {
     question: 'How does usage-based billing work?',
     answer:
-      'Each model tier (Fast, Smart, Frontier) has a blended-token budget per billing period. Blended tokens count every token that passes through the gateway — input, output, cache writes and cache reads — so long conversations consume proportionally more of the budget. Only successful inference calls are metered; failures and rate-limit rejections never consume quota.',
+      'Each model tier (Fast, Smart, Frontier) has a 100M blended-token budget per day, resetting at midnight Tunis time. Blended tokens count every token that passes through the gateway — input, output, cache writes and cache reads — so long conversations consume proportionally more of the budget. Only successful inference calls are metered; failures never consume quota. There are no per-minute rate limits and no dollar caps on top — the daily token budget per tier is the only limit.',
   },
   {
-    question: 'What happens when I reach my monthly token budget?',
+    question: 'What happens when I reach my daily token budget?',
     answer:
-      'Your service continues without interruption on models that still have budget left. Once a tier\'s blended-token budget is spent, additional inference calls on that tier return a clear "limit reached" error until you upgrade or the budget resets at the start of your next billing period.',
+      'Your service continues without interruption on models that still have budget left. Once a tier\'s 100M daily blended-token budget is spent, additional inference calls on that tier return a clear "out of tokens for today" error until the budget resets at midnight Tunis time — or you upgrade for sustained higher throughput.',
   },
   {
     question: 'Do you have an official agreement with Anthropic?',

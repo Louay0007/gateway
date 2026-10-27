@@ -102,7 +102,7 @@ describe('summarizePlan — promo projection', () => {
     maxKeys: 3,
     rateMultiplierBps: 13000,
     models: ['fast'],
-    tokenLimits: { fast: 80_000_000 },
+    tokenLimits: { fast: 100_000_000 },
   };
 
   it('keeps the list price and adds the discount', () => {

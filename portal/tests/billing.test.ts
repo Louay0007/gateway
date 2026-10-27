@@ -163,9 +163,9 @@ describe('summarizePlan — trial terms (0009)', () => {
   it('keeps numeric token limits and drops non-numeric ones', () => {
     const summary = summarizePlan({
       ...base,
-      tokenLimits: { fast: 80_000_000, smart: 32_000_000, bogus: 'x' },
+      tokenLimits: { fast: 100_000_000, smart: 100_000_000, bogus: 'x' },
     });
-    expect(summary.tokenLimits).toEqual({ fast: 80_000_000, smart: 32_000_000 });
+    expect(summary.tokenLimits).toEqual({ fast: 100_000_000, smart: 100_000_000 });
   });
 
   it('treats a malformed jsonb value as empty limits', () => {
