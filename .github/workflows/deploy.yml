@@ -25,10 +25,16 @@ concurrency:
 
 jobs:
   deploy:
-    # The runner is installed ON the VPS, so no SSH key, host, or password
-    # is ever stored in GitHub. The workflow is just a list of commands to
-    # run in the project directory that already exists there.
-    runs-on: [self-hosted, linux, x64]
+    # PINNED TO THE NEW BOX.
+    #
+    # Both VPSs run a self-hosted runner, and both advertise the default
+    # `self-hosted`/`Linux`/`X64` labels — so `runs-on: [self-hosted, linux, x64]`
+    # was satisfied by BOTH of them. GitHub picks whichever is idle, which
+    # means a push could deploy to the box DNS no longer points at, or fail
+    # confusingly on the old box whose tree is dirty. `gateway-new` is a
+    # label carried ONLY by the runner on 15.188.66.155, so the job can land
+    # nowhere else.
+    runs-on: [self-hosted, linux, x64, gateway-new]
     timeout-minutes: 45
 
     defaults:
@@ -123,5 +129,30 @@ jobs:
           docker compose ps --status running --services | grep -qx jobs \
             || { echo "::error::jobs runner is not running"; exit 1; }
           echo "jobs runner       : running"
+
+          # The engine is the attachment-extraction and search service. It
+          # has no published port on purpose (compose exposes it only on the
+          # stack network), so it cannot be curled from the host.
+          #
+          # Its OWN healthcheck is `zaino-engine --version`, which proves the
+          # binary runs but NOT that the HTTP server bound a port. Asking
+          # /health over the compose network is the only check that proves
+          # the thing that matters, so it is asked from the portal container
+          # (which carries wget; the engine image is slim and has none).
+          #
+          # This gate exists because the engine sat in compose for weeks
+          # while never having been built: the UI advertised attachments and
+          # every upload 502'd. "Container is up" is not "service answers".
+          eng=""
+          for i in $(seq 1 30); do
+            eng=$(docker compose exec -T portal wget -qO- http://engine:8099/health 2>/dev/null || echo "")
+            echo "$eng" | grep -q '"ok":true' && break
+            eng=""
+            echo "  engine not ready yet, attempt $i/30"
+            sleep 3
+          done
+          [ -n "$eng" ] \
+            || { echo "::error::engine /health did not answer ok:true — attachments and search are dead"; exit 1; }
+          echo "engine            : $eng"
 
           echo "deployed commit   : $(git rev-parse HEAD)"
