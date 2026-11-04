@@ -23,6 +23,14 @@
 
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "../node_modules/streamdown/styles.css";
+/* KaTeX paints maths with its own font metrics; without the sheet the
+   output is a row of tofu boxes. Imported here rather than injected at
+   runtime so it is fingerprinted and cached like the rest of the CSS. */
+@import "../node_modules/katex/dist/katex.min.css";
+
+/* Streamdown paints its own utility classes; Tailwind must scan them. */
+@source "../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -98,6 +106,31 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /*
+   * Chat surfaces.
+   *
+   * The transcript is the page, so it gets its own three values rather
+   * than borrowing `--card` (which is the same white as the canvas and
+   * would make the conversation float in nothing):
+   *
+   *   --chat-canvas     the reading surface — slightly warmer than pure
+   *                     white, so a long answer is easier on the eye and
+   *                     the user's own bubble can sit clearly above it.
+   *   --chat-bubble     the user's turn. A filled, low-contrast tint
+   *                     rather than an inverted block: an all-black
+   *                     bubble in a white page shouts, and a chat is a
+   *                     conversation, not an alert.
+   *   --chat-rail       the sidebar's own surface, a hair darker than
+   *                     the canvas so the two planes read as distinct
+   *                     without a hard rule between them.
+   */
+  --chat-canvas: oklch(0.995 0 0);
+  --chat-bubble: oklch(0.962 0 0);
+  --chat-bubble-foreground: oklch(0.145 0 0);
+  --chat-rail: oklch(0.975 0 0);
+  --chat-code-bg: oklch(0.968 0 0);
+  --chat-hairline: oklch(0.9 0 0);
 }
 
 .dark {
@@ -133,6 +166,17 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0% / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* Chat surfaces — dark. Deliberately not pure-black canvas: a long
+   * answer on #000 with near-white text vibrates. The canvas sits just
+   * above the black the sidebar keeps, so the rail reads as the deeper
+   * plane and the transcript as the sheet you are reading. */
+  --chat-canvas: oklch(0.16 0 0);
+  --chat-bubble: oklch(0.26 0 0);
+  --chat-bubble-foreground: oklch(0.985 0 0);
+  --chat-rail: oklch(0.128 0 0);
+  --chat-code-bg: oklch(0.215 0 0);
+  --chat-hairline: oklch(1 0 0 / 9%);
 }
 
 @theme inline {
@@ -151,6 +195,14 @@
    */
   --font-sans: -apple-system, BlinkMacSystemFont, var(--font-inter), "Segoe UI", system-ui, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas, monospace;
+
+  /* Chat surfaces (see the token comments above). */
+  --color-chat-canvas: var(--chat-canvas);
+  --color-chat-bubble: var(--chat-bubble);
+  --color-chat-bubble-foreground: var(--chat-bubble-foreground);
+  --color-chat-rail: var(--chat-rail);
+  --color-chat-code-bg: var(--chat-code-bg);
+  --color-chat-hairline: var(--chat-hairline);
 
   /*
    * Hero entrance — a CSS animation, not a JS-driven one.
@@ -364,6 +416,147 @@ html.light,
 .d17-status-pulse {
   animation: d17-status-pulse 2s ease-in-out infinite;
 }
+
+
+/* The chat thinking indicator (see components/chat/chat-view.tsx). An
+ * exponential fade with a 1px lift — deliberately not a bounce. */
+@keyframes chat-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-1px);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  BROWSER SURFACES
+ *
+ *  The parts nobody draws still carry the design: text selection, the
+ *  caret, scrollbars, focus rings, underline offsets, and the numerals in
+ *  tabular data. Left alone they ship the platform default, which belongs
+ *  to no design system and is the cheapest tell that a page was assembled
+ *  rather than built.
+ *
+ *  Everything here derives from the tokens above, so both themes follow
+ *  without a second declaration.
+ * ════════════════════════════════════════════════════════════════════ */
+
+/* Selection: a tint of the ink, not the browser's royal blue. Keeps
+ * selected text readable in both themes by flipping to the inverse. */
+::selection {
+  background: color-mix(in oklch, var(--foreground) 22%, transparent);
+  color: var(--foreground);
+}
+
+/* The caret belongs to the type, so it takes the ink rather than a
+ * separate accent. */
+input,
+textarea {
+  caret-color: var(--foreground);
+}
+
+/* Underlines sit clear of descenders instead of colliding with them. */
+a:not([class]) {
+  text-underline-offset: 0.22em;
+  text-decoration-thickness: max(1px, 0.06em);
+}
+
+/* Tabular data must not jitter as values change: the token counts and
+ * costs in the transcript and the usage tables all use this. */
+.tabular,
+[data-numeric] {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/*
+ * Scrollbars.
+ *
+ * Thin, self-effacing, and only coloured from the palette — the default
+ * grey slab in a dark theme is the most visible thing on the page. Both
+ * the standard properties (Firefox, Chrome 121+) and the WebKit
+ * pseudo-elements (Safari, older Chrome) are declared because support is
+ * genuinely split; one alone leaves half the visitors on a default bar.
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--foreground) 22%, transparent) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background-color: color-mix(in oklch, var(--foreground) 20%, transparent);
+  border-radius: 9999px;
+  /* A transparent border + background-clip insets the thumb, so it reads
+   * as a floating pill instead of filling the gutter edge to edge. */
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, var(--foreground) 32%, transparent);
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* The chat transcript keeps a slimmer gutter: it is a reading column, and
+ * a 10px bar beside prose looks like a defect. */
+.chat-scroll {
+  scrollbar-gutter: stable;
+}
+.chat-scroll::-webkit-scrollbar {
+  width: 8px;
+}
+.chat-scroll::-webkit-scrollbar-thumb {
+  border-width: 2px;
+}
+
+/*
+ * Focus.
+ *
+ * One ring everywhere, drawn from the palette, with a real offset so it
+ * never sits flush against the control's own border. `:focus-visible`
+ * only — a mouse click on a button must not leave a ring behind.
+ */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/*
+ * A TEXTAREA INSIDE A COMPOSED GROUP DRAWS NO OUTLINE OF ITS OWN.
+ *
+ * The composer is one bordered surface whose footer holds the send button,
+ * so focus belongs to the GROUP, not to the inner field. The rule above
+ * matched the textarea too and drew a 2px ring at offset 2 — which, inside
+ * a rounded container, rendered as a second pill outline sitting inside the
+ * border. That is the "focusing bar" in the bug report: not a doubled
+ * border, but a focus outline on the child painted over the parent.
+ *
+ * Scoped to textareas inside `[data-slot="input-group"]`, so a standalone
+ * textarea (settings forms, prompt editors) keeps its ring.
+ */
+[data-slot="input-group"] textarea:focus-visible {
+  outline: none;
+}
+
+/* Reduced motion is already global (see the media query at the end of
+ * this file); nothing here adds motion, so nothing here needs its own. */
 
 @media (prefers-reduced-motion: reduce) {
   *,

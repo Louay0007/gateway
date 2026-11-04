@@ -44,7 +44,7 @@ import {
 import { appendAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
-import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
+import { logoAttachments, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { loadOpenD17Payment } from './d17';
 import { recordSubmission } from './d17-ratelimit';
 import { log } from '@/lib/log';
@@ -324,7 +324,7 @@ export async function submitD17Proof(
             subject: templates.receivedSubject(vars),
             text: receivedText,
             html: wrapEmail(textToHtml(receivedText), { dir: input.lang === 'ar' ? 'rtl' : 'ltr' }),
-            attachments: [logoAttachment()],
+            attachments: logoAttachments(),
           });
         } catch (e) {
           log.error('d17: customer notification failed', {
@@ -350,7 +350,7 @@ export async function submitD17Proof(
           subject: templates.adminSubject(vars),
           text: adminText,
           html: wrapEmail(textToHtml(adminText)),
-          attachments: [logoAttachment()],
+          attachments: logoAttachments(),
         });
       } catch (e) {
         log.error('d17: ops notification failed', {

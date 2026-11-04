@@ -49,10 +49,13 @@ export async function signInAction(
   // instead of the page they asked for. Constructing the URL from an
   // explicit origin removes the guesswork.
   const origin = (process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/+$/, '');
-  const target = String(formData.get('callbackUrl') ?? '/dashboard');
+  // /chat, matching app/sign-in/page.tsx: a POST that arrives without a
+  // callbackUrl (a form left open across a deploy, say) must not land
+  // somewhere other than the form would have.
+  const target = String(formData.get('callbackUrl') ?? '/chat');
   // Only same-site relative paths are accepted, so this cannot be used to
   // build an open redirect.
-  const safeTarget = target.startsWith('/') && !target.startsWith('//') ? target : '/dashboard';
+  const safeTarget = target.startsWith('/') && !target.startsWith('//') ? target : '/chat';
   const callbackUrl = origin ? `${origin}${safeTarget}` : safeTarget;
 
   try {

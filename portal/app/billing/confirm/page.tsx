@@ -11,6 +11,7 @@ import { plans, subscriptions } from "@/db/schema";
 import { AuthzError, requireActiveOrg } from "@/lib/auth/authorize";
 import { billingProvider } from "@/lib/billing/index";
 import { devSignBody } from "@/lib/billing/dev";
+import { safeReturnPath } from "@/lib/billing/state";
 import { centsUsd, centsDt } from "@/lib/dashboard/format";
 import { log } from "@/lib/log";
 
@@ -42,13 +43,6 @@ function sigMatches(subscriptionId: string, provided: string): boolean {
     // An unverifiable signature is a refused one, not a pass.
     return false;
   }
-}
-
-/** Same-site relative paths only — this is a post-payment destination. */
-function safeReturnPath(raw: string | undefined): string {
-  if (!raw) return "/dashboard/billing";
-  if (!raw.startsWith("/") || raw.startsWith("//")) return "/dashboard/billing";
-  return raw;
 }
 
 function one(value: string | string[] | undefined): string {

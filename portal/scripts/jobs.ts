@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Portal job runner — IMPLEMENTATION.md §4.
+ * Portal job runner
  *
  *   npm run jobs                     supervised loop (systemd / cron)
  *   npm run jobs:once                one pass of every job that is due
@@ -28,7 +28,7 @@
 import './env.mjs'; // MUST be first — see scripts/env.mjs.
 
 import { sql } from 'drizzle-orm';
-import { db } from '@/db';
+import { db, sql as pool } from '@/db';
 import { collectUsage, rollupUsage } from '@/lib/jobs/collect-usage';
 import { enforcePromptLimits } from '@/lib/jobs/enforce-prompt-limits';
 import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
@@ -36,6 +36,8 @@ import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
 import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
 import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
 import { runTrialExpiry } from '@/lib/jobs/trial-expiry';
+import { runDueSchedules } from '@/lib/chat/schedule-run';
+import { enforceRetention } from '@/lib/chat/service';
 import { log } from '@/lib/log';
 
 /** A lock older than this is assumed to belong to a dead process. */
@@ -51,15 +53,22 @@ interface Job {
 }
 
 /**
- * Schedule table — IMPLEMENTATION.md §4.
+ * Schedule table
  *
- * Eight jobs run: the metering quartet (collect, rollup, enforce, reconcile), the two
- * subscription clocks (expire_subscriptions for periods, expire_trials
- * for free trials), the ops alerting pass (send_alerts), and the
- * customer-shaped anomaly scan (detect_anomalies). A job is active only
- * when it is BOTH registered here AND present in `job_runs` (migrations
- * 0004/0009 seed the ledger rows) — adding one later is those two lines,
- * nothing else.
+ * Ten jobs run: the metering quartet (collect, rollup, enforce, reconcile),
+ * the two subscription clocks (expire_subscriptions for periods,
+ * expire_trials for free trials), the ops alerting pass (send_alerts), the
+ * customer-shaped anomaly scan (detect_anomalies), and the two capability
+ * jobs added with 0031 — `run_schedules` for scheduled prompts and
+ * `enforce_retention` for temporary chats and `history_days`.
+ *
+ * A job is active only when it is BOTH registered here AND present in
+ * `job_runs` (migrations 0004/0009 seed the ledger rows) — adding one later
+ * is those two lines, nothing else. 0031 seeds the two new names.
+ *
+ * ORDER MATTERS FOR MONEY, NOT FOR THESE. `run_schedules` makes metered
+ * calls, so it deliberately runs on a short tick and one at a time; a
+ * schedule that has waited is late, never free.
  */
 const JOBS: readonly Job[] = [
   { name: 'collect_usage', everyMs: 5 * 60_000, run: () => collectUsage() },
@@ -89,6 +98,21 @@ const JOBS: readonly Job[] = [
     name: 'expire_trials',
     everyMs: 60 * 60_000,
     run: () => runTrialExpiry(),
+  },
+  {
+    // Every minute: a schedule with a 15-minute floor that only wakes every
+    // five would drift by up to five minutes on every run, and the drift
+    // compounds into "it never fires at the time I set".
+    name: 'run_schedules',
+    everyMs: 60_000,
+    run: () => runDueSchedules(),
+  },
+  {
+    // Hourly, not per-tick: retention archives rows, and nothing about a
+    // day-old temporary chat needs collecting within the minute.
+    name: 'enforce_retention',
+    everyMs: 60 * 60_000,
+    run: () => enforceRetention({}),
   },
 ];
 
@@ -145,8 +169,12 @@ async function isDue(job: Job): Promise<boolean> {
   return Date.now() - new Date(row.last_run_at).getTime() >= job.everyMs;
 }
 
-async function runJob(job: Job): Promise<boolean> {
-  if (!(await isDue(job))) return true;
+async function runJob(job: Job, force = false): Promise<boolean> {
+  // `force` is only ever set by `once <name>`: naming a job means "run it
+  // now". Without this, `npm run jobs:once -- collect_usage` silently did
+  // nothing whenever the loop container had touched that job inside
+  // `everyMs` — a command that looks like it worked and ran no code.
+  if (!force && !(await isDue(job))) return true;
   if (!(await acquireLock(job.name))) {
     log.info('job skipped, locked elsewhere', { job: job.name });
     return true;
@@ -184,7 +212,9 @@ async function runOnce(only?: string): Promise<boolean> {
 
   let ok = true;
   for (const job of jobs) {
-    if (!(await runJob(job))) ok = false;
+    // A named job runs unconditionally. An unnamed pass honours the
+    // schedule, which is what a cron tick wants.
+    if (!(await runJob(job, Boolean(only)))) ok = false;
   }
   return ok;
 }
@@ -245,6 +275,12 @@ async function main(): Promise<void> {
 
   if (mode === 'once') {
     const ok = await runOnce(only);
+    // `once` is meant for cron and for a human at a prompt, and both want
+    // the process gone. Without an explicit end, node keeps the postgres
+    // pool's idle sockets open and the command sits there doing nothing
+    // until `idle_timeout` (20s) reaps them — a 20-second no-op after
+    // every job tick. The loop mode must NOT do this.
+    await pool.end({ timeout: 5 });
     process.exitCode = ok ? 0 : 1;
     return;
   }

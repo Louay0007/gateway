@@ -26,7 +26,7 @@ export interface BudgetColumns {
  * Smallest budget that reliably trips LiteLLM's limiter.
  *
  * MUST be > 0. LiteLLM reads a limit of 0 as "unlimited"
- * (BLUEPRINT.md §9.4) — so writing 0 does not deny access, it GRANTS
+ *  — so writing 0 does not deny access, it GRANTS
  * unlimited access. Every cut and every zero-allowance path funnels here.
  */
 export const CUT_BUDGET = 0.000001;
@@ -39,7 +39,7 @@ export type Effect = 'full' | 'cut';
  * `past_due` is 'full' on purpose. Stripe retries failed payments for
  * days; cutting on the first `invoice.payment_failed` means a customer who
  * mistyped a card loses service. We cut on `unpaid`, which Stripe assigns
- * only after retries are exhausted (PLATFORM.md §5.1).
+ * only after retries are exhausted.
  *
  * `paused` is 'cut' but not revoked, so resuming is one webhook rather
  * than a support ticket and a new key.

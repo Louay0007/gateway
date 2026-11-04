@@ -1,7 +1,7 @@
 /**
  * LiteLLM REST client — the ONLY way the portal touches the gateway.
  *
- * PLATFORM.md §1.1: never write SQL against LiteLLM's database. Its schema
+ * Never write SQL against LiteLLM's database. Its schema
  * is an internal implementation detail that changes between releases.
  *
  * All calls hit 127.0.0.1. The management API is not reachable from the
@@ -94,7 +94,6 @@ export async function createTeam(input: {
  * CRITICAL: a budget of 0 means UNLIMITED in LiteLLM's limiter, not "deny".
  * To cut a customer's access, use CUT_BUDGET (a tiny non-zero value) or
  * revoke keys outright. Passing 0 here would silently grant unlimited access.
- * See PLATFORM.md §5.1.
  */
 export async function updateTeamBudget(
   teamId: string,
@@ -149,7 +148,7 @@ export async function generateKey(input: {
   key: string;
   keyAlias: string;
   teamId: string;
-  userId: string;          // pinned — see PLATFORM.md §5.1
+  userId: string;          // pinned: the user id must never move
   models: string[];
   maxBudgetUsd: number | null;
   budgetDuration: string;
@@ -165,7 +164,7 @@ export async function generateKey(input: {
       key_alias:              input.keyAlias,
       team_id:                input.teamId,
       user_id:                input.userId,
-      models:                 input.models,
+      models:                 allowlistFor(input.models),
       max_budget:             input.maxBudgetUsd,
       budget_duration:        input.budgetDuration,
       rpm_limit:              input.rpmLimit,
@@ -196,7 +195,8 @@ export async function updateKey(
     method: 'POST',
     body: JSON.stringify({
       key:                   token,
-      models:                limits.models,
+      // Same empty-means-unrestricted trap as updateTeamModels().
+      models:                limits.models === undefined ? undefined : allowlistFor(limits.models),
       max_budget:            limits.maxBudget,
       budget_duration:       limits.budgetDuration,
       rpm_limit:             limits.rpmLimit,
@@ -218,7 +218,7 @@ export const updateKeyLimits = updateKey;
  *
  * Entitlement sync must push to each key individually: a partial failure
  * that moved three of four keys leaves one key on the old plan, and the
- * customer keeps access they no longer pay for. See PLATFORM.md §5.
+ * customer keeps access they no longer pay for.
  *
  * `token`, not `key_name`: /key/list returns the token ids (hashes) as
  * plain strings. Reading `.key_name` off those strings silently produced
@@ -235,11 +235,57 @@ export async function listTeamKeys(teamId: string): Promise<{ token: string }[]>
     .map((token) => ({ token }));
 }
 
+/**
+ * The "no model is allowed" sentinel.
+ *
+ * WHY THIS EXISTS. LiteLLM treats an EMPTY `models` list as NO RESTRICTION,
+ * not as deny-all. Measured against v1.103.1 on the production box:
+ *
+ *   key models=[]            + team models=[]        -> HTTP 200  (allowed!)
+ *   team models=[]           + key models=["smart"]  -> HTTP 200  (allowed!)
+ *   key models=["__none__"]                          -> HTTP 403  (denied)
+ *
+ * So every path that pushed `models: []` to mean "this org may not infer"
+ * was silently pushing "this org may infer on everything": the cut path,
+ * the exhausted-alias narrowing, and the deny-all case. The token wall
+ * computed the right answer and the gateway ignored it — which is the
+ * worst shape of bug, because the dashboard said "out of tokens" while
+ * inference kept succeeding and kept costing money.
+ *
+ * A name that is not in `model_list` is the only value that denies. It is
+ * deliberately not a real alias, so it can never resolve to a deployment
+ * even if a future config adds models.
+ */
+export const NO_MODEL = '__no_model_allowed__';
+
+/**
+ * Translate our vocabulary ("[] means nothing is allowed") into LiteLLM's
+ * ("[] means everything is allowed").
+ *
+ * EVERY push of a model list goes through this, so no call site can
+ * reintroduce the empty-means-unrestricted hole. An empty input becomes
+ * `[NO_MODEL]`; a non-empty input is passed through unchanged.
+ */
+export function allowlistFor(models: string[]): string[] {
+  return models.length === 0 ? [NO_MODEL] : models;
+}
+
+/**
+ * Reverse `allowlistFor` for anything that READS a model list back.
+ * A stored `[NO_MODEL]` is our deny-all marker, not a model; reporting it
+ * as an alias would leak a fake name into a dashboard.
+ */
+export function modelsFromAllowlist(models: string[] | undefined): string[] {
+  if (!Array.isArray(models)) return [];
+  return models.filter((m) => m !== NO_MODEL);
+}
+
 /** Update the team model allowlist. */
 export async function updateTeamModels(teamId: string, models: string[]): Promise<void> {
   await call('/team/update', {
     method: 'POST',
-    body: JSON.stringify({ team_id: teamId, models }),
+    // `[]` must never reach LiteLLM: it means "unrestricted" there.
+    body: JSON.stringify({ team_id: teamId, models: allowlistFor(models) }),
   });
 }
 
@@ -285,7 +331,12 @@ export async function getTeamInfo(teamId: string): Promise<{
   const raw = Array.isArray(rows.team_info) ? rows.team_info[0] : rows.team_info;
   const info = (raw ?? {}) as Record<string, unknown>;
   return {
-    models: Array.isArray(info.models) ? (info.models as string[]) : undefined,
+    // Strip our deny-all sentinel: a caller asking "what models does this
+    // team carry?" means real aliases, and reporting `__no_model_allowed__`
+    // would leak a fake name into a picker or an audit row.
+    models: Array.isArray(info.models)
+      ? modelsFromAllowlist(info.models as string[])
+      : undefined,
     maxBudget: typeof info.max_budget === 'number' ? info.max_budget : null,
     teamAlias: typeof info.team_alias === 'string' ? info.team_alias : null,
   };
@@ -337,7 +388,10 @@ export async function getKeyInfo(token: string): Promise<{
       info.max_budget === null || info.max_budget === undefined
         ? null
         : Number(info.max_budget),
-    models: Array.isArray(info.models) ? (info.models as string[]) : undefined,
+    // Strip the deny-all sentinel, same reason as getTeamInfo().
+    models: Array.isArray(info.models)
+      ? modelsFromAllowlist(info.models as string[])
+      : undefined,
     rpm_limit: num(info.rpm_limit),
     tpm_limit: num(info.tpm_limit),
     last_active: typeof info.last_active === 'string' ? info.last_active : null,
@@ -361,7 +415,22 @@ export interface SpendLogRow {
   user_id?: string;
   team_id?: string;
   spend?: number;
+  /**
+   * The UPSTREAM provider's completion id (`chatcmpl-…`). This is NOT the
+   * join key for `messages.gateway_request_id` — see `litellm_call_id`.
+   */
   request_id?: string;
+  /**
+   * LiteLLM's own per-request id. This is the value returned in the
+   * `x-litellm-call-id` response header, and therefore the ONLY field that
+   * matches `messages.gateway_request_id`.
+   *
+   * Using `request_id` here was a real bug: it holds the upstream
+   * `chatcmpl-…` id, so the cost backfill matched zero rows forever and
+   * every chat turn kept `cost_usd = NULL` while the spend sat in the
+   * ledger under a different key.
+   */
+  litellm_call_id?: string;
   /**
    * 'success' | 'failure' — a STRING. There is no HTTP status anywhere in
    * the row; see statusCodeForRow().
@@ -490,14 +559,31 @@ export async function getSpendLogs(input: {
  *     `cache_creation.ephemeral_5m_input_tokens` / `.ephemeral_1h_input_tokens`
  *     (the TTL split).
  *
- * TTL-AWARE PRICING (BLUEPRINT.md §8.3): `cache_creation_input_tokens` is a
+ * TTL-AWARE PRICING: `cache_creation_input_tokens` is a
  * single merged field. Pricing it all at the 5-minute rate under-bills
  * 1-hour-TTL workloads by ~19%. We read the ephemeral_5m / ephemeral_1h
  * split when present and FLAG rows where it is absent (`ttlBreakdownMissing`)
  * rather than silently assuming 5m.
  */
 export function extractUsage(row: SpendLogRow): {
+  /**
+   * The provider's raw `prompt_tokens` — INCLUSIVE of `cacheRead`.
+   * Stored as `usage_records.input_tokens` for audit. Never sum this
+   * together with `cacheRead`; use `freshInput` for that.
+   */
   inputTokens: number;
+  /**
+   * Input tokens EXCLUDING cache reads: `inputTokens - cacheRead`,
+   * floored at 0. This is what blended-token sums must use.
+   *
+   * Verified against the live spend log: `prompt_tokens` is inclusive on
+   * BOTH the OpenAI `/v1/chat/completions` path and the Anthropic
+   * `/v1/messages` path (a messages call reported prompt 3968, cached
+   * 3914, total 3971 = 3968 + 3). So one rule covers every route, and
+   * the identity `freshInput + cacheRead + cacheWrite + output ==
+   * prompt_tokens + completion_tokens` holds for both.
+   */
+  freshInput: number;
   outputTokens: number;
   cacheWrite5m: number;
   cacheWrite1h: number;
@@ -568,8 +654,16 @@ export function extractUsage(row: SpendLogRow): {
   // but available for callers that sanity-check.
   void totalTokens;
 
+  // ── Normalise: fresh input, exclusive of cache reads ───────────────
+  // `inputTokens` is the provider's inclusive `prompt_tokens`. Subtracting
+  // the cache reads yields the tokens that were actually billed at the
+  // full input rate. GREATEST guards the shape no live row has: a
+  // provider reporting input EXCLUSIVE of cache, where cacheRead > input
+  // would otherwise go negative.
+  const freshInput = Math.max(inputTokens - cacheRead, 0);
+
   return {
-    inputTokens, outputTokens,
+    inputTokens, freshInput, outputTokens,
     cacheWrite5m: w5, cacheWrite1h: w1, cacheRead,
     ttlBreakdownMissing,
   };
@@ -615,7 +709,7 @@ export function statusCodeForRow(row: SpendLogRow): number | null {
  * Reconcile against the provider's own accounting (first-party Anthropic
  * keys only). A third-party reseller will not have this endpoint — and its
  * absence is itself a finding: you cannot independently verify a provider's
- * reporting. See BLUEPRINT.md §2.3.
+ * reporting.
  */
 export async function getProviderUsage(input: {
   startingAt: string;  // ISO

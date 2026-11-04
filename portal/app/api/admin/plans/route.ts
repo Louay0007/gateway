@@ -11,7 +11,7 @@
  *
  * The caller never sends `overageMarkupBps`. It is derived from
  * `rateMultiplierBps − 10000` on every write, because that identity is
- * an enforced invariant (HANDOFF.md §5.14) and exposing both fields
+ * an enforced invariant and exposing both fields
  * would let an operator set a multiplier and a markup that disagree —
  * a silent invoicing bug that fails nothing and is wrong everywhere.
  */

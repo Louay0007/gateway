@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# reconcile.sh — independent cost verification. DESIGN.md §7.
+# reconcile.sh — independent cost verification.
 #
 # Compares three sources that should agree:
 #   1. LiteLLM's reported spend
@@ -23,11 +23,23 @@ hr; printf '  RECONCILIATION — last %s days\n' "$DAYS"; hr
 # On OSS it returns a "must be an Enterprise user" error, which is not a
 # fault — so we compute the same total from the spend-log ledger instead,
 # which is authoritative and available everywhere.
+# mktemp, not a fixed /tmp path. A fixed name means whoever runs this first
+# owns the file: once root had written /tmp/recon_litellm.json, every later
+# unprivileged run died with "Permission denied" — and it failed silently,
+# because the redirect failed before curl could write, so the check reported
+# the spend endpoint as unavailable instead of naming the real problem.
+RECON_JSON="$(mktemp "${TMPDIR:-/tmp}/recon_litellm.XXXXXX")" || exit 1
+trap 'rm -f "$RECON_JSON"' EXIT
+
 curl -sS -m 60 "$LOCAL/spend/logs?limit=1000" \
-  -H "Authorization: Bearer $LITELLM_MASTER_KEY" > /tmp/recon_litellm.json 2>/dev/null
-if [ -s /tmp/recon_litellm.json ]; then
+  -H "Authorization: Bearer $LITELLM_MASTER_KEY" > "$RECON_JSON" 2>/dev/null
+if [ -s "$RECON_JSON" ]; then
   printf '  LiteLLM total spend : %s\n' \
-    "$(python3 -c "$(printf 'import json\nd=json.load(open("/tmp/recon_litellm.json"))\nrows=d if isinstance(d,list) else d.get("data",d.get("spend_logs",[]))\nprint("%%.6f" %% sum(float(r.get("spend",0)) for r in rows))')" 2>/dev/null || echo 'n/a')"
+    "$(RECON_JSON="$RECON_JSON" python3 -c 'import json, os
+with open(os.environ["RECON_JSON"]) as f:
+    d = json.load(f)
+rows = d if isinstance(d, list) else d.get("data", d.get("spend_logs", []))
+print("%.6f" % sum(float(r.get("spend", 0)) for r in rows))' 2>/dev/null || echo 'n/a')"
 else
   echo "  LiteLLM total spend : (spend-log endpoint unavailable)"
 fi
@@ -156,7 +168,7 @@ PY
 # ── 3. Upstream provider Usage & Cost API ─────────────────────────
 # Only for first-party Anthropic keys. Third-party resellers will not
 # have this endpoint — that absence is itself a finding: see
-# BLUEPRINT.md §2.3 (you cannot verify a provider's usage reporting).
+#  (you cannot verify a provider's usage reporting).
 hr
 if [ -n "${UPSTREAM_BASE_URL:-}" ] && [ "${UPSTREAM_BASE_URL}" = "https://api.anthropic.com" ]; then
   NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -180,7 +192,7 @@ print(f"    buckets returned : {len(rows)}")
     echo "  Upstream Usage API : not available for this credential."
     echo "    If the upstream is a third-party reseller this is expected."
     echo "    NOTE: it also means you cannot independently verify their"
-    echo "    reporting. See BLUEPRINT.md §2.3."
+    echo "    reporting."
   fi
 else
   echo "  Upstream Usage API : skipped (not first-party Anthropic)"

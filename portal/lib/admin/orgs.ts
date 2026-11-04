@@ -10,7 +10,7 @@
  * grouped aggregate or a filtered roster over tables whose rows are
  * counted in the thousands, and three of them join a `usage_records`
  * subquery that drizzle's 0.38 builder cannot express without a lateral
- * join. The rule the codebase already follows (CONTEXT.md §11) applies:
+ * join. The rule the codebase already follows applies:
  * `db.execute` returns SNAKE_CASE keys, so every read below coerces
  * explicitly. Reading a camelCase name off a raw row yields `undefined`,
  * which parses as `NaN` and renders as a plausible wrong number rather

@@ -43,7 +43,7 @@ import './env.mjs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { db, sql as pg } from '@/db';
-import { auditLog, authVerificationTokens, organizations, paymentsD17, subscriptions } from '@/db/schema';
+import { auditLog, authVerificationTokens, organizations, paymentsD17, plans, subscriptions } from '@/db/schema';
 import { createLocalUser } from '@/lib/auth/create-user';
 import { ensurePersonalOrg } from '@/lib/auth/provision';
 import {
@@ -69,6 +69,7 @@ import {
   d17UploadsDir,
   formatTndMillimes,
   paymentWindowHours,
+  planPriceTndMillimes,
 } from '@/lib/billing/d17-config';
 
 // ───────────────────────────────────────────────────────────────────────
@@ -184,12 +185,22 @@ async function main(): Promise<void> {
   const buyerA = await startCheckout('starter');
   const paymentA = await loadPayment(buyerA.subscriptionId);
   check('a payment row exists at checkout', Boolean(paymentA));
-  // Starter is $19.00; at the default 3.10 rate that is 58.900 DT.
-  const expectedMillimes = Math.round((1900 / 100) * 3.1 * 1000);
+  // Read the price from the CATALOG, not a hardcoded number. This check
+  // used to assert `1900 / 100 * 3.1 * 1000` (58.900 DT), which was the
+  // pre-0024 seed. Migration 0024 repriced Starter to 50 DT (1613¢) to
+  // match what every marketing surface advertises, and the assertion kept
+  // failing against a product that was right. The catalog is the number
+  // the gateway, the checkout and the landing page must agree on, so the
+  // test derives from it too.
+  const [starterPlan] = await db
+    .select({ priceCents: plans.priceCents })
+    .from(plans)
+    .where(eq(plans.code, 'starter'));
+  const expectedMillimes = planPriceTndMillimes(starterPlan!.priceCents);
   check(
     `the row asks for ${formatTndMillimes(expectedMillimes)} DT (${expectedMillimes} millimes)`,
     paymentA?.amountMillimes === expectedMillimes && paymentA?.currency === 'TND',
-    `got ${paymentA?.amountMillimes} ${paymentA?.currency}`,
+    `got ${paymentA?.amountMillimes} ${paymentA?.currency} (plan ${starterPlan!.priceCents}¢)`,
   );
   check(
     `the deadline is ${paymentWindowHours()}h out`,
@@ -356,9 +367,14 @@ async function main(): Promise<void> {
   const customerShot = await fetch(`${portal}/api/admin/d17/${paymentB!.id}/screenshot`, {
     headers: { Cookie: jarCookie },
   });
+  // 401, not 403. The screenshot route is gate-first/staff-second: a
+  // customer holds neither a gate cookie nor a staff session, so it answers
+  // the same `unauthorized` a staff-only route always has. 403 would mean
+  // "signed in, but not allowed", which is a different (and worse) answer
+  // for an anonymous caller. The route's own comment states this.
   check(
-    `screenshot route answers 403 to a signed-in customer (got ${customerShot.status})`,
-    customerShot.status === 403,
+    `screenshot route answers 401 to a signed-in customer (got ${customerShot.status})`,
+    customerShot.status === 401,
     `status ${customerShot.status}`,
   );
 

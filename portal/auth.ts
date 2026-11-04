@@ -1,7 +1,7 @@
 /**
  * Auth.js (NextAuth v5) — fully self-hosted.
  *
- * DECISION: Clerk → Auth.js. PLATFORM.md §2.1 names Auth.js as the
+ * DECISION: Clerk → Auth.js. names Auth.js as the
  * alternative "if self-hosting is mandatory", and §14 open decision #2 is
  * explicitly ours to answer. No external identity provider is contacted:
  * credentials are verified against our own Postgres, hashes are scrypt,
@@ -71,7 +71,7 @@ const credentialsSchema = z.object({
  *
  * We throttle on the normalized identity only, not on IP, because the
  * request arrives here before any proxy header can be trusted (no CDN,
- * DESIGN.md §6.1) and a fabricated X-Forwarded-For would let an attacker
+ * ) and a fabricated X-Forwarded-For would let an attacker
  * sidestep an IP-keyed limit. Identity-keyed throttling is the reliable
  * signal; IP-based defence is handled at Caddy, where the TCP peer is
  * knowable.

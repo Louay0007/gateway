@@ -60,7 +60,7 @@ ENV NODE_ENV=production \
     PORT=3000 \
     HOSTNAME=0.0.0.0
 
-# Non-root (IMPLEMENTATION.md §5.1). Explicit uid/gid so bind-mounted
+# Non-root. Explicit uid/gid so bind-mounted
 # volumes are predictable regardless of what the base image ships.
 RUN addgroup -S -g 1001 nextjs && adduser -S -u 1001 -G nextjs nextjs
 
@@ -87,7 +87,34 @@ COPY lib ./lib
 COPY scripts ./scripts
 COPY tsconfig.json ./
 
-USER node
+# The brand mark that every email embeds. lib/email/layout.ts reads it with
+# readFileSync(join(process.cwd(), 'public/logo/…')), so an image without
+# this directory throws ENOENT on the FIRST mail it tries to send — which
+# happens on a code path with no fallback, so the send is lost and the only
+# trace is one log line. This target sends ops alerts (lib/jobs/send-alerts)
+# and both D17 customer notifications (lib/billing/d17-proof), so it needs
+# the file exactly as much as the portal does.
+#
+# 24 KB, PNG only: the runner uses <img src="cid:…"> and never references
+# any other asset under public/.
+COPY public/logo ./public/logo
+
+# WHY THE RUNNER SHARES THE PORTAL'S UID. `lib/billing/d17-proof.ts`
+# writes proof screenshots into D17_UPLOADS_DIR, and the runner executes
+# that code path (verify-d17, and the D17 customer flows it drives). That
+# directory is a bind mount owned by the PORTAL's uid, so running as the
+# base image's `node` (1000) while the portal runs as `nextjs` (1001)
+# produced EACCES on every proof write from this container:
+#
+#   Error: EACCES: permission denied, open '/app/data/d17-uploads/….png'
+#
+# Found on the production box. `mkdir(recursive)` cannot help — the
+# directory already exists and belongs to someone else. Running both
+# containers as one uid is the durable fix; chmod-ing the host directory
+# only works until the next bind mount or a fresh checkout.
+RUN addgroup -S -g 1001 nextjs && adduser -S -u 1001 -G nextjs nextjs
+USER nextjs
+
 # --experimental-transform-types is required, not --experimental-strip-types:
 # lib/litellm/client.ts and lib/auth/authorize.ts use TS parameter
 # properties, which type-stripping refuses (ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX).

@@ -104,6 +104,11 @@ function fakeStore(over: Partial<FakeStore> = {}): FakeStore {
       // not something the caller can opt out of.
       return self.rows.find((r) => r.id === keyId && r.organizationId === organizationId) ?? null;
     },
+    async findByHash(keyHash) {
+      // No tenant filter: the hash is the credential's own identity, so it
+      // is the proof of ownership the bare-bearer revoke route relies on.
+      return self.rows.find((r) => r.keyHash === keyHash) ?? null;
+    },
     async markRevoked(keyId, at) {
       const row = self.rows.find((r) => r.id === keyId);
       if (row) row.revokedAt = at;
@@ -250,7 +255,7 @@ describe('key ceiling', () => {
   });
 });
 
-describe('role matrix (IMPLEMENTATION.md §1.2)', () => {
+describe('role matrix', () => {
   it('lets developer and above create keys', () => {
     expect(canCreateKey('developer')).toBe(true);
     expect(canCreateKey('admin')).toBe(true);

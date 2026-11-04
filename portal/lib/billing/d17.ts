@@ -177,7 +177,15 @@ export const d17BillingProvider: BillingProvider = {
       providerReference: `d17-${payment.id}`,
       // Our own instruction page — the customer never leaves the site
       // for the payment itself; the transfer happens inside the D17 app.
-      checkoutUrl: `${origin}/checkout/d17/${input.subscriptionId}`,
+      //
+      // `return` travels in the URL because D17 has no webhook and no
+      // redirect of its own: the page the customer is already on is the
+      // only place that knows where they came from. Without it, someone
+      // who paid from `/settings?tab=plan` finished on the console.
+      // Re-validated on that page with `safeReturnPath`.
+      checkoutUrl: `${origin}/checkout/d17/${input.subscriptionId}?return=${encodeURIComponent(
+        input.returnUrl,
+      )}`,
       subscriptionId: input.subscriptionId,
       expiresAt: expiresAt.toISOString(),
     };

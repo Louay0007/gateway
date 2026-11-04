@@ -19,7 +19,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # No published ports. Internal network only.
+    # Loopback only, and deliberately so. `portal/.env.local` points at
+    # `postgresql://…@127.0.0.1:5432/portal`, but nothing published that
+    # port, so every host-side tool that trusted the DSN — drizzle-kit
+    # studio, the seed scripts, `npm run jobs` — failed with ECONNREFUSED
+    # against a database that was up and healthy.
+    #
+    # Binding to 127.0.0.1 (NOT "5432:5432") makes that DSN true while
+    # keeping the original rule intact: the database is still unreachable
+    # from anywhere but the host itself. On the VPS that means it is not
+    # exposed to the internet, which is what "Internal network only"
+    # was protecting.
+    ports:
+      - "127.0.0.1:5432:5432"
 
   redis:
     image: redis:7-alpine
@@ -65,21 +77,33 @@ services:
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set in .env}
 
-      # Upstream. Never read from a request field. See DESIGN.md §6.2.
+      # Upstream. Never read from a request field.
       UPSTREAM_BASE_URL: ${UPSTREAM_BASE_URL:?set in .env}
       UPSTREAM_API_KEY: ${UPSTREAM_API_KEY:?set in .env}
-      # GhostCLI credential behind the `fast` and `smart` models.
-      # config/litellm.yaml reads it as os.environ/GHOSTCLI_API_KEY. Without
-      # this line the key exists in .env but never reaches the container, and
-      # every fast/smart request fails with an api_key error — which took
-      # BOTH paid tiers down while `frontier` (UPSTREAM_API_KEY) kept
-      # working. Any os.environ/ reference in litellm.yaml needs a matching
-      # line here; nothing else checks that pairing.
-      GHOSTCLI_API_KEY: ${GHOSTCLI_API_KEY:?set in .env}
+      # GHOSTCLI_API_KEY is deliberately NOT passed here.
+      #
+      # `fast` and `smart` both authenticate with UPSTREAM_API_KEY now (see
+      # config/litellm.yaml), and nothing in litellm.yaml references
+      # os.environ/GHOSTCLI_API_KEY any more. This line used to be
+      # `${GHOSTCLI_API_KEY:?set in .env}`, which made a key that NO model
+      # reads a hard boot requirement: deleting the dead secret from .env
+      # would have taken the whole gateway down at `up`.
+      #
+      # The pairing rule still holds for live secrets: any os.environ/ or
+      # process.env reference needs a matching line in this file. Verify with
+      #   docker exec gateway-litellm-1 sh -lc 'printenv UPSTREAM_API_KEY | wc -c'
       LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX: ${LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX:-false}
 
       STORE_MODEL_IN_DB: "True"
-      STORE_PROMPTS_IN_SPEND_LOGS: "True"
+      # FALSE, matching general_settings.store_prompts_in_spend_logs in
+      # config/litellm.yaml. This line used to say "True" and silently won
+      # over the config: every request's full prompt and full response was
+      # persisted in LiteLLM_SpendLogs, which grew to 773 MB for 5,315 rows
+      # (~145 KB each) and put customer conversation content at rest on the
+      # box. Metering never reads it — collect_usage derives everything
+      # from token counts (see lib/jobs/collect-usage.ts), so this costs
+      # the business nothing and stops the leak.
+      STORE_PROMPTS_IN_SPEND_LOGS: "False"
     volumes:
       - ./config:/app/config:ro
     ports:
@@ -97,8 +121,8 @@ services:
       target: runner
     restart: unless-stopped
     environment:
-      # Our own database. db/index.ts REFUSES to start against `litellm`
-      # (PLATFORM.md §1.2), so a copy-paste error here fails loudly
+      # Our own database. db/index.ts REFUSES to start against `litellm`,
+      # so a copy-paste error here fails loudly
       # instead of silently writing into LiteLLM's schema.
       DATABASE_URL: postgresql://litellm:${POSTGRES_PASSWORD}@postgres:5432/portal
 
@@ -114,6 +138,23 @@ services:
       AUTH_URL: https://${PORTAL_DOMAIN:?set in .env}
       AUTH_TRUST_HOST: "true"
       AUTH_DEBUG: "false"
+
+      # Seals each org's chat gateway key at rest (lib/crypto/sealed.ts).
+      # A SEPARATE value from AUTH_SECRET on purpose: rotating one must not
+      # rotate the other, and a leak of the session-signing key must not
+      # also yield every stored gateway credential. Generate with
+      # `openssl rand -base64 32`; 32 bytes, base64, no passphrase.
+      CHAT_KEY_SECRET: ${CHAT_KEY_SECRET:?set in .env}
+
+      # Document extraction + conversation search, over the compose
+      # network. Deliberately DEFAULTED to empty, not required: an operator
+      # who does not run the engine must still get a working chat product,
+      # and lib/engine/client.ts treats an empty token as "feature off"
+      # rather than "service down". Setting :? here would take the whole
+      # portal down for a feature that degrades cleanly.
+      ENGINE_URL: http://engine:8099
+      ENGINE_TOKEN: ${ENGINE_TOKEN:-}
+      ENGINE_MAX_UPLOAD_BYTES: ${ENGINE_MAX_UPLOAD_BYTES:-26214400}
 
       # Public gateway host, for the quickstart snippet on /dashboard/keys.
       API_DOMAIN: ${API_DOMAIN:?set in .env}
@@ -201,7 +242,7 @@ services:
       litellm: { condition: service_started }
 
   jobs:
-    # The background runner (IMPLEMENTATION.md §4): usage collection,
+    # The background runner: usage collection,
     # rollups, entitlement reconcile. A separate image target because the
     # runner imports db/ and lib/ directly and needs the real dependency
     # tree, which the standalone Next bundle does not contain.
@@ -256,6 +297,46 @@ services:
       postgres: { condition: service_healthy }
       litellm: { condition: service_started }
 
+  engine:
+    # Document extraction + conversation search (Rust, engine/).
+    #
+    # WHY A SEPARATE SERVICE. Extraction is CPU-bound and parses untrusted
+    # user files; in the Next.js process it would either stall the event
+    # loop on a 200-page PDF or need a worker per upload. Here it runs on
+    # its own blocking pool, so a pathological file costs one request.
+    #
+    # NOT PUBLISHED. There is no `ports:` on purpose — the engine has no
+    # user context and trusts its bearer token, so it must only be
+    # reachable over the compose network. Caddy never proxies to it.
+    build:
+      context: .
+      dockerfile: engine/Dockerfile
+      target: runner
+    restart: unless-stopped
+    environment:
+      # Required, no default: the engine parses untrusted documents and
+      # fails closed at boot without it (engine/src/server.rs).
+      ENGINE_TOKEN: ${ENGINE_TOKEN:?set in .env}
+      ENGINE_PORT: "8099"
+      ENGINE_INDEX_DIR: /var/lib/zaino-engine/index
+      # Bounds a single upload before any parser is touched.
+      ENGINE_MAX_UPLOAD_BYTES: ${ENGINE_MAX_UPLOAD_BYTES:-26214400}
+      RUST_LOG: ${RUST_LOG:-zaino_engine=info,tower_http=warn}
+    volumes:
+      # The tantivy index is DERIVED data — Postgres owns the messages.
+      # Losing this volume costs a reindex, never a message, which is why
+      # it is a plain volume and not a backup target.
+      - engineindex:/var/lib/zaino-engine/index
+    healthcheck:
+      # `--version` needs no shell and no secret, which is why the binary
+      # answers it before env parsing. A curl-based check would mean adding
+      # curl to a slim image purely to let the container report on itself.
+      test: ["CMD", "/usr/local/bin/zaino-engine", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -290,15 +371,13 @@ services:
     #
     # On the default bridge network, 127.0.0.1 inside the caddy container
     # is the CONTAINER's loopback: every one of those upstreams would fail
-    # to connect. Host networking makes the file correct as written, which
-    # is what BLUEPRINT.md §13, IMPLEMENTATION.md §5.3 and LATENCY.md §9
-    # all assume.
+    # to connect. Host networking makes the file correct as written.
     #
     # Trade-off, stated plainly: caddy binds the host's :80/:443 directly,
     # so `ports:` must be absent (Docker rejects it in host mode), and
     # nothing else may bind those ports. `remote_ip` matching in the
     # IP-gated vhosts still works — with no CDN, the TCP peer IS the
-    # client (DESIGN.md §6.1).
+    # client.
     network_mode: host
     depends_on:
       - auth-edge
@@ -339,3 +418,7 @@ volumes:
   redisdata:
   caddydata:
   caddyconfig:
+  # The tantivy search index. Derived data: losing it costs a reindex,
+  # never a message (Postgres owns the truth), so it is not a backup
+  # target and does not belong in the restore runbook.
+  engineindex:

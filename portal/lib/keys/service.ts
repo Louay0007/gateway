@@ -21,7 +21,7 @@
  *      key that reads as dead in the dashboard and still spends money.
  *
  *   4. ZERO IS NEVER A LIMIT. A key's max_budget of 0 means UNLIMITED in
- *      LiteLLM's limiter (BLUEPRINT.md §9.4). planForOrg() already
+ *  LiteLLM's limiter. planForOrg already
  *      resolves that, and createApiKey() re-asserts it before the call.
  *
  * Every permission check runs here, not in the page. The dashboard hides
@@ -71,7 +71,7 @@ export async function createApiKey(
 ): Promise<CreateKeyResult> {
   const { store, gateway } = deps;
 
-  // IMPLEMENTATION.md §1.2: developer and above. viewer/billing never.
+  // Developer and above. viewer/billing never.
   if (!canCreateKey(input.role)) {
     throw new KeyServiceError(
       'Your role cannot create API keys.',
@@ -248,6 +248,10 @@ export async function createApiKey(
     createdAt: new Date().toISOString(),
     lastUsedAt: null,
     revokedAt: null,
+    // A dashboard-minted key is always personal. Read from the input rather
+    // than the insert result, which returns only the new row's id.
+    kind: 'personal',
+    deviceName: null,
   };
 
   await store.appendAudit({
@@ -384,6 +388,8 @@ export async function listApiKeys(
       createdAt: row.createdAt.toISOString(),
       lastUsedAt,
       revokedAt: null,
+      kind: row.kind,
+      deviceName: row.deviceName ?? null,
     };
   });
 

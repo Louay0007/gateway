@@ -136,7 +136,7 @@ if [ "$OPENAI_OK" = "1" ] && [ "$ANT_OK" = "1" ]; then
   Use the "BOTH-NATIVE" model_list block from config/litellm.yaml.
   /v1/chat/completions  → untranslated
   /v1/messages          → untranslated (requires the supported_endpoints opt-in
-                          on the openai/ deployment; see DESIGN.md §4.3)
+                          on the openai/ deployment)
 
   No translation loss. cache_control survives on both paths.
 EOF
@@ -153,7 +153,7 @@ elif [ "$OPENAI_OK" = "1" ]; then
 
   Consequence: if your workload depends on prompt caching, /v1/messages
   clients will silently lose cache reads and cost ~10x more per repeated
-  prefix. Verify with DESIGN.md acceptance test A-6.
+  prefix. Verify with acceptance test A-6 in scripts/smoke.sh.
 EOF
 elif [ "$ANT_OK" = "1" ]; then
   cat <<'EOF'

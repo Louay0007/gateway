@@ -13,7 +13,7 @@
  *      (cut). This is what keeps "renews in N days" honest: the period
  *      lapsing is visible before access dies.
  *
- * All three follow PLATFORM.md §5.3: the SQL updates the rows first, then
+ * All three follow the same order: the SQL updates the rows first, then
  * each affected org is pushed. If the process dies between the two, the
  * next run re-pushes — both halves are idempotent.
  */

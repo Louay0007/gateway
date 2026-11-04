@@ -33,7 +33,7 @@ export const dynamic = "force-dynamic";
  * at a glance.
  *
  * Every figure is an ALIAS (`fast`, `smart`, `frontier`), never a raw
- * upstream model name — the product invariant from CONTEXT.md §1. The
+ * upstream model name — the product invariant. The
  * ledger only stores aliases, so there is nothing else here to show.
  */
 export default async function AdminUsagePage({

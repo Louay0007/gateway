@@ -1,7 +1,7 @@
 /**
  * Audit log writer — one shape for every actor.
  *
- * PLATFORM.md §10: a money-moving product needs "who changed what".
+ * A money-moving product needs "who changed what".
  * `audit_log` already exists; this is the single writer so entries stay
  * consistent (actor typing, JSON before/after, no secrets) no matter
  * which surface caused the change.

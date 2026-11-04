@@ -63,10 +63,15 @@ export function AppSidebar({ isStaff = false }: { isStaff?: boolean } = {}) {
   const { org } = useShellIdentity();
   const pathname = usePathname();
   const collapsed = state === "collapsed";
-  const active = (href: string) =>
-    href === "/dashboard"
+  const active = (href: string) => {
+    // A nav entry may carry a query (`/dashboard/settings?tab=profile`) to
+    // pick a landing tab. `usePathname()` never returns a query, so
+    // comparing the raw href left that entry permanently un-highlighted.
+    const path = href.split("?")[0];
+    return path === "/dashboard"
       ? pathname === "/dashboard"
-      : pathname === href || pathname.startsWith(`${href}/`);
+      : pathname === path || pathname.startsWith(`${path}/`);
+  };
 
   return (
     <Sidebar collapsible="icon">

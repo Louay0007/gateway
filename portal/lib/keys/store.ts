@@ -2,11 +2,11 @@
  * Production KeyStore — Drizzle over the `portal` database.
  *
  * This is the ONLY file in lib/keys that touches our schema. It never
- * reads LiteLLM's database (PLATFORM.md §1.1): org → team mapping arrives
+ * reads LiteLLM's database: org → team mapping arrives
  * as `organizations.litellm_team_id` and everything else is REST.
  */
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   apiKeys,
@@ -195,11 +195,18 @@ export const store: KeyStore = {
   async countActiveKeys(organizationId): Promise<number> {
     // Counted in SQL: revoking a key frees a slot immediately, so the
     // ceiling must be evaluated against unrevoked rows, not all rows.
+    //
+    // `kind <> 'chat'` is not cosmetic: the org's chat credential is a
+    // LiteLLM key we issue ourselves (lib/chat/key.ts, kind='chat'), and
+    // counting it here would let a chat turn eat one of a Starter
+    // customer's three slots — invisible, and indistinguishable from a UI
+    // bug at the keys tab.
     const rows = (await db.execute(sql`
       SELECT count(*)::int AS n
         FROM api_keys
        WHERE organization_id = ${organizationId}::uuid
          AND revoked_at IS NULL
+         AND kind <> 'chat'
     `)) as unknown as { n: number }[];
     return rows[0]?.n ?? 0;
   },
@@ -218,6 +225,7 @@ export const store: KeyStore = {
         expiresAt: row.expiresAt,
         createdAt: row.createdAt,
         kind: row.kind,
+        deviceName: row.deviceName ?? null,
       })
       .returning({ id: apiKeys.id });
 
@@ -234,6 +242,22 @@ export const store: KeyStore = {
     return row ?? null;
   },
 
+  /**
+   * Resolve a presented key by its hash.
+   *
+   * This is the credential's own identity, so no tenant filter applies: the
+   * hash IS the tenant proof. Used only by the device-authenticated revoke
+   * route, where the caller has no session and can only prove ownership of
+   * the key it is asking to end. Never expose the row — the caller gets the
+   * id and expiry only.
+   */
+  async findByHash(keyHash: string): Promise<KeyRow | null> {
+    const row = await db.query.apiKeys.findFirst({
+      where: eq(apiKeys.keyHash, keyHash),
+    });
+    return row ?? null;
+  },
+
   async markRevoked(keyId, at): Promise<void> {
     await db.update(apiKeys).set({ revokedAt: at }).where(eq(apiKeys.id, keyId));
   },
@@ -243,6 +267,14 @@ export const store: KeyStore = {
       where: and(
         eq(apiKeys.organizationId, organizationId),
         isNull(apiKeys.revokedAt),
+        // The chat product's own credential (kind='chat', lib/chat/key.ts)
+        // is a row in this table for ledger attribution, not an API key the
+        // customer owns. Listing it would show a key they never created,
+        // name it "Chat", and offer a Revoke button whose only effect is to
+        // break /chat until the next turn re-mints it. Excluded here for the
+        // same reason countActiveKeys excludes it: one product must not
+        // leak into the other's surface.
+        ne(apiKeys.kind, 'chat'),
       ),
       orderBy: (fields, operators) => [operators.desc(fields.createdAt)],
       limit,

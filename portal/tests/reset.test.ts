@@ -69,12 +69,16 @@ describe('reset link', () => {
     expect(decodeURIComponent(url.pathname.replace('/reset-password/', ''))).toBe(raw);
   });
 
-  it('round-trips a token containing URL-significant characters', () => {
-    // base64url never emits '/' or '+', but a caller must not have to
-    // know that for the link to be correct.
-    const raw = 'a/b+c=d?e&f';
-    const url = new URL(resetLink(raw));
-    expect(decodeURIComponent(url.pathname.replace('/reset-password/', ''))).toBe(raw);
+  it('inserts the token verbatim, with no encoding of its own', () => {
+    // The page reads `params.token`, which Next has ALREADY decoded. If this
+    // function encoded as well, the page would receive a doubly-encoded
+    // value and every link would fail with "invalid or expired" — the exact
+    // bug both flows were written to avoid. Real tokens are
+    // randomBytes(32).toString('base64url') = [A-Za-z0-9_-], which is safe
+    // as a path segment; a token with '/' or '?' could not round-trip
+    // through one whatever we did here, so that is not the contract.
+    const raw = 'aB3-_xY9';
+    expect(resetLink(raw).endsWith(`/reset-password/${raw}`)).toBe(true);
   });
 
   it('never leaks the token hash into the link', () => {

@@ -32,9 +32,29 @@ done
 
 tar -czf "$ARCHIVE" -C "$STAGE" litellm.sql portal.sql
 
-# Off-site, encrypted copy
-aws s3 cp "$ARCHIVE" "s3://${BACKUP_BUCKET:-your-backups}/gateway/" \
-  --sse AES256 --storage-class STANDARD_IA
+# Off-site, encrypted copy.
+#
+# Optional on purpose. Under `set -e` a hard `aws s3 cp` meant that when no
+# bucket was configured — or the instance role lacked s3:PutObject, which is
+# the case for a stock Lightsail role — this script exited non-zero *after*
+# writing a perfectly good local archive. Cron then reports a nightly failure
+# that is not a failure, and a real one hides in the noise.
+#
+# Set BACKUP_BUCKET to enable. Unset, the local archive is still the backup,
+# and the script says so out loud instead of failing silently.
+if [ -n "${BACKUP_BUCKET:-}" ]; then
+  if aws s3 cp "$ARCHIVE" "s3://${BACKUP_BUCKET}/gateway/" \
+       --sse AES256 --storage-class STANDARD_IA; then
+    echo "offsite ok: s3://${BACKUP_BUCKET}/gateway/${ARCHIVE}"
+  else
+    echo "WARN: offsite upload failed — LOCAL archive is the only copy" >&2
+    exit 1
+  fi
+else
+  echo "NOTICE: BACKUP_BUCKET unset — no off-site copy of ${ARCHIVE}."
+  echo "        The archive is local-only. Grant s3:PutObject to the"
+  echo "        Lightsail instance role and set BACKUP_BUCKET to fix."
+fi
 
 find . -name 'backup-*.tar.gz' -mtime +7 -delete
 

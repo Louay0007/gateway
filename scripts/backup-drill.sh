@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Backup RESTORE DRILL — the half of backup that is never tested.
 #
-# A backup nobody has restored is a rumour (PLATFORM.md §11: the drill
+# A backup nobody has restored is a rumour (the drill
 # is the gate, not the dump). This script:
 #
 #   1. Dumps the live portal database.

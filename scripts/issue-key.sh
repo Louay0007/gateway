@@ -20,7 +20,7 @@ USER_ID="${ALIAS}"
 # Aggregate worst case must stay under the provider's hidden ceiling.
 # Nobody hits the theoretical max at once in dev, but if 429s appear,
 # lower THESE first, not the VPS. Tune from real 429/TTFT data in
-# week 1 (LATENCY.md §4.4), not from guesses.
+# week 1, not from guesses.
 RPM="${ISSUE_RPM:-30}"
 TPM="${ISSUE_TPM:-50000}"
 CONC="${ISSUE_CONC:-3}"

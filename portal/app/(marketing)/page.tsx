@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import Navbar from '@/components/shadcn-space/blocks/hero-33/navbar';
 import Hero33 from '@/components/shadcn-space/blocks/hero-33/hero';
 import { LogoCloud } from '@/components/ui/logo-cloud-3';
+import { hasLiveSession } from '@/lib/auth/authorize';
 import { HalloweenDots } from '@/components/marketing/halloween-dots';
 import AnimatedBeamSection from '@/components/marketing/animated-beam-section';
 import MacbookSection from '@/components/marketing/macbook-section';
@@ -81,7 +83,15 @@ const forceDarkScript = `
 })();
 `;
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Signed-in visitors belong in the product, not in the funnel. The
+  // landing page itself stays public (rule: delete nothing) — this only
+  // stops a paying customer from having to hunt for the way back in.
+  // hasLiveSession(), not auth(): a JWT that predates the last password
+  // change parses but authorises nothing, and `/chat` would bounce it
+  // straight back to /sign-in — the redirect loop authorize.ts documents.
+  if (await hasLiveSession()) redirect('/chat');
+
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: forceDarkScript }} />

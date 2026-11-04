@@ -2,7 +2,7 @@
  * Login rate limiting — brute-force and credential-stuffing control.
  *
  * A self-hosted Credentials provider has no upstream WAF to lean on, so
- * this is a first-class security control, not a nice-to-have. PLATFORM.md
+ * this is a first-class security control, not a nice-to-have.
  * §9.1 treats card fraud as the threat; this is the authentication-side
  * equivalent — the layer that stops password spraying against the customer
  * database.
@@ -15,7 +15,7 @@
  *    than a flat count, so a user who mistypes twice is not locked out,
  *    but a sprayer is stopped after a handful.
  *  - Keyed on identity (email). IP keying is deliberately NOT applied yet:
- *    there is no CDN (DESIGN.md §6.1), so no forwarded header can be
+ *  there is no CDN, so no forwarded header can be
  *    trusted, and a spoofable IP key would be a control an attacker can
  *    bypass by varying the header. The schema is already generic
  *    (`bucket`), so `ip:<addr>` can be added at the edge later.

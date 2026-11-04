@@ -21,6 +21,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { EmailAttachment } from './types';
+import { log } from '@/lib/log';
 
 const PORTAL_URL = 'https://zaino.soon.it';
 export const SUPPORT_EMAIL = 'contact.zaino.ai@gmail.com';
@@ -34,19 +35,49 @@ let cachedLogo: EmailAttachment | null = null;
  * The white curved-Z logo as an inline (CID) attachment. The file is
  * 22 KB — small enough to embed in every mail without bloating it.
  * Result is cached for the life of the process.
+ *
+ * RETURNS NULL, NEVER THROWS, when the file is absent. This used to
+ * readFileSync() straight into the send, and nine call sites pass it into
+ * `attachments: [logoAttachment()]` — so a missing asset failed the whole
+ * send rather than the styling. That is exactly what happened in the
+ * `jobs` image, whose Dockerfile copied no public/ directory: every ops
+ * alert and both D17 customer notifications threw ENOENT and were lost,
+ * with one log line as the only trace. A decoration must not be able to
+ * veto a payment receipt, so it degrades to an unstyled header instead.
+ *
+ * The Dockerfile now ships the file, so this should never fire in a
+ * correct build — which is why it is worth making quiet rather than fatal.
  */
-export function logoAttachment(): EmailAttachment {
+export function logoAttachment(): EmailAttachment | null {
   if (cachedLogo) return cachedLogo;
-  const content = readFileSync(
-    join(process.cwd(), 'public/logo/zaino-curved-z-white.png'),
-  ).toString('base64');
-  cachedLogo = {
-    filename: 'zaino-logo.png',
-    content,
-    contentType: 'image/png',
-    contentId: LOGO_CID,
-  };
-  return cachedLogo;
+  try {
+    const content = readFileSync(
+      join(process.cwd(), 'public/logo/zaino-curved-z-white.png'),
+    ).toString('base64');
+    cachedLogo = {
+      filename: 'zaino-logo.png',
+      content,
+      contentType: 'image/png',
+      contentId: LOGO_CID,
+    };
+    return cachedLogo;
+  } catch (e) {
+    log.warn('email: logo missing, sending without it', {
+      error: e instanceof Error ? e.message : String(e),
+    });
+    return null;
+  }
+}
+
+/**
+ * The logo as a `attachments: [...]`-ready list, or `[]` when the file is
+ * missing. Nine call sites want exactly this shape, and writing
+ * `logoAttachment() ? [logoAttachment()!] : []` at each of them is the kind
+ * of repetition that eventually gets one of them wrong.
+ */
+export function logoAttachments(): EmailAttachment[] {
+  const logo = logoAttachment();
+  return logo ? [logo] : [];
 }
 
 export interface EmailLayoutOptions {

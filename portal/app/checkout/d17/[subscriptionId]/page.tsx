@@ -17,6 +17,7 @@ import {
   reviewWindowMinutes,
 } from "@/lib/billing/d17-config";
 import { loadD17Payment } from "@/lib/billing/d17";
+import { safeReturnPath } from "@/lib/billing/state";
 import { D17_LANGS, d17Dir, isD17Lang, t17 } from "@/lib/i18n/d17";
 import Logo from "@/assets/logo/logo";
 
@@ -39,6 +40,18 @@ export default async function D17CheckoutPage({
 }) {
   const { subscriptionId } = await params;
   const query = await searchParams;
+  // Where the customer came from. Every exit from this page uses it, and
+  // the "already activated" branch below is one of them, so it has to be
+  // resolved before any early return. Validated: it arrives from the URL
+  // and is a post-payment destination, which is exactly the shape an open
+  // redirect abuses.
+  const returnTo = safeReturnPath(
+    Array.isArray(query.return) ? query.return[0] : query.return,
+  );
+  // `?state=active` is the only thing that lights the "Payment received"
+  // banner, and it has to be appended to a destination that may already
+  // carry a query string.
+  const paidReturnTo = `${returnTo}${returnTo.includes("?") ? "&" : "?"}state=active`;
   const rawLang = Array.isArray(query.lang) ? query.lang[0] : query.lang;
   const lang = isD17Lang(rawLang) ? rawLang : "fr";
   const dir = d17Dir(lang);
@@ -49,11 +62,17 @@ export default async function D17CheckoutPage({
     ctx = await requireActiveOrg();
   } catch (e) {
     if (e instanceof AuthzError && e.code === "unauthorized") {
+      // Signing in must return to THIS page, still carrying `return`, or
+      // the customer loses the destination they started from.
       redirect(
-        `/sign-in?callbackUrl=${encodeURIComponent(`/checkout/d17/${subscriptionId}`)}`,
+        `/sign-in?callbackUrl=${encodeURIComponent(
+          `/checkout/d17/${subscriptionId}?return=${encodeURIComponent(returnTo)}`,
+        )}`,
       );
     }
-    redirect("/dashboard/billing");
+    // A signed-in caller with no organization has nothing to bill. Sending
+    // them to the console is the only destination that can explain that.
+    redirect("/dashboard");
   }
 
   const sub = await db.query.subscriptions.findFirst({
@@ -68,7 +87,7 @@ export default async function D17CheckoutPage({
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{t("d17.err_generic")}</p>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("d17.summary_reference")}: {subscriptionId}</p>
-          <Link href="/dashboard/billing" className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black dark:text-white underline-offset-4 hover:underline">
+          <Link href={returnTo} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black dark:text-white underline-offset-4 hover:underline">
             <ArrowLeft className="size-4" />
             {t("d17.back_dashboard")}
           </Link>
@@ -97,7 +116,10 @@ export default async function D17CheckoutPage({
   const langLinks = (base: string) =>
     D17_LANGS.map((l) => ({
       lang: l,
-      href: `${base}?lang=${l}`,
+      // `base` already carries `?return=…`, so the language joins with `&`.
+      // Using `?` here produced `/checkout/d17/x?return=/settings?tab=plan?lang=ar`,
+      // which parsed as a single garbage return value.
+      href: `${base}&lang=${l}`,
       current: l === lang,
     }));
 
@@ -140,7 +162,7 @@ export default async function D17CheckoutPage({
               customer paying by bank transfer finished checkout and landed on
               a page that said nothing about their payment having worked. */}
           <Link
-            href="/dashboard/billing?state=active"
+            href={paidReturnTo}
             className="mt-8 inline-flex items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-700 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:hover:bg-gray-600"
           >
             {t("d17.back_dashboard")}
@@ -157,7 +179,7 @@ export default async function D17CheckoutPage({
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{t("d17.err_generic")}</p>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("d17.summary_reference")}: {subscriptionId}</p>
-          <Link href="/dashboard/billing" className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black dark:text-white underline-offset-4 hover:underline">
+          <Link href={returnTo} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black dark:text-white underline-offset-4 hover:underline">
             <ArrowLeft className="size-4" />
             {t("d17.back_dashboard")}
           </Link>
@@ -178,7 +200,9 @@ export default async function D17CheckoutPage({
   const phone = d17ReceiverPhone();
   const hours = Math.max(1, Math.round(reviewWindowMinutes() / 60));
   const rejected = status === "rejected";
-  const base = `/checkout/d17/${subscriptionId}`;
+  // The lang switch keeps `return`, or switching language would silently
+  // drop the customer's origin.
+  const base = `/checkout/d17/${subscriptionId}?return=${encodeURIComponent(returnTo)}`;
 
   const statusKey: Record<string, string> = {
     pending_payment: "d17.status_pending",
@@ -315,7 +339,7 @@ export default async function D17CheckoutPage({
         {status === "expired" && (
           <div className="flex justify-center pt-4">
             <Link
-              href="/dashboard/billing"
+              href={returnTo}
               className="inline-flex items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-700 px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:hover:bg-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40 dark:focus-visible:ring-gray-400/40"
             >
               {t("d17.continue")}
@@ -330,7 +354,7 @@ export default async function D17CheckoutPage({
             <span>{t("d17.no_pin_notice")}</span>
           </div>
           <LangSwitch links={langLinks(base)} />
-          <Link href="/dashboard/billing" className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 underline-offset-4 hover:text-black dark:hover:text-white hover:underline">
+          <Link href={returnTo} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 underline-offset-4 hover:text-black dark:hover:text-white hover:underline">
             <ArrowLeft className="size-3" />
             {t("d17.back_dashboard")}
           </Link>

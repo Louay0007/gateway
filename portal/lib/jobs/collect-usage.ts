@@ -6,18 +6,17 @@
  *  1. IDEMPOTENT. We poll a window. Any restart, timeout, or network blip
  *     replays rows. `dedupe_hash` + ON CONFLICT DO NOTHING is the only
  *     thing standing between a retry and double-billing a customer.
- *     PLATFORM.md §7.4.
  *
  *  2. TTL-AWARE PRICING. `cache_creation_input_tokens` is a single merged
  *     field. Pricing it all at the 5-minute rate under-bills 1-hour-TTL
  *     workloads by roughly 19%. We read ephemeral_5m / ephemeral_1h
  *     separately and FLAG rows where the breakdown is absent.
- *     BLUEPRINT.md §8.3.
  */
 
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { log } from '@/lib/log';
 import { getSpendLogs, extractUsage, statusCodeForRow, type SpendLogRow } from '@/lib/litellm/client';
 import { priceUsage, loadPriceTable, type PriceTable } from '@/lib/pricing';
 import { loadAliasMap, toAlias, aliasForRow, routeForCallType, promptCountForRow, UNKNOWN_ALIAS, type AliasMap } from '@/lib/pricing/alias';
@@ -56,6 +55,12 @@ export interface CollectResult {
   ttlMissing: number;
   /** Resolved model names with no entry under `aliases:`. Should be empty. */
   unmappedModels: string[];
+  /**
+   * Chat messages whose token/cost backfill threw. Not fatal — the ledger
+   * row is written either way — but a non-zero count means the join key
+   * stopped lining up and chat spend is silently invisible.
+   */
+  chatBackfillFailed: number;
   window: { start: string; end: string };
 }
 
@@ -77,7 +82,7 @@ export async function collectUsage(opts?: {
 
   const result: CollectResult = {
     scanned: 0, inserted: 0, skippedDuplicates: 0,
-    unmapped: 0, ttlMissing: 0, unmappedModels: [],
+    unmapped: 0, ttlMissing: 0, unmappedModels: [], chatBackfillFailed: 0,
     window: { start: startDate, end: endDate },
   };
 
@@ -139,7 +144,7 @@ export async function collectUsage(opts?: {
     const upstream = row.spend ?? 0;
 
     // Customer cost = upstream × plan multiplier. The margin gap between
-    // these two columns is the business. See PLATFORM.md §3.3.
+    // these two columns is the business.
     const { multiplierBps } = await multiplierForOrg(orgId);
     const customer = upstream * (multiplierBps / 10_000);
 
@@ -203,11 +208,11 @@ export async function collectUsage(opts?: {
       INSERT INTO usage_records (
         organization_id, api_key_id, member_user_id, occurred_at, billing_period,
         model, route, upstream_key_hash,
-        input_tokens, output_tokens,
+        input_tokens, fresh_input_tokens, output_tokens,
         cache_write_5m_tokens, cache_write_1h_tokens, cache_read_tokens,
         latency_ms, status_code,
         cost_upstream_usd, cost_customer_usd,
-        price_table_version, prompt_count, dedupe_hash
+        price_table_version, prompt_count, dedupe_hash, gateway_request_id
       )
       SELECT
         ${orgId}::uuid,
@@ -218,14 +223,15 @@ export async function collectUsage(opts?: {
         ${alias},
         ${route},
         ${row.api_key ?? null},
-        ${u.inputTokens}, ${u.outputTokens},
+        ${u.inputTokens}, ${u.freshInput}, ${u.outputTokens},
         ${u.cacheWrite5m}, ${u.cacheWrite1h}, ${u.cacheRead},
         NULL,
         ${statusCode},
         ${upstream}, ${customer},
         ${PRICE_VERSION},
         ${promptCount},
-        ${hash}
+        ${hash},
+        ${row.litellm_call_id ?? null}
       ON CONFLICT (dedupe_hash) DO NOTHING
       RETURNING id
     `);
@@ -236,6 +242,45 @@ export async function collectUsage(opts?: {
     // INSERT was a fresh insert or a dedupe hit.
     if (inserted.length > 0) result.inserted++;
     else result.skippedDuplicates++;
+
+    // ── Give the chat bubble its own numbers.
+    //
+    // A chat turn writes its message row BEFORE the model answers (an
+    // interrupted turn must still be visible, lib/chat/service.ts), so the
+    // tokens and cost do not exist yet at insert time. This is where they
+    // arrive: the spend row carries the gateway request id the stream
+    // sniffed from the response headers, so the join is exact rather than
+    // "the latest message by this user".
+    //
+    // Only on a fresh insert: a dedupe hit means we already did this, and
+    // re-running it would be a write per poll for no change. `cost_usd` is
+    // the CUSTOMER cost, because that is what the owner of the bubble is
+    // charged. Best-effort — a chat that fails to get its cost backfilled
+    // must never fail the ledger write that just succeeded.
+    //
+    // THE JOIN KEY IS `litellm_call_id`, NOT `request_id`. The chat route
+    // stores the `x-litellm-call-id` response header in
+    // `messages.gateway_request_id`; `request_id` in the spend log is the
+    // UPSTREAM provider's id (`chatcmpl-…`), a different value entirely.
+    // Joining on it matched nothing, so every chat turn kept cost_usd NULL
+    // while the spend sat in the ledger under a key no row referenced.
+    const joinId = row.litellm_call_id ?? null;
+    if (inserted.length > 0 && joinId) {
+      await db.execute(sql`
+        UPDATE messages
+           SET input_tokens  = ${u.inputTokens},
+               output_tokens = ${u.outputTokens},
+               cost_usd      = ${customer}
+         WHERE gateway_request_id = ${joinId}
+           AND cost_usd IS NULL
+      `).catch((e: unknown) => {
+        result.chatBackfillFailed++;
+        log.warn('usage: could not backfill chat message cost', {
+          callId: joinId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+      });
+    }
   }
 
   return result;
@@ -256,17 +301,22 @@ async function multiplierForOrg(orgId: string): Promise<{ multiplierBps: number 
 }
 
 /**
- * Rebuild period rollups from the immutable ledger.
+ * Rebuild `usage_periods` from the ledger.
  *
  * Always derived — never incrementally incremented. An increment that runs
  * twice silently doubles a customer's bill, and you cannot tell from the
  * dashboard which number is wrong.
- */
-/**
- * Rebuild `usage_periods` from the ledger.
  *
  * Rebuilt, never incremented: an increment run twice silently doubles a
- * bill (PLATFORM.md §8.2).
+ * bill.
+ *
+ * `input_tokens` HERE HOLDS FRESH INPUT (0028), not the provider's raw
+ * `prompt_tokens`. That is deliberate: this table exists to accelerate
+ * charts, and the chart it accelerates is the usage view, whose blended
+ * total must match the quota wall. Storing raw inclusive input would make
+ * `input_tokens + cache_read_tokens` — the obvious chart sum — inflate by
+ * the cached portion again, in a second place. The raw value stays
+ * available in `usage_records` for audit.
  *
  * Orgs with usage but NO live subscription are skipped. Their spend is
  * real and stays in `usage_records` — the source of truth — but a
@@ -297,7 +347,7 @@ export async function rollupUsage(): Promise<void> {
            LIMIT 1)),
       COUNT(*),
       COALESCE(SUM(u.prompt_count), 0),
-      SUM(u.input_tokens),
+      SUM(COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens))),
       SUM(u.output_tokens),
       SUM(u.cache_read_tokens),
       SUM(u.cost_upstream_usd),

@@ -5,7 +5,7 @@
  *
  *   immediate    — access is cut now through the entitlement sync (the
  *                  budget becomes CUT_BUDGET, so the next request gets
- *                  a clean 429 — PLATFORM.md §5.1's "do not revoke
+ *  a clean 429 — "do not revoke
  *                  keys, starve them" rule). Keys stay live so
  *                  re-subscribing is instant.
  *   atPeriodEnd  — the kind cancel: access continues until the paid

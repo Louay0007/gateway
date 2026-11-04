@@ -30,7 +30,7 @@ export type PlanState =
  * `trialing` is a LIVE status again (free trial codes, migration 0017:
  * redeem → `subscriptions.status = 'trialing'` → full access for the
  * window). The client vocabulary has no `trialing` branch and the intended
- * reading of a trial is full access (PLATFORM.md §5.1), so it maps to
+ * reading of a trial is full access, so it maps to
  * `active`; casting it straight through would hand the dashboard a state
  * it cannot render.
  */
@@ -146,4 +146,39 @@ export class BillingError extends Error {
   get status(): number {
     return ERROR_STATUS[this.code];
   }
+}
+
+// ───────────────────────────────────────────────────────────────────────
+//  The post-payment destination
+// ───────────────────────────────────────────────────────────────────────
+
+/**
+ * Where a customer lands after paying. Default when nothing better is known.
+ *
+ * There are two billing screens (`/settings?tab=plan` in the chat shell and
+ * `/dashboard/billing` in the console) and a customer may pay from either,
+ * so the destination has to travel with the checkout rather than be
+ * assumed.
+ */
+export const DEFAULT_RETURN_PATH = '/settings?tab=plan';
+
+/**
+ * Only same-site relative paths are accepted.
+ *
+ * This value arrives from the URL and becomes the page a customer lands on
+ * straight after paying. An open redirect there is a phishing primitive:
+ * the attacker picks the destination, and the victim arrives at it from a
+ * genuine payment. `//evil.com` is the case a bare `startsWith('/')` check
+ * misses, and `/\evil.com` is the case a browser-trimming one misses.
+ *
+ * Defined here, once: it had been copy-pasted into the checkout page and
+ * the dev-pay action, and a rule about open redirects that exists in two
+ * places is a rule that will be fixed in one of them.
+ */
+export function safeReturnPath(raw: string | null | undefined): string {
+  if (!raw) return DEFAULT_RETURN_PATH;
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) {
+    return DEFAULT_RETURN_PATH;
+  }
+  return raw;
 }

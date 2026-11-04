@@ -47,10 +47,14 @@ describe('verification link', () => {
     expect(decodeURIComponent(url.pathname.replace('/verify-email/', ''))).toBe(raw);
   });
 
-  it('round-trips URL-significant characters', () => {
-    const raw = 'a/b+c=d?e&f';
-    const url = new URL(verifyLink(raw));
-    expect(decodeURIComponent(url.pathname.replace('/verify-email/', ''))).toBe(raw);
+  it('inserts the token verbatim, with no encoding of its own', () => {
+    // `params.token` is already decoded by Next. Encoding here would hand the
+    // page a doubly-encoded value and every confirmation link would fail.
+    // Real tokens are base64url ([A-Za-z0-9_-]); a token containing '/' or
+    // '?' cannot round-trip through a path segment at all, so that is not
+    // the contract this function has to satisfy.
+    const raw = 'aB3-_xY9';
+    expect(verifyLink(raw).endsWith(`/verify-email/${raw}`)).toBe(true);
   });
 
   it('never leaks the token hash into the link', () => {

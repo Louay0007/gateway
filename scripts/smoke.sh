@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# smoke.sh — acceptance suite. DESIGN.md §9.
+# smoke.sh — acceptance suite.
 #   usage: ./scripts/smoke.sh [tenant-key]
 #
 # Tests A-1..A-16. A-4, A-5, A-6, A-8, A-15 catch the failures that
@@ -122,7 +122,7 @@ elif [ "${SMOKE_UPSTREAM_HAS_PROMPT_CACHE:-}" = "1" ]; then
 else
   # Not a failure. An OpenAI-compatible upstream has no prompt-caching
   # primitive, so LiteLLM translates /v1/messages and drops cache_control on
-  # the way through — the documented lossy path (DESIGN.md §4.2/§4.6 and the
+  # the way through — the documented lossy path (/§4.6 and the
   # "BLOCK B" comment in config/litellm.yaml).
   #
   # Reporting it as a red cross trains people to ignore the smoke output,
@@ -221,7 +221,7 @@ code "$BASE/v1/chat/completions" \
   -d "{\"model\":\"$MODEL\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}" >/dev/null
 echo "  ℹ️  Now check the recorded client IP is the real peer, not 203.0.113.99:"
 echo "     make report  →  inspect recent entries"
-echo "     If it shows 203.0.113.99, DESIGN.md §6.1 is violated and all IP limits are void."
+echo "     If it shows 203.0.113.99 the real peer IP is not reaching Caddy, and all IP limits are void."
 
 # ════════════════════════════════════════════════════════════════
 hr; printf '  A-12  Forged api_base in body is ignored (SSRF)\n'; hr
@@ -240,7 +240,7 @@ esac
 
 # ════════════════════════════════════════════════════════════════
 hr; printf '  A-14  Management routes not served on the public host\n'; hr
-# This is a CADDY-EDGE property (DESIGN.md row 5): the public API host must
+# This is a CADDY-EDGE property (row 5): the public API host must
 # not expose /key/generate. On loopback (local smoke, no Caddy) the route is
 # intentionally reachable — that is how make key and the portal use it. Only
 # assert when smoke runs through the public edge (SMOKE_BASE is https://);

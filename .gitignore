@@ -31,6 +31,13 @@ test-results/
 .freebuff/
 .claude/
 
+# ── Rust (engine/) ───────────────────────────────────────────────────
+# `target/` is ~2GB of build artifacts; committing it would bloat a public
+# repo past usability. `Cargo.lock` is NOT ignored: this is an application,
+# not a library, so the lockfile is what makes a release build reproducible
+# — and engine/Dockerfile copies it deliberately.
+target/
+
 # ── Operator scratch (never commit) ───────────────────────────────────
 # `_rescue/` holds pg_dump archives of the LIVE portal database plus
 # extracted D17 payment evidence — real authorization numbers, sender
@@ -49,3 +56,31 @@ _rescue/
 # D17 proof screenshots: user-uploaded images. Local/dev only until the
 # VPS path is set; they are served read-only to staff, never publicly.
 data/
+
+# ── A different product, vendored by accident (never commit) ──────────
+# mobile-app/ is a 2.9 GB clone of https://github.com/cogwheel0/conduit
+# (its own .git, its own release cadence) sitting inside this repo. It is
+# not part of the gateway and nothing here imports it. Committing it would
+# add a third-party tree to a PUBLIC repository and would not even be a
+# sane submodule — it is a working copy someone dropped here.
+#
+# It is NOT ignored by any existing rule, so `git add .` would have swept
+# 2.9 GB in. That is the kind of mistake that is only noticed at push
+# time, after the history is already large.
+/mobile-app/
+
+# ── Secrets backups (never commit) ──────────────────────────────────
+# .env.bak-codehost is a root-owned copy of the live .env (SMTP, Postgres,
+# Resend, upstream keys). Pattern-cousin of .env but not caught by the
+# rules above, so it is blocked explicitly.
+.env.bak*
+
+# ── Agent/editor workspace state (machine-local, never project) ──────
+.verdent/
+
+# ── Halloween banner: source + unreferenced oversized renditions ─────
+# Only hero-banner.png / .jpg / .svg are referenced by the site. The rest
+# would be ~16MB of dead weight, and public/ is served verbatim.
+portal/public/images/halloween/hero-banner-src.pdf
+portal/public/images/halloween/hero-banner-3200.png
+portal/public/images/halloween/hero-banner-3840.png

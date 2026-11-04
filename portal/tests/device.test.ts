@@ -44,6 +44,10 @@ interface FakeDeviceRow {
   lastPolledAt: Date | null;
   userId: string | null;
   organizationId: string | null;
+  /** Hostname-plus-platform the machine reported when it started the flow. */
+  deviceName?: string | null;
+  /** The minted key's expiry, as the api_keys join would report it. */
+  keyExpiresAt?: Date | null;
 }
 
 interface FakeDeviceStoreState extends DeviceStore {
@@ -59,7 +63,13 @@ function fakeDeviceStore(over: Partial<FakeDeviceStoreState> = {}): FakeDeviceSt
     nowFn: () => new Date(),
     ...over,
 
-    async insert(input: { deviceCodeHash: string; userCode: string; expiresAt: Date; intervalSeconds: number }) {
+    async insert(input: {
+      deviceCodeHash: string;
+      userCode: string;
+      expiresAt: Date;
+      intervalSeconds: number;
+      deviceName?: string | null;
+    }) {
       const id = `device-${self.rows.length + 1}`;
       self.rows.push({
         id,
@@ -76,6 +86,9 @@ function fakeDeviceStore(over: Partial<FakeDeviceStoreState> = {}): FakeDeviceSt
         lastPolledAt: null,
         userId: null,
         organizationId: null,
+        // Carried from the request so the identity projection can report it.
+        deviceName: input.deviceName ?? null,
+        keyExpiresAt: null,
       });
       self.calls.push('insert');
       return { id };
@@ -101,6 +114,10 @@ function fakeDeviceStore(over: Partial<FakeDeviceStoreState> = {}): FakeDeviceSt
         organizationSlug: row.organizationId ? 'acme' : null,
         organizationName: row.organizationId ? 'Acme' : null,
         createdAt: new Date('2026-10-01T00:00:00Z'),
+        // The name the machine reported, and the issued key's expiry — both
+        // joined from the code row and api_keys.
+        deviceName: row.deviceName ?? null,
+        keyExpiresAt: row.keyExpiresAt ?? null,
       };
     },
 
@@ -319,6 +336,28 @@ describe('requestDeviceCode', () => {
     expect(device.rows[0]!.status).toBe('pending');
     expect(JSON.stringify(device.rows)).not.toContain(created.deviceCode);
   });
+
+  it('records the machine name so two devices are distinguishable', async () => {
+    const device = fakeDeviceStore();
+    const keys = fakeKeys();
+    await requestDeviceCode(deps(device, keys), {
+      now: new Date('2026-10-16T00:00:00Z'),
+      deviceName: 'MacBook-Pro (darwin)',
+    });
+
+    // Every device key is named "OpenCode Desktop", so this is the only
+    // field that can tell a laptop from a desktop in the key list.
+    expect(device.rows[0]!.deviceName).toBe('MacBook-Pro (darwin)');
+  });
+
+  it('accepts a request with no device name', async () => {
+    const device = fakeDeviceStore();
+    const keys = fakeKeys();
+    await requestDeviceCode(deps(device, keys), { now: new Date('2026-10-16T00:00:00Z') });
+
+    // Older clients post nothing at all; that must not fail the flow.
+    expect(device.rows[0]!.deviceName).toBeNull();
+  });
 });
 
 // ───────────────────────────────────────────────────────────────────────
@@ -529,6 +568,9 @@ describe('pollDeviceToken', () => {
     expect(outcome.models).toEqual(['fast', 'smart', 'frontier']);
     expect(outcome.user).toMatchObject({ id: 'user-1', email: 'user@example.com' });
     expect(outcome.organization).toMatchObject({ id: 'org-1', slug: 'acme' });
+    // The key's expiry rides along so the app can warn before it lapses
+    // instead of discovering it on a failed prompt.
+    expect(outcome).toHaveProperty('expiresAt');
     // Consumed: plaintext nulled, replay impossible.
     expect(device.rows[0]!.status).toBe('consumed');
     expect(device.rows[0]!.keyPlaintext).toBeNull();

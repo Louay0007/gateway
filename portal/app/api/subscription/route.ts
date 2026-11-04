@@ -5,7 +5,6 @@
  * I on, is it live, what are my limits, what have I used this period,
  * how many keys do I have left. All usage numbers are aggregated from
  * `usage_records` here — the ledger, not the rollup cache
- * (PLATFORM.md §8.2).
  */
 
 import { requireActiveOrg } from '@/lib/auth/authorize';

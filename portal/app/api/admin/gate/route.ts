@@ -48,7 +48,21 @@ export async function POST(req: NextRequest) {
   const cookieStore = await cookies();
   cookieStore.set(COOKIE_NAME, sign(SECRET), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    // Derived from the REQUEST, not NODE_ENV.
+    //
+    // `NODE_ENV === "production"` is true in every built container, including
+    // a locally-served one over plain HTTP. The flag made the browser accept
+    // the cookie and then silently refuse to send it back over http, so the
+    // gate answered 200 and every console page behind it still redirected to
+    // /admin — a loop with no error message anywhere, because nothing is
+    // actually broken: Secure is doing exactly what it says.
+    //
+    // Caddy sets X-Forwarded-Proto, and Next surfaces that as nextUrl.protocol,
+    // so this is Secure over TLS (production, always) and not Secure on a
+    // plain-HTTP local stack. Never hardcode either value: a cookie that is
+    // never Secure on a TLS origin is a real downgrade, and one that is always
+    // Secure makes every non-TLS deployment unable to hold a gate session.
+    secure: req.nextUrl.protocol === "https:",
     sameSite: "strict",
     // Path must be "/" not "/admin" because admin API routes live under
     // /api/admin/* (e.g. /api/admin/d17/[id]/screenshot). A cookie scoped

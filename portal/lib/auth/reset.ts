@@ -22,8 +22,8 @@
  *   4. SINGLE USE + SHORT TTL. Consumed on success (all rows for the
  *      identifier are deleted), 30 minutes to live.
  *
- * KNOWN LIMIT — RESOLVED by migration 0006. Sessions are JWTs
- * (PLATFORM.md §2.1), so a password change could not revoke an
+ * KNOWN LIMIT — RESOLVED by migration 0006. Sessions are JWTs, so a
+ * password change could not revoke an
  * already-issued token: a copied session lived at most `maxAge` (7 days).
  * `users.password_changed_at` is now stamped on every credential change
  * and copied into the JWT at sign-in, and `sessionIsFresh`
@@ -47,7 +47,7 @@ import {
   resetLink,
 } from '@/lib/auth/reset-tokens';
 import { sendEmail } from '@/lib/email';
-import { buttonHtml, logoAttachment, wrapEmail } from '@/lib/email/layout';
+import { buttonHtml, logoAttachments, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 
 async function emailForToken(email: string): Promise<string | null> {
@@ -107,7 +107,7 @@ export async function requestPasswordReset(emailRaw: string): Promise<{
       subject: 'Reset your password',
       text: bodyText,
       html: wrapEmail(bodyHtml),
-      attachments: [logoAttachment()],
+      attachments: logoAttachments(),
     });
   } catch (e) {
     log.error('password reset: send failed', {

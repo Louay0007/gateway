@@ -1,0 +1,43 @@
+# Monitoring overlay — NOT part of the application stack.
+#
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# Kept in its own file so `docker compose up` for the app never pulls a
+# monitoring image, and so removing monitoring is one file deletion rather
+# than an edit buried in the app compose.
+#
+# Bound to loopback on purpose: the dashboard is for an operator on an SSH
+# tunnel, not a public port. Reach it with:
+#
+#   ssh -L 19999:127.0.0.1:19999 admin@15.188.66.155
+#   open http://127.0.0.1:19999
+services:
+  netdata:
+    image: netdata/netdata:stable
+    container_name: netdata
+    restart: unless-stopped
+    hostname: gateway
+    pid: host
+    network_mode: host
+    volumes:
+      - netdata-lib:/var/lib/netdata
+      - netdata-cache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor=unconfined
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  netdata-lib:
+  netdata-cache:

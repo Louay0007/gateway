@@ -330,6 +330,22 @@ async function main(): Promise<void> {
     started.intent.checkoutUrl.length > 0 && started.intent.providerReference.length > 0,
   );
 
+  // The post-payment destination travels with the checkout. It used to be
+  // hardcoded to /dashboard/billing, which dropped a customer who paid from
+  // `/settings?tab=plan` into the other shell. Asserted here because the
+  // value is only observable end-to-end: the provider puts it in its own
+  // return URL, and no unit test sees the assembled string.
+  //
+  // The bypass cases (absolute URL, protocol-relative, the backslash form)
+  // are pinned in tests/return-path.test.ts instead of here: exercising
+  // them through beginCheckout would open a second payment row in the
+  // middle of this flow.
+  check(
+    'checkout carries the requested return path',
+    new URL(started.intent.checkoutUrl).searchParams.get('return') === '/settings?tab=plan',
+    started.intent.checkoutUrl,
+  );
+
   // ── 5. The callback — the REAL HTTP route, signature verified ────────
   section('5. activation (POST /api/billing/callback — the real route)');
   const eventId = `evt_${runTag}_activated`;
@@ -1326,33 +1342,60 @@ async function main(): Promise<void> {
     .from(subscriptions)
     .where(eq(subscriptions.organizationId, org.id));
 
-  // (a) mule phone: one number, two orgs. `proof_submitted` is an open
-  // state, but neither subscription holds another open payment, so the
-  // one-open-payment index is satisfied — the synthetic rows are legal.
-  await db.insert(paymentsD17).values([
-    {
-      subscriptionId: mainSub!.id,
-      organizationId: org.id,
-      amountMillimes: 1000,
-      usdAmountCents: 100,
-      fxRate: '3.1000',
-      authorizationNumber: `ANOM-A-${runTag}`,
-      senderPhone: phone,
-      status: 'proof_submitted',
-      expiresAt: new Date(),
-    },
-    {
-      subscriptionId: mainSub!.id,
-      organizationId: org.id,
-      amountMillimes: 1000,
-      usdAmountCents: 100,
-      fxRate: '3.1000',
-      authorizationNumber: `ANOM-B-${runTag}`,
-      senderPhone: phone,
-      status: 'proof_submitted',
-      expiresAt: new Date(),
-    },
-  ]);
+  // (a) mule phone: ONE number paying for TWO orgs.
+  //
+  // `payments_d17_one_open_idx` is UNIQUE on `subscription_id` where the
+  // status is open (pending_payment / proof_submitted / rejected). Two open
+  // rows on the SAME subscription therefore violate it — which the earlier
+  // version of this fixture did, crashing the proof at section 25 with
+  // "duplicate key value violates unique constraint". The scenario this
+  // test exists to prove is a shared phone across accounts, so the second
+  // row needs its own subscription, exactly as the comment always said.
+  await db.insert(paymentsD17).values({
+    subscriptionId: mainSub!.id,
+    organizationId: org.id,
+    amountMillimes: 1000,
+    usdAmountCents: 100,
+    fxRate: '3.1000',
+    authorizationNumber: `ANOM-A-${runTag}`,
+    senderPhone: phone,
+    status: 'proof_submitted',
+    expiresAt: new Date(),
+  });
+
+  // A second org on the same phone. Created directly (not via
+  // ensurePersonalOrg) so it carries no members and no keys: the anomaly
+  // scan only needs the payment row and the phone match.
+  const [muleOrg] = await db
+    .insert(organizations)
+    .values({
+      name: `Anomaly Mule ${runTag}`,
+      slug: `anomaly-mule-${runTag}`.toLowerCase().slice(0, 60),
+      status: 'active',
+    })
+    .returning();
+  const [muleSub] = await db
+    .insert(subscriptions)
+    .values({
+      organizationId: muleOrg!.id,
+      planId: mainSub!.planId,
+      status: 'active',
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
+      dailyQuota: true,
+    })
+    .returning();
+  await db.insert(paymentsD17).values({
+    subscriptionId: muleSub!.id,
+    organizationId: muleOrg!.id,
+    amountMillimes: 1000,
+    usdAmountCents: 100,
+    fxRate: '3.1000',
+    authorizationNumber: `ANOM-B-${runTag}`,
+    senderPhone: phone,
+    status: 'proof_submitted',
+    expiresAt: new Date(),
+  });
 
   // (b) rejected-proof burst: three rejections in 24h on the org.
   for (let i = 0; i < 3; i++) {

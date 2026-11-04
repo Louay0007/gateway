@@ -32,7 +32,7 @@ const deps: DeviceDeps = {
   now: () => new Date(),
 };
 
-export async function requestDeviceCode(input: { now?: Date } = {}) {
+export async function requestDeviceCode(input: { now?: Date; deviceName?: string | null } = {}) {
   return deviceRequestCode(deps, input);
 }
 

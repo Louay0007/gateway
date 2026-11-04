@@ -10,7 +10,7 @@
  * Order, and why it is one transaction:
  *   1. auth identity + credentials row (scrypt hash — lib/auth/password.ts)
  *   2. domain `users` mirror — authoritative for ALL product logic
- *      (PLATFORM.md §2.1: authorization reads this table, never auth_users)
+ *  (authorization reads this table, never auth_users)
  *
  * An auth identity with no domain mirror is a user who can sign in but
  * has no product row; the reverse is a dead account. Neither is

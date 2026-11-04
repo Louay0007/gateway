@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { requireActiveOrg } from "@/lib/auth/authorize";
 import { RedeemForm } from "@/components/trial/redeem-form";
-import { getTrialStatus } from "@/lib/trial/service";
+import { getTrialStatus, hasRedeemableTrialCode } from "@/lib/trial/service";
 import { compact } from "@/lib/dashboard/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
@@ -24,7 +24,11 @@ export default async function RedeemPage() {
     redirect("/sign-up");
   }
 
-  const trial = await getTrialStatus(orgId);
+  const [trial, campaignEndedRaw] = await Promise.all([
+    getTrialStatus(orgId),
+    hasRedeemableTrialCode(),
+  ]);
+  const campaignEnded = !campaignEndedRaw;
 
   return (
     <div className="mx-auto max-w-lg space-y-6 px-4 py-10">
@@ -33,9 +37,20 @@ export default async function RedeemPage() {
           Redeem a Free Trial
         </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-          Enter a promo code to unlock 3 days of free access to Haiku 5.5
-            and Sonnet 5.5. Free trial campaign ends 31 October — redeem
-            before then.
+          Promo codes unlock temporary access to fast and smart. Enter one
+          below if you have it.
+          {/*
+            This used to read "Free trial campaign ends 31 October — redeem
+            before then." It is now 1 November: the single code,
+            ZAINO-FREE-OCT26, has valid_until 2026-10-31, so
+            /api/trial/redeem answers 410 code_expired for every input. An
+            instruction to hurry up and redeem something that cannot be
+            redeemed is worse than no instruction — it makes a finished
+            campaign look like a broken form.
+          */}
+          {campaignEnded && (
+            <> The free trial campaign has now ended.</>
+          )}
         </p>
       </div>
 
@@ -52,7 +67,7 @@ export default async function RedeemPage() {
                 year: "numeric",
                 month: "long",
                 day: "numeric",
-              })}. The free trial campaign ends 31 October.
+              })}.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

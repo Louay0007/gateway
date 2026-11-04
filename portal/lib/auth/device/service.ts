@@ -62,6 +62,8 @@ export async function issueDeviceKey(
     organizationId: string;
     userId: string;
     models: string[];
+    /** Display name of the machine being signed in, when it reported one. */
+    deviceName?: string | null;
   },
 ): Promise<{ keyId: string; plaintext: string; models: string[]; expiresAt: Date }> {
   const { keys, gateway } = deps;
@@ -207,6 +209,7 @@ export async function issueDeviceKey(
       expiresAt,
       createdAt: now,
       kind: 'device',
+      deviceName: input.deviceName ?? null,
     });
   } catch (e) {
     try {
@@ -239,7 +242,7 @@ export async function issueDeviceKey(
 /** Request a fresh device code. Returns the plaintext device code exactly once. */
 export async function requestDeviceCode(
   deps: DeviceDeps,
-  input: { now?: Date },
+  input: { now?: Date; deviceName?: string | null },
 ): Promise<{
   deviceCode: string;
   userCode: string;
@@ -254,6 +257,7 @@ export async function requestDeviceCode(
     userCode: issuance.userCode,
     expiresAt: issuance.expiresAt,
     intervalSeconds: issuance.intervalSeconds,
+    deviceName: input.deviceName ?? null,
   });
   return issuance;
 }
@@ -330,6 +334,10 @@ export async function approveDeviceCode(
       organizationId: input.organizationId,
       userId: input.actorUserId,
       models: plan.models,
+      // The name the desktop reported when it started this flow. Approval is
+      // the last point it is available, and it is what lets the key list —
+      // and the machine being rotated out — say which computer this is.
+      deviceName: code.deviceName,
     },
   );
 
@@ -419,6 +427,9 @@ export async function pollDeviceToken(
       kind: 'granted',
       token: code.keyPlaintext,
       models: code.models,
+      // The key's own expiry, joined from api_keys. Without it the app can
+      // only discover a lapsed key when a prompt fails.
+      expiresAt: code.keyExpiresAt ? code.keyExpiresAt.toISOString() : null,
       user: {
         id: code.userId ?? '',
         email: code.userEmail ?? '',

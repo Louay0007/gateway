@@ -1,7 +1,7 @@
 /**
  * Portal database client.
  *
- * Two databases, one cluster (PLATFORM.md §1.2):
+ * Two databases, one cluster:
  *   - `litellm` — owned by LiteLLM. This portal NEVER queries it. All
  *     gateway access goes through REST (portal/lib/litellm/client.ts).
  *   - `portal`  — owned by us. This file connects to that one only.
@@ -23,8 +23,7 @@ if (!DATABASE_URL) {
 if (/\/litellm(\?|$)/.test(DATABASE_URL)) {
   throw new Error(
     'DATABASE_URL points at the litellm database. The portal must use its own ' +
-    'database; LiteLLM owns that schema and runs its own migrations. See ' +
-    'PLATFORM.md §1.2.',
+    'database; LiteLLM owns that schema and runs its own migrations.',
   );
 }
 

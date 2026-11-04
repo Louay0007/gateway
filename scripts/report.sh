@@ -25,5 +25,4 @@ curl -s "$BASE/key/info" -H "$AUTH" \
 
 echo
 echo "NOTE: gateway request counts and spend-log-derived counts are"
-echo "different sources and are NOT expected to tie out exactly. See"
-echo "BLUEPRINT.md section 10.4."
+echo "different sources and are NOT expected to tie out exactly."

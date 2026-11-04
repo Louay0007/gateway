@@ -1,7 +1,6 @@
 /**
  * Authorization primitives.
  *
- * PLATFORM.md §10.1 and §1.2:
  *   - `requireOrgMembership()` is the ONLY way to obtain an `orgId`.
  *   - `requireStaff()` is the only way to obtain a staff role.
  *   - Staff are never org members, and there is no impersonation.
@@ -176,7 +175,7 @@ export async function requireOrgMembership(orgId: string): Promise<{
 }
 
 // ───────────────────────────────────────────────────────────────────────
-//  Role gates — PLATFORM.md §8.5 / IMPLEMENTATION.md §1.2
+//  Role gates
 // ───────────────────────────────────────────────────────────────────────
 
 const ORG_RANK: Record<OrgRole, number> = {

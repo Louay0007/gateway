@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<!--
+  Zaino AI — partnership email (plain).
+
+  Deliberately simple: a header, a short note, one way to get in touch.
+  No rate tables, no track cards, no button asking for a decision.
+
+  Email-safe: table layout, inline CSS only, no oklch(), 600px card that
+  goes full-width on mobile. The logo is a CID attachment (cid:zaino-logo),
+  matching lib/email/layout.ts — a remote <img> renders broken wherever
+  the portal is not publicly reachable. Swap it for
+  https://zaino.soon.it/logo/zaino-curved-z-white.png if the sending
+  provider does not forward attachments.
+-->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="x-apple-disable-message-reformatting">
+<meta name="format-detection" content="telephone=no,address=no,email=no,date=no,url=no">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Zaino AI</title>
+<style>
+  /* Hints only — every rule has an inline equivalent below. */
+  html, body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  * { -ms-text-size-adjust: 100%; -webkit-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt !important; mso-table-rspace: 0pt !important; border-collapse: collapse !important; }
+  img { border: 0; height: auto; line-height: 100%; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+  a { text-decoration: none; }
+  a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; font-size: inherit !important; font-family: inherit !important; font-weight: inherit !important; }
+
+  @media screen and (max-width: 620px) {
+    .wrap { padding: 0 !important; }
+    .card { border-radius: 0 !important; }
+    .pad { padding-left: 22px !important; padding-right: 22px !important; }
+  }
+
+  @media (prefers-color-scheme: dark) {
+    .dm-body { background-color: #000000 !important; }
+    .dm-card { background-color: #0a0a0a !important; }
+    .dm-ink { color: #f5f5f5 !important; }
+    .dm-soft { color: #a3a3a3 !important; }
+    .dm-link { color: #f5f5f5 !important; }
+    .dm-rule { border-top-color: #262626 !important; }
+  }
+  [data-ogsc] .dm-body { background-color: #000000 !important; }
+  [data-ogsc] .dm-card { background-color: #0a0a0a !important; }
+  [data-ogsc] .dm-ink { color: #f5f5f5 !important; }
+  [data-ogsc] .dm-soft { color: #a3a3a3 !important; }
+</style>
+</head>
+
+<body class="dm-body" style="margin:0;padding:0;width:100%;background-color:#f5f5f5;" bgcolor="#f5f5f5">
+
+  <!-- Inbox preview line -->
+  <div style="display:none;font-size:1px;color:#f5f5f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all;">
+    A short note about partnering with Zaino AI.
+    &#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;&#847;&zwnj;&nbsp;
+  </div>
+
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="dm-body" style="background-color:#f5f5f5;" bgcolor="#f5f5f5">
+    <tr>
+      <td align="center" class="wrap dm-body" style="padding:32px 16px;">
+
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="card dm-card" style="width:100%;max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+
+          <!-- Header: the mark is white-on-transparent, so it sits on black. -->
+          <tr>
+            <td style="background-color:#000000;padding:20px 32px;" bgcolor="#000000">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="middle" width="32">
+                    <a href="https://zaino.soon.it" target="_blank" style="text-decoration:none;">
+                      <img src="cid:zaino-logo" alt="Zaino AI" width="28" height="28" style="display:block;width:28px;height:28px;border:0;">
+                    </a>
+                  </td>
+                  <td align="left" valign="middle" style="padding-left:10px;">
+                    <span style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;font-weight:600;letter-spacing:-0.2px;color:#ffffff;">Zaino AI</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td class="pad" style="padding:36px 32px 40px 32px;">
+
+              <p class="dm-ink" style="margin:0 0 18px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:26px;color:#111111;">
+                Hi {{first_name}},
+              </p>
+
+              <p class="dm-ink" style="margin:0 0 18px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:26px;color:#111111;">
+                We're opening up partnerships at Zaino AI — a single API for
+                Claude, with keys, billing and support handled for whoever you
+                bring on.
+              </p>
+
+              <p class="dm-soft" style="margin:0 0 18px 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:26px;color:#4b4b4b;">
+                If you'd like to know more, just reply to this email or write to
+                <a class="dm-link" href="mailto:hello@zaino.ai" style="color:#111111;text-decoration:underline;">hello@zaino.ai</a>.
+                Happy to send the details.
+              </p>
+
+              <p class="dm-soft" style="margin:26px 0 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:16px;line-height:26px;color:#4b4b4b;">
+                Best,<br>
+                <span class="dm-ink" style="color:#111111;font-weight:600;">The Zaino AI team</span>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer: one line, no band, deliberately quiet. -->
+          <tr>
+            <td class="pad dm-rule" style="border-top:1px solid #eeeeee;padding:18px 32px 22px 32px;">
+              <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:11px;line-height:18px;color:#9a9a9a;">
+                Zaino AI &nbsp;&middot;&nbsp;
+                <a href="mailto:hello@zaino.ai" style="color:#9a9a9a;text-decoration:underline;">hello@zaino.ai</a>
+                &nbsp;&middot;&nbsp;
+                <a href="{{unsubscribe_url}}" style="color:#9a9a9a;text-decoration:underline;">Unsubscribe</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

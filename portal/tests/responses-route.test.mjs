@@ -67,16 +67,63 @@ beforeAll(async () => {
   await new Promise((r) => upstream.listen(0, '127.0.0.1', r));
   upstreamPort = /** @type {{port:number}} */ (upstream.address()).port;
 
-  edgePort = upstreamPort + 1;
+  // PORT 0, then read the port the edge announces.
+  //
+  // This used to be `upstreamPort + 1`, which is a GUESS next to a
+  // kernel-assigned number. The kernel hands out the upstream port from a
+  // wide ephemeral range with no promise about its neighbour, so under a
+  // full parallel run something else could already hold it — and it did:
+  // the full suite failed ~1 run in 3 with exactly these ten tests red,
+  // while the file passed 5/5 in isolation. A flaky test that looks like a
+  // product regression is worse than no test.
+  //
+  // Port 0 makes the kernel reserve a free port atomically, and
+  // edge/server.mjs prints the real bound port as `auth_edge.listening`
+  // (see tests/auth-edge.test.mjs, which already did it this way), so there
+  // is nothing to guess and no window for two processes to collide.
   const { spawn } = await import('node:child_process');
   edge = spawn(process.execPath, [EDGE_ENTRY], {
     env: {
       ...process.env,
       AUTH_EDGE_HOST: '127.0.0.1',
-      AUTH_EDGE_PORT: String(edgePort),
+      AUTH_EDGE_PORT: '0', // kernel-assigned; see above
       AUTH_EDGE_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
     },
-    stdio: 'ignore',
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  edgePort = await new Promise((resolve, reject) => {
+    let buf = '';
+    const timer = setTimeout(
+      () => reject(new Error('edge did not report a listening port within 15s')),
+      15_000,
+    );
+    edge.stdout.setEncoding('utf8');
+    edge.stdout.on('data', (chunk) => {
+      buf += chunk;
+      for (const line of buf.split('\n')) {
+        if (!line.trim()) continue;
+        let msg;
+        try {
+          msg = JSON.parse(line);
+        } catch {
+          continue; // not the handshake line; keep reading
+        }
+        if (msg?.msg === 'auth_edge.listening' && msg.port) {
+          clearTimeout(timer);
+          resolve(msg.port);
+          return;
+        }
+      }
+    });
+    edge.on('error', (e) => {
+      clearTimeout(timer);
+      reject(e);
+    });
+    edge.on('exit', (code) => {
+      clearTimeout(timer);
+      reject(new Error(`edge exited before reporting a port (code ${code})`));
+    });
   });
 
   // Poll the edge's own health endpoint rather than sleeping a fixed 900ms.

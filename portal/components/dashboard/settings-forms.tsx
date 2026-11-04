@@ -34,9 +34,14 @@ import { initialsFor } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 
 /**
- * SettingsForms — account, organization, password, deletion.
+ * The settings cards — profile, password, deletion.
  *
- * Every card here now has a backend. Previously all four submitted into a
+ * These are CARDS, not a page. `SettingsPanel`
+ * (components/settings/settings-panel.tsx) composes them into the profile
+ * tab, and both shells render that panel, so there is one settings page
+ * with one body.
+ *
+ * Every card here has a backend. Previously all four submitted into a
  * `toast("saved")` and reloaded to the same value, which is the worst
  * possible version of a settings page: it looks finished, and it lies.
  *
@@ -50,15 +55,6 @@ import { toast } from "sonner";
  * (every key), and the server checks the slug too — a confirmation that
  * lives only in the UI is not a confirmation.
  */
-export function SettingsForms() {
-  return (
-    <>
-      <ProfileCard />
-      <PasswordCard />
-      <DangerCard />
-    </>
-  );
-}
 
 // ───────────────────────────────────────────────────────────────────────
 //  Profile
@@ -72,7 +68,7 @@ export function SettingsForms() {
 const ACCEPTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp"];
 const MAX_IMAGE_BYTES = 256 * 1024;
 
-function ProfileCard() {
+export function ProfileCard() {
   const router = useRouter();
   const { refresh: refreshShell } = useShellIdentity();
   const { data, error, loading, reload, set } = useApi<ProfileView>("/api/profile");
@@ -317,7 +313,7 @@ function ProfileCard() {
 //  Password
 // ───────────────────────────────────────────────────────────────────────
 
-function PasswordCard() {
+export function PasswordCard() {
   const router = useRouter();
   const [current, setCurrent] = React.useState("");
   const [next, setNext] = React.useState("");
@@ -455,7 +451,7 @@ function PasswordCard() {
 //  Deletion
 // ───────────────────────────────────────────────────────────────────────
 
-function DangerCard() {
+export function DangerCard() {
   const { data, loading } = useApi<{ orgs: OrgListItem[] }>("/api/orgs");
   const org = data?.orgs?.[0] ?? null;
   const isOwner = org?.role === "owner";

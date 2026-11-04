@@ -2,8 +2,7 @@
  * Entitlement sync — plan × subscription status → LiteLLM enforcement.
  *
  * This is the single writer of the `entitlements` table and the only thing
- * that pushes limits to the gateway. PLATFORM.md §5: "One function, one
- * writer, idempotent."
+ * that pushes limits to the gateway. "One function, one writer, idempotent."
  *
  * Two properties are load-bearing and are the reason this file is shaped
  * the way it is:
@@ -250,7 +249,7 @@ export async function syncOrganizationEntitlements(
     // minted for a WIDER plan silently lost those models: the key said
     // {fast, smart, frontier}, the team said {fast}, the intersection was
     // {fast} — and the request 403'd with a message that blames the
-    // credential rather than the team. (HANDOFF.md §5.26.)
+    // credential rather than the team.
     //
     // This stayed invisible while every plan allowed exactly ['fast'], which
     // matched DEFAULT_MODELS by coincidence. It surfaced the moment migration

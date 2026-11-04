@@ -25,9 +25,28 @@
 export type TokenLimits = Record<string, number>;
 export type UsageTokensByModel = Record<string, number>;
 
-/** Blended tokens per alias: SUM(input+output+cache_writes+cache_read). */
+/**
+ * Blended tokens per alias.
+ *
+ * `fresh_input_tokens` (0028), NOT `input_tokens`. The raw column holds the
+ * provider's `prompt_tokens`, which already includes the cached reads, so
+ * adding `cache_read_tokens` to it counted the cached portion twice —
+ * measured at 595,926 where the true figure was 298,637. Every alias was
+ * therefore charged roughly double on cache-heavy workloads and customers
+ * were cut early.
+ *
+ * The four buckets below are disjoint, and their sum equals the provider's
+ * `prompt_tokens + completion_tokens` — the identity the tests assert.
+ *
+ * `COALESCE(fresh_input_tokens, ...)`: 0028 backfills every row and the
+ * collector writes it on every insert, so NULL should be unreachable. The
+ * fallback keeps a pre-0028 row (a restored older dump) from contributing
+ * a phantom zero, and it degrades to the OLD behaviour rather than
+ * silently under-counting.
+ */
 export const BILLABLE_TOKEN_COLUMNS =
-  'COALESCE(u.input_tokens,0) + COALESCE(u.output_tokens,0) ' +
+  'COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ' +
+  '+ COALESCE(u.output_tokens,0) ' +
   '+ COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0) ' +
   '+ COALESCE(u.cache_read_tokens,0)';
 

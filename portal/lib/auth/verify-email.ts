@@ -27,7 +27,7 @@ import { db } from '@/db';
 import { authUsers, authVerificationTokens, users } from '@/db/schema';
 import { AuthzError } from '@/lib/auth/errors';
 import { sendEmail } from '@/lib/email';
-import { buttonHtml, logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
+import { buttonHtml, logoAttachments, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 import { hashToken, TOKEN_BYTES } from './tokens';
 import { VERIFY_PREFIX, VERIFY_TTL_MINUTES, verifyIdentifierFor, verifyLink } from './verify-tokens';
@@ -117,7 +117,7 @@ export async function sendVerificationEmail(
       subject: 'Confirm your email address',
       text: bodyText,
       html: wrapEmail(bodyHtml),
-      attachments: [logoAttachment()],
+      attachments: logoAttachments(),
     });
   } catch (e) {
     log.error('email verification: send failed', {

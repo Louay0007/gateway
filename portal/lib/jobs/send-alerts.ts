@@ -1,5 +1,5 @@
 /**
- * send_alerts — the day-one alerting PLATFORM.md §11 asks for.
+ * send_alerts — the day-one ops alerting pass.
  *
  * Scope is deliberately the two conditions that lose money silently,
  * plus anything the runner itself failed at:
@@ -27,7 +27,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { systemAlerts } from '@/db/schema';
 import { sendEmail } from '@/lib/email';
-import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
+import { logoAttachments, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 
 /** Collector silence after which usage is silently not being billed. */
@@ -132,7 +132,7 @@ export async function sendOpsAlerts(): Promise<{
           : '[gateway] attention needed',
         text: alertText,
         html: wrapEmail(textToHtml(alertText)),
-        attachments: [logoAttachment()],
+        attachments: logoAttachments(),
       });
       emailed = true;
     } catch (e) {

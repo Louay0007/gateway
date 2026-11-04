@@ -8,7 +8,7 @@
 # looks healthy and bills wrong — worse than an outage. The confirmation
 # step is deliberate friction, not a formality.
 #
-# This is the drill behind IMPLEMENTATION.md §9 ("Backup restores both
+# This is the drill behind ("Backup restores both
 # databases"). Run it on a scratch cluster before launch; a backup you
 # have never restored is a hypothesis, not a backup.
 set -euo pipefail

@@ -1,6 +1,6 @@
 /**
  * GET  /api/keys — active keys for the caller's organization.
- * POST /api/keys — mint a key (IMPLEMENTATION.md §3.1, C-05).
+ * POST /api/keys — mint a key.
  *
  * The response to POST contains the plaintext exactly once. There is no
  * endpoint that can return it again, and no code path that stores it —

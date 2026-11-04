@@ -1,5 +1,5 @@
 /**
- * POST /api/checkout — start a subscription (IMPLEMENTATION.md §3.1).
+ * POST /api/checkout — start a subscription.
  *
  * Body: { planCode, method? }.
  *
@@ -7,7 +7,7 @@
  * flow (instruction page + manual verification), anything else uses the
  * provider configured for the deployment. The org comes from the
  * session, never the body — a checkout that trusted the body's org id
- * is a free upgrade for anyone who can count (PLATFORM.md §10.1).
+ * is a free upgrade for anyone who can count.
  *
  * Returns the provider's payment URL. For D17 that is our own
  * instruction page: the transfer itself happens inside the D17 app.
@@ -25,6 +25,13 @@ export const dynamic = 'force-dynamic';
 const schema = z.object({
   planCode: z.string().trim().min(1).max(40),
   method: z.enum(['d17']).optional(),
+  // Where to land after paying. Optional, and VALIDATED IN THE SERVICE
+  // (lib/billing/state.ts safeReturnPath) rather than here, so the open
+  // redirect rule has exactly one definition and the dev-pay action
+  // cannot enforce a different one. A bad value is not a 400: it falls
+  // back to the default, because a customer one step from paying should
+  // not be stopped by a malformed destination.
+  returnPath: z.string().max(512).optional(),
 });
 
 export async function POST(request: Request): Promise<Response> {
@@ -55,6 +62,7 @@ export async function POST(request: Request): Promise<Response> {
       parsed.data.planCode,
       ctx.userId,
       parsed.data.method ?? null,
+      parsed.data.returnPath ?? null,
     );
     return Response.json({
       checkoutUrl: intent.checkoutUrl,

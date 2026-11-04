@@ -21,7 +21,7 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 
-const PRICE_FILE = process.env.PRICE_FILE ?? 'prices/models.yaml';
+import { PRICE_FILE } from '@/lib/pricing/path';
 
 /**
  * The aliases the gateway sells.

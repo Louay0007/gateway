@@ -20,7 +20,6 @@
  * takes the staff id it acts as and writes it to every audit row, so
  * "who suspended this org" always has an answer. Nothing here reads an
  * organization the caller belongs to — staff are never org members
- * (PLATFORM.md §8.5).
  */
 
 import { eq, sql } from 'drizzle-orm';

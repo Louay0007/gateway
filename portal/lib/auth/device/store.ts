@@ -34,6 +34,10 @@ export interface DeviceCodeIdentity {
   organizationSlug: string | null;
   organizationName: string | null;
   createdAt: Date | null;
+  /** Display name of the machine that started this device flow, if reported. */
+  deviceName: string | null;
+  /** Expiry of the key this code minted, so the app can warn before it lapses. */
+  keyExpiresAt: Date | null;
 }
 
 export interface DeviceStore {
@@ -42,6 +46,8 @@ export interface DeviceStore {
     userCode: string;
     expiresAt: Date;
     intervalSeconds: number;
+    /** Human-readable name of the machine asking, when it reported one. */
+    deviceName?: string | null;
   }): Promise<{ id: string }>;
 
   /** Look up a code by the stored device-code hash (the token poll path). */
@@ -99,6 +105,8 @@ function toIdentity(row: Record<string, unknown>): DeviceCodeIdentity {
     keyPlaintext: row.key_plaintext as string | null,
     models: Array.isArray(row.models) ? row.models : [],
     lastPolledAt: row.last_polled_at ? new Date(String(row.last_polled_at)) : null,
+    deviceName: row.device_name ? String(row.device_name) : null,
+    keyExpiresAt: row.key_expires_at ? new Date(String(row.key_expires_at)) : null,
     userEmail: row.user_email as string | null,
     userName: row.user_name as string | null,
     organizationSlug: row.organization_slug as string | null,
@@ -122,6 +130,8 @@ const IDENTITY_SELECT = `
          device_codes.key_plaintext AS key_plaintext,
          device_codes.models AS models,
          device_codes.last_polled_at AS last_polled_at,
+         device_codes.device_name AS device_name,
+         api_keys.expires_at AS key_expires_at,
          users.email AS user_email,
          users.name AS user_name,
          organizations.slug AS organization_slug,
@@ -129,6 +139,7 @@ const IDENTITY_SELECT = `
   FROM device_codes
   LEFT JOIN users ON users.id = device_codes.user_id
   LEFT JOIN organizations ON organizations.id = device_codes.organization_id
+  LEFT JOIN api_keys ON api_keys.id = device_codes.key_id
 `;
 
 /** Device codes joined to their user and organization, once. */
@@ -161,6 +172,7 @@ export const store: DeviceStore = {
         userCode: input.userCode,
         expiresAt: input.expiresAt,
         intervalSeconds: input.intervalSeconds,
+        deviceName: input.deviceName ?? null,
       })
       .returning({ id: deviceCodes.id });
 

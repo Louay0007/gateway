@@ -15,7 +15,7 @@
  */
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { buttonHtml, logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
+import { buttonHtml, logoAttachments, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
 
 const TO = process.argv[2] ?? 'louay.rjilii@gmail.com';
@@ -177,14 +177,12 @@ async function main(): Promise<void> {
         subject: `[demo] ${d.subject}`,
         text: d.text,
         html: d.html,
-        attachments: [
-          {
-            content: logoAttachment().content,
-            filename: logoAttachment().filename,
-            content_type: 'image/png',
-            content_id: 'zaino-logo',
-          },
-        ],
+        attachments: logoAttachments().map((a) => ({
+          content: a.content,
+          filename: a.filename,
+          content_type: a.contentType,
+          content_id: a.contentId,
+        })),
       }),
       signal: AbortSignal.timeout(15_000),
     });

@@ -1,5 +1,5 @@
 /**
- * API error envelope — IMPLEMENTATION.md §3.
+ * API error envelope
  *
  * Contract: every JSON route returns either its data or
  * `{ error: { code, message } }` with `code` drawn from a fixed set.

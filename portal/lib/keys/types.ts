@@ -21,7 +21,7 @@ import type { OrgRole } from '@/db/schema';
 import type { Effect } from '@/lib/entitlements/policy';
 
 /**
- * The error vocabulary shared with the HTTP layer (IMPLEMENTATION.md §3).
+ * The error vocabulary shared with the HTTP layer.
  * `status` is carried on the error so a route can map a failure without
  * re-deriving intent from a message string.
  */
@@ -77,6 +77,11 @@ export interface KeyRow {
   expiresAt: Date | null;
   /** personal (dashboard) or device (device-code flow). */
   kind: string;
+  /**
+   * Display name of the machine a device key was issued to. Non-secret, and
+   * absent for dashboard-minted keys.
+   */
+  deviceName?: string | null;
   createdAt: Date;
 }
 
@@ -96,6 +101,14 @@ export interface KeyView {
   createdAt: string;
   lastUsedAt: string | null;
   revokedAt: string | null;
+  /**
+   * `device` for a key the desktop signed itself in with, `personal` for a
+   * dashboard-minted one. The key list needs this to say which credential is
+   * a machine rather than a script.
+   */
+  kind: string;
+  /** Which machine, when this is a device key that reported a name. */
+  deviceName: string | null;
 }
 
 /** The plan-derived limits a new key inherits. */
@@ -107,7 +120,7 @@ export interface KeyPlan {
   rpm: number | null;
   tpm: number | null;
   concurrency: number | null;
-  /** Always > 0. A zero budget means UNLIMITED upstream (BLUEPRINT.md §9.4). */
+  /** Always > 0. A zero budget means UNLIMITED upstream. */
   maxBudgetUsd: number;
   budgetDuration: string;
   effect: Effect;
@@ -194,6 +207,8 @@ export interface KeyStore {
   countActiveKeys(organizationId: string): Promise<number>;
   insertKey(row: Omit<KeyRow, 'id' | 'revokedAt' | 'lastUsedAt'>): Promise<{ id: string }>;
   findKey(organizationId: string, keyId: string): Promise<KeyRow | null>;
+  /** Resolve a presented credential by its hash, for bearer-only revoke. */
+  findByHash(keyHash: string): Promise<KeyRow | null>;
   markRevoked(keyId: string, at: Date): Promise<void>;
   listActiveKeys(organizationId: string, limit: number): Promise<KeyRow[]>;
   appendAudit(entry: KeyAuditEntry): Promise<void>;

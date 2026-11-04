@@ -15,7 +15,7 @@ SELECT 'CREATE DATABASE portal'
  WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'portal')\gexec
 SQL
 
-# The portal connects as the same role in v1 (PLATFORM.md §1.1). A
+# The portal connects as the same role in v1. A
 # separate `portal` role is a growth-stage change: it only earns its keep
 # once portal credentials must be revocable independently of LiteLLM's.
 echo "portal database ready"

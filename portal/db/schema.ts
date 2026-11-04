@@ -57,7 +57,7 @@ export const auditActor    = pgEnum('audit_actor',   ['user', 'system', 'provide
 
 // ───────────────────────────────────────────────────────────────────────
 //  users — domain mirror. Authoritative for ALL product logic.
-//  PLATFORM.md §2.1: never read profile data from the auth provider at
+//  never read profile data from the auth provider at
 //  request time; authorization reads this table, not auth_users.
 // ───────────────────────────────────────────────────────────────────────
 export const users = pgTable('users', {
@@ -106,7 +106,7 @@ export const organizations = pgTable('organizations', {
   name:           text('name').notNull(),
   status:         orgStatus('status').notNull().default('active'),
   // 'platform' = we hold the upstream key (Model A) · 'byok' = customer
-  // holds theirs (Model B). See PLATFORM.md §0.
+  // holds theirs (Model B).
   keyOwnership:   text('key_ownership').notNull().default('platform'),
   byokProvider:   text('byok_provider'),
   byokCiphertext: bytea('byok_ciphertext'),
@@ -132,7 +132,7 @@ export const organizationMembers = pgTable('organization_members', {
 }));
 
 /**
- * Staff are never org members: separate table, no bridge. PLATFORM.md §8.5.
+ * Staff are never org members: separate table, no bridge.
  *
  * `createdBy` / `revokedAt` (migration 0015) exist so a staff account can
  * be traced and revoked. Until `requireStaff` reads `revokedAt` they are
@@ -243,6 +243,12 @@ export const apiKeys = pgTable('api_keys', {
   expiresAt:      timestamp('expires_at', { withTimezone: true }),
   /** personal (dashboard-minted) or device (device-code flow). */
   kind:           text('kind').notNull().default('personal'),
+  /**
+   * Display name of the machine a device key was issued to (hostname plus
+   * platform). Non-secret metadata: it exists so a key list, and the person
+   * being signed out by a newer device, can tell machines apart.
+   */
+  deviceName:     text('device_name'),
   createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgIdx:           index('api_keys_org_idx').on(t.organizationId),
@@ -276,6 +282,8 @@ export const deviceCodes = pgTable('device_codes', {
   models:         text('models').array().notNull().default([]),
   /** Last token-poll time; enforces the minimum polling interval. */
   lastPolledAt:   timestamp('last_polled_at', { withTimezone: true }),
+  /** Display name the requesting machine reported (hostname + platform). */
+  deviceName:     text('device_name'),
   createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   statusIdx: index('device_codes_status_idx').on(t.status),
@@ -392,6 +400,21 @@ export const usageRecords = pgTable('usage_records', {
   route:              text('route').notNull(),
   upstreamKeyHash:    text('upstream_key_hash'),
   inputTokens:        integer('input_tokens').notNull().default(0),
+  /**
+   * Input tokens EXCLUDING cache reads. `inputTokens` above is the raw,
+   * provider-reported `prompt_tokens`, which is INCLUSIVE of
+   * `cached_tokens` (OpenAI semantics; verified inclusive on the
+   * Anthropic `/v1/messages` path too). Summing `inputTokens +
+   * cacheReadTokens` therefore counts the cached portion twice.
+   *
+   *   blended = freshInputTokens + cacheWrite5m + cacheWrite1h
+   *             + cacheReadTokens + outputTokens
+   *           = prompt_tokens + completion_tokens   (the identity)
+   *
+   * Normalised once at ingest so the six places that sum blended tokens
+   * cannot each get the formula subtly wrong. 0028.
+   */
+  freshInputTokens:   integer('fresh_input_tokens'),
   outputTokens:       integer('output_tokens').notNull().default(0),
   cacheWrite5mTokens: integer('cache_write_5m_tokens').notNull().default(0),
   cacheWrite1hTokens: integer('cache_write_1h_tokens').notNull().default(0),
@@ -405,6 +428,12 @@ export const usageRecords = pgTable('usage_records', {
   /** 1 for inference rows (chat_completions, responses), 0 otherwise. Migration 0013. */
   promptCount:        integer('prompt_count').notNull().default(0),
   dedupeHash:         text('dedupe_hash').notNull(),
+  /**
+   * LiteLLM's own request id. `collect_usage` already reads it to build
+   * `dedupeHash`; persisting it is what lets `messages.gateway_request_id`
+   * claim the real cost of a turn instead of estimating it. 0026.
+   */
+  gatewayRequestId:   text('gateway_request_id'),
   createdAt:          timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   dedupeIdx:    uniqueIndex('usage_records_dedupe_idx').on(t.dedupeHash),
@@ -540,7 +569,7 @@ export const authCredentials = pgTable('auth_credentials', {
 });
 
 // Brute-force control. A self-hosted credentials provider has no upstream
-// WAF, so this is a first-class control (PLATFORM.md §9.1).
+// WAF, so this is a first-class control.
 export const authLoginAttempts = pgTable('auth_login_attempts', {
   bucket:         text('bucket').primaryKey(),
   failures:       integer('failures').notNull().default(0),
@@ -586,6 +615,230 @@ export const trialRedemptions = pgTable('trial_redemptions', {
   expiryIdx:     index('trial_redemptions_expiry_idx').on(t.expiresAt),
 }));
 
+// ───────────────────────────────────────────────────────────────────────
+//  Chat (0026) — the conversational product.
+//
+//  Scoped by BOTH organization and user on purpose: the org is the billing
+//  tenant (and the IDOR guard —), the user is the owner
+//  of the conversation. Dropping either filter is a data leak.
+// ───────────────────────────────────────────────────────────────────────
+export const conversations = pgTable('conversations', {
+  id:            uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId:        uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title:         text('title').notNull().default('New chat'),
+  /** The alias (`fast|smart|frontier`), never the resolved upstream model. */
+  model:         text('model'),
+  archivedAt:    timestamp('archived_at', { withTimezone: true }),
+  lastMessageAt: timestamp('last_message_at', { withTimezone: true }),
+  /** Optional project (0031). ON DELETE SET NULL, so deleting a folder keeps its chats. */
+  projectId:     uuid('project_id'),
+  /** Excluded from memory extraction and the search index. Purged by retention, not on close. */
+  temporary:     boolean('temporary').notNull().default(false),
+  /** Which leaf of the edit/branch DAG is currently shown. */
+  activeBranchHead: uuid('active_branch_head'),
+  createdAt:     timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:     timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userRecentIdx: index('conversations_user_recent_idx').on(t.userId, t.lastMessageAt),
+  orgIdx:        index('conversations_org_idx').on(t.organizationId, t.lastMessageAt),
+  projectIdx:    index('conversations_project_idx').on(t.projectId, t.lastMessageAt),
+}));
+
+export const messages = pgTable('messages', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  conversationId:   uuid('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  role:             text('role').notNull(),
+  content:          text('content').notNull().default(''),
+  model:            text('model'),
+  /** Joins usage_records.gateway_request_id — the cost attribution join. */
+  gatewayRequestId: text('gateway_request_id'),
+  inputTokens:      integer('input_tokens'),
+  outputTokens:     integer('output_tokens'),
+  costUsd:          numeric('cost_usd', { precision: 14, scale: 8 }),
+  /** pending | streaming | complete | error | aborted */
+  status:           text('status').notNull().default('complete'),
+  error:            text('error'),
+  latencyMs:        integer('latency_ms'),
+  /** The turn this replaces or branches from. What makes `branch` a fact, not a UI trick. */
+  parentMessageId:  uuid('parent_message_id'),
+  /** What effort the gateway actually used, so a slow turn can be explained. */
+  reasoningEffort:  text('reasoning_effort'),
+  /** Sum of extracted chars for this turn's attachments (0030). */
+  attachmentChars:  integer('attachment_chars').notNull().default(0),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  conversationIdx: index('messages_conversation_idx').on(t.conversationId, t.createdAt),
+  requestIdx:      index('messages_request_idx').on(t.gatewayRequestId),
+  parentIdx:       index('messages_parent_idx').on(t.parentMessageId),
+}));
+
+/**
+ * The org's long-lived LiteLLM key. `keyCiphertext` is SEALED
+ * (lib/crypto/sealed.ts), not hashed: it has to be presented to the
+ * gateway on every request, so it must be reversible.
+ */
+export const chatCredentials = pgTable('chat_credentials', {
+  organizationId: uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  litellmKeyHash: text('litellm_key_hash').notNull(),
+  litellmKeyName: text('litellm_key_name'),
+  keyCiphertext:  bytea('key_ciphertext').notNull(),
+  models:         text('models').array().notNull().default([]),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  rotatedAt:      timestamp('rotated_at', { withTimezone: true }),
+});
+
+/**
+ * One uploaded file, keyed to its exact bytes.
+ *
+ * `contentHash` is guarded by a UNIQUE (organization_id, content_hash)
+ * index, NOT a global one: two tenants uploading the same public PDF must
+ * get two rows, or deleting one tenant's file would blank the other's
+ * attachment. `extractedText` is stored rather than recomputed because
+ * extraction is expensive and immutable for a given hash — recomputing it
+ * would make a transcript slower the more files it holds.
+ */
+export const attachments = pgTable('attachments', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId:         uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** sha256 of the raw bytes, hex. */
+  contentHash:    text('content_hash').notNull(),
+  filename:       text('filename').notNull(),
+  mimeType:       text('mime_type').notNull().default('application/octet-stream'),
+  byteSize:       bigint('byte_size', { mode: 'number' }).notNull(),
+  /** pdf | docx | sheet | text | image — mirrors ExtractedKind in engine/. */
+  kind:           text('kind').notNull().default('text'),
+  extractedText:  text('extracted_text').notNull().default(''),
+  truncated:      boolean('truncated').notNull().default(false),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgHashIdx: uniqueIndex('attachments_org_hash_idx').on(t.organizationId, t.contentHash),
+  userIdx:    index('attachments_user_idx').on(t.userId, t.createdAt),
+}));
+
+/**
+ * The join, because a message carries several files and a file can appear
+ * in many messages — neither side can hold the foreign key on its own.
+ */
+export const messageAttachments = pgTable('message_attachments', {
+  messageId:    uuid('message_id').notNull().references(() => messages.id, { onDelete: 'cascade' }),
+  attachmentId: uuid('attachment_id').notNull().references(() => attachments.id, { onDelete: 'cascade' }),
+  position:     integer('position').notNull().default(0),
+}, (t) => ({
+  pk:            primaryKey({ columns: [t.messageId, t.attachmentId, t.position] }),
+  attachmentIdx: index('message_attachments_attachment_idx').on(t.attachmentId),
+}));
+
+/**
+ * A folder with its own instructions (0031). Conversations join by a
+ * nullable `project_id`, so the flat sidebar keeps working for a user who
+ * never makes one.
+ */
+export const projects = pgTable('projects', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId:         uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  name:           text('name').notNull(),
+  /** Prepended to every turn in the project, before the per-chat prompt. */
+  instructions:   text('instructions').notNull().default(''),
+  color:          text('color').notNull().default('default'),
+  archivedAt:     timestamp('archived_at', { withTimezone: true }),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index('projects_user_idx').on(t.userId, t.updatedAt),
+  nameIdx: uniqueIndex('projects_user_name_idx').on(t.userId, t.name),
+}));
+
+/**
+ * One remembered fact (0031). A row per fact, not a jsonb blob: the trust
+ * requirement is "delete one thing", and a blob cannot do that without a
+ * read-modify-write racing the extractor.
+ */
+export const memories = pgTable('memories', {
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  organizationId:       uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId:               uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content:              text('content').notNull(),
+  category:             text('category').notNull().default('general'),
+  /** SET NULL: a memory outlives the chat it was learned in. That is the point. */
+  sourceConversationId: uuid('source_conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+  pinned:               boolean('pinned').notNull().default(false),
+  /** Hash of the normalised text, so re-extraction is a no-op not a duplicate. */
+  contentKey:           text('content_key'),
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  userIdx: index('memories_user_idx').on(t.userId, t.createdAt),
+  // Not partial: a partial unique index cannot be inferred by
+  // `ON CONFLICT (user_id, content_key)` (see 0031).
+  keyIdx:  uniqueIndex('memories_user_key_idx').on(t.userId, t.contentKey),
+}));
+
+/**
+ * A revocable public link (0031). `tokenHash` is a sha256 — never the token
+ * itself, so a database dump cannot yield working links.
+ */
+export const conversationShares = pgTable('conversation_shares', {
+  id:               uuid('id').primaryKey().defaultRandom(),
+  conversationId:   uuid('conversation_id').notNull().references(() => conversations.id, { onDelete: 'cascade' }),
+  organizationId:   uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  createdBy:        uuid('created_by').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tokenHash:        text('token_hash').notNull(),
+  /** Partial share: only messages up to this one are visible. */
+  throughMessageId: uuid('through_message_id').references(() => messages.id, { onDelete: 'set null' }),
+  expiresAt:        timestamp('expires_at', { withTimezone: true }),
+  revokedAt:        timestamp('revoked_at', { withTimezone: true }),
+  viewCount:        integer('view_count').notNull().default(0),
+  createdAt:        timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  tokenIdx: uniqueIndex('conversation_shares_token_hash_key').on(t.tokenHash),
+  convIdx:  index('conversation_shares_conv_idx').on(t.conversationId),
+}));
+
+/**
+ * The "about me / how to respond" pair (0031). Deliberately not in
+ * `chat_presets`: those are generation parameters a chat may override, and
+ * "who I am" must not be overridable from one conversation's settings.
+ */
+export const customInstructions = pgTable('custom_instructions', {
+  userId:         uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  aboutUser:      text('about_user').notNull().default(''),
+  responseStyle:  text('response_style').notNull().default(''),
+  updatedAt:      timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * A recurring prompt (0031). Runs on the existing `scripts/jobs.ts` loop,
+ * so this is a table rather than a second scheduler.
+ */
+export const scheduledPrompts = pgTable('scheduled_prompts', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  userId:         uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  conversationId: uuid('conversation_id').references(() => conversations.id, { onDelete: 'set null' }),
+  title:          text('title').notNull().default(''),
+  prompt:         text('prompt').notNull(),
+  alias:          text('alias').notNull().default('smart'),
+  everyMinutes:   integer('every_minutes').notNull(),
+  enabled:        boolean('enabled').notNull().default(true),
+  lastRunAt:      timestamp('last_run_at', { withTimezone: true }),
+  nextRunAt:      timestamp('next_run_at', { withTimezone: true }).notNull().defaultNow(),
+  lastStatus:     text('last_status'),
+  lastError:      text('last_error'),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  dueIdx: index('scheduled_prompts_due_idx').on(t.nextRunAt),
+}));
+
+export type Project            = typeof projects.$inferSelect;
+export type Memory             = typeof memories.$inferSelect;
+export type ConversationShare  = typeof conversationShares.$inferSelect;
+export type CustomInstructions = typeof customInstructions.$inferSelect;
+export type ScheduledPrompt    = typeof scheduledPrompts.$inferSelect;
+
 export type User             = typeof users.$inferSelect;
 export type NewUser          = typeof users.$inferInsert;
 export type Org              = typeof organizations.$inferSelect;
@@ -599,5 +852,5 @@ export type TrialCode        = typeof trialCodes.$inferSelect;
 export type TrialRedemption  = typeof trialRedemptions.$inferSelect;
 export type AuthUser         = typeof authUsers.$inferSelect;
 
-/** The five org roles, as a type. IMPLEMENTATION.md §1.2. */
+/** The five org roles, as a type. */
 export type OrgRole = (typeof orgRole.enumValues)[number];

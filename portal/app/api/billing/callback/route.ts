@@ -1,7 +1,7 @@
 /**
  * POST /api/billing/callback — the provider's webhook.
  *
- * Three rules, in this order (PLATFORM.md §6.2):
+ * Three rules, in this order:
  *
  *   1. Verify the signature over the RAW body, before any parsing.
  *      Parsing first throws away the bytes the signature covers.

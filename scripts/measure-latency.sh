@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# measure-latency.sh — per-layer latency measurement. LATENCY.md §9.
+# measure-latency.sh — per-layer latency measurement.
 #
 # Splits one streaming request into: dns, tcp, tls, ttft, total,
 # effective decode throughput, and LiteLLM's own overhead header.
@@ -116,7 +116,7 @@ if [ -n "$CSV" ]; then
 fi
 
 echo
-echo "Interpretation (LATENCY.md §4.2):"
+echo "Interpretation:"
 echo "  ttft  ≈ client→VPS RTT + ~4ms gateway + VPS→upstream RTT + queue+prefill"
 echo "  total ≈ ttft + decode. Gateway share should be <0.5% of total."
 echo "  If litellm overhead p99 climbs while ttft is flat, check Redis and"

@@ -23,8 +23,8 @@ export interface SignUpState {
  *   1. Validate + hash the password (scrypt).
  *   2. Create the auth identity + credentials row.
  *   3. Mirror into the domain `users` table.
- *   4. Sign in, which lands the user on /dashboard. First-login org
- *      provisioning happens on the dashboard request
+ *   4. Sign in, which lands the user on /chat. First-login org
+ *      provisioning happens on the first authenticated render
  *      (lib/auth/provision.ts).
  *
  * We do NOT create the org, team, or subscription here — that path is
@@ -84,7 +84,10 @@ export async function signUpAction(
     await signIn('credentials', {
       email,
       password,
-      redirectTo: '/dashboard',
+      // /chat, like every other entry point. The console is one click away
+      // in its sidebar, and a brand-new account has nothing to read there
+      // yet — the first thing it can actually do is chat.
+      redirectTo: '/chat',
     });
     return {};
   } catch (e) {

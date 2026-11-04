@@ -13,8 +13,10 @@ export const metadata: Metadata = {
 
 export default async function SignUpPage() {
   // Same gate as /sign-in: a parseable-but-stale token must reach a form
-  // that replaces it, not a redirect pair it can never satisfy.
-  if (await hasLiveSession()) redirect("/dashboard");
+  // that replaces it, not a redirect pair it can never satisfy. Same
+  // destination too — /chat, so signup, sign-in and the landing page all
+  // agree on where a session begins.
+  if (await hasLiveSession()) redirect("/chat");
   return (
     <AuthShell
       title="Create your account"

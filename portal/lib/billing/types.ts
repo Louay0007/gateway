@@ -15,7 +15,7 @@
  * What is provider-neutral and therefore ours to own:
  *   - the subscription state machine (`lib/billing/service.ts`)
  *   - entitlement enforcement (already proven, `lib/entitlements/`)
- *   - webhook idempotency (`billing_events`, PLATFORM.md §6.2's replay
+ *  - webhook idempotency (`billing_events`, replay
  *     rule, provider-neutral since 0003)
  */
 
@@ -42,7 +42,7 @@ export interface CheckoutIntent {
  * A verified, normalised provider callback.
  *
  * `id` is the provider's event id and the `billing_events` dedupe key —
- * a replayed callback must never apply twice (PLATFORM.md §6.2).
+ * a replayed callback must never apply twice.
  * `organizationId` is resolved by the provider from what IT put in the
  * payment metadata; the portal never trusts an org id in the body.
  */
@@ -75,7 +75,7 @@ export interface BillingProvider {
    * Verify a callback's signature over the RAW body and normalise it.
    * Throws on a bad signature — the route answers 400 and writes
    * nothing. Parsing before verifying loses the bytes and is the bug
-   * this exists to prevent (PLATFORM.md §6.2).
+   * this exists to prevent.
    */
   verify(rawBody: string, headers: Record<string, string | null>): Promise<ProviderEvent>;
 

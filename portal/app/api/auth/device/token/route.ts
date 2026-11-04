@@ -77,6 +77,9 @@ export async function POST(request: Request): Promise<Response> {
     return Response.json({
       token: outcome.token,
       models: outcome.models,
+      // The key's expiry, so the app can warn before the interruption rather
+      // than discovering it on a failed prompt.
+      expires_at: outcome.expiresAt,
       user: outcome.user,
       organization: outcome.organization,
     });

@@ -13,7 +13,7 @@
  * and only a revenue sort surfaces that.
  *
  * `model` filters by ALIAS, never a raw upstream model name. That is not
- * a privacy nicety, it is the product's central invariant (CONTEXT.md
+ * a privacy nicety, it is the product's central invariant (
  * §1): no upstream model name is stored, rendered or exported anywhere
  * in a customer surface. The admin console reads the same column the
  * ledger does, so the alias is all that exists here to filter on.

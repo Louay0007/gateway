@@ -21,17 +21,20 @@ admin console.
 
 ## Docs
 
-| File | What it is |
+This README is the only maintained document. Everything an operator needs to
+run, deploy and reason about the system is below or in the code comments,
+which are the authoritative record for each decision.
+
+| Where | What it answers |
 |---|---|
-| **[IMPLEMENTATION.md](IMPLEMENTATION.md)** | Build plan: roles, features, API contract, infra, phases 0–9 |
-| **[MASTER_PROMPT.md](MASTER_PROMPT.md)** | Paste to the VPS AI: mission, conventions, git/GitHub to `louuuu007` |
-| **[PLATFORM.md](PLATFORM.md)** | **Start here if building the SaaS.** Business models, pricing economics, schema, billing (D17 manual transfer) |
-| **[LATENCY.md](LATENCY.md)** | What the provider's "24 ms" means; agentic latency scenarios; SLA guidance |
-| **[DESIGN.md](DESIGN.md)** | Locked tech choices, dual-format design, 17 acceptance tests |
-| [BLUEPRINT.md](BLUEPRINT.md) | Analysis: legal, cost accounting, threat model, runbook |
-| [docs/auth-edge.md](docs/auth-edge.md) | The `zn-` → `sk-` credential boundary, denial mapping |
-| [docs/d17-payments.md](docs/d17-payments.md) | Manual D17 payment flow (La Poste Tunisienne) |
-| [docs/device-code-flow.md](docs/device-code-flow.md) | Browser device sign-in for the desktop app |
+| This file | Architecture, plans and quota, enforcement, deploy, commands |
+| `config/litellm.yaml` | Model aliases, rates, routing and retry policy (comments are the rationale) |
+| `config/Caddyfile` | Public surface, `@mgmt` denial, IP gates, TLS |
+| `edge/server.mjs` | The `zn-` → `sk-` boundary and its fail-closed rules |
+| `edge/responses-shim.mjs` | Responses → Chat translation, and why it sits before LiteLLM |
+| `portal/lib/entitlements/quota.ts` | The token wall — the one window and the one rule |
+| `portal/db/migrations/*.sql` | Schema history, forward-only, each with its reasoning |
+| `portal/public/logos/ATTRIBUTION.md` | Trademark attribution for the vendor logos on `/docs` |
 
 ## Stack
 
@@ -210,14 +213,17 @@ two periods, so month math would attribute spend to the wrong allowance.
 
 **1. Taking payment for model access is resale.** Anthropic's Commercial ToS
 §A.1 permits powering your own products; §D.2 forbids reselling "except as
-expressly approved by Anthropic." Stripe permits it — Stripe's restriction is
-not your upstream's. [PLATFORM.md §0](PLATFORM.md#0-read-this-first--the-business-model-determines-the-architecture)
-lays out three viable structures; **BYOK** (customer holds the key, you sell
-the software) avoids the clause entirely.
+expressly approved by Anthropic." Your payment processor permitting it is not
+your upstream permitting it. Three structures are viable; **BYOK** (customer
+holds the key, you sell the software) avoids the clause entirely. If your own
+upstream is a reseller, you inherit its exposure.
 
 **2. `rate_multiplier_bps` is your business.** At 1.30 you keep ~23% gross
 margin. Below ~1.20 you subsidise your heaviest users, and your heaviest users
-always use their full allowance. [PLATFORM.md §4.3](PLATFORM.md#43-unit-economics--the-constraint-that-actually-matters)
+always use their full allowance. The multiplier lives on `plans`
+(`portal/db/migrations/0001_init.sql`) and is applied by
+`lib/billing/service.ts`; the overage invariant (`markup == multiplier − 10000`)
+is asserted in `portal/tests/security.test.ts`.
 
 **3. Daily 100M budgets are generous on purpose — size the margin for the
 ceiling, not the average.** A customer who burns the full 100M Smart tokens
@@ -230,8 +236,9 @@ any price or budget change.
 Local machine = editor + git. The stack also runs locally for proofs
 (`make verify-metering`, `make verify-d17`, `make verify-grant`), but the VPS is the only place it
 serves traffic. `make verify-config` is the one check that runs without
-containers; latency numbers measured anywhere but the VPS are fiction — see
-LATENCY.md §9.
+containers; latency numbers measured anywhere but the VPS are fiction, because
+every layer between the client and the upstream adds a hop you cannot model
+from a laptop.
 
 ```bash
 # ── local ─────────────────────────────────────────────────────
@@ -299,7 +306,8 @@ prefixes, with nothing in the logs indicating a problem.
 ### OpenCode Desktop (official)
 
 Download from the portal download page. Sign in with the browser device flow
-(see docs/device-code-flow.md and docs/opencode-desktop.md) — no key pasting.
+(`/api/auth/device` → `/device` approval → `/api/auth/device/token`, see
+`portal/lib/auth/device/`) — no key pasting.
 The key lives in the OS keychain; config only carries `{env:ZAINO_API_KEY}`.
 Only the models your plan allows appear in the picker: Fast + Smart on
 Starter, Smart + Frontier on Pro.
@@ -386,8 +394,9 @@ Schema, newest-first: `0025_daily_100m` (100M/day budgets per tier,
 
 Implementation order matters — entitlements and payment activation are where
 "customer paid but has no access" and "customer paid twice" bugs live. Both are
-silent. See [PLATFORM.md §12](PLATFORM.md#12-implementation-plan) and the
-authoritative current-state notes in [HANDOFF.md](HANDOFF.md).
+silent. Payment activation is idempotent through the event id in
+`billing_events` (`d17:<paymentId>:approved`), and entitlement push is shared by
+`enforce_prompt_limits`, sync and the hourly backstop so they cannot disagree.
 
 The single most expensive invariant: **bundle and wall share one window
 helper.** `subscriptionBundle()` (what the customer sees) imports
@@ -434,9 +443,8 @@ will 403 you — including from localhost's perspective on a fresh install.
 
 ## Before serving third parties
 
-Read [BLUEPRINT.md §2](BLUEPRINT.md#2-legal-and-policy-analysis). Anthropic's
-Commercial ToS permits powering your own products (§A.1) but forbids reselling
-the Services without express approval (§D.2). If your upstream is itself a
+Anthropic's Commercial ToS permits powering your own products (§A.1) but
+forbids reselling the Services without express approval (§D.2). If your upstream is itself a
 reseller, you inherit its exposure. **Private/team use can proceed now;
 third-party use should wait for a written answer.**
 

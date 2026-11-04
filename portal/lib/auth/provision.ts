@@ -1,5 +1,5 @@
 /**
- * First-login provisioning — IMPLEMENTATION.md §7 Phase 1, MVP shape.
+ * First-login provisioning — Phase 1, MVP shape.
  *
  * The sequence:
  *
@@ -43,7 +43,7 @@ export { slugify, slugCandidates } from '@/lib/org/slug';
  * team's models, so a team created with a narrower list silently caps
  * every key beneath it — the key reports {fast, smart} and the team says
  * {fast}, and the request 403s with a message that blames the credential
- * rather than the team. (HANDOFF.md §5.26.)
+ * rather than the team.
  *
  * A pre-activation team is budgeted at CUT_BUDGET = 0, so this wider list
  * grants nothing on its own: nothing can be spent, and no key is minted

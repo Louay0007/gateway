@@ -156,7 +156,7 @@ export function buildKeyAlias(input: { orgSlug: string; name: string }): string 
 }
 
 // ───────────────────────────────────────────────────────────────────────
-//  Creation rules — IMPLEMENTATION.md §1.2
+//  Creation rules
 // ───────────────────────────────────────────────────────────────────────
 
 const ORG_RANK: Record<OrgRole, number> = {

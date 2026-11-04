@@ -1,0 +1,126 @@
+# docker-compose.local.yml — LOCAL-ONLY override for Docker Desktop.
+#
+# WHY THIS FILE EXISTS
+#
+# docker-compose.yml is written for the VPS, where `network_mode: host` is
+# meaningful: caddy binds the host's real :80/:443 and proxies to
+# 127.0.0.1:4000 / :3000 / :4001 / :4096, all of which live on that same
+# host kernel. On Docker Desktop (macOS/Windows) "host" means the Linux VM,
+# not the Mac. Nothing caddy listens on is reachable from the browser, so
+# `http://portal.localhost` answers ECONNREFUSED while every container
+# reports healthy. Verified on this machine, not inferred:
+#   - `lsof -iTCP:80 -iTCP:443` showed nothing bound while caddy reported Up
+#   - a `--network host` container serving :8098 was unreachable from macOS
+#     but answered 200 from inside the host-network namespace
+#
+# So locally the three network-dependent services move to the bridge, and
+# the Caddyfile's prod defaults are overridden by environment variables it
+# already reads. NO fork of the Caddyfile, and docker-compose.yml is
+# untouched, because that file must keep describing the VPS truthfully.
+#
+# NEVER DEPLOY THIS FILE. `make deploy` rsyncs with an explicit
+# --exclude for it, so it cannot reach the VPS. It is the same pattern as
+# docker-compose.mock.yml.
+#
+#   make up-local      # this file, then health
+#   make down-local
+#
+# WHAT DOES NOT WORK LOCALLY, AND WHY
+#
+#   code.localhost → 502. It proxies opencode-web, a systemd unit on the
+#   VPS host at 127.0.0.1:4096. No bridge container can reach the Mac's
+#   loopback, and there is nothing to run there. Left as an honest 502
+#   rather than a fake stub, so the failure is visible and correct.
+#
+#   The admin console still needs ADMIN_GATE_SECRET from .env — that is
+#   app-level auth, not networking, and it is deliberately not weakened.
+
+services:
+  caddy:
+    # `!reset null` clears the base file's `network_mode: host`. A plain
+    # override cannot: network_mode has no merge semantics, and setting it
+    # to "bridge" alongside a `networks:` key is a compose error. This is
+    # the documented way to unset a scalar inherited from another file.
+    network_mode: !reset null
+    # `!override` replaces the (empty) base list instead of appending.
+    # 443 is absent on purpose: with CADDY_SCHEME=http:// every vhost is an
+    # `http://` address, so Caddy only ever listens on :80 and never
+    # attempts an ACME challenge for a `.localhost` name that no CA can
+    # issue for.
+    ports: !override
+      - "80:80"
+    environment:
+      # The public API vhost, localised. .env carries the REAL
+      # api.zaino.soon.it, so without this line the local Caddy would be
+      # configured for a public hostname and a browser would resolve it to
+      # the internet instead of to this machine — the one failure mode
+      # where "it works" is actually production answering. Basic names
+      # resolve to 127.0.0.1 on macOS without an /etc/hosts entry.
+      API_DOMAIN: api.localhost
+      # Empty on the VPS ⇒ bare site addresses ⇒ TLS on :443.
+      # `http://` locally ⇒ plain HTTP on :80, no certificate dance.
+      CADDY_SCHEME: http://
+      # Container names, not 127.0.0.1. In bridge mode 127.0.0.1 inside
+      # caddy is caddy itself, so every one of these would loop back.
+      AUTH_EDGE_UPSTREAM: auth-edge:4001
+      PORTAL_UPSTREAM: portal:3000
+      # Left as the prod default on purpose — see the note above. The value
+      # resolves to caddy's own loopback, where nothing listens, so this
+      # vhost answers 502 instead of silently pretending to work.
+      CODE_UPSTREAM: 127.0.0.1:4096
+      # The code vhost is IP-gated, and on the bridge caddy sees the
+      # bridge gateway (172.x), not 127.0.0.1 — so the prod allowlist
+      # rejects every local request and the vhost answers 403 "Forbidden"
+      # instead of the 502 that actually describes the situation ("this
+      # proxies a host service that does not exist here").
+      #
+      # Safe only because there is NO upstream to reach: see CODE_UPSTREAM
+      # above, which points at caddy's own loopback where nothing listens.
+      # Never copy this line to a stack that runs opencode-web.
+      CODE_ALLOW: 0.0.0.0/0
+
+  auth-edge:
+    network_mode: !reset null
+    environment:
+      # The image pins AUTH_EDGE_HOST=127.0.0.1, which is correct on the
+      # VPS (caddy shares the host namespace). On the bridge it would make
+      # the edge unreachable from caddy, so it binds the container's own
+      # interface. NOTE THE BLAST RADIUS: this is a credential proxy
+      # listening on the compose network, reachable by any container on it.
+      # `ports:` is therefore deliberately ABSENT — nothing is published to
+      # the Mac, so only this project's containers can connect.
+      AUTH_EDGE_HOST: 0.0.0.0
+      # Over the compose network rather than the host loopback, for the
+      # same reason as caddy above.
+      AUTH_EDGE_UPSTREAM: http://litellm:4000
+
+  portal:
+    environment:
+      # AUTH_URL is what Auth.js uses to build callback and redirect URLs.
+      # The base file hardcodes https:// because prod is TLS-only. Locally
+      # that would (a) redirect the browser to a port nothing serves and
+      # (b) mark the session cookie Secure, which a browser silently drops
+      # over http — i.e. sign-in would appear to succeed and then bounce
+      # straight back to /sign-in. This is the single most likely way the
+      # local stack "almost works".
+      AUTH_URL: http://${PORTAL_DOMAIN}
+      # Same origin for the links the app mails and redirects to.
+      NEXT_PUBLIC_APP_URL: http://${PORTAL_DOMAIN}
+      APP_URL: http://${PORTAL_DOMAIN}
+      # .env sets EMAIL_TRANSPORT=resend with RESEND_API_KEY commented out.
+      # lib/email/index.ts honours the explicit name and then resend.ts
+      # throws "RESEND_API_KEY is not set" — so password reset and email
+      # verification fail locally for an env reason that reads like a code
+      # bug. `log` is the documented dev transport: the link lands in the
+      # container log, which is where you can actually click it.
+      EMAIL_TRANSPORT: log
+      RESEND_API_KEY: ""
+
+  jobs:
+    environment:
+      # The dev billing provider and the reset-link mailer both build URLs
+      # from APP_URL; 127.0.0.1:3000 would send a browser to a port the
+      # Caddy vhost does not use.
+      APP_URL: http://${PORTAL_DOMAIN}
+      EMAIL_TRANSPORT: log
+      RESEND_API_KEY: ""

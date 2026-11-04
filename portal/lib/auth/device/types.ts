@@ -45,6 +45,14 @@ export interface DeviceTokenGranted {
   /** `zn-…` plaintext — returned once, then nulled server-side. */
   token: string;
   models: string[];
+  /**
+   * When the issued key stops working, as an ISO string.
+   *
+   * Device keys carry a bounded lifetime. Without this the app cannot warn
+   * before the interruption, and the user only discovers it when a prompt
+   * fails against the gateway wall.
+   */
+  expiresAt: string | null;
   user: { id: string; email: string; name: string | null };
   organization: { id: string; slug: string; name: string };
 }

@@ -161,7 +161,16 @@ export function BillingView() {
   async function beginCheckout(planCode: string, method?: "d17") {
     setBusy(planCode);
     const result = await apiSend<{ checkoutUrl: string }>("/api/checkout", {
-      body: { planCode, ...(method ? { method } : {}) },
+      body: {
+        planCode,
+        ...(method ? { method } : {}),
+        // This component renders in BOTH shells (`/settings?tab=plan` and
+        // `/dashboard/billing`), so the post-payment destination has to be
+        // whichever one is asking. Hardcoding it server-side dropped a
+        // customer into the other shell right after they paid. The server
+        // re-validates; this is a hint, not a permission.
+        returnPath: window.location.pathname + window.location.search,
+      },
     });
     setBusy(null);
 
@@ -951,7 +960,7 @@ function PendingBanner({
 /**
  * PaymentHistory — every payment this account has made.
  */
-function PaymentHistory() {
+export function PaymentHistory() {
   const { data, error, loading, reload } = useApi<{
     payments: PaymentHistoryItem[];
   }>("/api/billing/payments");

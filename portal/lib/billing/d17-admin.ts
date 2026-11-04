@@ -32,7 +32,7 @@ import { appendAudit } from '@/lib/audit';
 import { applyCallback, type ProviderEvent } from '@/lib/billing';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
 import { sendEmail } from '@/lib/email';
-import { logoAttachment, textToHtml, wrapEmail } from '@/lib/email/layout';
+import { logoAttachments, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { log } from '@/lib/log';
 import { formatTndMillimes } from './d17-config';
 
@@ -283,7 +283,7 @@ export async function approveD17Payment(
           }),
           text: approvedText,
           html: wrapEmail(textToHtml(approvedText), { dir: lang === 'ar' ? 'rtl' : 'ltr' }),
-          attachments: [logoAttachment()],
+          attachments: logoAttachments(),
         });
       } catch (e) {
         log.error('d17: approval email failed', {
@@ -374,7 +374,7 @@ export async function rejectD17Payment(
           subject: templates.rejectedSubject({}),
           text: rejectedText,
           html: wrapEmail(textToHtml(rejectedText), { dir: lang === 'ar' ? 'rtl' : 'ltr' }),
-          attachments: [logoAttachment()],
+          attachments: logoAttachments(),
         });
       } catch (e) {
         log.error('d17: rejection email failed', {

@@ -6,16 +6,20 @@
  * disagree, reconcile.sh is the one that wins — it runs against raw usage
  * and a versioned price table.
  *
- * The cache-TTL split is not optional. See BLUEPRINT.md §8.3 for the
- * documented 19% under-reporting caused by pricing merged cache-creation
- * tokens at the 5-minute rate.
+ * The cache-TTL split is not optional: pricing merged cache-creation
+ * tokens at the 5-minute rate under-reports 1-hour-TTL workloads by ~19%,
+ * which is why `TokenCounts` carries the two buckets separately.
+ *
+ * INPUT IS EXCLUSIVE OF CACHE. `counts.inputTokens` means fresh tokens
+ * only; `cacheRead` is priced at the cache-read rate separately. Feeding
+ * a provider's inclusive `prompt_tokens` here double-bills the cached
+ * portion — see the note on `TokenCounts.inputTokens`.
  */
 
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
-import path from 'node:path';
 
-const PRICE_FILE = process.env.PRICE_FILE ?? path.join(process.cwd(), 'prices/models.yaml');
+import { PRICE_FILE } from '@/lib/pricing/path';
 
 export interface ModelPrice {
   input_per_mtok: number;
@@ -38,6 +42,14 @@ export async function loadPriceTable(): Promise<PriceTable> {
 }
 
 export interface TokenCounts {
+  /**
+   * Input tokens EXCLUDING cache reads. If you have a provider's
+   * `prompt_tokens`, subtract `cacheRead` first — that field is inclusive
+   * of the cached portion, and passing it here as-is bills the cached
+   * tokens twice (once at the input rate, once at the cache rate).
+   * `lib/litellm/client.ts` `extractUsage()` returns the normalised value
+   * as `freshInput` for exactly this reason.
+   */
   inputTokens: number;
   outputTokens: number;
   cacheWrite5m: number;
@@ -108,7 +120,6 @@ export function priceUsage(
 
 /**
  * Customer-facing rate. `strategy` is set per business model —
- * PLATFORM.md §4.4.
  *
  *   'pass_through'  cached reads bill at 0.1x, same as upstream
  *   'flatten'       no cache discount; all input billed at 1x
@@ -125,6 +136,9 @@ export function customerCost(
   const m = multiplierBps / 10_000;
 
   if (strategy === 'flatten') {
+    // No cache discount: every input-side token bills at the input rate.
+    // `inputTokens` is already exclusive of cache, so the four buckets are
+    // disjoint and summing them cannot double-count.
     const allIn = (counts.inputTokens + counts.cacheWrite5m
                  + counts.cacheWrite1h + counts.cacheRead) / M * price.input_per_mtok;
     const out   = counts.outputTokens / M * price.output_per_mtok;
@@ -135,11 +149,16 @@ export function customerCost(
 }
 
 /**
- * Total billable tokens for Stripe metering.
+ * Total billable tokens for metering.
+ *
+ * The four buckets are DISJOINT: `inputTokens` is fresh input (exclusive
+ * of cache reads), and the cache buckets are separate. Summing them gives
+ * the provider's `prompt_tokens + completion_tokens`, which is the one
+ * quantity that must agree between this system and the upstream.
  *
  * Cached reads are counted at full weight here because the meter's own
  * per-tier unit_amount encodes the rate. Keep this a pure count so the
- * Stripe side owns the pricing and you own the quantity.
+ * billing side owns the pricing and this owns the quantity.
  */
 export function billableTokens(c: TokenCounts): number {
   return c.inputTokens + c.outputTokens

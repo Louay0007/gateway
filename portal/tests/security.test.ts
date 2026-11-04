@@ -78,7 +78,7 @@ describe('password policy', () => {
 /**
  * THE BUG THIS FILE EXISTS TO PREVENT.
  *
- * LiteLLM reads a limit of 0 as "unlimited" (BLUEPRINT.md §9.4). Writing 0
+ * LiteLLM reads a limit of 0 as "unlimited". Writing 0
  * for a customer we meant to suspend GRANTS them unlimited access — the
  * most expensive possible mistake in this system. Every cut/zero path must
  * resolve to CUT_BUDGET, never 0.
@@ -148,7 +148,7 @@ describe('a cut org keeps keys alive but loses every capability', () => {
 
 describe('subscription status → effect', () => {
   it('gives past_due a grace period instead of cutting service', () => {
-    // PLATFORM.md §5.1: cut on `unpaid`, never on `past_due`. A mistyped
+    // Cut on `unpaid`, never on `past_due`. A mistyped
     // card must not cost the customer their service.
     expect(STATUS_EFFECT.past_due).toBe('full');
     expect(STATUS_EFFECT.unpaid).toBe('cut');

@@ -1,6 +1,27 @@
 {
 	email you@zaino.soon.it
 
+	# ── Every site address is prefixed with {$CADDY_SCHEME:} ──────────
+	# Empty on the VPS, so each address stays bare and Caddy gets a
+	# certificate and listens on :443, exactly as before this variable
+	# existed. Locally (docker-compose.local.yml) it is `http://`, which
+	# makes Caddy serve plain HTTP on :80 with NO ACME attempt.
+	#
+	# This exists because Docker Desktop cannot use host networking: the
+	# VPS model (`network_mode: host`, proxy 127.0.0.1:<port> from the
+	# host's own loopback) is unreachable from macOS. Rather than fork
+	# the config, the parts that differ are variables with prod defaults
+	# — see UPSTREAMS below. Three values change locally, and only those.
+	#
+	# UPSTREAMS, and why each has a default rather than a required value:
+	#   {$AUTH_EDGE_UPSTREAM:127.0.0.1:4001}  prod = host loopback
+	#   {$PORTAL_UPSTREAM:127.0.0.1:3000}     prod = host loopback
+	#   {$CODE_UPSTREAM:127.0.0.1:4096}       prod = host systemd unit
+	# A missing variable would expand to an empty string and produce a
+	# bare `reverse_proxy {` — so every one of them carries its current
+	# production value as the default. If Docker Desktop is ever fixed or
+	# the VPS changes, the file still describes prod without an override.
+
 	# DESIGN.md §6.1 — no CDN by default. DNS-only A record → VPS.
 	# With no intermediary, the TCP peer IS the client IP and Caddy's
 	# default (strip inbound X-Forwarded-*, set from the connection)
@@ -14,7 +35,7 @@
 }
 
 # ── Public API ──────────────────────────────────────────────────────
-{$API_DOMAIN} {
+{$CADDY_SCHEME:}{$API_DOMAIN} {
 	encode zstd gzip
 
 	# ── Public-surface enforcement (DESIGN.md §4.1, smoke A-14/A-15) ──
@@ -55,7 +76,7 @@
 	# The ADMIN vhost below still goes straight to 4000: it speaks the master
 	# key, not a customer key, and keeping it off the edge means the ops
 	# console has one less hop to reason about.
-	reverse_proxy 127.0.0.1:4001 {
+	reverse_proxy {$AUTH_EDGE_UPSTREAM:127.0.0.1:4001} {
 		# SSE. Low-latency mode: flush after every write.
 		# Caddy also auto-detects text/event-stream and unknown
 		# Content-Length, but this is set explicitly rather than
@@ -109,30 +130,52 @@
 # Next.js, published on 127.0.0.1:3000 by the `portal` container and
 # reachable here ONLY because caddy runs with host networking — see the
 # network_mode comment in docker-compose.yml.
-{$PORTAL_DOMAIN} {
+{$CADDY_SCHEME:}{$PORTAL_DOMAIN} {
 	encode zstd gzip
 
 	# D17 proof submissions carry an OPTIONAL screenshot. SCREENSHOT_MAX_BYTES
 	# is 3MB (lib/billing/d17-config.ts) and the customer-facing copy in
-	# three languages says "3 Mo maximum" — so the 2MB control-plane ceiling
-	# below would answer 413 to a screenshot we told them to upload.
-	#
-	# Scoped to the one path on purpose: the portal never handles model
-	# payloads, and widening the whole vhost to admit 4MB of anything is how
-	# a control plane becomes a file-drop endpoint. 4MB = the 3MB cap plus
+	# three languages says "3 Mo maximum" — so a 2MB ceiling would answer 413
+	# to a screenshot we told them to upload. 4MB = the 3MB cap plus
 	# multipart framing, so an over-size upload is still refused by the
 	# application with a readable error rather than by the edge.
-	route /api/checkout/d17/proof* {
-		request_body {
-			max_size 4MB
-		}
-	}
+	#
+	# That 4MB lives in the matching `request_body` below, not in a `route`
+	# here: an inner block would be dead config, for the reason stated there.
+	# No separate proxy block is needed either — the vhost's own proxy
+	# already flushes and already has a 4MB-capable body once the matcher
+	# stops the blanket 2MB from running.
 
-	request_body {
-		# 2MB. The portal takes JSON and form posts; the gateway's 10MB
-		# limit is for prompts. This is a tighter ceiling on a control
-		# plane that never handles model payloads.
+	# ── Request body ceilings: ONE per path, by matcher ───────────────
+	# This used to be a blanket `request_body { max_size 2MB }` with a 4MB
+	# carve-out nested inside its `route`. That carve-out was dead config.
+	# Caddy's fixed directive order runs `request_body` BEFORE `route`, so
+	# the blanket ceiling always executed first and the 413 always came from
+	# it — the exception read like it worked and never could.
+	#
+	# Matchers make the exceptions real: exactly one ceiling applies to any
+	# request, and it is chosen by path rather than by nesting.
+	#
+	#   2MB   the control-plane default. The portal takes JSON and form
+	#         posts; a control plane that never handles model payloads
+	#         should not be a file-drop endpoint.
+	#   10MB  /api/chat only. A pasted stack trace or log is the product
+	#         working. The handler's own per-message ceiling is 256KB and
+	#         that is the check with the readable error, so this is the
+	#         outer bound, not the product limit.
+	#   4MB   /api/checkout/d17/proof only, per the note above.
+	@bodyChat path /api/chat*
+	@bodyProof path /api/checkout/d17/proof*
+	@bodyDefault not path /api/chat* /api/checkout/d17/proof*
+
+	request_body @bodyDefault {
 		max_size 2MB
+	}
+	request_body @bodyChat {
+		max_size 10MB
+	}
+	request_body @bodyProof {
+		max_size 4MB
 	}
 
 	# ── Self-hosted desktop installers (/downloads/*) ─────────────────
@@ -154,7 +197,47 @@
 		}
 	}
 
-	reverse_proxy 127.0.0.1:3000 {
+	# ── Chat: the one streaming route on the portal ────────────────────
+	# Every message the customer types reaches a model through /api/chat,
+	# and the answer comes back as SSE. The rest of the control plane wants
+	# the opposite — no streaming, short timeouts — so this path is carved
+	# out rather than widening every route.
+	#
+	# `route` is terminal for a matched request, which is exactly the
+	# intent: the 120s proxy below must never see a chat request.
+	#
+	# WHAT IS DELIBERATELY NOT HERE:
+	#
+	#   request_body        nothing to add here. @bodyChat above already
+	#                       raises this path to 10MB, and the handler's own
+	#                       256KB per-message check is the one with the
+	#                       readable error — that pair is the ceiling, not
+	#                       the 2MB default every other route keeps.
+	#   header block        the vhost's runs first (Caddy orders `header`
+	#                       before `route`), so repeating it here would be
+	#                       dead config that reads like it does something.
+	#
+	#   300s header      the 60s default below turns a slow first token into
+	#                    a 502 — the customer pays for a full generation and
+	#                    sees an error (LATENCY.md §3.2: 12–150s);
+	#   900s read/write  a long answer is still one request;
+	#   flush_interval -1  without it every token arrives in one burst at
+	#                    the end. That is the reason this block exists.
+	route /api/chat* {
+		reverse_proxy {$PORTAL_UPSTREAM:127.0.0.1:3000} {
+			flush_interval -1
+			transport http {
+				dial_timeout 10s
+				response_header_timeout 300s
+				read_timeout 900s
+				write_timeout 900s
+				keepalive_interval 30s
+				keepalive_idle_conns_per_host 64
+			}
+		}
+	}
+
+	reverse_proxy {$PORTAL_UPSTREAM:127.0.0.1:3000} {
 		# Required by the Stripe webhook route: without it, Caddy may
 		# buffer the request body and Stripe's signature check fails
 		# intermittently — a bug that appears only under load and only on
@@ -194,11 +277,22 @@
 # security boundary. Default-deny, IP-gated like the admin host.
 # Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl ifconfig.me) before
 # first use. Requires DNS: code A <VPS_IP>.
-{$CODE_DOMAIN} {
-	@blocked not remote_ip 127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32
+{$CADDY_SCHEME:}{$CODE_DOMAIN} {
+	# The allowlist is an env var with the production value as its default,
+	# for the same reason as the upstreams at the top of this file: a
+	# missing value would expand to an empty `remote_ip`, which is a syntax
+	# error, and a hardcoded list cannot account for a local stack where
+	# caddy sees the bridge gateway (172.x) rather than 127.0.0.1.
+	#
+	# Locally docker-compose.local.yml sets this to 0.0.0.0/0 so the vhost
+	# is reachable at all. That is safe ONLY because code.localhost has no
+	# upstream in that stack — the request 502s. It must never be relaxed
+	# on a box where opencode-web is actually running: this vhost is that
+	# service's entire security boundary (see the WARNING above).
+	@blocked not remote_ip {$CODE_ALLOW:127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32}
 	respond @blocked "Forbidden" 403
 
-	reverse_proxy 127.0.0.1:4096 {
+	reverse_proxy {$CODE_UPSTREAM:127.0.0.1:4096} {
 		# Terminal UI streams over SSE + websockets (Caddy upgrades
 		# automatically). Flush everything; no read/write timeout —
 		# an idle coding session must not be killed mid-thought.
@@ -251,24 +345,29 @@
 # the operations host.
 #
 # Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl -s ifconfig.me).
-{$CONSOLE_DOMAIN} {
+{$CADDY_SCHEME:}{$CONSOLE_DOMAIN} {
 	# IP allowlist REMOVED: the admin gate secret (ADMIN_GATE_SECRET) is now
 	# the sole access control. The gate page and /api/admin/gate route are
 	# reachable from any IP; the HMAC-signed cookie minted by the correct
 	# secret is what grants entry. This avoids the recurring 403 problem
 	# when the operator's IP changes.
 
-	# The same 2MB control-plane ceiling as the portal vhost, plus the
-	# 4MB D17-proof carve-out: staff open payment screenshots through
-	# /api/admin/d17/[id]/screenshot here, and a proof can be up to 3MB.
-	route /api/checkout/d17/proof* {
-		request_body {
-			max_size 4MB
-		}
-	}
+	# The same 2MB control-plane ceiling as the portal vhost, with the 4MB
+	# D17-proof carve-out: staff open payment screenshots here and a proof
+	# can be up to 3MB.
+	#
+	# By matcher, not by nesting, for exactly the reason the portal vhost
+	# explains: `request_body` runs BEFORE `route` in Caddy's directive
+	# order, so a carve-out nested inside a `route` never executes and the
+	# blanket ceiling always wins.
+	@consoleProof path /api/checkout/d17/proof*
+	@consoleDefault not path /api/checkout/d17/proof*
 
-	request_body {
+	request_body @consoleDefault {
 		max_size 2MB
+	}
+	request_body @consoleProof {
+		max_size 4MB
 	}
 
 	# Redirect bare domain to the admin gate/console entry point.
@@ -286,7 +385,7 @@
 		file_server
 	}
 
-	reverse_proxy 127.0.0.1:3000 {
+	reverse_proxy {$PORTAL_UPSTREAM:127.0.0.1:3000} {
 		flush_interval -1
 		transport http {
 			dial_timeout 10s

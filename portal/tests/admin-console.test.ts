@@ -119,7 +119,7 @@ describe('plan money rules', () => {
 
   it('derives the overage markup from the multiplier', () => {
     // overage_markup_bps === rate_multiplier_bps − 10000, per
-    // HANDOFF.md §5.14. The form never sends this field; the server
+    //  The form never sends this field; the server
     // computes it on every write so the two cannot disagree.
     expect(13_000 - 10_000).toBe(3_000);
     expect(12_500 - 10_000).toBe(2_500);

@@ -6,7 +6,7 @@
  * The tenant check is the point of this file: the orgId comes from the
  * URL, and it is only honoured when the SESSION proves membership of
  * THAT org (requireOrgMembership). A guessed UUID is indistinguishable
- * from a nonexistent org — PLATFORM.md §10.1. Owner-only: renaming the
+ * from a nonexistent org. Owner-only: renaming the
  * account and changing its public slug are account-level acts.
  *
  * The slug is the dashboard-visible handle, so it is re-resolved through

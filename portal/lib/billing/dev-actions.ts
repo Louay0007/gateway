@@ -33,6 +33,7 @@ import { plans, subscriptions } from '@/db/schema';
 import { requireActiveOrg } from '@/lib/auth/authorize';
 import { billingProvider } from '@/lib/billing/index';
 import { DEV_SIGNATURE_HEADER, devSignBody } from '@/lib/billing/dev';
+import { safeReturnPath } from '@/lib/billing/state';
 import { log } from '@/lib/log';
 
 export interface DevPayState {
@@ -50,18 +51,6 @@ export interface DevPayState {
  */
 function selfOrigin(): string {
   return (process.env.PORTAL_INTERNAL_URL ?? 'http://127.0.0.1:3000').replace(/\/+$/, '');
-}
-
-/**
- * Only same-site relative paths are accepted. `return` arrives from the
- * URL, and an open redirect on the page a customer lands on after paying
- * is a phishing primitive — the attacker picks the destination and the
- * victim arrives straight from a genuine payment.
- */
-function safeReturnPath(raw: string | null): string {
-  if (!raw) return '/dashboard/billing';
-  if (!raw.startsWith('/') || raw.startsWith('//')) return '/dashboard/billing';
-  return raw;
 }
 
 /**

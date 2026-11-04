@@ -7,7 +7,7 @@
  * — `price_cents`, `rate_multiplier_bps`, `hard_cap_cents` — editable
  * only by hand-editing rows, and only with a migration.
  *
- * THE INVARIANT THIS FILE EXISTS TO PROTECT. HANDOFF.md §5.14:
+ * THE INVARIANT THIS FILE EXISTS TO PROTECT.
  *
  *   overage_markup_bps MUST equal rate_multiplier_bps − 10000
  *

@@ -28,7 +28,7 @@
  *      cancelled) with no matching access change.
  *
  *   2. Callbacks are idempotent. `billing_events` dedupes on the
- *      provider's event id BEFORE any state change (PLATFORM.md §6.2),
+ *  provider's event id BEFORE any state change,
  *      so a replayed callback is a no-op, not a double-activation.
  *
  * `past_due` deliberately keeps access: grace period, cut on `unpaid`.
@@ -52,6 +52,7 @@ import { appendAudit } from '@/lib/audit';
 import {
   BillingError,
   planStateFromStatus,
+  safeReturnPath,
   summarizePlan,
   type PlanState,
   type PlanSummary,
@@ -159,9 +160,8 @@ function usageWindowFor(
 /**
  * Everything the dashboard renders, derived from the ledger.
  *
- * PLATFORM.md §8.2: "Every number shown must be derivable from
- * usage_records" — so usage is aggregated from the ledger here, not read
- * from the rollup cache. The rollup stays what it is (a fast cache for
+ * "Every number shown must be derivable from usage_records" — so usage is
+ * aggregated from the ledger here, not read from the rollup cache. The rollup stays what it is (a fast cache for
  * charts), and never the thing the customer's spend number comes from.
  */
 export async function subscriptionBundle(organizationId: string): Promise<{
@@ -232,14 +232,18 @@ export async function subscriptionBundle(organizationId: string): Promise<{
           ),
         );
 
-      // Blended tokens per alias for the same window (0023): input + output
-      // + cache writes + cache reads. The model column already holds the
-      // alias (fast/smart/frontier) via aliasForRow(). This is the ONLY
-      // quota signal; prompt_count is no longer read here.
+      // Blended tokens per alias for the same window (0023/0028): fresh
+      // input + output + cache writes + cache reads. `fresh_input_tokens`
+      // is the normalised column — using raw `input_tokens` here counted
+      // the cached portion twice, which made the dashboard report ~2× the
+      // usage the provider actually metered. The model column already
+      // holds the alias (fast/smart/frontier) via aliasForRow(). This is
+      // the ONLY quota signal; prompt_count is no longer read here.
       const usageRows = await db.execute(sql`
         SELECT u.model,
                coalesce(sum(
-                 coalesce(u.input_tokens,0) + coalesce(u.output_tokens,0)
+                 coalesce(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens))
+                 + coalesce(u.output_tokens,0)
                  + coalesce(u.cache_write_5m_tokens,0)
                  + coalesce(u.cache_write_1h_tokens,0)
                  + coalesce(u.cache_read_tokens,0)
@@ -274,6 +278,13 @@ export async function subscriptionBundle(organizationId: string): Promise<{
         and(
           eq(apiKeys.organizationId, organizationId),
           sql`${apiKeys.revokedAt} IS NULL`,
+          // The chat product's own credential (kind='chat',
+          // lib/chat/key.ts) is not a key the customer created or can use
+          // from a script. Counting it here would show "1 of 3" on the keys
+          // tab of an account with NO keys, and then let them mint only two
+          // more — the ceiling would be spent by a feature they never asked
+          // for. Same exclusion as countActiveKeys and listActiveKeys.
+          sql`${apiKeys.kind} <> 'chat'`,
         ),
       ),
       ]);
@@ -391,6 +402,13 @@ export async function beginCheckout(
   planCode: string,
   actorUserId: string,
   providerName?: string | null,
+  /**
+   * Where the customer lands after paying, as asked by the screen that
+   * started the checkout. Validated by `safeReturnPath`, so a caller cannot
+   * turn this into an open redirect, and `null`/garbage collapses to the
+   * default rather than failing a payment over a bad query string.
+   */
+  returnPath?: string | null,
 ): Promise<{ intent: Awaited<ReturnType<typeof billingProvider.begin>>; changed: boolean }> {
   const provider = resolveBillingProvider(providerName);
   const plan = await planByCode(planCode);
@@ -498,7 +516,11 @@ export async function beginCheckout(
     organizationId,
     planCode,
     subscriptionId: sub.id,
-    returnUrl: '/dashboard/billing',
+    // Not hardcoded to /dashboard/billing any more: a customer who pays
+    // from `/settings?tab=plan` used to be dropped into the other shell,
+    // which reads as "where did my account go" right after handing over
+    // money. Validated here so the rule has one home.
+    returnUrl: safeReturnPath(returnPath),
   });
 
   await db
@@ -734,7 +756,7 @@ export async function changePlan(
  *     NOTHING else changes: the customer keeps full access until
  *     `current_period_end`, because they paid for it. The
  *     `expire_subscriptions` job flips the status when the period
- *     actually ends (PLATFORM.md §5.3: SQL first, then push).
+ *  actually ends (SQL first, then push).
  */
 export async function cancelSubscription(
   organizationId: string,
@@ -1067,7 +1089,8 @@ export async function usageHistory(
              coalesce(sum(u.output_tokens), 0)::bigint    AS output_tokens,
              coalesce(sum(u.cache_read_tokens), 0)::bigint AS cache_read_tokens,
              coalesce(sum(
-               coalesce(u.input_tokens,0) + coalesce(u.output_tokens,0)
+               coalesce(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens))
+               + coalesce(u.output_tokens,0)
                + coalesce(u.cache_write_5m_tokens,0) + coalesce(u.cache_write_1h_tokens,0)
                + coalesce(u.cache_read_tokens,0)
              ), 0)::bigint                               AS blended_tokens,
@@ -1254,6 +1277,7 @@ export async function usageHistorySeries(
       SELECT date_trunc(${unit}, u.occurred_at) AS bucket,
              u.prompt_count,
              u.input_tokens,
+             u.fresh_input_tokens,
              u.output_tokens,
              u.cache_write_5m_tokens,
              u.cache_write_1h_tokens,
@@ -1270,7 +1294,8 @@ export async function usageHistorySeries(
            coalesce(sum(f.output_tokens), 0)::bigint     AS output_tokens,
            coalesce(sum(f.cache_read_tokens), 0)::bigint AS cache_read_tokens,
            coalesce(sum(
-             coalesce(f.input_tokens,0) + coalesce(f.output_tokens,0)
+             coalesce(f.fresh_input_tokens, f.input_tokens - LEAST(f.cache_read_tokens, f.input_tokens))
+             + coalesce(f.output_tokens,0)
              + coalesce(f.cache_write_5m_tokens,0) + coalesce(f.cache_write_1h_tokens,0)
              + coalesce(f.cache_read_tokens,0)
            ), 0)::bigint                                 AS blended_tokens,

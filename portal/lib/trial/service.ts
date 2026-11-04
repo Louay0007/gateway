@@ -7,7 +7,7 @@
  * immediately.
  */
 
-import { eq, sql, and, gte, lte } from 'drizzle-orm';
+import { eq, sql, and, gt, gte, lte } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   trialCodes,
@@ -208,6 +208,33 @@ export async function redeemTrialCode(
     message: `Free trial activated! Your trial expires on ${expiresAt.toLocaleDateString('en-TN', { year: 'numeric', month: 'long', day: 'numeric' })}. The free trial campaign ends 31 October.`,
     expiresAt: expiresAt.toISOString(),
   };
+}
+
+/**
+ * Whether any trial code is CURRENTLY redeemable.
+ *
+ * Drives the copy on /dashboard/redeem, which used to hardcode "campaign
+ * ends 31 October — redeem before then" and kept saying it after the date
+ * had passed. `valid_until` is the authority (redeemTrialCode compares
+ * against exactly this column), so reading it here means the page cannot
+ * promise a redemption that the API will answer 410 for.
+ *
+ * Cheap on purpose: one indexed EXISTS. The alternative — duplicating the
+ * deadline as a constant in the UI — is what went stale in the first place.
+ */
+export async function hasRedeemableTrialCode(): Promise<boolean> {
+  const [row] = await db
+    .select({ code: trialCodes.code })
+    .from(trialCodes)
+    .where(
+      and(
+        eq(trialCodes.active, true),
+        lte(trialCodes.validFrom, new Date()),
+        gt(trialCodes.validUntil, new Date()),
+      ),
+    )
+    .limit(1);
+  return Boolean(row);
 }
 
 /**
