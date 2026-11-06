@@ -79,10 +79,19 @@ const PROSE = cn(
   "[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:tracking-tight",
   "[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:tracking-tight",
   "[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold",
-  "[&_h4]:mt-4 [&_h4]:mb-2 [&_h4]:text-sm [&_h4]:font-semibold [&_h4]:text-muted-foreground",
+  // A step below h3, or the two read as the same heading and the outline
+  // collapses — models use h4 for the last level of a nested answer.
+  "[&_h4]:mt-4 [&_h4]:mb-1.5 [&_h4]:text-[13px] [&_h4]:font-semibold [&_h4]:text-muted-foreground",
   "[&_p]:my-3 [&_p]:first:mt-0 [&_p]:last:mb-0",
   "[&_ul]:my-3 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-3 [&_ol]:list-decimal [&_ol]:pl-5",
   "[&_li]:my-1 [&_li>p]:my-1",
+  // A task item already draws a checkbox, so a disc in front of it is a
+  // second bullet on the same line. Streamdown keeps the native input, which
+  // at browser defaults is a 13px box with no vertical alignment against the
+  // 15px text; size and accent it so it sits in the text's own rhythm.
+  "[&_li:has(>input[type=checkbox])]:list-none",
+  "[&_li>input[type=checkbox]]:mr-1.5 [&_li>input[type=checkbox]]:size-3.5 [&_li>input[type=checkbox]]:translate-y-[1px] [&_li>input[type=checkbox]]:accent-foreground",
+  "[&_ul:has(>li>input[type=checkbox])]:pl-1",
   "[&_blockquote]:my-3 [&_blockquote]:border-l-2 [&_blockquote]:border-border [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground",
   "[&_hr]:my-6 [&_hr]:border-border/60",
   // Inline code carries a tint; a fenced block's <pre> owns the surface.
@@ -95,9 +104,25 @@ const PROSE = cn(
   "[&_pre]:my-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:text-[13px]",
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
   // Tables: a model-written comparison has no styling of its own.
-  "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[13.5px]",
+  //
+  // Streamdown already wraps the table in an `overflow-x: auto` div, so a
+  // long table scrolls. What it does not prevent is the table being told
+  // `width: 100%` and then crushing nine columns into wrapped slivers to
+  // honour that. `min-w-full` lets the table take its natural width when
+  // that is wider. Headers alone get `nowrap`: a header is a label and reads
+  // wrong broken across two lines, while a long body cell must still wrap or
+  // one wordy note would stretch the table to the whole page.
+  "[&_table]:my-3 [&_table]:min-w-full [&_table]:w-auto [&_table]:border-collapse [&_table]:text-[13.5px]",
+  "[&_th]:whitespace-nowrap",
   "[&_th]:border [&_th]:border-border/60 [&_th]:bg-muted/50 [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",
   "[&_td]:border [&_td]:border-border/60 [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top",
+  // The language label is the only thing naming a fence, and at 12px muted
+  // it read as decoration. Uppercase-tracking is a known tell, so keep the
+  // lowercase Streamdown writes and just give it weight it can be read at.
+  "[&_[data-streamdown=code-block-header]>span]:text-[11px] [&_[data-streamdown=code-block-header]>span]:font-medium [&_[data-streamdown=code-block-header]>span]:tracking-wide",
+  // A pasted screenshot arrives with a viewport-sized intrinsic width; the
+  // wrapper is inline, so without a ceiling it pushes the transcript wide.
+  "[&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-md",
   // Diagrams and maths get their own scroll container, never the page's.
   "[&_[data-streamdown=mermaid-block]]:my-3",
   "[&_.katex-display]:my-3 [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1",
