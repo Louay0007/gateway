@@ -97,6 +97,23 @@ const nextConfig: NextConfig = {
           { key: 'Content-Security-Policy', value: CSP },
         ],
       },
+      {
+        /*
+         * A share link must stop working the moment it is revoked. Caddy
+         * sits in front of this app, and `force-dynamic` only stops NEXT
+         * from caching the render — a proxy or a browser back/forward cache
+         * would still replay a revoked transcript. `no-store` is the one
+         * header that forbids every cache in the chain.
+         *
+         * `X-Robots-Tag` duplicates the page's own `robots` metadata for
+         * anything that reads headers instead of parsing HTML.
+         */
+        source: '/share/:token*',
+        headers: [
+          { key: 'Cache-Control', value: 'no-store, max-age=0' },
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
     ];
   },
 

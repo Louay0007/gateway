@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import Logo from "@/assets/logo/logo";
+import { Markdown } from "@/components/ai/markdown";
 import { Button } from "@/components/ui/button";
 import { readSharedConversation } from "@/lib/chat/share-read";
 
@@ -66,8 +67,14 @@ export default async function SharedConversationPage({
                 </div>
               </div>
             ) : (
-              <div key={message.id} className="w-full text-sm leading-relaxed whitespace-pre-wrap">
-                {message.content}
+              /* A shared answer is the same document it was in the app:
+                 headings, lists, tables, code fences, maths. Rendered as
+                 pre-wrapped text it arrived as a wall of markdown source,
+                 which is not what the user chose to publish. Streamdown
+                 parses to a React tree and hardens raw HTML, so model
+                 output is safe here too. */
+              <div key={message.id} className="w-full">
+                <Markdown>{message.content}</Markdown>
               </div>
             ),
           )}

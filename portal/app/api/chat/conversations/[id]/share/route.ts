@@ -15,8 +15,8 @@ import { z } from 'zod';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 import { requireActiveOrg } from '@/lib/auth/authorize';
 import {
+  clampShareDays,
   createShare,
-  DEFAULT_SHARE_DAYS,
   listShares,
   MAX_SHARE_DAYS,
   revokeShare,
@@ -41,6 +41,16 @@ export async function GET(
     const ctx = await requireActiveOrg();
     const { id } = await context.params;
     if (!UUID.test(id)) return jsonError('not_found', 'That conversation does not exist.');
+
+    // Org-scoping alone is not enough: a colleague in the same org must not
+    // be able to enumerate (or learn the view counts of) another person's
+    // share links. Ownership is the same predicate the chat page uses.
+    const owned = await getConversation({
+      organizationId: ctx.orgId,
+      userId: ctx.userId,
+      conversationId: id,
+    });
+    if (!owned) return jsonError('not_found', 'That conversation does not exist.');
 
     const shares = await listShares({ organizationId: ctx.orgId, conversationId: id });
     return Response.json({ shares }, { headers: { 'Cache-Control': 'no-store' } });
@@ -78,21 +88,25 @@ export async function POST(
       return jsonError('validation', 'Those share settings could not be read.');
     }
 
-    const { token, share } = await createShare({
+    const days = clampShareDays(body.expiresInDays);
+    const created = await createShare({
       organizationId: ctx.orgId,
       userId: ctx.userId,
       conversationId: id,
       throughMessageId: body.throughMessageId ?? null,
-      expiresInDays: body.expiresInDays ?? DEFAULT_SHARE_DAYS,
+      expiresInDays: days,
     });
+    if (!created) {
+      return jsonError('validation', 'That message is not part of this conversation.');
+    }
 
     return Response.json(
       {
-        share,
+        share: created.share,
         // Returned once. The client must show it now; there is no endpoint
         // that can produce it again, by design.
-        url: `/share/${token}`,
-        expiresInDays: body.expiresInDays ?? DEFAULT_SHARE_DAYS,
+        url: `/share/${created.token}`,
+        expiresInDays: days,
       },
       { status: 201 },
     );

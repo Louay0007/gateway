@@ -6,8 +6,14 @@ import { Check, Copy, Link2, Lock, Share2, X } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { apiSend } from "@/lib/api/use-api";
+import { apiSend, useApi } from "@/lib/api/use-api";
 import { cn } from "@/lib/utils";
+
+interface ShareRow {
+  id: string;
+  expiresAt: string | null;
+  createdAt: string;
+}
 
 /**
  * Share control (audit #11).
@@ -19,19 +25,58 @@ import { cn } from "@/lib/utils";
  * back for this later": the dialog says so, and the field is read-only and
  * selectable.
  *
+ * A LIVE LINK IS KNOWN, EVEN IF THE URL IS NOT. `GET` returns the shares
+ * that are still valid (id, expiry, view count) without the token, so
+ * reopening the dialog after closing it shows "public until Thursday" and a
+ * working Stop sharing — previously the panel reset to "Create link" and
+ * creating another one silently revoked the first. The URL is still lost;
+ * the state is not.
+ *
  * REVOKE IS ALWAYS AVAILABLE while a link is live. A share you cannot
  * un-share is a data-retention incident, so the same control that created it
  * is the one that kills it.
- *
- * Only rendered on a conversation route. A share of `/chat` would be a share
- * of nothing.
  */
-export function ShareControl({ temporary = false }: { temporary?: boolean }) {
+export function ShareControl() {
   const pathname = usePathname();
-  const conversationId = React.useMemo(() => {
+  const [known, setKnown] = React.useState<string | null>(null);
+  const [temporary, setTemporary] = React.useState(false);
+
+  /*
+   * The conversation id, from three sources, because the first one is not
+   * enough. `usePathname` is the router's view of the URL, and the chat
+   * rewrites the URL with `history.replaceState` when the first send creates
+   * the row — that does not necessarily re-render this component. So the
+   * chat also announces the id on the same DOM channel it uses for the
+   * title, and this listens.
+   */
+  const fromPath = React.useMemo(() => {
     const match = /^\/chat\/([0-9a-f-]{36})$/i.exec(pathname);
     return match?.[1] ?? null;
   }, [pathname]);
+
+  React.useEffect(() => {
+    function onIdentity(e: Event) {
+      const detail = (e as CustomEvent<{ conversationId?: string | null; temporary?: boolean }>)
+        .detail;
+      if (detail?.conversationId) setKnown(detail.conversationId);
+      setTemporary(detail?.temporary === true);
+    }
+    window.addEventListener("chat:title", onIdentity);
+    return () => window.removeEventListener("chat:title", onIdentity);
+  }, []);
+
+  /*
+   * A route change drops state that belonged to the previous conversation.
+   * The chat re-announces itself immediately after (its effects run after
+   * this one — the header mounts first), so this cannot leave a temporary
+   * chat looking shareable.
+   */
+  React.useEffect(() => {
+    setKnown(null);
+    setTemporary(false);
+  }, [pathname]);
+
+  const conversationId = fromPath ?? known;
 
   const [open, setOpen] = React.useState(false);
   const [url, setUrl] = React.useState<string | null>(null);
@@ -39,8 +84,14 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
   const [busy, setBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
-  // Closing without revoking keeps the link alive on purpose: the user may
-  // still be pasting it. "Stop sharing" is its own explicit action.
+  // Fetched only while the dialog is open: the header renders on every
+  // conversation and a share lookup on each of them is a query nobody asked
+  // for.
+  const live = useApi<{ shares: ShareRow[] }>(
+    open && conversationId ? `/api/chat/conversations/${conversationId}/share` : null,
+  );
+  const existing = live.data?.shares?.[0] ?? null;
+
   React.useEffect(() => {
     if (!open) return;
     function onEscape(e: KeyboardEvent) {
@@ -66,8 +117,18 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
     );
   }
 
+  function close() {
+    setOpen(false);
+    // The one-time URL is not remembered across openings; the link itself
+    // is, via `live`. Clearing it stops a stale URL from being copied after
+    // it was revoked elsewhere.
+    setUrl(null);
+    setShareId(null);
+    setCopied(false);
+  }
+
   async function share() {
-    if (busy) return;
+    if (busy || !conversationId) return;
     setBusy(true);
     const res = await apiSend<{ url: string; share: { id: string } }>(
       `/api/chat/conversations/${conversationId}/share`,
@@ -82,12 +143,13 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
     setUrl(`${window.location.origin}${res.data.url}`);
     setShareId(res.data.share.id);
     setCopied(false);
+    live.reload();
   }
 
-  async function revoke() {
-    if (!shareId) return;
+  async function revoke(target: string | null) {
+    if (!target || !conversationId) return;
     const res = await apiSend(
-      `/api/chat/conversations/${conversationId}/share?shareId=${shareId}`,
+      `/api/chat/conversations/${conversationId}/share?shareId=${target}`,
       { method: "DELETE" },
     );
     if ("error" in res) {
@@ -96,6 +158,7 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
     }
     setUrl(null);
     setShareId(null);
+    live.reload();
     toast.success("Link revoked. It no longer opens anything.");
     setOpen(false);
   }
@@ -111,6 +174,8 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
       toast.error("Your browser blocked the clipboard. Select the link and copy it manually.");
     }
   }
+
+  const liveId = shareId ?? existing?.id ?? null;
 
   return (
     <>
@@ -130,7 +195,7 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
           role="dialog"
           aria-modal="true"
           aria-label="Share this conversation"
-          onClick={() => setOpen(false)}
+          onClick={close}
         >
           <div
             className="w-full max-w-md rounded-xl border border-border bg-popover p-4 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.4)]"
@@ -146,7 +211,7 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={close}
                 className="rounded p-1 text-muted-foreground hover:text-foreground"
                 aria-label="Close"
               >
@@ -174,17 +239,45 @@ export function ShareControl({ temporary = false }: { temporary?: boolean }) {
                   again — if you lose it, revoke and make a new one.
                 </p>
                 <div className="flex justify-end">
-                  <Button variant="outline" size="sm" onClick={revoke}>
+                  <Button variant="outline" size="sm" onClick={() => revoke(liveId)}>
                     Stop sharing
                   </Button>
                 </div>
+              </div>
+            ) : existing ? (
+              /* A live link whose token this browser no longer has. The URL
+                 cannot be shown, but the link working — and stopping it — is
+                 the part that matters. */
+              <div className="mt-3 space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  This conversation is public
+                  {existing.expiresAt
+                    ? ` until ${new Date(existing.expiresAt).toLocaleString(undefined, {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}`
+                    : ""}
+                  . The link itself cannot be shown again.
+                </p>
+                <div className="flex justify-between gap-2">
+                  <Button variant="outline" size="sm" onClick={() => revoke(existing.id)}>
+                    Stop sharing
+                  </Button>
+                  <Button size="sm" onClick={share} disabled={busy} className="gap-1.5 px-2">
+                    <Link2 className="size-3.5" />
+                    {busy ? "Creating…" : "Replace link"}
+                  </Button>
+                </div>
+                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                  Replacing revokes the current link and makes a new one you can copy.
+                </p>
               </div>
             ) : (
               <div className="mt-3 flex justify-end gap-2">
                 <Button
                   size="sm"
                   onClick={share}
-                  disabled={busy}
+                  disabled={busy || live.loading}
                   className={cn("gap-1.5", busy && "opacity-70")}
                 >
                   <Link2 className="size-3.5" />

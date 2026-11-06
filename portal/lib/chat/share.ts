@@ -11,9 +11,12 @@
  *   * IT EXPIRES, and the default is short. A share that lives forever is a
  *     data-retention incident waiting for the first forgotten link.
  *
- *   * IT IS PARTIAL-CAPABLE. `throughMessageId` shares a conversation up to
- *     one answer, which is what people actually want to share — a single
- *     good answer, not the debugging conversation that produced it.
+ *   * IT IS A SNAPSHOT BY DEFAULT. `throughMessageId` is set to the newest
+ *     message at creation, so continuing the chat does NOT append to a link
+ *     someone else already holds. Without that, sharing a conversation and
+ *     then asking a follow-up question publishes the follow-up too — a
+ *     stranger's read access growing with the owner's next thought. An
+ *     explicit id shares less; nothing shares the future.
  *
  * The public read path is separate (lib/chat/share-read.ts) and takes no
  * session, so it must re-derive every visibility rule from the row rather
@@ -68,6 +71,18 @@ export function hashToken(token: string): string {
 }
 
 /**
+ * Clamp a requested lifetime into the range a share is allowed to live.
+ *
+ * Exported because the POST route clamps too and must agree with the row it
+ * inserts — a route that reported "expires in 90 days" while the row said 30
+ * would be a lie the user could not check.
+ */
+export function clampShareDays(days: number | undefined): number {
+  if (days === undefined || !Number.isFinite(days)) return DEFAULT_SHARE_DAYS;
+  return Math.min(Math.max(Math.trunc(days), 1), MAX_SHARE_DAYS);
+}
+
+/**
  * Create a link. Returns the RAW token — the only time it exists — and the
  * row. The caller builds the URL; this never knows the hostname.
  *
@@ -81,8 +96,18 @@ export async function createShare(input: {
   conversationId: string;
   throughMessageId?: string | null;
   expiresInDays?: number;
-}): Promise<{ token: string; share: ShareRow }> {
-  const days = Math.min(Math.max(input.expiresInDays ?? DEFAULT_SHARE_DAYS, 1), MAX_SHARE_DAYS);
+}): Promise<{ token: string; share: ShareRow } | null> {
+  const days = clampShareDays(input.expiresInDays);
+
+  // The snapshot boundary. Default = the newest message that will be shown,
+  // so the link freezes here and a follow-up question later does not appear
+  // to whoever holds the URL. An explicit id may only name a message in this
+  // conversation — a foreign one would compare against another row's
+  // timestamp, and a missing one compares NULL, which matches nothing and
+  // yields an empty page.
+  const boundary = await resolveBoundary(input.conversationId, input.throughMessageId ?? null);
+  if (!boundary.ok) return null;
+
   const token = randomBytes(32).toString('base64url');
 
   await db.execute(sql`
@@ -99,7 +124,7 @@ export async function createShare(input: {
        through_message_id, expires_at)
     VALUES (${input.conversationId}::uuid, ${input.organizationId}::uuid,
             ${input.userId}::uuid, ${hashToken(token)},
-            ${input.throughMessageId ?? null}::uuid,
+            ${boundary.id}::uuid,
             now() + ${`${days} days`}::interval)
     RETURNING id, conversation_id, expires_at, revoked_at, view_count, created_at
   `)) as unknown as RawShare[];
@@ -107,6 +132,42 @@ export async function createShare(input: {
   const row = rows[0];
   if (!row) throw new Error('createShare returned no row');
   return { token, share: map(row) };
+}
+
+/**
+ * The message a share stops at: the explicit id when it belongs to this
+ * conversation, else the newest visible message.
+ *
+ * `ok: false` means the explicit id was not part of this conversation — the
+ * caller must not create a link. `id: null` with `ok: true` is a conversation
+ * with nothing to show yet, which is a valid (empty) share rather than an
+ * error.
+ */
+async function resolveBoundary(
+  conversationId: string,
+  explicit: string | null,
+): Promise<{ ok: boolean; id: string | null }> {
+  if (explicit !== null) {
+    const owns = (await db.execute(sql`
+      SELECT 1 FROM messages
+       WHERE id = ${explicit}::uuid
+         AND conversation_id = ${conversationId}::uuid
+       LIMIT 1
+    `)) as unknown as unknown[];
+    return owns.length > 0 ? { ok: true, id: explicit } : { ok: false, id: null };
+  }
+
+  const rows = (await db.execute(sql`
+    SELECT id FROM messages
+     WHERE conversation_id = ${conversationId}::uuid
+       AND role IN ('user', 'assistant')
+       AND status IN ('complete', 'aborted')
+       AND content <> ''
+       AND COALESCE(meta->>'superseded', 'false') <> 'true'
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1
+  `)) as unknown as { id: string }[];
+  return { ok: true, id: rows[0]?.id ?? null };
 }
 
 /** The live shares for one conversation, for the "is this shared" UI. */

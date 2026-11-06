@@ -153,8 +153,12 @@ export function ChatView({
   // layout and cannot be handed a page prop, so this is the same DOM-event
   // channel the sidebar already uses for a newly created conversation.
   React.useEffect(() => {
-    window.dispatchEvent(new CustomEvent("chat:title", { detail: { title: title ?? null } }));
-  }, [title, conversationId]);
+    window.dispatchEvent(
+      new CustomEvent("chat:title", {
+        detail: { title: title ?? null, conversationId: conversationId ?? null, temporary },
+      }),
+    );
+  }, [title, conversationId, temporary]);
 
   const upload = React.useCallback(async (all: File[]) => {
     // Enforce the cap HERE as well as on the server, and say so on a chip.
@@ -419,6 +423,13 @@ export function ChatView({
       if (activeId.current && !conversationId) {
         window.history.replaceState(null, "", `/chat/${activeId.current}`);
         window.dispatchEvent(new Event("chat:conversation-created"));
+        // `replaceState` does not re-render, so anything keyed on the URL
+        // (the header's Share control) has to be told the row now exists.
+        window.dispatchEvent(
+          new CustomEvent("chat:title", {
+            detail: { title: title ?? null, conversationId: activeId.current, temporary },
+          }),
+        );
       }
     } catch (e) {
       if (controller.signal.aborted) patch({ finish: "aborted" });

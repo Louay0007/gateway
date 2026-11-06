@@ -15,7 +15,19 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin/", "/dashboard/", "/checkout/", "/device/", "/api/", "/billing/"],
+        // `/share/` is a private grant, not a publication. The page also
+        // sends `noindex`, but that relies on the crawler obeying it AFTER
+        // fetching and rendering the transcript. A Disallow means it never
+        // gets that far.
+        disallow: [
+          "/admin/",
+          "/dashboard/",
+          "/checkout/",
+          "/device/",
+          "/api/",
+          "/billing/",
+          "/share/",
+        ],
       },
     ],
     sitemap: `${base}/sitemap.xml`,
