@@ -114,7 +114,7 @@ export function MemoryPanel() {
               placeholder="Something to remember, e.g. “Prefers TypeScript”"
               maxLength={500}
               aria-label="Add a memory"
-              className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-ring/60"
+              className="h-9 flex-1 rounded-lg border border-border bg-background px-3 text-base outline-none focus:border-ring/60 sm:text-sm"
             />
             <Button size="sm" onClick={add} disabled={!draft.trim() || busy}>
               <Plus className="mr-1 size-4" />
@@ -151,7 +151,7 @@ export function MemoryPanel() {
                   <span className="min-w-0 flex-1 text-sm leading-relaxed">
                     {memory.content}
                     {memory.category !== "general" && (
-                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 align-middle text-[11px] uppercase tracking-wide text-muted-foreground">
                         {memory.category}
                       </span>
                     )}
@@ -160,7 +160,7 @@ export function MemoryPanel() {
                     type="button"
                     onClick={() => togglePin(memory)}
                     className={cn(
-                      "shrink-0 rounded p-1 transition-colors",
+                      "shrink-0 rounded p-1.5 transition-colors sm:p-1",
                       memory.pinned
                         ? "text-foreground"
                         : "text-muted-foreground hover:text-foreground",
@@ -173,7 +173,7 @@ export function MemoryPanel() {
                   <button
                     type="button"
                     onClick={() => remove(memory.id)}
-                    className="shrink-0 rounded p-1 text-muted-foreground transition-colors hover:text-destructive"
+                    className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:text-destructive sm:p-1"
                     aria-label="Delete this memory"
                   >
                     <Trash2 className="size-3.5" />
@@ -261,7 +261,7 @@ export function InstructionsPanel() {
             rows={4}
             maxLength={4000}
             placeholder="I am a backend engineer working in Go and TypeScript. I prefer direct answers over hedging."
-            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:border-ring/60"
+            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-base leading-relaxed outline-none focus:border-ring/60 sm:text-sm"
           />
         </div>
 
@@ -276,7 +276,7 @@ export function InstructionsPanel() {
             rows={3}
             maxLength={2000}
             placeholder="Answer in French. Be concise. Show code before explanation."
-            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-sm leading-relaxed outline-none focus:border-ring/60"
+            className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-base leading-relaxed outline-none focus:border-ring/60 sm:text-sm"
           />
         </div>
 

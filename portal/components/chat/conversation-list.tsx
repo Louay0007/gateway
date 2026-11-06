@@ -185,12 +185,12 @@ export function ConversationList({
                               }}
                               maxLength={120}
                               aria-label="Conversation title"
-                              className="h-7 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-[13px] outline-none focus-visible:border-ring"
+                              className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-base outline-none focus-visible:border-ring sm:h-7 sm:text-[13px]"
                             />
                             <button
                               type="submit"
                               aria-label="Save title"
-                              className="rounded p-1 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                              className="rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-1"
                             >
                               <Check className="size-3.5" />
                             </button>
@@ -228,8 +228,12 @@ export function ConversationList({
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             className={cn(
-                              "absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-md",
-                              "text-muted-foreground opacity-0 transition-opacity",
+                              "absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md sm:size-6",
+                              // Visible on touch, hover-revealed on a
+                              // pointer. There is no hover on a phone, so
+                              // `opacity-0` alone made Rename/Pin/Delete
+                              // unreachable in the mobile sheet.
+                              "text-muted-foreground transition-opacity md:opacity-0",
                               "group-hover/row:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:opacity-100 focus-visible:outline-none",
                               "data-open:opacity-100 data-open:bg-sidebar-accent",
                             )}

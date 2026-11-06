@@ -102,7 +102,7 @@ export function SidebarConversations({
           placeholder="Search chats"
           aria-label="Search conversations"
           className={cn(
-            "h-8 w-full rounded-md border border-transparent bg-sidebar-accent/60 pr-9 pl-8 text-[13px]",
+            "h-9 w-full rounded-md border border-transparent bg-sidebar-accent/60 pr-9 pl-8 text-base sm:h-8 sm:text-[13px]",
             "outline-none transition-colors placeholder:text-muted-foreground/70",
             "hover:bg-sidebar-accent focus:bg-background focus-visible:ring-2 focus-visible:ring-ring",
             "[&::-webkit-search-cancel-button]:hidden",
@@ -112,14 +112,14 @@ export function SidebarConversations({
           <button
             type="button"
             onClick={() => setQuery("")}
-            className="absolute top-1/2 right-3.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="absolute top-1/2 right-3 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-0.5"
             aria-label="Clear search"
           >
             <X className="size-3.5" />
           </button>
         ) : (
           onSearchShortcut && (
-            <kbd className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-medium text-muted-foreground/50">
+            <kbd className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[11px] font-medium text-muted-foreground/50">
               {onSearchShortcut}
             </kbd>
           )
@@ -269,8 +269,18 @@ export function SearchPalette({ enabled = true }: { enabled?: boolean }) {
         return !was;
       });
     }
+    // The header's search button. ⌘K is the only trigger otherwise, and a
+    // phone has no ⌘K — full-text search was unreachable on touch while the
+    // sidebar's box only filters what is already listed.
+    function onOpen() {
+      setOpen(true);
+    }
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("chat:search", onOpen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("chat:search", onOpen);
+    };
   }, [enabled]);
 
   React.useEffect(() => {
@@ -305,7 +315,7 @@ export function SearchPalette({ enabled = true }: { enabled?: boolean }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-4 pt-[12vh] backdrop-blur-[2px]"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-2 pt-[6vh] backdrop-blur-[2px] sm:p-4 sm:pt-[12vh]"
       role="dialog"
       aria-modal="true"
       aria-label="Search conversations"
@@ -337,9 +347,9 @@ export function SearchPalette({ enabled = true }: { enabled?: boolean }) {
             }}
             placeholder="Search your conversations…"
             aria-label="Search query"
-            className="h-11 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+            className="h-11 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
           />
-          <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground sm:block">
+          <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground sm:block">
             esc
           </kbd>
         </div>

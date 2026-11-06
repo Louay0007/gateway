@@ -54,9 +54,9 @@ export function InlineCitation({
       />
       <TooltipContent className="max-w-64">
         <span className="block text-[11px] font-medium">{source.title || hostOf(source.url)}</span>
-        <span className="mt-0.5 block text-[10px] opacity-70">{hostOf(source.url)}</span>
+        <span className="mt-0.5 block text-[11px] opacity-70">{hostOf(source.url)}</span>
         {source.snippet ? (
-          <span className="mt-1 block line-clamp-3 text-[10px] leading-snug opacity-80">
+          <span className="mt-1 block line-clamp-3 text-[11px] leading-snug opacity-80">
             {source.snippet}
           </span>
         ) : null}

@@ -51,7 +51,14 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
 
   return (
     <TooltipProvider delay={400}>
-      <SidebarProvider>
+      {/*
+        A BOUNDED viewport, not a minimum one. The wrapper's default is
+        `min-h-svh`, which lets the document grow — the transcript then has
+        no scroll box of its own, the page scrolls instead, and the composer
+        ends up below the fold the moment a reply is longer than the screen.
+        `h-dvh` gives every `flex-1 min-h-0` below it a real height to divide.
+      */}
+      <SidebarProvider className="h-dvh min-h-0">
         <ShellIdentityProvider>
           <a
             href="#main-content"
@@ -60,7 +67,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
             Skip to content
           </a>
           <ChatSidebar isStaff={isStaff} />
-          <SidebarInset id="main-content" className="min-w-0">
+          <SidebarInset id="main-content" className="min-w-0 min-h-0">
             <ChatHeader />
           {/* Mounted once for the whole shell: the shortcut is global, and a
               per-page palette would stop working the moment focus moved into
@@ -92,7 +99,9 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
           </SidebarInset>
         </ShellIdentityProvider>
       </SidebarProvider>
-      <Toaster position="bottom-right" />
+      {/* Lifted clear of the home indicator: sonner positions against the
+          viewport bottom, which on a notched phone is under the gesture bar. */}
+      <Toaster position="bottom-right" mobileOffset={{ bottom: 24, right: 16 }} />
     </TooltipProvider>
   );
 }

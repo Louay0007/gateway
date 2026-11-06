@@ -125,7 +125,10 @@ export function PromptInput({
 
   return (
     <div
-      className={cn("relative w-full px-4 pb-4", className)}
+      // The bottom inset is the home indicator on a notched phone: with
+      // `viewportFit: 'cover'` (app/layout.tsx) the page paints under it, so
+      // a flat 16px would put the send button on top of the gesture bar.
+      className={cn("relative w-full px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4", className)}
       onDragEnter={(e) => {
         if (!onAttach || disabled || streaming || !hasFiles(e)) return
         e.preventDefault()
@@ -216,7 +219,10 @@ export function PromptInput({
             placeholder={placeholder ?? "What would you like to know?"}
             aria-label="Message"
             className={cn(
-              "min-h-[52px] px-5 pt-4 pb-2 text-[15px] leading-relaxed",
+              // 16px on touch, 15px on a pointer device. Safari zooms the
+              // page when a focused field is under 16px, and never zooms
+              // back — the page stays magnified for the whole conversation.
+              "min-h-[52px] px-4 pt-4 pb-2 text-base leading-relaxed sm:px-5 sm:text-[15px]",
               "placeholder:text-muted-foreground/70",
             )}
           />
@@ -229,7 +235,14 @@ export function PromptInput({
             optical line whether or not the textarea has grown.
           */}
           <div className="flex items-center gap-2 px-2.5 pb-2.5">
-            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/*
+              WRAPS ON A PHONE, scrolls on a desk. A single non-wrapping row
+              at 360px ran the model picker past the edge, and a horizontal
+              scroller with hidden bars gives no sign that anything is out
+              there — the picker was simply cut mid-word. Wrapping costs one
+              extra toolbar line on a narrow screen and nothing on a wide one.
+            */}
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 sm:flex-nowrap sm:overflow-x-auto sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden">
               {attach}
               {tools}
             </div>

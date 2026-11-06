@@ -66,7 +66,7 @@ export function Sources({
                 )}
               >
                 <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                  <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">
+                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
                     {i + 1}
                   </span>
                   <span className="truncate">{s.title || hostOf(s.url)}</span>

@@ -7,7 +7,7 @@
  * public site, `app/(app)` for the signed-in product when it lands).
  */
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { cn } from '@/lib/utils';
 import { ThemeProvider } from '@/components/theme-provider';
@@ -30,6 +30,23 @@ const inter = Inter({
   variable: '--font-inter',
   display: 'swap',
 });
+
+/**
+ * The viewport is declared rather than left to Next's default.
+ *
+ * `viewportFit: 'cover'` is what makes `env(safe-area-inset-*)` resolve to a
+ * real value on a notched iPhone — without it the composer's bottom edge
+ * sits under the home indicator. `interactiveWidget: 'resizes-content'`
+ * makes the on-screen keyboard shrink the layout viewport instead of
+ * overlaying it, which is what keeps the composer above the keyboard rather
+ * than behind it.
+ */
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
+};
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://zaino.soon.it'),

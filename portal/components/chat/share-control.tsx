@@ -181,7 +181,11 @@ export function ShareControl() {
         variant="ghost"
         size="sm"
         onClick={() => setOpen(true)}
-        className="gap-1.5 text-muted-foreground hover:text-foreground"
+        // The visible label is `hidden` below `sm`, which leaves the icon
+        // with no accessible name on exactly the devices that have no room
+        // for one. `aria-label` is what a screen reader reads there.
+        aria-label="Share this conversation"
+        className="h-9 shrink-0 gap-1.5 text-muted-foreground hover:text-foreground sm:h-7"
       >
         <Share2 className="size-3.5" />
         <span className="hidden sm:inline">Share</span>

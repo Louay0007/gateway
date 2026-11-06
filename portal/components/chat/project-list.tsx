@@ -128,7 +128,7 @@ export function ProjectList({
         <button
           type="button"
           onClick={() => setCreating((v) => !v)}
-          className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-0.5"
           aria-label="New project"
           title="New project"
         >
@@ -235,8 +235,10 @@ export function ProjectList({
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     className={cn(
-                      "absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-md",
-                      "text-muted-foreground opacity-0 transition-opacity",
+                      "absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md sm:size-6",
+                      // Same rule as the conversation rows: no hover exists
+                      // on a phone, so the menu must not be hover-only.
+                      "text-muted-foreground transition-opacity md:opacity-0",
                       "group-hover/row:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:opacity-100 focus-visible:outline-none",
                       "data-open:opacity-100 data-open:bg-sidebar-accent",
                     )}

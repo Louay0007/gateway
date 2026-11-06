@@ -91,7 +91,7 @@ export function ModelPicker({
             type="button"
             disabled={disabled || options.length === 0}
             className={cn(
-              "inline-flex h-7 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-muted-foreground",
+              "inline-flex h-8 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-muted-foreground sm:h-7",
               "transition-colors duration-150",
               "hover:bg-accent hover:text-foreground",
               "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",

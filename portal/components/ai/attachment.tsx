@@ -86,7 +86,7 @@ export function AttachmentRow({
             <button
               type="button"
               onClick={() => onRemove(chip.localId)}
-              className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground sm:p-0.5"
               aria-label={`Remove ${chip.filename}`}
             >
               <X className="size-3" />

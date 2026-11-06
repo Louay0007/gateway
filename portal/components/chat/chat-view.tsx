@@ -495,7 +495,12 @@ export function ChatView({
           <MessageScrollerViewport>
             <MessageScrollerContent busy={streaming}>
               {empty ? (
-                <div className="flex min-h-[calc(100dvh-26rem)] flex-col justify-center">
+                // A screen-relative floor, not `100dvh - 26rem`. That
+                // subtraction assumed header + suggestions + composer come
+                // to 26rem, so on a short phone it overflowed and pushed the
+                // composer past the fold. `svh` is the one that cannot
+                // overshoot: it is the height with browser chrome showing.
+                <div className="flex min-h-[55svh] flex-col justify-center">
                   <h1 className="text-3xl font-semibold tracking-tight text-balance">
                     {hasPlan ? "What are you working on?" : "Welcome to Zaino AI"}
                   </h1>
@@ -612,7 +617,7 @@ export function ChatView({
                       webSearch ? "Searching the web for this chat" : "Search the web for this chat"
                     }
                     className={cn(
-                      "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors",
+                      "inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium transition-colors sm:h-7 sm:px-2",
                       "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       webSearch
                         ? "bg-accent text-accent-foreground"
@@ -636,7 +641,7 @@ export function ChatView({
                         : "Read the pages found, not just their summaries"
                     }
                     className={cn(
-                      "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors",
+                      "inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium transition-colors sm:h-7 sm:px-2",
                       "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                       deepSearch
                         ? "bg-accent text-accent-foreground"
@@ -801,7 +806,7 @@ function Turn({
                 <button
                   type="button"
                   onClick={onRegenerate}
-                  className="inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 >
                   <RotateCcw className="size-3" aria-hidden />
                   Regenerate
@@ -829,7 +834,7 @@ function CopyButton({ text }: { text: string }) {
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {});
       }}
-      className="inline-flex items-center gap-1 rounded px-1 py-0.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
       {copied ? "Copied" : "Copy"}
