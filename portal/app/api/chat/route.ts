@@ -123,6 +123,13 @@ const Body = z.object({
    */
   temporary: z.boolean().optional(),
   /**
+   * File a NEW conversation under this project. Ignored once the chat
+   * exists — moving a chat is PUT /api/chat/conversations/:id/project, and
+   * accepting it here for an existing row would be a second, unaudited
+   * path to the same mutation.
+   */
+  projectId: z.string().uuid().nullish(),
+  /**
    * Ask for a web search this turn. Absent means "use the chat's saved
    * setting", which is what a client should send.
    */
@@ -245,12 +252,20 @@ export async function POST(request: Request): Promise<Response> {
   // conversation still contains what was asked, which is what lets the user
   // retry without retyping.
   if (!conversationId) {
+    // The body names the project, so it must clear the same ownership check
+    // the move endpoint makes. The foreign key alone would happily accept
+    // another tenant's project id and apply THEIR instructions to this chat.
+    const projectId =
+      parsed.projectId && (await getProject({ organizationId: ctx.orgId, userId: ctx.userId, projectId: parsed.projectId }))
+        ? parsed.projectId
+        : null;
     const created = await createConversation({
       organizationId: ctx.orgId,
       userId: ctx.userId,
       alias: parsed.alias,
       firstMessage: userText,
       temporary: isTemporary,
+      projectId,
     });
     conversationId = created.id;
   }

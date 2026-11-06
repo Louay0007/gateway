@@ -83,16 +83,16 @@ export function SidebarConversations({
   onSearchShortcut,
 }: {
   list: React.ReactNode;
-  onSearchShortcut?: string;
+  onSearchShortcut?: "⌘K" | "Ctrl K";
 }) {
   const [query, setQuery] = React.useState("");
   const { hits, searching } = useConversationSearch(query);
 
   return (
-    <>
-      <div className="relative px-2 pb-2">
+    <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
+      <div className="relative px-2 pt-2 pb-1">
         <Search
-          className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-muted-foreground"
+          className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-muted-foreground/70"
           aria-hidden
         />
         <input
@@ -101,20 +101,25 @@ export function SidebarConversations({
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search chats"
           aria-label="Search conversations"
-          className="h-8 w-full rounded-lg border border-transparent bg-muted/60 pr-10 pl-8 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring/50 focus:bg-background [&::-webkit-search-cancel-button]:hidden"
+          className={cn(
+            "h-8 w-full rounded-md border border-transparent bg-sidebar-accent/60 pr-9 pl-8 text-[13px]",
+            "outline-none transition-colors placeholder:text-muted-foreground/70",
+            "hover:bg-sidebar-accent focus:bg-background focus-visible:ring-2 focus-visible:ring-ring",
+            "[&::-webkit-search-cancel-button]:hidden",
+          )}
         />
         {query ? (
           <button
             type="button"
             onClick={() => setQuery("")}
-            className="absolute top-1/2 right-4 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"
+            className="absolute top-1/2 right-3.5 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             aria-label="Clear search"
           >
             <X className="size-3.5" />
           </button>
         ) : (
           onSearchShortcut && (
-            <kbd className="pointer-events-none absolute top-1/2 right-4 hidden -translate-y-1/2 rounded border border-border px-1 py-0.5 text-[10px] text-muted-foreground sm:block">
+            <kbd className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[10px] font-medium text-muted-foreground/50">
               {onSearchShortcut}
             </kbd>
           )
@@ -122,11 +127,13 @@ export function SidebarConversations({
       </div>
 
       {query.trim() ? (
-        <SearchResults hits={hits} searching={searching} query={query} />
+        <div className="chat-scroll min-h-0 flex-1 overflow-y-auto">
+          <SearchResults hits={hits} searching={searching} query={query} />
+        </div>
       ) : (
         list
       )}
-    </>
+    </div>
   );
 }
 
@@ -357,8 +364,18 @@ export function SearchPalette({ enabled = true }: { enabled?: boolean }) {
   );
 }
 
-/** True when the platform uses ⌘ rather than Ctrl. Render-only. */
-export function shortcutLabel(): string {
-  if (typeof navigator === "undefined") return "Ctrl K";
-  return /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K";
+/**
+ * True when the platform uses ⌘ rather than Ctrl.
+ *
+ * RENDER-SAFE: the value is only known on the client, so this is read in an
+ * effect and starts as `undefined`. Returning `navigator.platform` during
+ * render produced "Ctrl K" on the server and "⌘K" on a Mac client, which is
+ * a hydration text mismatch on every chat page.
+ */
+export function useShortcutLabel(): "⌘K" | "Ctrl K" | undefined {
+  const [label, setLabel] = React.useState<"⌘K" | "Ctrl K" | undefined>(undefined);
+  React.useEffect(() => {
+    setLabel(/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K");
+  }, []);
+  return label;
 }

@@ -78,6 +78,8 @@ export interface ChatViewProps {
   searchAvailable?: boolean;
   /** Open this conversation as temporary (no memory, no index, no share). */
   temporary?: boolean;
+  /** File the chat under this project when the first send creates it. */
+  projectId?: string | null;
   /** Conversation title, for the header. Omitted on a new chat. */
   title?: string | null;
   conversationId?: string;
@@ -126,6 +128,7 @@ export function ChatView({
   title,
   searchAvailable = false,
   temporary = false,
+  projectId = null,
 }: ChatViewProps) {
   const [messages, setMessages] = React.useState<ChatMessage[]>(initialMessages ?? []);
   const [alias, setAlias] = React.useState<string | null>(allowed[0] ?? null);
@@ -274,6 +277,10 @@ export function ChatView({
             : {}),
           ...(webSearch && searchAvailable ? { webSearch: true } : {}),
           ...(temporary ? { temporary: true } : {}),
+          // Only on the turn that creates the row: the server ignores it
+          // otherwise, and a stale query string must not re-file an
+          // existing chat the user has since moved.
+          ...(projectId && !activeId.current ? { projectId } : {}),
         }),
         signal: controller.signal,
       });

@@ -22,10 +22,10 @@ export const dynamic = "force-dynamic";
 export default async function ChatPage({
   searchParams,
 }: {
-  searchParams: Promise<{ temporary?: string }>;
+  searchParams: Promise<{ temporary?: string; project?: string }>;
 }) {
   const screen = await loadChatScreen();
-  const { temporary } = await searchParams;
+  const { temporary, project } = await searchParams;
   return (
     <ChatView
       options={screen.options}
@@ -37,6 +37,10 @@ export default async function ChatPage({
       // `?temporary=1` is a mode for the composer, and the server reads the
       // same flag on the turn that actually creates the row.
       temporary={temporary === "1"}
+      // The project the first send files the new chat under. Sent with that
+      // turn because the row does not exist yet — the server creates it with
+      // the project already set, so its instructions apply from turn one.
+      projectId={project ?? null}
     />
   );
 }

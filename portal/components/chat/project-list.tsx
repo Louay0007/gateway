@@ -10,6 +10,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { apiSend } from "@/lib/api/use-api";
@@ -102,12 +103,28 @@ export function ProjectList({
     reload();
   }
 
+  // A heading over nothing is the thing to avoid, but a first project still
+  // has to be reachable — so an empty rail offers one quiet row instead of a
+  // "Projects" section with no projects in it.
+  if (!creating && !loading && projects.length === 0) {
+    return (
+      <div className="px-2 pt-1 group-data-[collapsible=icon]:hidden">
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        >
+          <FolderPlus className="size-4 shrink-0" />
+          New project
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="px-2">
-      <div className="flex items-center justify-between px-1 pb-1">
-        <span className="text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          Projects
-        </span>
+    <div className="px-2 group-data-[collapsible=icon]:hidden">
+      <div className="flex items-center justify-between px-2 pt-3 pb-1">
+        <h3 className="text-[11px] font-medium text-muted-foreground/70">Projects</h3>
         <button
           type="button"
           onClick={() => setCreating((v) => !v)}
@@ -193,49 +210,57 @@ export function ProjectList({
             }
 
             return (
-              <li key={project.id} className="group flex items-center">
+              <li key={project.id} className="group/row relative">
                 <button
                   type="button"
                   onClick={() => onSelect(active ? null : project.id)}
                   aria-pressed={active}
                   className={cn(
-                    "flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[13px]",
-                    "transition-colors hover:bg-accent/60",
+                    "flex h-8 w-full items-center gap-2 rounded-md px-2 pr-8 text-left text-[13px]",
+                    "transition-colors duration-100",
                     "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-                    active && "bg-accent font-medium",
+                    active
+                      ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
                   )}
                 >
-                  <Folder className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                  <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate">{project.name}</span>
                   {project.conversationCount > 0 && (
-                    <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+                    <span className="ml-auto shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">
                       {project.conversationCount}
                     </span>
                   )}
                 </button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
-                    className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                    className={cn(
+                      "absolute top-1/2 right-1 flex size-6 -translate-y-1/2 items-center justify-center rounded-md",
+                      "text-muted-foreground opacity-0 transition-opacity",
+                      "group-hover/row:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:opacity-100 focus-visible:outline-none",
+                      "data-open:opacity-100 data-open:bg-sidebar-accent",
+                    )}
                     aria-label={`Actions for ${project.name}`}
                   >
                     <MoreHorizontal className="size-3.5" />
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="start" side="right" className="w-52">
                     <DropdownMenuItem
                       onClick={() => {
                         setEditing(project.id);
                         setInstructions(project.instructions ?? "");
                       }}
                     >
-                      <Pencil className="mr-2 size-3.5" />
+                      <Pencil />
                       Instructions
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => router.push(`/chat?project=${project.id}`)}>
-                      <Folder className="mr-2 size-3.5" />
+                      <Folder />
                       New chat here
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => void archive(project)}>
-                      <Trash2 className="mr-2 size-3.5" />
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={() => void archive(project)}>
+                      <Trash2 />
                       Archive
                     </DropdownMenuItem>
                   </DropdownMenuContent>
