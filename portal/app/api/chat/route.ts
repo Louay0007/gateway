@@ -146,6 +146,11 @@ const Body = z.object({
    */
   webSearch: z.boolean().optional(),
   /**
+   * Read the pages the search found, not only their summaries. Only
+   * meaningful together with `webSearch`.
+   */
+  deepSearch: z.boolean().optional(),
+  /**
    * Deprecated: accepted for a conversation that does not exist yet only.
    * A client that still sends it is not broken, it is just ignored once
    * there are rows to rebuild from.
@@ -306,9 +311,13 @@ export async function POST(request: Request): Promise<Response> {
   // the whole design difference: this deployment has no tool-call loop, and
   // inventing one unprompted would be an unmetered second path.
   const wantsSearch = parsed.webSearch ?? settings.webSearch ?? false;
+  // `deep` is the same toggle with a different question: read the pages, not
+  // just the index. It costs a few seconds and a few thousand tokens, so it
+  // is a separate switch rather than the default.
+  const deepSearch = parsed.deepSearch ?? false;
   const searchOutcome =
     wantsSearch && userText && !regenerate && webSearchConfigured()
-      ? await webSearch(searchQueryFrom(userText), 5)
+      ? await webSearch(searchQueryFrom(userText), deepSearch ? 8 : 5, deepSearch)
       : null;
   const webResults = searchOutcome?.ok ? searchOutcome.results : [];
 
@@ -326,7 +335,10 @@ export async function POST(request: Request): Promise<Response> {
       truncated: f.truncated,
       pixels: f.kind === 'image' && f.bytes !== null,
     })),
-    webSearch: webResults.length > 0 ? { query: userText.slice(0, 200), results: webResults.length } : undefined,
+    webSearch:
+      webResults.length > 0
+        ? { query: userText.slice(0, 200), results: webResults.length, deep: deepSearch }
+        : undefined,
   });
 
   // Retire the answer being replaced BEFORE the context is rebuilt, and

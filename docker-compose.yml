@@ -156,6 +156,18 @@ services:
       ENGINE_TOKEN: ${ENGINE_TOKEN:-}
       ENGINE_MAX_UPLOAD_BYTES: ${ENGINE_MAX_UPLOAD_BYTES:-26214400}
 
+      # Web search (lib/chat/web-search.ts). DEFAULTED EMPTY, not required:
+      # no backend means the Search button is simply not offered, which is
+      # the same fail-closed posture as ENGINE_TOKEN above.
+      #
+      # This block is the difference between "configured" and "works" — the
+      # GHOSTCLI_API_KEY outage was exactly this: present in .env, never
+      # passed into the container, so searchProvider() answered 'none' and
+      # the button vanished with no error anywhere.
+      SEARXNG_URL: ${SEARXNG_URL:-}
+      BRAVE_SEARCH_KEY: ${BRAVE_SEARCH_KEY:-}
+      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+
       # Public gateway host, for the quickstart snippet on /dashboard/keys.
       API_DOMAIN: ${API_DOMAIN:?set in .env}
       NEXT_PUBLIC_APP_URL: https://${PORTAL_DOMAIN:?set in .env}

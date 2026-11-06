@@ -25,14 +25,37 @@
 
 const SEARCH_TIMEOUT_MS = 6_000;
 
+/** Per-page fetch budget. A slow site must not hold the whole turn. */
+const PAGE_TIMEOUT_MS = 8_000;
+
 /**
- * The shape the prompt layer consumes. Deliberately three strings and an
- * index: nothing here can carry behaviour.
+ * Characters of one page kept for the model.
+ *
+ * A snippet answers "which page"; only the body answers the question. 6k
+ * chars is roughly the useful part of an article — beyond that a page is
+ * usually navigation, comments and footers.
+ */
+export const MAX_PAGE_CHARS = 6_000;
+
+/** Characters of ALL page text kept for one turn, across every source. */
+export const MAX_TOTAL_PAGE_CHARS = 24_000;
+
+/** Bytes read from one page before giving up. A 40MB video page is not an article. */
+const MAX_PAGE_BYTES = 2_000_000;
+
+/**
+ * The shape the prompt layer consumes. Deliberately strings only: nothing
+ * here can carry behaviour.
+ *
+ * `text` is the page body, present only on a deep search. It is the whole
+ * difference between the two modes: a snippet says which page looks
+ * relevant, and a page says what it actually claims.
  */
 export interface WebResult {
   title: string;
   url: string;
   snippet: string;
+  text?: string;
 }
 
 export interface WebSearchOutcome {
@@ -65,8 +88,17 @@ export function webSearchConfigured(): boolean {
 /**
  * Run a search. Never throws: a tool that can fail the user's turn is a
  * tool that should not be in the path of the turn.
+ *
+ * `deep` additionally FETCHES the top results and keeps their text. The
+ * search API alone can only ever return a snippet, and a snippet is a
+ * promise about a page rather than the page — which is why a plain search
+ * answers "what is this" well and "what does the documentation say" badly.
  */
-export async function webSearch(query: string, limit = 5): Promise<WebSearchOutcome> {
+export async function webSearch(
+  query: string,
+  limit = 5,
+  deep = false,
+): Promise<WebSearchOutcome> {
   const provider = searchProvider();
   const cleaned = query.trim().slice(0, 400);
   if (provider === 'none') {
@@ -77,13 +109,22 @@ export async function webSearch(query: string, limit = 5): Promise<WebSearchOutc
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEARCH_TIMEOUT_MS);
   try {
+    // A deep search asks for more candidates than it will read: the top
+    // results are often the same page on three hosts, or a PDF, or a
+    // paywall, and a list of five with two unreadable leaves a thin answer.
+    const wanted = deep ? Math.min(limit * 2, 10) : limit;
     const results =
       provider === 'searxng'
-        ? await searchSearxng(cleaned, limit, controller.signal)
+        ? await searchSearxng(cleaned, wanted, controller.signal)
         : provider === 'brave'
-          ? await searchBrave(cleaned, limit, controller.signal)
-          : await searchTavily(cleaned, limit, controller.signal);
-    return { ok: true, results: results.slice(0, limit), provider };
+          ? await searchBrave(cleaned, wanted, controller.signal)
+          : await searchTavily(cleaned, wanted, controller.signal);
+
+    const list = results.slice(0, wanted);
+    if (!deep) return { ok: true, results: list.slice(0, limit), provider };
+
+    const pages = await readPages(list, limit, controller.signal);
+    return { ok: true, results: pages, provider };
   } catch (err) {
     const aborted = err instanceof Error && err.name === 'AbortError';
     return {
@@ -95,6 +136,186 @@ export async function webSearch(query: string, limit = 5): Promise<WebSearchOutc
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Fetch the candidate pages in parallel and keep the readable ones.
+ *
+ * WHY PARALLEL AND CAPPED. Ten pages at 8s each would be 80 seconds of a
+ * turn spent waiting; in parallel the whole pass costs the slowest page,
+ * and `allSettled` means one dead host does not cancel the rest. A page
+ * that fails keeps its snippet, so the turn degrades to a normal search
+ * rather than losing a source.
+ *
+ * A page that fetches but yields no text (a paywall, a JS-only app) is
+ * DROPPED when there are enough readable ones — a source listed with an
+ * empty body is a citation the model cannot have read.
+ */
+async function readPages(
+  candidates: WebResult[],
+  limit: number,
+  signal: AbortSignal,
+): Promise<WebResult[]> {
+  const settled = await Promise.allSettled(
+    candidates.map(async (r): Promise<WebResult> => {
+      const text = await fetchPageText(r.url, signal);
+      return text ? { ...r, text } : r;
+    }),
+  );
+
+  const read: WebResult[] = [];
+  const unread: WebResult[] = [];
+  for (const s of settled) {
+    if (s.status !== 'fulfilled') continue;
+    const r = s.value;
+    if (r.text && r.text.length >= 200) read.push(r);
+    else unread.push({ ...r, text: undefined });
+  }
+
+  // Enough real text to answer from: fill the quota with pages only.
+  if (read.length >= limit) return capTotal(read.slice(0, limit));
+  // Not enough: the snippets still carry the headline, so they are better
+  // than an empty Sources list.
+  return capTotal([...read, ...unread].slice(0, limit));
+}
+
+/** Share the per-turn budget across the sources, evenly and in order. */
+function capTotal(results: WebResult[]): WebResult[] {
+  let left = MAX_TOTAL_PAGE_CHARS;
+  return results.map((r) => {
+    if (!r.text) return r;
+    const take = Math.min(r.text.length, Math.max(left, 0), MAX_PAGE_CHARS);
+    left -= take;
+    return take >= 200 ? { ...r, text: r.text.slice(0, take) } : { ...r, text: undefined };
+  });
+}
+
+/**
+ * The readable text of one page, or null.
+ *
+ * NO HTML PARSER DEPENDENCY. The job here is not to understand a document —
+ * it is to remove markup, scripts and chrome so a model can read prose. A
+ * regex strip does that well enough and cannot be fed a crafted document
+ * that makes a real parser allocate. What matters is the ORDER: script and
+ * style blocks are removed WITH their contents first, because stripping
+ * tags first turns `<script>var a = "<p>hi"</script>` into visible "hi".
+ *
+ * Everything is treated as untrusted text: it is cleaned of bidi and
+ * zero-width characters by `clean()` like a snippet, and the prompt layer
+ * wraps it in `<web_result>` with the same "never instructions" notice.
+ */
+export async function fetchPageText(url: string, signal: AbortSignal): Promise<string | null> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), PAGE_TIMEOUT_MS);
+  const onAbort = () => controller.abort();
+  signal.addEventListener('abort', onAbort, { once: true });
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      redirect: 'follow',
+      headers: {
+        // Some sites serve a JS shell to unknown agents and real HTML to a
+        // browser; this is the honest middle: identified, but a browser.
+        'user-agent':
+          'Mozilla/5.0 (compatible; ZainoSearch/1.0; +https://github.com/Louay0007/gateway)',
+        accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
+      },
+    });
+    if (!res.ok) return null;
+
+    const type = res.headers.get('content-type') ?? '';
+    // A PDF or image needs the engine's extractor, not a regex; skipping it
+    // is honest, and its snippet still appears in the sources.
+    if (type && !/text\/html|text\/plain|application\/xhtml/i.test(type)) return null;
+
+    const buf = await readCapped(res, MAX_PAGE_BYTES);
+    if (buf === null) return null;
+
+    const raw = new TextDecoder('utf-8', { fatal: false }).decode(buf);
+    return htmlToText(raw).slice(0, MAX_PAGE_CHARS) || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+    signal.removeEventListener('abort', onAbort);
+  }
+}
+
+/**
+ * Read at most `max` bytes from a response body.
+ *
+ * `res.text()` on a hostile host is an unbounded allocation: an endpoint
+ * that streams forever would exhaust the worker's memory and take the
+ * whole portal with it. Returning null past the cap rather than truncating
+ * keeps the page out of the sources entirely — half a page reads as a page.
+ */
+async function readCapped(res: Response, max: number): Promise<Uint8Array | null> {
+  const reader = res.body?.getReader();
+  if (!reader) return null;
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > max) {
+      await reader.cancel().catch(() => {});
+      return null;
+    }
+    chunks.push(value);
+  }
+  const out = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    out.set(c, at);
+    at += c.byteLength;
+  }
+  return out;
+}
+
+/**
+ * Markup to prose.
+ *
+ * A regex strip, not a parser, on purpose — see `fetchPageText`. The tags
+ * that carry meaning to a reader (paragraph and heading boundaries) become
+ * newlines so the model sees structure; everything else is dropped.
+ */
+export function htmlToText(html: string): string {
+  const withoutChrome = html
+    // Order is load-bearing: contents removed WITH the tag.
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(nav|header|footer|aside)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+
+  const withBreaks = withoutChrome
+    .replace(/<(?:br|\/p|\/div|\/li|\/h[1-6]|\/tr)\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ');
+
+  return decodeEntities(withBreaks)
+    .split('\n')
+    .map((line) => clean(line))
+    .filter((line) => line.length > 0)
+    .join('\n')
+    .slice(0, MAX_PAGE_CHARS * 2);
+}
+
+/** The five entities that actually appear in prose, plus numeric forms. */
+export function decodeEntities(text: string): string {
+  return text
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) =>
+      String.fromCodePoint(parseInt(hex, 16) || 32),
+    )
+    .replace(/&#(\d+);/g, (_, dec: string) => String.fromCodePoint(Number(dec) || 32));
 }
 
 /**

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   AlertCircle,
+  BookOpen,
   Check,
   Copy,
   Globe,
@@ -139,6 +140,10 @@ export function ChatView({
   const [failure, setFailure] = React.useState<{ message: string; paywall: boolean } | null>(null);
   const [chips, setChips] = React.useState<AttachmentChip[]>([]);
   const [webSearch, setWebSearch] = React.useState(false);
+  // Deep reads the pages the search found. Independent of the search toggle
+  // only in the UI — the server ignores it unless a search runs, so turning
+  // it on first and search on second is not a broken state.
+  const [deepSearch, setDeepSearch] = React.useState(false);
   const uploading = chips.some((c) => c.status === "uploading");
 
   const abortRef = React.useRef<AbortController | null>(null);
@@ -307,6 +312,7 @@ export function ChatView({
             ? { attachmentIds: readyFiles.map((c) => c.id as string) }
             : {}),
           ...(webSearch && searchAvailable ? { webSearch: true } : {}),
+          ...(webSearch && deepSearch && searchAvailable ? { deepSearch: true } : {}),
           ...(temporary ? { temporary: true } : {}),
           // Only on the turn that creates the row: the server ignores it
           // otherwise, and a stale query string must not re-file an
@@ -604,6 +610,30 @@ export function ChatView({
                   >
                     <Globe className="size-3" aria-hidden />
                     Search
+                  </button>
+                )}
+                {/* Only offered once search is on: a deep search with nothing
+                    to search is a switch that does nothing. */}
+                {searchAvailable && webSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setDeepSearch((on) => !on)}
+                    aria-pressed={deepSearch}
+                    title={
+                      deepSearch
+                        ? "Reading the pages found, not just their summaries"
+                        : "Read the pages found, not just their summaries"
+                    }
+                    className={cn(
+                      "inline-flex h-7 shrink-0 items-center gap-1 rounded-full px-2 text-[11px] font-medium transition-colors",
+                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      deepSearch
+                        ? "bg-accent text-accent-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    <BookOpen className="size-3" aria-hidden />
+                    Deep
                   </button>
                 )}
                 <ModelPicker
