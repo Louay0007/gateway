@@ -107,12 +107,16 @@ describe('buildUserTurn', () => {
     expect(payload).toBeLessThan(close);
   });
 
-  it('skips an attachment whose text is empty', () => {
+  it('names an attachment whose text is empty instead of dropping it', () => {
+    // Dropping it left the system prompt listing a file the turn never
+    // mentioned, and the model answered about a document it was not given.
+    // A self-closing tag with a note is the honest form.
     const turn = buildUserTurn({
       text: 'hi',
-      attachments: [{ filename: 'scan.pdf', text: '   ', truncated: false }],
+      attachments: [{ filename: 'scan.pdf', kind: 'pdf', text: '   ', truncated: false }],
     });
-    expect(turn).toBe('hi');
+    expect(turn).toContain('hi');
+    expect(turn).toContain('<file name="scan.pdf" note="no text extracted" />');
   });
 
   it('marks a truncated file inside its own wrapper', () => {

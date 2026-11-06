@@ -149,7 +149,15 @@ pub fn extract(bytes: &[u8], filename: Option<&str>, max_bytes: usize) -> Result
     match ext.as_str() {
         "docx" => extract_docx(bytes),
         "xlsx" | "xlsm" | "ods" => extract_sheet(bytes),
-        "xls" if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) => extract_sheet(bytes),
+        // Legacy OLE2 containers (pre-2007 Office). calamine reads the sheet
+        // formats; a .doc has no reader here, and saying so beats "malformed".
+        "xls" | "xlsb" if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) => extract_sheet(bytes),
+        "doc" if bytes.starts_with(&[0xD0, 0xCF, 0x11, 0xE0]) => {
+            Err(ExtractError::UnsupportedType(
+                "doc: save it as .docx and attach that".to_string(),
+            ))
+        }
+        "csv" | "tsv" => extract_csv(bytes),
         _ => Err(ExtractError::UnsupportedType(if ext.is_empty() {
             "unknown".to_string()
         } else {

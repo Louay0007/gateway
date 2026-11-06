@@ -2,7 +2,8 @@
 
 import * as React from "react"
 import { cn } from "cn"
-import { FileText, Image as ImageIcon, Loader2, Paperclip, Table2, X } from "lucide-react"
+import { FileText, Image as ImageIcon, Loader2, Table2, X } from "lucide-react"
+import { MAX_ATTACHMENTS } from "@/lib/chat/attachments"
 
 /**
  * Attachment — the chip row and the attach control.
@@ -36,10 +37,12 @@ export interface AttachmentChip {
   error?: string
 }
 
-/** Mirrors ALLOWED_EXTENSIONS in app/api/attachments/route.ts. */
-export const ACCEPT_EXTENSIONS =
-  ".pdf,.docx,.xlsx,.xls,.csv,.tsv,.txt,.md,.json,.log,.png,.jpg,.jpeg,.webp,.gif"
-export const MAX_FILES = 10
+/**
+ * Re-exported from the policy module rather than restated: a second copy is
+ * how the picker came to offer formats the route refused. The server is
+ * still the only check — `accept` is a filter a user can switch off.
+ */
+export { ACCEPT_ATTRIBUTE as ACCEPT_EXTENSIONS, MAX_ATTACHMENTS as MAX_FILES } from "@/lib/chat/attachments"
 
 export function AttachmentRow({
   chips,

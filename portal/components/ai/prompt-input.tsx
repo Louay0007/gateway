@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "cn"
 import { ArrowUp, Plus, Square } from "lucide-react"
 import { InputGroup, InputGroupTextarea } from "@/components/ui/input-group"
+import { ACCEPT_ATTRIBUTE, MAX_ATTACHMENTS } from "@/lib/chat/attachments"
 
 /**
  * Prompt Input — the composer.
@@ -75,6 +76,27 @@ export function PromptInput({
   const ref = React.useRef<HTMLTextAreaElement>(null)
   const composing = React.useRef(false)
 
+  // Drop target: the whole composer, not the "+" button.
+  //
+  // A 28px circle was the only drop target, which asked the user to hit it
+  // exactly. Files are dragged onto the writing area by habit, so the target
+  // is the composer surface and the ring reports the state.
+  //
+  // `dragenter`/`dragleave` are counted rather than toggled: dragging over a
+  // child fires `dragleave` on the parent, so a boolean flickers off mid-drag
+  // on every child boundary. A depth counter returns to zero only when the
+  // pointer really leaves.
+  const [dropping, setDropping] = React.useState(false)
+  const dragDepth = React.useRef(0)
+
+  const hasFiles = (e: React.DragEvent) =>
+    Array.from(e.dataTransfer.types).includes("Files")
+
+  function resetDrag() {
+    dragDepth.current = 0
+    setDropping(false)
+  }
+
   // Autosize. Reset to `auto` first, or the box can only ever grow.
   React.useLayoutEffect(() => {
     const el = ref.current
@@ -102,7 +124,32 @@ export function PromptInput({
   const canSend = value.trim().length > 0 && !streaming && !disabled
 
   return (
-    <div className={cn("w-full px-4 pb-4", className)}>
+    <div
+      className={cn("relative w-full px-4 pb-4", className)}
+      onDragEnter={(e) => {
+        if (!onAttach || disabled || streaming || !hasFiles(e)) return
+        e.preventDefault()
+        dragDepth.current += 1
+        setDropping(true)
+      }}
+      onDragOver={(e) => {
+        if (!onAttach || disabled || streaming || !hasFiles(e)) return
+        // Without this the browser navigates to the file on drop.
+        e.preventDefault()
+        e.dataTransfer.dropEffect = "copy"
+      }}
+      onDragLeave={() => {
+        dragDepth.current = Math.max(0, dragDepth.current - 1)
+        if (dragDepth.current === 0) setDropping(false)
+      }}
+      onDrop={(e) => {
+        resetDrag()
+        if (!onAttach || disabled || streaming) return
+        e.preventDefault()
+        const files = Array.from(e.dataTransfer.files)
+        if (files.length > 0) onAttach(files)
+      }}
+    >
       <form
         className="mx-auto w-full max-w-3xl"
         onSubmit={(e) => {
@@ -127,8 +174,23 @@ export function PromptInput({
             // A drop shadow only — no 1px halo. A halo IS a second outline,
             // so keeping it would reintroduce the exact artefact this fixes.
             "focus-within:shadow-[0_10px_30px_-14px_rgb(0_0_0/0.40)]",
+            // The drop state is an inset ring on the field itself, so the
+            // target is visibly the whole writing area rather than its corner.
+            dropping && "border-foreground/40 ring-2 ring-foreground/15",
           )}
         >
+          {/* Overlay, not a sibling row: InputGroup is `flex-col`, so an
+              absolutely positioned child still needs its inset anchored by a
+              `relative` ancestor and `inset-0` to mean the field. Without
+              `absolute` it took a row of its own and pushed the footer down. */}
+          {dropping ? (
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[26px] border border-dashed border-foreground/25 bg-background/85"
+            >
+              <span className="text-sm font-medium text-foreground">Drop to attach</span>
+            </div>
+          ) : null}
           <InputGroupTextarea
             ref={ref}
             value={value}
@@ -230,7 +292,7 @@ export function AttachControl({
   onAdd,
   disabled,
   count = 0,
-  max = 10,
+  max = MAX_ATTACHMENTS,
 }: {
   onAdd: (files: File[]) => void
   disabled?: boolean
@@ -270,7 +332,7 @@ export function AttachControl({
         ref={inputRef}
         type="file"
         multiple
-        accept=".pdf,.docx,.xlsx,.xls,.csv,.tsv,.txt,.md,.json,.log,.png,.jpg,.jpeg,.webp,.gif"
+        accept={ACCEPT_ATTRIBUTE}
         className="sr-only"
         onChange={(e) => {
           pick(e.target.files)

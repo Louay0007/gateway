@@ -67,6 +67,7 @@ import { loadInstructions } from '@/lib/chat/instructions';
 import { promptMemories } from '@/lib/chat/memory';
 import { extractMemories } from '@/lib/chat/memory-extract';
 import { buildSystemPrompt, buildUserTurn } from '@/lib/chat/prompt';
+import { MAX_ATTACHMENTS } from '@/lib/chat/attachments';
 import { getProject } from '@/lib/chat/projects';
 import {
   searchQueryFrom,
@@ -116,7 +117,10 @@ const Body = z.object({
    * document the engine has already read. The server re-reads the rows under
    * org+user ownership, so an id from another tenant resolves to nothing.
    */
-  attachmentIds: z.array(z.string().uuid()).max(10).optional(),
+  attachmentIds: z
+    .array(z.string().uuid())
+    .max(MAX_ATTACHMENTS, `Attach at most ${MAX_ATTACHMENTS} files per message.`)
+    .optional(),
   /**
    * Start a temporary chat: excluded from memory, search and sharing, and
    * purged by the retention job (audit #12).
@@ -358,6 +362,7 @@ export async function POST(request: Request): Promise<Response> {
         text: userText,
         attachments: attachedFiles.map((f) => ({
           filename: f.filename,
+          kind: f.kind,
           text: f.text,
           truncated: f.truncated,
         })),

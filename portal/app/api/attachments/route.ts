@@ -26,6 +26,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 import { requireActiveOrg } from '@/lib/auth/authorize';
+import { ATTACHMENT_TYPES_HINT, isAllowedFile } from '@/lib/chat/attachments';
 import { engineConfigured, extractDocument, maxUploadBytes } from '@/lib/engine/client';
 import { log } from '@/lib/log';
 
@@ -33,29 +34,12 @@ export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * The types the engine can parse, plus images.
- *
- * A allow-list, not a deny-list: an unknown type is refused rather than
- * handed to a parser that will guess. The extension is the primary signal
- * because docx and xlsx share a zip magic number.
+ * The allow-list lives in `lib/chat/attachments.ts` so the route, the schema
+ * and the composer's `accept` cannot disagree about what is uploadable. An
+ * unknown type is refused rather than handed to a parser that will guess: the
+ * extension is the primary signal because docx and xlsx share a zip magic
+ * number.
  */
-const ALLOWED_EXTENSIONS = new Set([
-  'pdf',
-  'docx',
-  'xlsx',
-  'xls',
-  'csv',
-  'tsv',
-  'txt',
-  'md',
-  'json',
-  'log',
-  'png',
-  'jpg',
-  'jpeg',
-  'webp',
-  'gif',
-]);
 
 export async function POST(request: Request): Promise<Response> {
   try {
@@ -89,10 +73,10 @@ export async function POST(request: Request): Promise<Response> {
 
     const filename = sanitiseFilename(file.name || 'upload');
     const ext = filename.split('.').pop()?.toLowerCase() ?? '';
-    if (!ALLOWED_EXTENSIONS.has(ext)) {
+    if (!isAllowedFile(filename)) {
       return jsonError(
         'validation',
-        `Those files are not supported. Try PDF, Word, Excel, CSV, text or an image.`,
+        `${ATTACHMENT_TYPES_HINT}. That file is a .${ext || 'file with no extension'}.`,
       );
     }
 

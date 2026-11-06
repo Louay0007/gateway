@@ -36,6 +36,7 @@ import {
 import { ModelPicker, type ModelOption } from "@/components/chat/model-picker";
 import { QuotaHint } from "@/components/chat/quota-hint";
 import { aliasMeta } from "@/components/chat/aliases";
+import { MAX_ATTACHMENTS } from "@/lib/chat/attachments";
 import { cn } from "@/lib/utils";
 
 export type ChatRole = "user" | "assistant";
@@ -150,8 +151,38 @@ export function ChatView({
     window.dispatchEvent(new CustomEvent("chat:title", { detail: { title: title ?? null } }));
   }, [title, conversationId]);
 
-  const upload = React.useCallback(async (files: File[]) => {
-    for (const file of files) {
+  const upload = React.useCallback(async (all: File[]) => {
+    // Enforce the cap HERE as well as on the server, and say so on a chip.
+    //
+    // The server refuses a sixth id outright, which would fail the whole
+    // turn. Deciding locally means the five that fit still upload and the
+    // surplus becomes a dismissible error chip the user can see and clear —
+    // silently dropping files is how someone believes they sent a spec
+    // sheet that was never attached.
+    // `chips` is a dependency of this callback for exactly this read. The
+    // cap must be counted against the chips that exist now; a stable
+    // callback closing over an older list would let a second drop in the
+    // same tick count the first batch as absent and overflow the cap.
+    const room = MAX_ATTACHMENTS - chips.filter((c) => c.status !== "error").length;
+    const accepted = all.slice(0, Math.max(room, 0));
+    const rejected = all.slice(accepted.length);
+
+    if (rejected.length > 0) {
+      setChips((prev) => [
+        ...prev,
+        ...rejected.map((file) => ({
+          localId: crypto.randomUUID(),
+          status: "error" as const,
+          filename: file.name,
+          error:
+            room <= 0
+              ? `Up to ${MAX_ATTACHMENTS} files per message. Remove one to add this.`
+              : `Up to ${MAX_ATTACHMENTS} files per message — this one was not added.`,
+        })),
+      ]);
+    }
+
+    for (const file of accepted) {
       const localId = crypto.randomUUID();
       setChips((prev) => [...prev, { localId, status: "uploading", filename: file.name }]);
 
@@ -204,7 +235,7 @@ export function ChatView({
         );
       }
     }
-  }, []);
+  }, [chips]);
 
   async function send(text: string, opts: { regenerate?: boolean } = {}) {
     if (streaming) return;
@@ -533,7 +564,16 @@ export function ChatView({
                 : "Ask anything — you will be asked to pick a plan first"
             }
             busy={uploading}
-            attach={<AttachControl onAdd={upload} disabled={streaming} count={chips.length} />}
+            attach={
+              <AttachControl
+                onAdd={upload}
+                disabled={streaming}
+                // Error chips are not real attachments, so they must not
+                // occupy a slot against the cap.
+                count={chips.filter((c) => c.status !== "error").length}
+                max={MAX_ATTACHMENTS}
+              />
+            }
             attachments={
               chips.length > 0 ? (
                 <AttachmentRow
