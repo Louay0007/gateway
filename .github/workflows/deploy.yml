@@ -168,4 +168,25 @@ jobs:
             || { echo "::error::engine /health did not answer ok:true — attachments and search are dead"; exit 1; }
           echo "engine            : $eng"
 
+          # SearXNG is the web-search backend. Same failure as the engine:
+          # a container that is "up" proves nothing, and the portal silently
+          # degrades to "no results" — so a broken instance would look like
+          # a model that answers without searching.
+          #
+          # The check asks a REAL query with format=json, because that is the
+          # exact path lib/chat/web-search.ts uses: an instance whose JSON
+          # API is disabled answers /healthz 200 and every search 403.
+          sx=""
+          for i in $(seq 1 20); do
+            sx=$(docker compose exec -T portal wget -qO- \
+              "http://searxng:8080/search?q=deploy+check&format=json" 2>/dev/null || echo "")
+            echo "$sx" | grep -q '"results"' && break
+            sx=""
+            echo "  searxng not ready yet, attempt $i/20"
+            sleep 3
+          done
+          [ -n "$sx" ] \
+            || { echo "::error::searxng did not answer a JSON search — the Search button will do nothing"; exit 1; }
+          echo "searxng           : json search ok"
+
           echo "deployed commit   : $(git rev-parse HEAD)"

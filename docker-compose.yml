@@ -164,7 +164,11 @@ services:
       # GHOSTCLI_API_KEY outage was exactly this: present in .env, never
       # passed into the container, so searchProvider() answered 'none' and
       # the button vanished with no error anywhere.
-      SEARXNG_URL: ${SEARXNG_URL:-}
+      # Defaulted to the service below, not empty: search is part of the
+      # stack now, and an operator who never sets this would otherwise get
+      # no Search button and no reason why. Point it at an external
+      # instance to override.
+      SEARXNG_URL: ${SEARXNG_URL:-http://searxng:8080}
       BRAVE_SEARCH_KEY: ${BRAVE_SEARCH_KEY:-}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}
 
@@ -252,6 +256,9 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       litellm: { condition: service_started }
+      # Started, not healthy: search degrades to "no results", and a slow
+      # first boot must never hold the portal's own start.
+      searxng: { condition: service_started }
 
   jobs:
     # The background runner: usage collection,
@@ -348,6 +355,45 @@ services:
       timeout: 5s
       retries: 3
       start_period: 5s
+
+  searxng:
+    # The search backend for the chat's Search and Deep toggles
+    # (lib/chat/web-search.ts). Self-hosted so a user's question never
+    # leaves the box: a third-party search API sees every query, and a
+    # query is the most revealing thing in this product.
+    #
+    # PINNED, like litellm. `:latest` moves under us and a settings key
+    # renamed upstream would silently stop the JSON API.
+    image: searxng/searxng:2026.11.5-3e95f6cd2
+    restart: unless-stopped
+    environment:
+      # SearXNG reads its settings from this path; the file is mounted
+      # read-only below. `SEARXNG_SETTINGS_PATH` is the documented name.
+      SEARXNG_SETTINGS_PATH: /etc/searxng/settings.yml
+      # SearXNG refuses to start with a default secret. This is NOT a
+      # credential for anything outside the container — it signs its own
+      # internal session state, and the instance has no users.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-zaino-searxng-internal}
+      # Keeps logs to warnings: a query string in a container log is a
+      # user's question written to disk, which is exactly what
+      # self-hosting was meant to avoid.
+      SEARXNG_LOG_LEVEL: WARNING
+    volumes:
+      - ./config/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    # NOT PUBLISHED, same rule as the engine: there is no `ports:`. The
+    # portal reaches it over the compose network and Caddy never proxies
+    # to it, so the instance cannot be used as an open proxy by anyone
+    # who finds the host.
+    healthcheck:
+      # `/healthz` answers without a query, so a warm-up search is not
+      # needed and no query is spent checking liveness.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # Generous: the first start fetches engine definitions and builds
+      # its cache, which is slower than any later start.
+      start_period: 30s
 
   caddy:
     image: caddy:2-alpine
