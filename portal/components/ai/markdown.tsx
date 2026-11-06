@@ -62,6 +62,17 @@ const MERMAID_DARK = {
  */
 const PROSE = cn(
   "max-w-none text-[15px] leading-[1.7]",
+  // A reply is a document, so each BLOCK derives its own direction from its
+  // first strong character (`unicode-bidi: plaintext`). An Arabic paragraph
+  // inside an English answer gets RTL ordering and punctuation without any
+  // language detection; an English paragraph is unaffected. Applying it to
+  // blocks rather than the root keeps a mixed answer readable either way.
+  "[&_p]:[unicode-bidi:plaintext] [&_li]:[unicode-bidi:plaintext]",
+  "[&_h1]:[unicode-bidi:plaintext] [&_h2]:[unicode-bidi:plaintext] [&_h3]:[unicode-bidi:plaintext]",
+  // Code and URLs are LTR facts, not prose: a bidi algorithm run over
+  // `createConversation` in an RTL paragraph would move its punctuation.
+  "[&_code]:[unicode-bidi:isolate] [&_code]:[direction:ltr] [&_pre]:[direction:ltr]",
+  "[&_a]:[unicode-bidi:isolate]",
   "[&_*]:break-words",
   "[&_strong]:font-semibold [&_em]:italic",
   "[&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-2",
@@ -76,8 +87,13 @@ const PROSE = cn(
   "[&_hr]:my-6 [&_hr]:border-border/60",
   // Inline code carries a tint; a fenced block's <pre> owns the surface.
   "[&_code]:rounded [&_code]:bg-chat-code-bg [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em]",
+  // NO FRAME ON `pre`. Streamdown already wraps a fence twice — a bordered
+  // `code-block` holding a bordered, padded `code-block-body`. Adding a
+  // border, a tint and 12px of padding here made three nested frames and
+  // 36px of dead margin before the first line of code, which at phone width
+  // is most of the block. This rule only owns the type.
+  "[&_pre]:my-0 [&_pre]:bg-transparent [&_pre]:p-0 [&_pre]:text-[13px]",
   "[&_pre_code]:bg-transparent [&_pre_code]:p-0",
-  "[&_pre]:my-3 [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border/60 [&_pre]:bg-chat-code-bg [&_pre]:p-3 [&_pre]:text-[13px]",
   // Tables: a model-written comparison has no styling of its own.
   "[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse [&_table]:text-[13.5px]",
   "[&_th]:border [&_th]:border-border/60 [&_th]:bg-muted/50 [&_th]:px-2.5 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-medium",

@@ -622,7 +622,14 @@ function Turn({
   if (message.role === "user") {
     return (
       <Message align="end">
-        <MessageContent className="flex flex-col items-end gap-1.5">
+        {/* `w-full` is load-bearing, not tidying. `Message` is
+            `items-end`, so a shrink-to-fit content box made the Bubble's
+            `max-w-[95%]` resolve against its own max-content width — a
+            circular basis. The visible result was a one-word message
+            ("hey") wrapping its last letter onto a second line, and an
+            unbreakable URL sizing the bubble to 778px inside a 736px
+            column. */}
+        <MessageContent className="flex w-full flex-col items-end gap-1.5">
           <Bubble variant="muted">
             <BubbleContent>{message.content}</BubbleContent>
           </Bubble>

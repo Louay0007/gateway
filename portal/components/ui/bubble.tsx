@@ -59,6 +59,17 @@ export function BubbleContent({ className, ...props }: React.ComponentProps<"div
         "min-w-0 whitespace-pre-wrap break-words [word-break:normal]",
         className,
       )}
+      // DIRECTION COMES FROM THE TEXT, NOT THE PAGE.
+      //
+      // The app shell is LTR. A message written in Arabic, Hebrew or Farsi
+      // inherits that and lays out its punctuation, bullets and trailing
+      // full stop on the wrong side — the classic "sentence ends with a dot
+      // at the left" defect. `unicode-bidi: plaintext` derives the paragraph
+      // direction from the first strong character, so an RTL message is
+      // right-aligned inside a bubble that still sits on the right, and a
+      // mixed message keeps each run in its own direction. Nothing here
+      // needs to know which language the user typed.
+      style={{ unicodeBidi: "plaintext" }}
       {...props}
     />
   )
