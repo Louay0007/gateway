@@ -399,6 +399,27 @@ export function ChatView({
   }
 
   const empty = messages.length === 0;
+
+  // The dialog's "this chat" reading. Summed from the transcript because
+  // that is where the numbers already are: a request for it would return a
+  // subset of what these turns hold.
+  const usage = React.useMemo(
+    () =>
+      messages.reduce(
+        (acc, m) => {
+          if (m.role !== "assistant" || !m.outputTokens) return acc;
+          return {
+            inputTokens: acc.inputTokens + (m.inputTokens ?? 0),
+            outputTokens: acc.outputTokens + m.outputTokens,
+            costUsd: acc.costUsd + (m.costUsd ?? 0),
+            turns: acc.turns + 1,
+          };
+        },
+        { inputTokens: 0, outputTokens: 0, costUsd: 0, turns: 0 },
+      ),
+    [messages],
+  );
+
   const lastAssistantId =
     [...messages].reverse().find((m) => m.role === "assistant")?.id ?? null;
 
@@ -559,6 +580,7 @@ export function ChatView({
                   option={options.find((o) => o.alias === (alias ?? options[0]?.alias))}
                   className="hidden sm:flex"
                   resetsAt={resetsAt}
+                  usage={usage}
                 />
               </>
             }
