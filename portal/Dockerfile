@@ -23,7 +23,10 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+# npm's own download cache lives in a cache mount, so a dependency bump that
+# misses the layer cache still does not re-download every tarball. With
+# `sharing=locked` two concurrent builds on the box cannot corrupt it.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci
 
 # ── builder ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
@@ -49,7 +52,14 @@ ENV DATABASE_URL=postgresql://127.0.0.1:5432/build
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+# `COPY . .` above is keyed on the source tree, so every code change
+# invalidates this layer — and `npm run build` was 233s of the 2026-11-06
+# deploy (11m28s total). Next keeps a webpack/turbopack build cache under
+# `.next/cache`; mounting it means a rebuild recompiles the modules that
+# changed instead of all 411 of them. It is a cache, not an artifact: the
+# runner stage copies only `.next/standalone` and `.next/static`, so
+# nothing from this mount can leak into the shipped image.
+RUN --mount=type=cache,target=/app/.next/cache,sharing=locked npm run build
 
 # ── runner: the HTTP server ──────────────────────────────────────────
 FROM node:22-alpine AS runner
@@ -78,7 +88,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+# Same download cache as the deps stage — one tarball fetch serves both
+# images, and `npm cache clean --force` is gone because it would evict the
+# cache mount this line exists to populate.
+RUN --mount=type=cache,target=/root/.npm,sharing=locked npm ci --omit=dev
 
 # Source only — no Next.js, no .next, no tests. The runner never imports
 # app code, so shipping it would be dead weight in the image.

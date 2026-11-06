@@ -82,6 +82,19 @@ jobs:
           make db-init
           make db-migrate
 
+      # The engine's Rust compile is the only slow part of this deploy and it
+      # is cached across runs by the cache mounts in engine/Dockerfile and
+      # portal/Dockerfile, not by compose's layer cache. Layers are keyed on
+      # their parents' digests, so an upstream re-push of the
+      # `rust:1.99-slim-bookworm` tag invalidates every layer below it and
+      # rebuilds tantivy, calyx and pdf-extract from zero — that is exactly
+      # what turned a 3m37s deploy into 11m28s on 2026-11-06, with 492s of it
+      # in one cargo step. A cache mount is keyed by mount id instead, so it
+      # survives the base image moving and cargo's fingerprints skip every
+      # crate whose inputs did not change.
+      #
+      # The first build after this change repopulates both mounts and pays
+      # that cost once. Nothing else here needs to change.
       - name: Build and restart the stack
         run: docker compose up -d --build
 
