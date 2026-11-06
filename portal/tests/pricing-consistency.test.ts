@@ -264,19 +264,21 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
   });
 
   it('only declares endpoints the upstream actually serves', () => {
-    // GhostCLI serves both /v1/chat/completions and /v1/responses for all
-    // three tiers (sonnet-5, opus-5-5, fable-5-1). Every deployment must
-    // declare at least chat/completions; responses is optional but valid.
+    // Three endpoints are real, and each is here for a measured reason:
+    //   chat/completions — text, the default path
+    //   responses        — shimmed by the edge, optional
+    //   messages         — the ONLY one that forwards image pixels. Measured
+    //                      live: a solid red square returns 200 and the
+    //                      answer "Blue" on chat/completions, "Red" here.
+    // Anything else is a 404 the config invented.
+    const SERVED = ['/v1/chat/completions', '/v1/responses', '/v1/messages'];
     for (const d of deployments) {
       expect(
         d.endpoints,
         `${d.bare} declares an endpoint the upstream lacks`,
       ).toContain('/v1/chat/completions');
       for (const ep of d.endpoints) {
-        expect(
-          ['/v1/chat/completions', '/v1/responses'],
-          `${d.bare} declares unknown endpoint ${ep}`,
-        ).toContain(ep);
+        expect(SERVED, `${d.bare} declares unknown endpoint ${ep}`).toContain(ep);
       }
     }
   });

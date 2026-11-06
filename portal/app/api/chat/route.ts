@@ -52,8 +52,14 @@ import { requireActiveOrg } from '@/lib/auth/authorize';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 import { getAllowedModels } from '@/lib/entitlements/allowed-models';
 import { getChatCredential, retireCredential, ChatKeyError } from '@/lib/chat/key';
-import { streamChatCompletion, GatewayError, type GatewayStreamResult } from '@/lib/chat/gateway';
-import { splitFrames } from '@/lib/chat/sse';
+import {
+  streamChatCompletion,
+  needsAnthropicWire,
+  GatewayError,
+  type GatewayStreamResult,
+  type WireMessage,
+} from '@/lib/chat/gateway';
+import { splitAnthropicFrames, splitFrames } from '@/lib/chat/sse';
 import { resolveSettings } from '@/lib/chat/settings';
 import {
   appendMessage,
@@ -66,7 +72,8 @@ import {
 import { loadInstructions } from '@/lib/chat/instructions';
 import { promptMemories } from '@/lib/chat/memory';
 import { extractMemories } from '@/lib/chat/memory-extract';
-import { buildSystemPrompt, buildUserTurn } from '@/lib/chat/prompt';
+import { buildSystemPrompt, buildUserTurn, buildUserTurnParts } from '@/lib/chat/prompt';
+import { imageBlockFor } from '@/lib/chat/vision';
 import { MAX_ATTACHMENTS } from '@/lib/chat/attachments';
 import { getProject } from '@/lib/chat/projects';
 import {
@@ -317,6 +324,7 @@ export async function POST(request: Request): Promise<Response> {
       kind: f.kind,
       chars: f.text.length,
       truncated: f.truncated,
+      pixels: f.kind === 'image' && f.bytes !== null,
     })),
     webSearch: webResults.length > 0 ? { query: userText.slice(0, 200), results: webResults.length } : undefined,
   });
@@ -338,7 +346,7 @@ export async function POST(request: Request): Promise<Response> {
   if (regenerate) await supersedeLastAnswer(conversationId);
 
   const prior = await historyForModel(conversationId, HISTORY_TURNS);
-  const contextMessages: { role: 'user' | 'assistant' | 'system'; content: string }[] = [];
+  const contextMessages: WireMessage[] = [];
   if (systemPrompt) {
     contextMessages.push({ role: 'system', content: systemPrompt });
   }
@@ -356,18 +364,35 @@ export async function POST(request: Request): Promise<Response> {
     // results, wrapped so untrusted content reads as data. The row stored
     // below keeps only what the user typed, so the transcript shows their
     // message and the files as chips rather than a wall of PDF text.
+    //
+    // An image travels as a picture, not as text, so the turn becomes
+    // content parts. That in turn forces the Anthropic wire format — see
+    // lib/chat/gateway.ts `needsAnthropicWire`.
+    const hasImageBytes = attachedFiles.some((f) => f.kind === 'image' && f.bytes);
     contextMessages.push({
       role: 'user',
-      content: buildUserTurn({
-        text: userText,
-        attachments: attachedFiles.map((f) => ({
-          filename: f.filename,
-          kind: f.kind,
-          text: f.text,
-          truncated: f.truncated,
-        })),
-        webResults,
-      }),
+      content: hasImageBytes
+        ? buildUserTurnParts({
+            text: userText,
+            attachments: attachedFiles.map((f) => ({
+              filename: f.filename,
+              kind: f.kind,
+              text: f.text,
+              truncated: f.truncated,
+              image: imageBlockFor(f.filename, f.bytes),
+            })),
+            webResults,
+          })
+        : buildUserTurn({
+            text: userText,
+            attachments: attachedFiles.map((f) => ({
+              filename: f.filename,
+              kind: f.kind,
+              text: f.text,
+              truncated: f.truncated,
+            })),
+            webResults,
+          }),
     });
   }
 
@@ -442,6 +467,10 @@ export async function POST(request: Request): Promise<Response> {
     gatewayRequestId: upstream.requestId,
     headerCostUsd: upstream.costUsd,
     startedAt,
+    // Which dialect the body above is written in. The gateway picks it, so
+    // the relay must not guess: an image turn streams Anthropic frames and
+    // the OpenAI parser reads none of them — a blank answer with no error.
+    anthropicWire: needsAnthropicWire(contextMessages),
     // The pages this turn actually read. Emitted as a frame AND stored on
     // the row, so a reopened conversation shows the same citations as the
     // live one — a Sources panel that vanishes on reload is a footnote to
@@ -492,7 +521,7 @@ async function openStream(input: {
   organizationId: string;
   userId: string;
   entitled: string[];
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
+  messages: WireMessage[];
   settings: {
     temperature?: number;
     maxOutputTokens?: number;
@@ -550,6 +579,8 @@ function relayStream(input: {
   gatewayRequestId: string | null;
   headerCostUsd: number | null;
   startedAt: number;
+  /** The stream is Anthropic's `/v1/messages` dialect, not chat completions. */
+  anthropicWire: boolean;
   /**
    * Third-party pages consulted this turn. Stored on the row's `meta` so the
    * Sources panel survives a reload, and sent as one frame so the live turn
@@ -664,7 +695,9 @@ function relayStream(input: {
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
-          const { events, remainder } = splitFrames(buffer);
+          const { events, remainder } = input.anthropicWire
+            ? splitAnthropicFrames(buffer)
+            : splitFrames(buffer);
           // Keeping the remainder is what stops a token being dropped when
           // the network cuts a frame in half.
           buffer = remainder;
@@ -760,13 +793,15 @@ function relayStream(input: {
   });
 }
 
-/** An attachment as the prompt layer needs it: text and how it was cut. */
+/** An attachment as the prompt layer needs it: text, pixels, and any cut. */
 interface ResolvedAttachment {
   id: string;
   filename: string;
   kind: string;
   text: string;
   truncated: boolean;
+  /** Present only for an image whose bytes are stored and sendable. */
+  bytes: Uint8Array | null;
 }
 
 /**
@@ -800,6 +835,7 @@ async function resolveAttachments(
       kind: attachments.kind,
       text: attachments.extractedText,
       truncated: attachments.truncated,
+      bytes: attachments.contentBytes,
     })
     .from(attachments)
     .where(
@@ -821,6 +857,10 @@ async function resolveAttachments(
       kind: row.kind,
       text: row.text,
       truncated: row.truncated,
+      // `bytea` comes back as a Buffer from the pg driver; a row with no
+      // stored pixels (every text file, and any image from before 0034)
+      // stays null so the prompt can say so rather than sending nothing.
+      bytes: row.bytes ? new Uint8Array(row.bytes) : null,
     });
   }
   return out;

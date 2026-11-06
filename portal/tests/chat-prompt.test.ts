@@ -13,10 +13,12 @@ import {
   MAX_PROMPT_MEMORIES,
   buildSystemPrompt,
   buildUserTurn,
+  buildUserTurnParts,
   escapeAttr,
   formatChars,
   memoryKey,
 } from '@/lib/chat/prompt';
+import { imageBlockFor } from '@/lib/chat/vision';
 
 describe('buildSystemPrompt', () => {
   it('returns null when there is nothing to say', () => {
@@ -163,5 +165,45 @@ describe('formatChars', () => {
     expect(formatChars(500)).toBe('500 chars');
     expect(formatChars(12_345)).toBe('12.3k chars');
     expect(formatChars(2_500_000)).toBe('2.5M chars');
+  });
+});
+
+describe('buildSystemPrompt — image notice', () => {
+  const base = { filename: 'shot.png', kind: 'image', chars: 0, truncated: false };
+
+  it('says the picture is visible when its pixels are in the turn', () => {
+    const p = buildSystemPrompt({ attachments: [{ ...base, pixels: true }] }) ?? '';
+    expect(p).toContain('you can see them');
+    expect(p).not.toContain('could NOT be sent');
+  });
+
+  it('says the picture is missing when only its name arrived', () => {
+    // The opposite claim. Telling the model it can see an image it never
+    // received is how a turn invents the contents of a screenshot.
+    const p = buildSystemPrompt({ attachments: [{ ...base, pixels: false }] }) ?? '';
+    expect(p).toContain('could NOT be sent');
+    expect(p).not.toContain('you can see them');
+  });
+});
+
+describe('buildUserTurnParts', () => {
+  it('sends a visible image as a picture, with no placeholder text', () => {
+    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    const parts = buildUserTurnParts({
+      text: 'what colour?',
+      attachments: [
+        { filename: 'a.png', kind: 'image', text: '', truncated: false, image: imageBlockFor('a.png', png) },
+      ],
+    });
+    expect(parts.some((p) => p.type === 'image')).toBe(true);
+    expect(JSON.stringify(parts)).not.toContain('no text extracted');
+  });
+
+  it('states an undecodable image instead of dropping it', () => {
+    const parts = buildUserTurnParts({
+      text: 'what colour?',
+      attachments: [{ filename: 'a.png', kind: 'image', text: '', truncated: false, image: null }],
+    });
+    expect(JSON.stringify(parts)).toContain('could not be decoded');
   });
 });

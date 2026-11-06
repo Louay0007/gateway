@@ -72,7 +72,9 @@ describe('the attachment notice', () => {
     // The old wording ("their text is included") told the model to describe
     // a picture it was never given.
     expect(text).not.toMatch(/their text is included/i);
-    expect(text).toMatch(/cannot see an image/i);
+    // No `pixels` flag = the image could not be sent, so the notice must
+    // say so rather than tell the model it is looking at a picture.
+    expect(text).toMatch(/could NOT be sent/i);
   });
 
   it('warns that a scanned PDF extracts to nothing', () => {

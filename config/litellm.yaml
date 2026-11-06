@@ -2,7 +2,10 @@
 #  LiteLLM gateway configuration
 #
 #  Active deployment: SINGLE opencode upstream (openai-compatible).
-#  /v1/chat/completions is native; /v1/messages is translated.
+#  /v1/chat/completions and /v1/messages are BOTH forwarded verbatim —
+#  the messages opt-in is what lets an attached image reach the model
+#  as pixels. /v1/responses the upstream does not serve, so the edge
+#  shim still translates it to chat.
 #  Determine upstream wire format with:  ./scripts/probe-upstream.sh
 #  See DESIGN.md §4 for the reasoning behind each choice.
 # ═══════════════════════════════════════════════════════════════════════
@@ -31,10 +34,10 @@ model_list:
   # table, two consumers — enforced by
   # portal/tests/pricing-consistency.test.ts).
   #
-  # Only /v1/chat/completions is declared on every entry — declaring an
-  # endpoint the upstream lacks makes LiteLLM forward into a 404, which is
-  # what kills codex-cli. The edge shim translates /v1/responses → chat
-  # before LiteLLM, and LiteLLM translates /v1/messages itself.
+  # /v1/chat/completions and /v1/messages are declared on every entry.
+  # Declaring an endpoint the upstream lacks makes LiteLLM forward into a
+  # 404 — /v1/responses is deliberately absent for exactly that reason,
+  # which is why the edge shim still translates it to chat.
   #
   # Upstream credential lives in .env as UPSTREAM_API_KEY (never committed).
   #
@@ -69,7 +72,13 @@ model_list:
       temperature: 0.2
       top_p: 0.9
     model_info:
-      supported_endpoints: ["/v1/chat/completions"]
+      # /v1/messages is what makes an image VISIBLE. Measured against
+      # the live upstream: the same picture sent to /v1/chat/completions
+      # returns 200 and the model answers "Blue" about a solid red
+      # square — the pixels are stripped before they reach the model.
+      # /v1/messages forwards the body verbatim (DESIGN §4.3) and the
+      # model answers "Red". Text works on both; only this one sees.
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
       input_cost_per_token: 0.000001
       output_cost_per_token: 0.000005
       cache_creation_input_token_cost: 0.000002
@@ -90,7 +99,13 @@ model_list:
       temperature: 0.2
       top_p: 0.9
     model_info:
-      supported_endpoints: ["/v1/chat/completions"]
+      # /v1/messages is what makes an image VISIBLE. Measured against
+      # the live upstream: the same picture sent to /v1/chat/completions
+      # returns 200 and the model answers "Blue" about a solid red
+      # square — the pixels are stripped before they reach the model.
+      # /v1/messages forwards the body verbatim (DESIGN §4.3) and the
+      # model answers "Red". Text works on both; only this one sees.
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
       input_cost_per_token: 0.000003
       output_cost_per_token: 0.000015
       cache_creation_input_token_cost: 0.000006
@@ -111,7 +126,13 @@ model_list:
       temperature: 0.2
       top_p: 0.9
     model_info:
-      supported_endpoints: ["/v1/chat/completions"]
+      # /v1/messages is what makes an image VISIBLE. Measured against
+      # the live upstream: the same picture sent to /v1/chat/completions
+      # returns 200 and the model answers "Blue" about a solid red
+      # square — the pixels are stripped before they reach the model.
+      # /v1/messages forwards the body verbatim (DESIGN §4.3) and the
+      # model answers "Red". Text works on both; only this one sees.
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
       input_cost_per_token: 0.000015
       output_cost_per_token: 0.000075
       cache_creation_input_token_cost: 0.00003

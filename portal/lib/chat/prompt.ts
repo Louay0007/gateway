@@ -23,6 +23,12 @@
  * are sent to the model by design; they are never logged.
  */
 
+import {
+  toContentParts,
+  type ContentPart,
+  type ImageBlock,
+} from './vision';
+
 /** One remembered fact, as the prompt sees it. */
 export interface PromptMemory {
   content: string;
@@ -38,7 +44,14 @@ export interface PromptInput {
   projectInstructions?: string;
   chatSystemPrompt?: string;
   /** `ExtractedKind` of each attachment this turn carries. */
-  attachments?: { filename: string; kind: string; chars: number; truncated: boolean }[];
+  attachments?: {
+    filename: string;
+    kind: string;
+    chars: number;
+    truncated: boolean;
+    /** True when an image's pixels are in the turn, not just its name. */
+    pixels?: boolean;
+  }[];
   /** Set when a web search ran, so the model knows why it has fresh text. */
   webSearch?: { query: string; results: number };
 }
@@ -132,7 +145,8 @@ export function buildSystemPrompt(input: PromptInput): string | null {
     // The scanned-PDF case is stated outright because `pdf-extract` returns
     // nothing for a page that is one big picture, and a model told nothing
     // invents the contents of a page it never read.
-    const hasImage = attachments.some((a) => a.kind === 'image');
+    const visible = attachments.filter((a) => a.kind === 'image' && a.pixels);
+    const blind = attachments.filter((a) => a.kind === 'image' && !a.pixels);
     const hasPdf = attachments.some((a) => a.kind === 'pdf');
     const lines = [
       '# Attached this turn',
@@ -143,11 +157,23 @@ export function buildSystemPrompt(input: PromptInput): string | null {
       'question depends on structure you cannot see.',
     ];
 
-    if (hasImage) {
+    // Two sentences, because the two cases are opposite: one image is in
+    // front of the model, the other is only a name. Telling it the second is
+    // visible produces a confident description of a picture it never got.
+    if (visible.length > 0) {
       lines.push(
         '',
-        'Images are attached as pictures. If you cannot see an image, say that',
-        'plainly rather than describing what such an image usually contains.',
+        'Images are attached as pictures and you can see them. Describe what is',
+        'actually in the image, and say plainly when something is too small,',
+        'cropped or blurry to read rather than guessing at it.',
+      );
+    }
+    if (blind.length > 0) {
+      lines.push(
+        '',
+        'Some images could NOT be sent — only their names arrived. Say that',
+        'plainly rather than describing what such an image usually contains,',
+        'and ask the user to attach it again.',
       );
     }
     if (hasPdf) {
@@ -253,6 +279,65 @@ export function buildUserTurn(input: {
   }
 
   return out.join('\n\n');
+}
+
+/**
+ * The same turn, with images attached as pictures.
+ *
+ * WHY A SEPARATE ENTRY POINT. `buildUserTurn` returns a string because the
+ * overwhelming majority of turns are text, and every existing caller and
+ * test is written against that. An image cannot travel as text at all, so
+ * this returns content parts; the route picks it only when the turn really
+ * carries pixels.
+ *
+ * An image with no bytes (a row from before 0034, or one the route refused
+ * to store because it was too large to re-send on every turn) is stated in
+ * the text and listed in the system prompt as having no text — never
+ * dropped, because a turn that silently loses an attachment teaches the
+ * user the feature is broken.
+ */
+export function buildUserTurnParts(input: {
+  text: string;
+  attachments?: {
+    filename: string;
+    kind?: string;
+    text: string;
+    truncated: boolean;
+    image?: ImageBlock | null;
+  }[];
+  webResults?: { title: string; url: string; snippet: string }[];
+}): ContentPart[] {
+  const text = buildUserTurn({
+    text: input.text,
+    // A visible image is OMITTED, not passed with empty text: `buildUserTurn`
+    // treats empty text as "nothing extracted" and emits the placeholder,
+    // which would tell the model to disregard the picture it was just sent.
+    attachments: (input.attachments ?? [])
+      .filter((a) => a.kind !== 'image')
+      .map((a) => ({
+        filename: a.filename,
+        kind: a.kind,
+        text: a.text,
+        truncated: a.truncated,
+      })),
+    webResults: input.webResults,
+  });
+
+  const images = (input.attachments ?? [])
+    .map((a) => a.image)
+    .filter((b): b is ImageBlock => b !== null && b !== undefined);
+
+  // A placeholder for an image we cannot show, so the model does not
+  // describe a picture it never received.
+  const missing = (input.attachments ?? []).filter((a) => a.kind === 'image' && !a.image);
+  const note =
+    missing.length === 0
+      ? text
+      : `${text}\n\n${missing
+          .map((a) => `<image name="${escapeAttr(a.filename)}" note="could not be decoded; tell the user to re-attach it" />`)
+          .join('\n')}`;
+
+  return toContentParts(note, images);
 }
 
 /**

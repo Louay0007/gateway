@@ -711,6 +711,17 @@ export const attachments = pgTable('attachments', {
   kind:           text('kind').notNull().default('text'),
   extractedText:  text('extracted_text').notNull().default(''),
   truncated:      boolean('truncated').notNull().default(false),
+  /**
+   * The raw bytes, for an image only (0034).
+   *
+   * Null for every text kind — `extractedText` is the payload there — and
+   * null for an image the route refused to keep (too large to re-send on
+   * every later turn). `pixelsLost` distinguishes "we never stored it" from
+   * "it was there and we dropped it", which is what the prompt says out
+   * loud instead of describing a picture it cannot see.
+   */
+  contentBytes:   bytea('content_bytes'),
+  pixelsLost:     boolean('pixels_lost').notNull().default(false),
   createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgHashIdx: uniqueIndex('attachments_org_hash_idx').on(t.organizationId, t.contentHash),

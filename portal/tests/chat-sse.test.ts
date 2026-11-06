@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { splitFrames } from '@/lib/chat/sse';
+import { splitAnthropicFrames, splitFrames } from '@/lib/chat/sse';
 
 const frame = (payload: unknown) => `data: ${JSON.stringify(payload)}\n\n`;
 
@@ -171,5 +171,88 @@ describe('splitFrames — reasoning, usage, finish reason', () => {
       frame({ choices: [{ delta: { content: 'x' } }], usage: null }),
     );
     expect(events).toEqual([{ delta: 'x' }]);
+  });
+});
+
+/**
+ * Anthropic's `/v1/messages` dialect.
+ *
+ * This is the wire format an image turn is spoken in, so a bug here is the
+ * same class of failure as the chunk-boundary one above: an answer that
+ * arrives blank or a turn that bills nothing, with no error anywhere.
+ */
+describe('splitAnthropicFrames', () => {
+  const a = (payload: unknown) => `event: x\ndata: ${JSON.stringify(payload)}\n\n`;
+
+  it('reads answer text from a text_delta', () => {
+    const { events } = splitAnthropicFrames(
+      a({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'Hi' } }),
+    );
+    expect(events).toEqual([{ delta: 'Hi' }]);
+  });
+
+  it('separates thinking from the answer', () => {
+    // A thinking_delta has no `text` field. Reading it as one would emit
+    // empty frames forever; mixing it into `content` shows the customer the
+    // model talking to itself.
+    const { events } = splitAnthropicFrames(
+      a({ type: 'content_block_delta', delta: { type: 'thinking_delta', thinking: 'hmm' } }),
+    );
+    expect(events).toEqual([{ reasoning: 'hmm' }]);
+  });
+
+  it('keeps stop_reason AND usage from the same message_delta', () => {
+    // Both live in one frame. Returning only the first drops the output
+    // token count, which is the only place this format reports it.
+    const { events } = splitAnthropicFrames(
+      a({
+        type: 'message_delta',
+        delta: { stop_reason: 'max_tokens' },
+        usage: { input_tokens: 10, output_tokens: 7 },
+      }),
+    );
+    expect(events).toEqual([
+      { finishReason: 'length', usage: { inputTokens: 10, outputTokens: 7, costUsd: null } },
+    ]);
+  });
+
+  it('reports input tokens at message_start but never output', () => {
+    const { events } = splitAnthropicFrames(
+      a({ type: 'message_start', message: { usage: { input_tokens: 50, output_tokens: 1 } } }),
+    );
+    expect(events).toEqual([{ usage: { inputTokens: 50, outputTokens: null, costUsd: null } }]);
+  });
+
+  it('subtracts cache reads so input means the same on both wires', () => {
+    const { events } = splitAnthropicFrames(
+      a({
+        type: 'message_start',
+        message: { usage: { input_tokens: 100, cache_read_input_tokens: 90 } },
+      }),
+    );
+    expect(events[0]?.usage?.inputTokens).toBe(10);
+  });
+
+  it('completes a frame split across two reads', () => {
+    const whole = a({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'ok' } });
+    const cut = Math.floor(whole.length / 2);
+    const first = splitAnthropicFrames(whole.slice(0, cut));
+    expect(first.events).toEqual([]);
+    const second = splitAnthropicFrames(first.remainder + whole.slice(cut));
+    expect(second.events).toEqual([{ delta: 'ok' }]);
+    expect(second.remainder).toBe('');
+  });
+
+  it('surfaces an error frame', () => {
+    const { events } = splitAnthropicFrames(
+      a({ type: 'error', error: { type: 'overloaded_error', message: 'busy' } }),
+    );
+    expect(events).toEqual([{ error: 'busy' }]);
+  });
+
+  it('ignores ping and content_block_start/stop', () => {
+    expect(splitAnthropicFrames(a({ type: 'ping' })).events).toEqual([]);
+    expect(splitAnthropicFrames(a({ type: 'content_block_stop' })).events).toEqual([]);
+    expect(splitAnthropicFrames(a({ type: 'message_stop' })).events).toEqual([]);
   });
 });

@@ -14,11 +14,14 @@
  *   4. extraction — the untrusted parse, in the engine, in memory.
  *   5. insert — keyed on `(organization_id, content_hash)`.
  *
- * STORAGE IS TEXT, NOT THE FILE. The bytes are not kept: the engine returns
- * the extracted text, which is what the model reads, and discarding the
+ * STORAGE IS TEXT — EXCEPT FOR IMAGES. A document is parsed to text and the
+ * bytes are dropped: the text is what the model reads, and discarding the
  * original means this product is not secretly a file host with a retention
- * problem. The `content_hash` dedupes so re-uploading the same PDF does not
- * double the row count.
+ * problem. An image has no text to drop, so its bytes ARE the attachment —
+ * they are kept and re-sent as pixels on every turn that carries it
+ * (lib/chat/vision.ts). Nothing else keeps a byte column, and a NULL there
+ * means "not an image", never "an image we lost". The `content_hash` dedupes
+ * so re-uploading the same PDF does not double the row count.
  */
 import { createHash } from 'node:crypto';
 import { sql } from 'drizzle-orm';
@@ -28,6 +31,7 @@ import { errorResponse, jsonError } from '@/lib/api/errors';
 import { requireActiveOrg } from '@/lib/auth/authorize';
 import { ATTACHMENT_TYPES_HINT, isAllowedFile } from '@/lib/chat/attachments';
 import { engineConfigured, extractDocument, maxUploadBytes } from '@/lib/engine/client';
+import { MAX_INLINE_IMAGE_BYTES, imageMediaTypeFor } from '@/lib/chat/vision';
 import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
@@ -111,13 +115,26 @@ export async function POST(request: Request): Promise<Response> {
     }
 
     const doc = extracted.value;
+
+    // The pixels, when this is an image small enough to re-send on every
+    // turn. `pixels_lost` records a refusal so the model is told the file
+    // exists but cannot be shown — the alternative is a turn that silently
+    // loses the picture the user is asking about.
+    const sendable =
+      doc.kind === 'image' &&
+      bytes.byteLength <= MAX_INLINE_IMAGE_BYTES &&
+      imageMediaTypeFor(filename) !== null;
+    const storedBytes = sendable ? Buffer.from(bytes) : null;
+
     const rows = (await db.execute(sql`
       INSERT INTO attachments
         (organization_id, user_id, filename, mime_type, byte_size,
-         kind, content_hash, extracted_text, truncated)
+         kind, content_hash, extracted_text, truncated,
+         content_bytes, pixels_lost)
       VALUES (${ctx.orgId}::uuid, ${ctx.userId}::uuid, ${filename},
               ${file.type || 'application/octet-stream'}, ${file.size},
-              ${doc.kind}, ${contentHash}, ${doc.text}, ${doc.truncated})
+              ${doc.kind}, ${contentHash}, ${doc.text}, ${doc.truncated},
+              ${storedBytes}::bytea, ${doc.kind === 'image' && !sendable})
       ON CONFLICT (organization_id, content_hash) DO UPDATE
         SET filename = EXCLUDED.filename
       RETURNING id, filename, mime_type, byte_size, kind, truncated, created_at

@@ -22,13 +22,27 @@
  */
 
 import { LITELLM_BASE } from '@/lib/litellm/endpoint';
+import type { ContentPart } from '@/lib/chat/vision';
+
+/**
+ * A message as either wire format takes it.
+ *
+ * `content` is a string for the overwhelming majority of turns. It becomes
+ * an array of parts when the turn carries an image, because pixels cannot
+ * travel as text — see lib/chat/vision.ts for why that also forces the
+ * Anthropic wire format for this turn.
+ */
+export interface WireMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string | ContentPart[];
+}
 
 export interface GatewayStreamRequest {
   /** `fast | smart | frontier` — the alias, straight into `model`. */
   alias: string;
   /** `sk-` plaintext from lib/chat/key.ts. Never logged, never returned. */
   gatewayKey: string;
-  messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
+  messages: WireMessage[];
   /**
    * Per-turn overrides from `lib/chat/settings.ts`. Omitted when the plan
    * has no preset: the deployment's own defaults (max effort, low
@@ -86,9 +100,72 @@ const CALL_ID_HEADERS = ['x-litellm-call-id', 'x-request-id'];
 /** Documented cost headers. Absent when the deployment does not price calls. */
 const COST_HEADERS = ['x-litellm-response-cost'];
 
+/**
+ * Does this turn need the Anthropic wire format?
+ *
+ * Only images force it, and only because the alternative is silent: the
+ * same picture sent to `/v1/chat/completions` returns 200 and the model
+ * answers "Blue" about a solid red square. There is no error to catch — the
+ * pixels simply are not forwarded — so the choice has to be made before the
+ * request rather than after a failure.
+ */
+export function needsAnthropicWire(messages: WireMessage[]): boolean {
+  return messages.some(
+    (m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image'),
+  );
+}
+
+/**
+ * Anthropic's `/v1/messages` body from our messages.
+ *
+ * The differences from chat completions are all mechanical: the system
+ * prompt is a top-level `system` field rather than a message, there is no
+ * `stream_options` (usage is on every stream by default), and `max_tokens`
+ * is REQUIRED rather than optional — so a missing value gets a generous
+ * default instead of the upstream's 400.
+ */
+function anthropicBody(input: GatewayStreamRequest): Record<string, unknown> {
+  const system = input.messages
+    .filter((m) => m.role === 'system')
+    .map((m) => (typeof m.content === 'string' ? m.content : partsToText(m.content)))
+    .filter((s) => s.length > 0)
+    .join('\n\n');
+
+  const messages = input.messages
+    .filter((m) => m.role !== 'system')
+    .map((m) => ({
+      role: m.role,
+      content:
+        typeof m.content === 'string'
+          ? [{ type: 'text', text: m.content }]
+          : m.content,
+    }));
+
+  return {
+    model: input.alias,
+    messages,
+    ...(system.length > 0 ? { system } : {}),
+    max_tokens: input.maxOutputTokens ?? 8192,
+    stream: true,
+    ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
+  };
+}
+
+/** A parts array flattened back to text, for the rare role that needs it. */
+function partsToText(parts: ContentPart[]): string {
+  return parts
+    .filter((p): p is { type: 'text'; text: string } => p.type === 'text')
+    .map((p) => p.text)
+    .join('\n\n');
+}
+
 export async function streamChatCompletion(
   input: GatewayStreamRequest,
 ): Promise<GatewayStreamResult> {
+  if (needsAnthropicWire(input.messages)) {
+    return streamAnthropic(input);
+  }
+
   let res: Response;
   try {
     res = await fetch(`${LITELLM_BASE}/v1/chat/completions`, {
@@ -138,6 +215,61 @@ export async function streamChatCompletion(
     throw new GatewayError(detail ?? sentenceForStatus(res.status), res.status);
   }
 
+  if (!res.body) {
+    throw new GatewayError('The gateway returned no stream. Try again in a moment.', res.status);
+  }
+
+  return { body: res.body, requestId: headerFrom(res, CALL_ID_HEADERS), costUsd: costFrom(res) };
+}
+
+/**
+ * The same call, spoken in Anthropic's dialect.
+ *
+ * Split from the chat path rather than folded into it because the two
+ * differ in shape, not just in a header: a different endpoint, a different
+ * body, `anthropic-version` required, and a different SSE vocabulary
+ * downstream. An `if` in the middle of one function would leave the reader
+ * tracking two protocols at once.
+ *
+ * Errors are translated back to the same `GatewayError`, so the route's
+ * existing handling — including the key-rotation retry on a 401 — works
+ * unchanged on this path.
+ */
+async function streamAnthropic(
+  input: GatewayStreamRequest,
+): Promise<GatewayStreamResult> {
+  let res: Response;
+  try {
+    res = await fetch(`${LITELLM_BASE}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${input.gatewayKey}`,
+        'Content-Type': 'application/json',
+        Accept: 'text/event-stream',
+        // Required by the wire format; the gateway defaults it, but an
+        // explicit value is what keeps a future gateway default from
+        // silently changing the response shape under us.
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(anthropicBody(input)),
+      signal: input.signal,
+    });
+  } catch (e) {
+    if (input.signal.aborted) throw e;
+    const cause =
+      e instanceof Error && e.cause
+        ? ` (${(e.cause as { code?: string }).code ?? String(e.cause)})`
+        : '';
+    throw new GatewayError(
+      `The gateway is unreachable${cause}. Try again in a moment.`,
+      0,
+    );
+  }
+
+  if (!res.ok) {
+    const detail = await safeErrorDetail(res);
+    throw new GatewayError(detail ?? sentenceForStatus(res.status), res.status);
+  }
   if (!res.body) {
     throw new GatewayError('The gateway returned no stream. Try again in a moment.', res.status);
   }

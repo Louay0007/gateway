@@ -25,6 +25,19 @@ export const ATTACHMENT_TYPES = {
   image: ['png', 'jpg', 'jpeg', 'webp', 'gif'],
 } as const;
 
+/**
+ * The media types an image block may declare.
+ *
+ * Typed as a union rather than `string` because it is written into a
+ * request body: a typo here is a 400 from the upstream at send time, with
+ * nothing in the error naming the field.
+ */
+export type ImageMediaType =
+  | 'image/png'
+  | 'image/jpeg'
+  | 'image/webp'
+  | 'image/gif';
+
 /** Every extension, flat. Used by the route's allow-list and the accept attr. */
 export const ALLOWED_EXTENSIONS: readonly string[] = Object.values(ATTACHMENT_TYPES).flat();
 
