@@ -2,10 +2,17 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Check, Copy, Link2, Lock, Share2, X } from "lucide-react";
+import { Check, Copy, Link2, Lock, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import { cn } from "@/lib/utils";
 
@@ -91,15 +98,6 @@ export function ShareControl() {
     open && conversationId ? `/api/chat/conversations/${conversationId}/share` : null,
   );
   const existing = live.data?.shares?.[0] ?? null;
-
-  React.useEffect(() => {
-    if (!open) return;
-    function onEscape(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    window.addEventListener("keydown", onEscape);
-    return () => window.removeEventListener("keydown", onEscape);
-  }, [open]);
 
   if (!conversationId) return null;
 
@@ -189,38 +187,26 @@ export function ShareControl() {
         <span className="hidden sm:inline">Share</span>
       </Button>
 
-      {open && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Share this conversation"
-          onClick={close}
-        >
-          <div
-            className="w-full max-w-md rounded-xl border border-border bg-popover p-4 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.4)]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mb-1 flex items-start justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">Share this conversation</h2>
-                <p className="mt-0.5 text-xs text-muted-foreground">
-                  Anyone with the link can read it. Nothing else in your account is
-                  included.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={close}
-                className="rounded p-1 text-muted-foreground hover:text-foreground"
-                aria-label="Close"
-              >
-                <X className="size-4" />
-              </button>
-            </div>
+      {/*
+        A real Dialog, not a hand-rolled overlay. The header it mounts inside
+        carries `backdrop-blur-xl`, and a backdrop filter makes an element a
+        containing block for `position: fixed` — so a `fixed inset-0` overlay
+        anchored to the 52px header strip instead of the viewport. Base UI's
+        popup renders through a portal, which is the only version that lands
+        over the page.
+      */}
+      <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Share this conversation</DialogTitle>
+            <DialogDescription>
+              Anyone with the link can read it. Nothing else in your account is included.
+            </DialogDescription>
+          </DialogHeader>
 
+          <div className="min-w-0">
             {url ? (
-              <div className="mt-3 space-y-3">
+              <div className="space-y-3">
                 <div className="flex gap-1.5">
                   <input
                     readOnly
@@ -248,7 +234,7 @@ export function ShareControl() {
               /* A live link whose token this browser no longer has. The URL
                  cannot be shown, but the link working — and stopping it — is
                  the part that matters. */
-              <div className="mt-3 space-y-3">
+              <div className="space-y-3">
                 <p className="text-xs text-muted-foreground">
                   This conversation is public
                   {existing.expiresAt
@@ -273,7 +259,7 @@ export function ShareControl() {
                 </p>
               </div>
             ) : (
-              <div className="mt-3 flex justify-end gap-2">
+              <div className="flex justify-end gap-2">
                 <Button
                   size="sm"
                   onClick={share}
@@ -286,8 +272,8 @@ export function ShareControl() {
               </div>
             )}
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
