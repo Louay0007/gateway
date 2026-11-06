@@ -3,7 +3,7 @@
 import { AnimatedBeam, Circle } from '@/components/ui/animated-beam';
 import { TextReveal } from '@/components/shadcn-space/animated-text/animated-text-06';
 import { cn } from '@/lib/utils';
-import { HalloweenDots } from "@/components/marketing/halloween-dots";
+import { Ambient } from '@/components/marketing/ambient';
 import React, { useRef } from 'react';
 
 const ClaudeCodeIcon = () => (
@@ -33,16 +33,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
 
   return (
     <section className={cn('relative mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8 overflow-hidden', className)}>
-      {/* Halloween ambient background */}
-      <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-[#000000]" />
-        <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
-        <div className="absolute top-1/4 left-[5%] w-72 h-72 rounded-full bg-orange-500/10 blur-[80px] animate-[pulse_8s_ease-in-out_infinite]" />
-        <div className="absolute bottom-1/4 right-[8%] w-64 h-64 rounded-full bg-purple-500/10 blur-[80px] animate-[pulse_10s_ease-in-out_infinite_reverse]" />
-        <HalloweenDots />
-        {/* Spider hanging over the beam diagram */}
-        <img src="/images/halloween/item-spider.png" alt="" aria-hidden="true" className="absolute top-0 right-[30%] w-16 sm:w-24 md:w-28 h-auto opacity-90 pointer-events-none select-none animate-[pulse_5s_ease-in-out_infinite]" />
-      </div>
+      <Ambient />
       <style>{`
         @keyframes float-drift {
           0%, 100% { transform: translateY(0px); }
@@ -64,31 +55,31 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           <div className='flex h-full w-full flex-row items-stretch justify-between gap-8'>
             {/* Left: Claude Code solo */}
             <div className='flex flex-col justify-center'>
-              <Circle ref={claudeRef} className="h-18 w-18 bg-[#1a0b2e] border-orange-500/40 text-orange-300">
+              <Circle ref={claudeRef} className="h-18 w-18 bg-[#0b0714] border-[#A558FB]/40 text-[#A558FB]">
                 <ClaudeCodeIcon />
               </Circle>
             </div>
             {/* Center: Zaino AI */}
             <div className='flex flex-col justify-center'>
-              <Circle ref={zainoRef} className='h-20 w-20 bg-[#1a0b2e] border-purple-500/40 shadow-[0_0_40px_rgba(255,140,0,0.25)] text-white'>
+              <Circle ref={zainoRef} className='h-20 w-20 bg-[#0b0714] border-[#A558FB]/50 shadow-[0_0_40px_rgba(165,88,251,0.25)] text-white'>
                 <ZainoLogo />
               </Circle>
             </div>
             {/* Right: Multiple Users */}
             <div className='flex flex-col justify-center gap-2 text-white/80'>
-              <Circle ref={user1Ref} className="h-14 w-14 bg-white/5 border-orange-500/30">
+              <Circle ref={user1Ref} className="h-14 w-14 bg-white/5 border-[#4922E5]/40">
                 <UserIcon />
               </Circle>
-              <Circle ref={user2Ref} className="h-14 w-14 bg-white/5 border-purple-500/30">
+              <Circle ref={user2Ref} className="h-14 w-14 bg-white/5 border-[#A558FB]/30">
                 <UserIcon />
               </Circle>
-              <Circle ref={user3Ref} className="h-14 w-14 bg-white/5 border-orange-500/30">
+              <Circle ref={user3Ref} className="h-14 w-14 bg-white/5 border-[#4922E5]/40">
                 <UserIcon />
               </Circle>
-              <Circle ref={user4Ref} className="h-14 w-14 bg-white/5 border-purple-500/30">
+              <Circle ref={user4Ref} className="h-14 w-14 bg-white/5 border-[#A558FB]/30">
                 <UserIcon />
               </Circle>
-              <Circle ref={user5Ref} className="h-14 w-14 bg-white/5 border-orange-500/30">
+              <Circle ref={user5Ref} className="h-14 w-14 bg-white/5 border-[#4922E5]/40">
                 <UserIcon />
               </Circle>
             </div>
@@ -101,7 +92,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           <AnimatedBeam containerRef={containerRef} fromRef={user4Ref} toRef={zainoRef} duration={3} />
           <AnimatedBeam containerRef={containerRef} fromRef={user5Ref} toRef={zainoRef} duration={3} />
           {/* AnimatedBeam: Zaino → Claude Code */}
-          <AnimatedBeam containerRef={containerRef} fromRef={zainoRef} toRef={claudeRef} duration={3} reverse gradientStartColor="#D97706" gradientStopColor="#F59E0B" />
+          <AnimatedBeam containerRef={containerRef} fromRef={zainoRef} toRef={claudeRef} duration={3} reverse gradientStartColor="#4922E5" gradientStopColor="#A558FB" />
         </div>
 
         {/* Right: TextReveal paragraph about Claude Code $20 limitations */}

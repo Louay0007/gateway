@@ -77,48 +77,25 @@ const Navbar = ({
     const signinRight = nav.querySelector<HTMLElement>("[data-signin-right]");
 
     const applyColors = () => {
-      // Home landing only (tone="light"): orange glass over the hero
-      // artwork, black glass once scrolled past it. Everywhere else the
-      // navbar is always black.
+      // Home landing only (tone="light"): black glass throughout. The old
+      // orange tint matched the Halloween hero artwork, which is gone; the
+      // hero is now a violet glow on near-black, so a dark navbar already
+      // sits on it and no scroll state is needed.
       if (isLanding) {
-        const hero = document.querySelector<HTMLElement>("[data-hero]");
-        const pastHero = hero
-          ? window.scrollY > hero.offsetTop + hero.offsetHeight - 120
-          : window.scrollY > 80;
+        nav.style.background = "";
+        nav.style.backgroundColor = "rgba(0, 0, 0, 0.55)";
+        nav.style.backdropFilter = "blur(16px)";
+        (nav.style as any).webkitBackdropFilter = "blur(16px)";
+        nav.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
 
-        if (pastHero) {
-          // Past the hero: black glass, light text
-          nav.style.background = "";
-          nav.style.backgroundColor = "rgba(0, 0, 0, 0.72)";
-          nav.style.backdropFilter = "blur(16px)";
-          (nav.style as any).webkitBackdropFilter = "blur(16px)";
-          nav.style.borderBottom = "1px solid rgba(255,255,255,0.08)";
+        if (wordmark) wordmark.style.color = "#ffffff";
+        if (sep) sep.style.backgroundColor = "rgba(255,255,255,0.2)";
+        if (signinRight) signinRight.style.color = "#ffffff";
 
-          if (wordmark) wordmark.style.color = "#ffffff";
-          if (sep) sep.style.backgroundColor = "rgba(255,255,255,0.2)";
-          if (signinRight) signinRight.style.color = "#ffffff";
-
-          links.forEach((link) => {
-            link.style.color = "rgba(255,255,255,0.7)";
-            link.style.backgroundColor = "transparent";
-          });
-        } else {
-          // Over the hero: orange glass, dark text
-          nav.style.background = "";
-          nav.style.backgroundColor = "rgba(255, 127, 42, 0.72)";
-          nav.style.backdropFilter = "blur(16px)";
-          (nav.style as any).webkitBackdropFilter = "blur(16px)";
-          nav.style.borderBottom = "1px solid rgba(0, 0, 0, 0.08)";
-
-          if (wordmark) wordmark.style.color = "#111111";
-          if (sep) sep.style.backgroundColor = "rgba(0,0,0,0.2)";
-          if (signinRight) signinRight.style.color = "#111111";
-
-          links.forEach((link) => {
-            link.style.color = "rgba(0,0,0,0.7)";
-            link.style.backgroundColor = "transparent";
-          });
-        }
+        links.forEach((link) => {
+          link.style.color = "rgba(255,255,255,0.7)";
+          link.style.backgroundColor = "transparent";
+        });
         return;
       }
 
@@ -183,7 +160,6 @@ const Navbar = ({
                   className="size-7 object-contain"
                 />
               </span>
-              <img src="/images/halloween/nav-bat.png" alt="" aria-hidden="true" className="hidden sm:block w-10 h-10 object-contain opacity-90" />
               <span
                 data-wordmark=""
                 className="text-lg font-semibold tracking-tight transition-colors duration-300"
@@ -237,13 +213,6 @@ const Navbar = ({
             </>
           ) : (
             <>
-              <a
-                href="/sign-in"
-                data-signin-right=""
-                className="whitespace-nowrap text-base font-medium transition-colors duration-300"
-              >
-                Sign in
-              </a>
               <Button
                 render={<a href="/sign-up" />}
                 nativeButton={false}

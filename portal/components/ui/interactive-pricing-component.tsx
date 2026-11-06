@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { HalloweenDots } from "@/components/marketing/halloween-dots";
+import { Ambient } from "@/components/marketing/ambient";
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/lib/api/use-api';
 import type { PlanListResponse, ProfileView } from '@/lib/api/types';
@@ -258,14 +258,7 @@ export default function PricingComponent({
 
   return (
     <div className={`relative w-full py-16 px-4 sm:px-6 lg:px-8 overflow-hidden ${className}`}>
-      {/* Halloween ambient background */}
-      <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-[#000000]" />
-        <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
-        <div className="absolute top-1/4 left-[5%] w-72 h-72 rounded-full bg-orange-500/10 blur-[80px] animate-[pulse_9s_ease-in-out_infinite]" />
-        <div className="absolute bottom-1/4 right-[8%] w-64 h-64 rounded-full bg-purple-500/10 blur-[80px] animate-[pulse_11s_ease-in-out_infinite_reverse]" />
-      <HalloweenDots />
-      </div>
+      <Ambient />
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
@@ -277,7 +270,7 @@ export default function PricingComponent({
           </p>
 
           {activePromo ? (
-            <div className="mx-auto mb-8 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200">
+            <div className="mx-auto mb-8 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-[#A558FB]/40 bg-[#A558FB]/10 px-4 py-2 text-sm font-medium text-[#c9a4ff]">
               <span aria-hidden>🎃</span>
               {activePromo.label} — {activePromo.percentOff}% off every plan
               until 1 Nov, 00:00 (Tunisia). Applied automatically at checkout.
@@ -306,7 +299,7 @@ export default function PricingComponent({
               Annual
             </span>
             {billingCycle === 'annual' && (
-              <Badge variant="secondary" className="ml-2 text-xs bg-orange-500/20 text-orange-300 border-orange-500/30">
+              <Badge variant="secondary" className="ml-2 text-xs bg-[#A558FB]/20 text-[#c9a4ff] border-[#A558FB]/30">
                 Save up to {annualDiscount}%
               </Badge>
             )}
@@ -350,18 +343,18 @@ export default function PricingComponent({
                 <div
                   className={`relative rounded-2xl h-full flex flex-col transition-all duration-300 ${
                     plan.popular
-                      ? 'p-[2px] bg-gradient-to-b from-orange-500 via-purple-500/60 to-orange-500/20 shadow-[0_0_40px_rgba(255,140,0,0.25)] scale-[1.03] lg:scale-[1.06]'
-                      : 'border border-white/10 shadow-md hover:shadow-lg bg-[#14051f]'
+                      ? 'p-[2px] bg-gradient-to-b from-[#A558FB] via-[#4922E5]/70 to-[#4922E5]/20 shadow-[0_0_40px_rgba(76,34,229,0.35)] scale-[1.03] lg:scale-[1.06]'
+                      : 'border border-white/10 shadow-md hover:shadow-lg bg-[#0b0714]'
                   }`}
                 >
                   {/* Inner card */}
                   <div
-                    className={`relative rounded-[14px] h-full flex flex-col bg-[#14051f]`}
+                    className={`relative rounded-[14px] h-full flex flex-col bg-[#0b0714]`}
                   >
                     {/* Most Popular Badge */}
                     {plan.popular && (
                       <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
-                        <span className="inline-flex items-center rounded-full bg-gradient-to-r from-orange-500 to-purple-600 px-4 py-1.5 text-xs font-semibold text-white shadow-lg whitespace-nowrap">
+                        <span className="inline-flex items-center rounded-full bg-gradient-to-r from-[#4922E5] to-[#A558FB] px-4 py-1.5 text-xs font-semibold text-white shadow-lg whitespace-nowrap">
                           Most Popular
                         </span>
                       </div>
@@ -392,12 +385,12 @@ export default function PricingComponent({
                           )}
                         </div>
                         {plan.promo ? (
-                          <div className="mt-1 inline-flex items-center rounded-full bg-orange-500/20 px-2 py-0.5 text-xs font-semibold text-orange-300">
-                            −{plan.promo.percentOff}% Halloween
+                          <div className="mt-1 inline-flex items-center rounded-full bg-[#A558FB]/20 px-2 py-0.5 text-xs font-semibold text-[#c9a4ff]">
+                            −{plan.promo.percentOff}% off
                           </div>
                         ) : null}
                         {billingCycle === 'annual' && !plan.customPrice && plan.monthlyPrice && plan.annualPrice && (
-                          <div className="text-sm text-orange-400 mt-1 font-medium">
+                          <div className="text-sm text-[#A558FB] mt-1 font-medium">
                             Billed annually • Save {getAnnualSavings(plan)}%
                           </div>
                         )}
@@ -413,7 +406,7 @@ export default function PricingComponent({
                           <li key={idx} className="flex items-start gap-3">
                             <div
                               className={`mt-0.5 shrink-0 ${
-                                feature.included ? 'text-orange-400' : 'text-white/20'
+                                feature.included ? 'text-[#A558FB]' : 'text-white/20'
                               }`}
                             >
                               {feature.included ? (
@@ -452,7 +445,7 @@ export default function PricingComponent({
         ) : (
           <div className="max-w-5xl mx-auto">
             <div
-              className="overflow-x-auto rounded-xl border border-white/10 shadow-lg bg-[#14051f]"
+              className="overflow-x-auto rounded-xl border border-white/10 shadow-lg bg-[#0b0714]"
             >
               <table className="w-full border-collapse">
                 <thead>
@@ -492,7 +485,7 @@ export default function PricingComponent({
                         return (
                           <td key={`${plan.id}-${featureName}`} className="text-center py-4 px-4">
                             {feature?.included ? (
-                              <Check className="h-5 w-5 text-orange-400 mx-auto" aria-label="Included" strokeWidth={2.5} />
+                              <Check className="h-5 w-5 text-[#A558FB] mx-auto" aria-label="Included" strokeWidth={2.5} />
                             ) : (
                               <X className="h-5 w-5 text-white/20 mx-auto" aria-label="Not included" strokeWidth={2.5} />
                             )}

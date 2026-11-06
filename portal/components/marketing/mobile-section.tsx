@@ -1,21 +1,14 @@
 'use client';
 
 import IPhoneMockup from '@/components/ui/iphone-mockup';
-import { HalloweenDots } from "@/components/marketing/halloween-dots";
+import { Ambient } from "@/components/marketing/ambient";
 import { TextReveal } from '@/components/shadcn-space/animated-text/animated-text-06';
 import { cn } from '@/lib/utils';
 
 export default function MobileSection({ className }: { className?: string }) {
   return (
     <section className={cn('relative mx-auto max-w-5xl px-4 py-12 sm:px-6 lg:px-8 overflow-hidden', className)}>
-      {/* Halloween ambient background */}
-      <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-[#000000]" />
-        <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
-        <div className="absolute top-1/4 left-[8%] w-64 h-64 rounded-full bg-purple-500/10 blur-[80px] animate-[pulse_9s_ease-in-out_infinite]" />
-        <div className="absolute bottom-1/4 right-[5%] w-72 h-72 rounded-full bg-orange-500/10 blur-[80px] animate-[pulse_11s_ease-in-out_infinite_reverse]" />
-      <HalloweenDots />
-      </div>
+      <Ambient />
       <style>{`
         @keyframes iphone-float {
           0%, 100% { transform: translateY(0px); }
@@ -78,8 +71,6 @@ export default function MobileSection({ className }: { className?: string }) {
           </div>
         </div>
       </div>
-      {/* Witch hat resting beside the phone */}
-      <img src="/images/halloween/category-witch-hat.png" alt="" aria-hidden="true" className="absolute bottom-0 left-0 w-32 sm:w-44 md:w-56 h-auto opacity-90 pointer-events-none select-none" />
     </section>
   );
 }

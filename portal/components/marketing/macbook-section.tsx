@@ -1,21 +1,14 @@
 'use client';
 
 import { MacbookPro } from '@/components/ui/macbook-pro';
-import { HalloweenDots } from "@/components/marketing/halloween-dots";
+import { Ambient } from "@/components/marketing/ambient";
 import { TextReveal } from '@/components/shadcn-space/animated-text/animated-text-06';
 import { cn } from '@/lib/utils';
 
 export default function MacbookSection({ className }: { className?: string }) {
   return (
     <section className={cn('relative mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:px-8 overflow-hidden', className)}>
-      {/* Halloween ambient background */}
-      <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute inset-0 bg-[#000000]" />
-        <img src="/images/halloween/shape-bg.png" alt="" className="absolute inset-0 w-full h-full object-cover mix-blend-soft-light opacity-30" />
-        <div className="absolute top-1/3 right-[10%] w-80 h-80 rounded-full bg-orange-500/8 blur-[90px] animate-[pulse_9s_ease-in-out_infinite]" />
-        <div className="absolute bottom-1/3 left-[5%] w-60 h-60 rounded-full bg-purple-500/8 blur-[90px] animate-[pulse_11s_ease-in-out_infinite_reverse]" />
-      <HalloweenDots />
-      </div>
+      <Ambient />
       <style>{`
         @keyframes macbook-float {
           0%, 100% { transform: translateY(0px); }
@@ -23,9 +16,8 @@ export default function MacbookSection({ className }: { className?: string }) {
         }
       `}</style>
       <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
-        {/* Left: TextReveal about Zaino AI Agent App — ghost sits under the text, clear of the laptop */}
+        {/* Left: TextReveal about Zaino AI Agent App */}
         <div className="relative w-full lg:w-1/2 flex flex-col justify-center space-y-4">
-          <img src="/images/halloween/about-scare.png" alt="" aria-hidden="true" className="pointer-events-none select-none opacity-90 absolute -top-16 -left-4 w-32 sm:w-44 md:w-56 h-auto" />
           <TextReveal
             text="A full AI agent app built right in. Autonomous coding, real-time execution, and every tool you need."
             mode="word"
