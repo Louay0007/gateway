@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import Navbar from "@/components/shadcn-space/blocks/hero-33/navbar";
+import SiteNav from '@/components/marketing/site-nav';
 import { MarketingFooter } from "@/components/marketing/footer";
 import { DocsContent } from "@/components/docs/docs-content";
 
@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 export default function DocsPage() {
   return (
     <>
-      <Navbar />
+      <SiteNav />
       <main>
         <DocsContent />
       </main>

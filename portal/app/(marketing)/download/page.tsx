@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Navbar from '@/components/shadcn-space/blocks/hero-33/navbar';
+import SiteNav from '@/components/marketing/site-nav';
 import DownloadContent from '@/components/marketing/download-content';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function DownloadPage() {
   return (
     <div className="min-h-screen bg-black pb-16 text-gray-100">
-      <Navbar active="Download" />
+      <SiteNav active="Download" />
       <DownloadContent />
       <ZainoFooter />
     </div>

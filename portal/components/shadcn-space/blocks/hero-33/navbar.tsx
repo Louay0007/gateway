@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { MaintenanceBanner } from "@/components/marketing/maintenance-banner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChevronRight, Equal, X } from "lucide-react";
 
 const navLinks = [
@@ -26,15 +27,35 @@ const Navbar = ({
   active,
   tone,
   banner,
+  signedIn = false,
+  name = null,
+  image = null,
+  initials = null,
 }: {
   tone?: "dark" | "light";
   active?: string;
   /** Optional notice strip rendered under the nav row (maintenance, alerts). */
   banner?: string;
+  /**
+   * Resolved on the server by components/marketing/site-nav.tsx. The
+   * signed-in branch replaces "Sign in / Get an API key" with the account
+   * avatar and one clear way into the product; the signed-out branch is
+   * unchanged.
+   */
+  signedIn?: boolean;
+  name?: string | null;
+  image?: string | null;
+  initials?: string | null;
 }) => {
   const navRef = useRef<HTMLElement>(null);
   const isLanding = tone === "light";
   const [isDarkTheme, setIsDarkTheme] = useState(false);
+  // "Sign in" is a link to a page a signed-in visitor is redirected away
+  // from — it would bounce them into /chat, which the right-hand button
+  // already does on purpose.
+  const visibleLinks = signedIn
+    ? navLinks.filter((l) => l.href !== "/sign-in")
+    : navLinks;
 
   useEffect(() => {
     // Detect current dark mode state and watch for changes
@@ -177,7 +198,7 @@ const Navbar = ({
             className="hidden h-6 my-auto lg:block transition-colors duration-300"
           />
           <div className="hidden items-center gap-1 lg:flex">
-            {navLinks.map((link) => (
+            {visibleLinks.map((link) => (
               <a
                 key={link.title}
                 href={link.href}
@@ -189,22 +210,50 @@ const Navbar = ({
             ))}
           </div>
         </div>
-        <div className="hidden items-center gap-6 lg:flex">
-          <a
-            href="/sign-in"
-            data-signin-right=""
-            className="whitespace-nowrap text-base font-medium transition-colors duration-300"
-          >
-            Sign in
-          </a>
-          <Button
-            render={<a href="/sign-up" />}
-            nativeButton={false}
-            className="group h-10 rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
-          >
-            Get an API key
-            <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
-          </Button>
+        <div className="hidden items-center gap-4 lg:flex">
+          {signedIn ? (
+            <>
+              <a
+                href="/chat"
+                data-signin-right=""
+                className="whitespace-nowrap text-base font-medium transition-colors duration-300"
+              >
+                Open chat
+                <ChevronRight className="ml-1 inline-block size-4 align-[-2px]" />
+              </a>
+              <a
+                href="/dashboard/settings"
+                aria-label={name ? `${name} — account settings` : "Account settings"}
+                title={name ?? "Account"}
+                className="shrink-0 rounded-full ring-offset-2 ring-offset-transparent transition hover:ring-2 hover:ring-current/40 focus-visible:ring-2 focus-visible:ring-current/60 focus-visible:outline-none"
+              >
+                <Avatar className="size-9">
+                  {image ? <AvatarImage src={image} alt={name ?? "Account"} /> : null}
+                  <AvatarFallback className="bg-gray-900/80 text-sm font-medium text-white dark:bg-white/15">
+                    {initials ?? "…"}
+                  </AvatarFallback>
+                </Avatar>
+              </a>
+            </>
+          ) : (
+            <>
+              <a
+                href="/sign-in"
+                data-signin-right=""
+                className="whitespace-nowrap text-base font-medium transition-colors duration-300"
+              >
+                Sign in
+              </a>
+              <Button
+                render={<a href="/sign-up" />}
+                nativeButton={false}
+                className="group h-10 rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
+              >
+                Get an API key
+                <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
+              </Button>
+            </>
+          )}
         </div>
         <Sheet>
           <SheetTrigger
@@ -235,7 +284,7 @@ const Navbar = ({
               </SheetClose>
             </SheetHeader>
             <div className="flex flex-col gap-1.5">
-              {navLinks.map((link) => (
+              {visibleLinks.map((link) => (
                 <SheetClose
                   key={link.title}
                   nativeButton={false}
@@ -254,26 +303,67 @@ const Navbar = ({
               ))}
             </div>
             <div className="mt-auto flex flex-col gap-3">
-              <SheetClose
-                nativeButton={false}
-                render={
-                  <a href="/sign-in" className="transition-colors text-foreground">
-                    Sign in
-                  </a>
-                }
-              />
-              <SheetClose
-                render={
-                  <Button
-                    render={<a href="/sign-up" />}
+              {signedIn ? (
+                <>
+                  <div className="flex items-center gap-3 px-1">
+                    <Avatar className="size-9 shrink-0">
+                      {image ? <AvatarImage src={image} alt={name ?? "Account"} /> : null}
+                      <AvatarFallback className="text-sm font-medium">
+                        {initials ?? "…"}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate text-sm font-medium text-foreground">
+                      {name ?? "Signed in"}
+                    </span>
+                  </div>
+                  <SheetClose
+                    render={
+                      <Button
+                        render={<a href="/chat" />}
+                        nativeButton={false}
+                        className="group h-10 w-full rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
+                      >
+                        Open chat
+                        <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
+                      </Button>
+                    }
+                  />
+                  <SheetClose
                     nativeButton={false}
-                    className="group h-10 w-full rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
-                  >
-                    Get an API key
-                    <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
-                  </Button>
-                }
-              />
+                    render={
+                      <a
+                        href="/dashboard/settings"
+                        className="px-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                      >
+                        Account settings
+                      </a>
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <SheetClose
+                    nativeButton={false}
+                    render={
+                      <a href="/sign-in" className="transition-colors text-foreground">
+                        Sign in
+                      </a>
+                    }
+                  />
+                  <SheetClose
+                    render={
+                      <Button
+                        render={<a href="/sign-up" />}
+                        nativeButton={false}
+                        className="group h-10 w-full rounded-full px-5 font-medium hover:bg-primary/80 cursor-pointer"
+                      >
+                        Get an API key
+                        <ChevronRight className="size-4 transition-all group-hover:translate-x-0.5 duration-300" />
+                      </Button>
+                    }
+                  />
+                </>
+              )}
             </div>
           </SheetContent>
         </Sheet>

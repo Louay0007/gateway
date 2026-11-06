@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import Navbar from "@/components/shadcn-space/blocks/hero-33/navbar";
+import SiteNav from '@/components/marketing/site-nav';
 import { MarketingFooter } from "@/components/marketing/footer";
 
 export const metadata: Metadata = {
@@ -13,7 +13,7 @@ export default function TermsPage() {
   return (
     <>
       <div className="light-surface">
-        <Navbar />
+        <SiteNav />
       </div>
       <main className="bg-white dark:bg-black py-16 sm:py-24">
         <article className="mx-auto max-w-3xl px-4 lg:px-8">

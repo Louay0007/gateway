@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PricingPreview } from "@/components/marketing/pricing-preview";
-import Navbar from "@/components/shadcn-space/blocks/hero-33/navbar";
+import SiteNav from '@/components/marketing/site-nav';
 import { listPlans } from "@/lib/billing/service";
 import type { PlanSummary } from "@/lib/billing/state";
 import { centsDt } from "@/lib/dashboard/format";
@@ -49,7 +49,7 @@ export default async function PricingPage() {
 
   return (
     <>
-      <Navbar />
+      <SiteNav />
       <main className="pt-16">
         <section className="bg-white dark:bg-black py-16 sm:py-24">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">

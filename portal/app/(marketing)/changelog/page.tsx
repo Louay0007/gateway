@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import Navbar from '@/components/shadcn-space/blocks/hero-33/navbar';
+import SiteNav from '@/components/marketing/site-nav';
 import ChangelogContent from '@/components/marketing/changelog-content';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function ChangelogPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-gray-100">
-      <Navbar />
+      <SiteNav />
       <ChangelogContent />
       <ZainoFooter />
     </div>

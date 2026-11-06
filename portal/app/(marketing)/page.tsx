@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { redirect } from 'next/navigation';
-import Navbar from '@/components/shadcn-space/blocks/hero-33/navbar';
+import SiteNav from '@/components/marketing/site-nav';
 import Hero33 from '@/components/shadcn-space/blocks/hero-33/hero';
 import { LogoCloud } from '@/components/ui/logo-cloud-3';
-import { hasLiveSession } from '@/lib/auth/authorize';
 import { HalloweenDots } from '@/components/marketing/halloween-dots';
 import AnimatedBeamSection from '@/components/marketing/animated-beam-section';
 import MacbookSection from '@/components/marketing/macbook-section';
@@ -83,20 +81,17 @@ const forceDarkScript = `
 })();
 `;
 
-export default async function LandingPage() {
-  // Signed-in visitors belong in the product, not in the funnel. The
-  // landing page itself stays public (rule: delete nothing) — this only
-  // stops a paying customer from having to hunt for the way back in.
-  // hasLiveSession(), not auth(): a JWT that predates the last password
-  // change parses but authorises nothing, and `/chat` would bounce it
-  // straight back to /sign-in — the redirect loop authorize.ts documents.
-  if (await hasLiveSession()) redirect('/chat');
-
+export default function LandingPage() {
+  // The landing page is the front door for EVERYONE, signed in or not.
+  // It used to redirect a live session to /chat, which meant a returning
+  // customer could never see the site they were paying for, and the root
+  // URL had no stable public meaning. The way into the product is now the
+  // navbar's "Open chat" button plus the account avatar; no redirect.
   return (
     <>
       <script dangerouslySetInnerHTML={{ __html: forceDarkScript }} />
       <div className="dark bg-[#000000] text-white">
-        <Navbar tone="light" />
+        <SiteNav tone="light" />
         <main className="bg-[#000000]">
         <Hero33 />
         <section className="relative mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 overflow-hidden">
