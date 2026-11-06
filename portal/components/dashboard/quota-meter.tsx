@@ -162,7 +162,7 @@ export function QuotaMeters({
   entitled?: string[];
   className?: string;
 }) {
-  const ALIAS_ORDER = ["fast", "smart", "frontier"];
+  const ALIAS_ORDER = ["fast", "smart", "frontier", "fable"];
   const allowed = entitled ? new Set(entitled) : null;
   const entries = ALIAS_ORDER.filter(
     (alias) =>

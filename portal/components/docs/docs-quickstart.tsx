@@ -54,7 +54,7 @@ export function Quickstart({
             2 · Tier & endpoint
           </p>
           <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Model tier">
-            {["fast", "smart", "frontier"].map((m) => (
+            {["fast", "smart", "frontier", "fable"].map((m) => (
               <button
                 key={m}
                 type="button"

@@ -30,7 +30,7 @@ const MIN_EVERY_MINUTES = 15;
 const Create = z.object({
   prompt: z.string().trim().min(1).max(4000),
   title: z.string().max(120).optional(),
-  alias: z.enum(['fast', 'smart', 'frontier']).optional(),
+  alias: z.enum(['fast', 'smart', 'frontier', 'fable']).optional(),
   everyMinutes: z.number().int().min(MIN_EVERY_MINUTES).max(60 * 24 * 30),
   conversationId: z.string().uuid().nullish(),
 });

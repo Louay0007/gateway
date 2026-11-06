@@ -304,7 +304,7 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
       const raw = readFileSync(PRICES_YAML, 'utf8');
       const inBlock = raw.slice(raw.indexOf('aliases:'));
       const out: Record<string, string> = {};
-      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+(fast|smart|frontier)\s*$/gm)) {
+      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+(fast|smart|frontier|fable)\s*$/gm)) {
         out[m[1]!] = m[2]!;
       }
       return out;

@@ -47,9 +47,15 @@ export const ALIAS_META: Record<TierAlias, AliasMeta> = {
     provider: 'Zaino Max',
     blurb: 'Deepest reasoning for hard problems. Slower, and the most costly.',
   },
+  fable: {
+    alias: 'fable',
+    label: 'Fable',
+    provider: 'Zaino Ultra',
+    blurb: 'The longest-horizon tier — for whole-task runs and multi-step agents.',
+  },
 };
 
-export const ALIAS_ORDER: TierAlias[] = ['fast', 'smart', 'frontier'];
+export const ALIAS_ORDER: TierAlias[] = ['fast', 'smart', 'frontier', 'fable'];
 
 export function aliasMeta(alias: string): { label: string; provider: string; blurb: string } {
   const meta = ALIAS_META[alias as TierAlias];

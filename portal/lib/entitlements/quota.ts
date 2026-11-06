@@ -228,9 +228,9 @@ export function mapGatewayModelError(
   } catch {
     // Plaintext body — scan as-is.
   }
-  const bodyAlias = text.match(/\b(fast|smart|frontier)\b/i)?.[1]?.toLowerCase() ?? null;
+  const bodyAlias = text.match(/\b(fast|smart|frontier|fable)\b/i)?.[1]?.toLowerCase() ?? null;
   const requested =
-    requestedModel && ['fast', 'smart', 'frontier'].includes(requestedModel.toLowerCase())
+    requestedModel && ['fast', 'smart', 'frontier', 'fable'].includes(requestedModel.toLowerCase())
       ? requestedModel.toLowerCase()
       : null;
   // Error-dialect words that carry no model identity, and the upstream model
@@ -244,6 +244,7 @@ export function mapGatewayModelError(
     'haiku-5.5': 'fast',
     'sonnet-5.5': 'smart',
     'opus-5.5': 'frontier',
+    'gpt-6-astra': 'fable',
   };
   const quoted = messageText.match(/["']([A-Za-z0-9][A-Za-z0-9_.\-]{1,64})["']/g) ?? [];
   const extracted =
@@ -251,7 +252,7 @@ export function mapGatewayModelError(
       .map((q) => q.slice(1, -1))
       .filter((token) => !NON_MODEL_TOKENS.includes(token.toLowerCase()))
       .map((token) => UPSTREAM_TO_ALIAS[token] ?? token)
-      .find((token) => ['fast', 'smart', 'frontier'].includes(token.toLowerCase()))
+      .find((token) => ['fast', 'smart', 'frontier', 'fable'].includes(token.toLowerCase()))
       ?.toLowerCase() ?? null;
   const model = bodyAlias ?? requested ?? extracted;
   const friendly = model

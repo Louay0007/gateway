@@ -112,6 +112,7 @@ ALIAS = {
     "fast": "haiku-5.5",
     "smart": "sonnet-5.5",
     "frontier": "opus-5.5",
+    "fable": "gpt-6-astra",
 }
 
 def usage_of(r):

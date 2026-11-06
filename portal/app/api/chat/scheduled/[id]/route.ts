@@ -22,7 +22,7 @@ const Patch = z
   .object({
     prompt: z.string().trim().min(1).max(4000),
     title: z.string().max(120),
-    alias: z.enum(['fast', 'smart', 'frontier']),
+    alias: z.enum(['fast', 'smart', 'frontier', 'fable']),
     everyMinutes: z.number().int().min(MIN_EVERY_MINUTES).max(60 * 24 * 30),
     enabled: z.boolean(),
   })

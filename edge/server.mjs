@@ -130,6 +130,7 @@ const MODEL_ALIAS = {
   fast: 'haiku-5.5',
   smart: 'sonnet-5.5',
   frontier: 'opus-5.5',
+  fable: 'gpt-6-astra',
 };
 
 /** Concrete upstream model names the edge is allowed to forward.
@@ -140,6 +141,7 @@ const VALID_UPSTREAM_MODELS = new Set([
   'haiku-5.5',
   'sonnet-5.5',
   'opus-5.5',
+  'gpt-6-astra',
 ]);
 
 /**

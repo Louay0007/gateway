@@ -51,6 +51,19 @@ models:
     cache_read_note:        0.10x input
     output_per_mtok:        75.00
 
+  # Same rates as opus-5.5 on purpose: the provider reports this name's
+  # responses as `opus-5.5`, so pricing it differently would bill customers
+  # for a distinction the upstream does not make.
+  gpt-6-astra:
+    input_per_mtok:          15.00
+    cache_write_5m_per_mtok: 30.00
+    cache_write_5m_note:     2.0x input
+    cache_write_1h_per_mtok: 30.00
+    cache_write_1h_note:    2.0x input
+    cache_read_per_mtok:    1.50
+    cache_read_note:        0.10x input
+    output_per_mtok:        75.00
+
 # ── Alias registry ──────────────────────────────────────────────────
 # Upstream model → customer-facing alias. The collector resolves the
 # gateway's `model`/`model_group` through this map before writing a ledger
@@ -60,3 +73,4 @@ aliases:
   haiku-5.5:    fast
   sonnet-5.5:   smart
   opus-5.5:     frontier
+  gpt-6-astra:  fable

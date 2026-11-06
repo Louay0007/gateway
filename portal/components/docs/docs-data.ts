@@ -28,7 +28,7 @@ export type Tier = {
 export const TIERS: Tier[] = [
   {
     alias: "fast",
-    poweredBy: "Haiku 5.5",
+    poweredBy: "Zaino Haiku 5.5",
     tagline: "High-volume work — drafts, classification, bulk transforms.",
     inputPerMtok: "$1.00",
     outputPerMtok: "$5.00",
@@ -39,7 +39,7 @@ export const TIERS: Tier[] = [
   },
   {
     alias: "smart",
-    poweredBy: "Sonnet 5.5",
+    poweredBy: "Zaino Sonnet 5.5",
     tagline: "Everyday balanced tier — the default for most integrations.",
     inputPerMtok: "$3.00",
     outputPerMtok: "$15.00",
@@ -50,7 +50,7 @@ export const TIERS: Tier[] = [
   },
   {
     alias: "frontier",
-    poweredBy: "Opus 5.5",
+    poweredBy: "Zaino Opus 5.5",
     tagline: "Mythos-class reasoning for the hardest long-running workloads.",
     inputPerMtok: "$15.00",
     outputPerMtok: "$75.00",
@@ -58,6 +58,17 @@ export const TIERS: Tier[] = [
     plans: "Pro only",
     bestFor: ["Deep reasoning", "Multi-step agents", "Hard tasks"],
     badge: "Pro",
+  },
+  {
+    alias: "fable",
+    poweredBy: "Zaino Fable 5.1",
+    tagline: "Longest-horizon reasoning — whole-task runs that other tiers drop.",
+    inputPerMtok: "$15.00",
+    outputPerMtok: "$75.00",
+    cacheReadPerMtok: "$1.50",
+    plans: "Pro only",
+    bestFor: ["Whole-task runs", "Long agents", "Deepest reasoning"],
+    badge: "New",
   },
 ];
 
@@ -148,6 +159,11 @@ model_context_window = ${CONTEXT_WINDOW}
 model_max_output_tokens = ${MAX_OUTPUT_TOKENS}
 
 [models.frontier]
+model_provider = "zaino"
+model_context_window = ${CONTEXT_WINDOW}
+model_max_output_tokens = ${MAX_OUTPUT_TOKENS}
+
+[models.fable]
 model_provider = "zaino"
 model_context_window = ${CONTEXT_WINDOW}
 model_max_output_tokens = ${MAX_OUTPUT_TOKENS}`;

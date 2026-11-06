@@ -227,12 +227,34 @@ export const updateKeyLimits = updateKey;
  * hash is also the only identifier /key/update accepts (404 otherwise).
  */
 export async function listTeamKeys(teamId: string): Promise<{ token: string }[]> {
-  const raw = await call<{ keys?: string[] }>(
-    `/key/list?team_id=${encodeURIComponent(teamId)}`,
-  );
-  return (raw.keys ?? [])
-    .filter((t): t is string => typeof t === 'string' && t.length > 0)
-    .map((token) => ({ token }));
+  // PAGED, and it has to be. /key/list answers 10 rows by default while
+  // reporting `total_count: 12` in the same body, so an org with more than
+  // ten keys silently kept its last N keys on the OLD plan forever: sync
+  // reported `synced`, the dashboard showed the new lineup, and the
+  // eleventh key answered 400 "model not allowed". Observed live on a pro
+  // org whose coding key never gained the fourth alias.
+  // Drive the loop off the server's own `total_pages`, NOT off "did this
+  // page come back short". LiteLLM clamps `size` at 10 server-side whatever
+  // is asked for, so a short page means "ten rows", not "last page": a
+  // `batch.length < pageSize` exit stopped after the first ten and left exactly
+  // the two newest keys on the old allowlist. Measured: `size=100` → 10 keys,
+  // `page=2` → 11th and 12th.
+  const tokens: string[] = [];
+  // `page` is 1-BASED (`page=0` answers 422 "greater than or equal to 1").
+  for (let page = 1; page <= 100; page++) {
+    const raw = await call<{
+      keys?: string[];
+      total_count?: number;
+      total_pages?: number;
+    }>(`/key/list?team_id=${encodeURIComponent(teamId)}&page=${page}&size=100`);
+    const batch = (raw.keys ?? []).filter(
+      (t): t is string => typeof t === 'string' && t.length > 0,
+    );
+    tokens.push(...batch);
+    if (batch.length === 0) break;
+    if (page >= (raw.total_pages ?? 1)) break;
+  }
+  return tokens.map((token) => ({ token }));
 }
 
 /**

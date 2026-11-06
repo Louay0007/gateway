@@ -34,7 +34,7 @@ import { PRICE_FILE } from '@/lib/pricing/path';
  * rows in `prices/models.yaml`, which is a `model → alias` mapping and
  * cannot hold one key under three values.
  */
-export const TIER_ALIASES = ['fast', 'smart', 'frontier'] as const;
+export const TIER_ALIASES = ['fast', 'smart', 'frontier', 'fable'] as const;
 export type TierAlias = (typeof TIER_ALIASES)[number];
 
 /** model → alias, exactly as declared under `aliases:`. */

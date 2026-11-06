@@ -55,8 +55,8 @@ const zainoPlans: PricingPlan[] = [
     monthlyPrice: 50,
     annualPrice: 40,
     features: [
-      { name: '80M Haiku 5.5 tokens/mo', included: true },
-      { name: '32M Sonnet 5.5 tokens/mo', included: true },
+      { name: '100M Zaino Haiku 5.5 tokens/day', included: true },
+      { name: '100M Zaino Sonnet 5.5 tokens/day', included: true },
       { name: 'Basic agent workflows', included: true },
       { name: 'Community support', included: true },
     ],
@@ -69,8 +69,9 @@ const zainoPlans: PricingPlan[] = [
     monthlyPrice: 90,
     annualPrice: 72,
     features: [
-      { name: '210M Sonnet 5.5 tokens/mo', included: true },
-      { name: '85M Opus 5.5 tokens/mo', included: true },
+      { name: '100M Zaino Sonnet 5.5 tokens/day', included: true },
+      { name: '100M Zaino Opus 5.5 tokens/day', included: true },
+      { name: '100M Zaino Fable 5.1 tokens/day', included: true },
       { name: 'Advanced agent workflows', included: true },
       { name: 'Priority support', included: true },
       { name: 'Priority queue', included: true },
@@ -99,9 +100,10 @@ const zainoPlans: PricingPlan[] = [
 ];
 
 const MODEL_LABELS: Record<string, string> = {
-  fast: 'Haiku 5.5',
-  smart: 'Sonnet 5.5',
-  frontier: 'Opus 5.5',
+  fast: 'Zaino Haiku 5.5',
+  smart: 'Zaino Sonnet 5.5',
+  frontier: 'Zaino Opus 5.5',
+  fable: 'Zaino Fable 5.1',
 };
 
 /**
@@ -122,7 +124,7 @@ function fromCatalogPlan(p: PlanListResponse['plans'][number]): PricingPlan {
 
   const generatedFeatures: Feature[] = Object.entries(p.tokenLimits ?? {}).map(
     ([alias, limit]) => ({
-      name: `${compact(limit)} ${MODEL_LABELS[alias] ?? alias} tokens/mo`,
+      name: `${compact(limit)} ${MODEL_LABELS[alias] ?? alias} tokens/day`,
       included: true,
     }),
   );

@@ -253,6 +253,7 @@ const server = http.createServer((req, res) => {
             { id: 'fast', object: 'model' },
             { id: 'smart', object: 'model' },
             { id: 'frontier', object: 'model' },
+            { id: 'fable', object: 'model' },
           ],
         })
       );
