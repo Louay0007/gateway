@@ -24,8 +24,10 @@ export type PlanState =
 /**
  * Internal row states → customer-facing states.
  *
- * `incomplete` is "payment never completed" — what the dashboard calls
- * `pending`.
+ * `incomplete` maps to `pending` here, but `planStateFor` narrows it down:
+ * an incomplete row WITHOUT payment evidence (no D17 proof submitted)
+ * stays `no_subscription` — an abandoned checkout must not read as a
+ * pending payment. See service.ts.
  *
  * `trialing` is a LIVE status again (free trial codes, migration 0017:
  * redeem → `subscriptions.status = 'trialing'` → full access for the

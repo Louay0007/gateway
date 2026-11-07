@@ -97,8 +97,9 @@ export function SettingsPanel({
         <TabsContent value="billing" className="grid gap-4 sm:gap-6">
           <PaymentHistory />
           <p className="max-w-prose text-sm text-muted-foreground">
-            Payments are manual D17 transfers (La Poste Tunisienne). Your plan
-            tab opens the checkout with the transfer instructions.
+            Pay by D17 transfer (La Poste Tunisienne — manual verification) or
+            by card worldwide through Dodo. The plan tab shows both before any
+            checkout.
           </p>
         </TabsContent>
 

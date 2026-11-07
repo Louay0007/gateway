@@ -93,8 +93,31 @@ export async function planStateFor(organizationId: string): Promise<{
   const sub = await loadSubscription(organizationId);
   if (!sub) return { state: 'no_subscription', plan: null, subscription: null };
   const plan = await loadPlan(sub.planId);
+
+  let state = planStateFromStatus(sub.status);
+
+  // `incomplete` alone means NOTHING happened: the customer opened a
+  // checkout (D17 or Dodo) and closed it without paying. Showing "payment
+  // pending" for that turns an abandoned checkout into a stuck-looking
+  // plan, so it stays `no_subscription` — the paywall. An incomplete row
+  // only reads `pending` once there is real payment evidence: a D17 proof
+  // awaiting staff verification. Dodo has no local evidence before its
+  // webhook — an unpaid Dodo checkout never lights up anything here.
+  //
+  // The queue reserving a D17 row at checkout time has status
+  // `pending_payment` and does NOT count — reserving is a window, not a
+  // payment. `rejected`/`expired` proof also reads as no evidence again.
+  if (sub.status === 'incomplete' && state === 'pending') {
+    const [proof] = await db
+      .select({ id: paymentsD17.id })
+      .from(paymentsD17)
+      .where(and(eq(paymentsD17.subscriptionId, sub.id), eq(paymentsD17.status, 'proof_submitted')))
+      .limit(1);
+    if (!proof) state = 'no_subscription';
+  }
+
   return {
-    state: planStateFromStatus(sub.status),
+    state,
     plan: plan ? summarizePlan(plan) : null,
     subscription: sub,
   };

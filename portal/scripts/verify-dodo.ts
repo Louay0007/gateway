@@ -43,17 +43,24 @@ import { db, sql as pg } from '@/db';
 import {
   auditLog,
   billingEvents,
+  paymentsD17,
   plans,
   subscriptions,
 } from '@/db/schema';
 import { createLocalUser } from '@/lib/auth/create-user';
 import { ensurePersonalOrg } from '@/lib/auth/provision';
-import { beginCheckout, applyCallback, cancelSubscription } from '@/lib/billing';
+import {
+  beginCheckout,
+  applyCallback,
+  cancelSubscription,
+  planStateFor,
+} from '@/lib/billing';
 import {
   DODO_WEBHOOK_HEADERS,
   dodoBaseUrl,
   dodoSign,
 } from '@/lib/billing/dodo';
+import { paymentWindowHours } from '@/lib/billing/d17-config';
 
 // ───────────────────────────────────────────────────────────────────────
 //  Assertion plumbing (identical shape to verify-d17)
@@ -261,6 +268,57 @@ async function main(): Promise<void> {
     rowC?.seats === 25,
     String(rowC?.seats),
   );
+
+  // ── T3b: abandoned-checkout display (incomplete ≠ payment pending) ──
+  // The row from T2 (starter, left incomplete without paying) is the
+  // exact "opened checkout, went back" scenario the customers hit: the
+  // dashboard must show the paywall, never a pending-payment state.
+  section('T3b abandoned checkout shows the paywall, not "payment pending"');
+  check(
+    'an incomplete row with NO payment evidence reads as no_subscription',
+    (await planStateFor(buyerA.organizationId)).state === 'no_subscription',
+  );
+  check(
+    'an incomplete Dodo row NEVER reads as pending (Dodo has no local evidence before its webhook)',
+    (await planStateFor(buyerC.organizationId)).state === 'no_subscription',
+  );
+  // Same incomplete row, but with the D17 evidence lifecycle walked under
+  // it: a reserved queue slot is not a payment; a submitted proof is.
+  // The proof_shape CHECK demands an authorization number + sender on any
+  // submitted row, so the proof fixture carries a real-shaped one.
+  const fakeProof = await db
+    .insert(paymentsD17)
+    .values({
+      subscriptionId: buyerC.subscriptionId,
+      organizationId: buyerC.organizationId,
+      amountMillimes: 90000,
+      usdAmountCents: 3000,
+      fxRate: '3.0000',
+      expiresAt: new Date(Date.now() + paymentWindowHours() * 3600000),
+    })
+    .returning({ id: paymentsD17.id });
+  const proofId = fakeProof[0]?.id;
+  if (!proofId) throw new Error('verify: payments_d17 insert returned nothing');
+  check(
+    'a reserved D17 queue slot (checkout opened, nothing transferred) still shows no plan',
+    (await planStateFor(buyerC.organizationId)).state === 'no_subscription',
+  );
+  await db
+    .update(paymentsD17)
+    .set({
+      status: 'proof_submitted',
+      authorizationNumber: `VERIFY-${run.toUpperCase()}`,
+      senderPhone: '+21600000000',
+      submittedAt: new Date(),
+    })
+    .where(eq(paymentsD17.id, proofId));
+  check(
+    'it flips to pending ONLY once the D17 proof is submitted',
+    (await planStateFor(buyerC.organizationId)).state === 'pending',
+  );
+  // Clean the fixture so the buyerC row returns to plain incomplete for
+  // the sections below — and so re-runs never pile up fake proofs.
+  await db.delete(paymentsD17).where(eq(paymentsD17.id, proofId));
 
   // ── T4: the live webhook route activates the subscription ────────────
   section('T4 signed subscription.active over the LIVE webhook route');

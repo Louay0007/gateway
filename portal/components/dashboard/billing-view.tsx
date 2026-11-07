@@ -37,6 +37,8 @@ import {
 } from "@/components/ui/dialog";
 import { ErrorState, PanelSkeleton, RefreshingBar } from "@/components/dashboard/states";
 import { PaywallState } from "@/components/dashboard/paywall-state";
+import { PaymentMethodDialog } from "@/components/dashboard/payment-method-dialog";
+import type { PlanSummary } from "@/lib/billing/state";
 import { QuotaMeters, QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { apiSend, useApi } from "@/lib/api/use-api";
@@ -91,8 +93,10 @@ export function BillingView() {
   const [changeOpen, setChangeOpen] = React.useState(false);
   const [cancelMode, setCancelMode] = React.useState<"period" | "now" | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
-  const [method, setMethod] = React.useState<"d17" | "dodo">("d17");
-  const [seats, setSeats] = React.useState(1);
+  /** The plan the rail dialog is open for; null = closed. Every checkout
+   *  trigger (hero, paywall, comparison table) funnels through here —
+   *  the dialog is where D17 vs card gets chosen, BEFORE anything ships. */
+  const [checkoutPlan, setCheckoutPlan] = React.useState<PlanSummary | null>(null);
 
   const justPaid = search.get("state") === "active";
 
@@ -172,28 +176,15 @@ export function BillingView() {
     catalog.reload();
   }
 
-  async function beginCheckout(planCode: string, chosenMethod: "d17" | "dodo" = method, seatCount: number = seats) {
-    setBusy(planCode);
-    const result = await apiSend<{ checkoutUrl: string }>("/api/checkout", {
-      body: {
-        planCode,
-        method: chosenMethod,
-        seats: seatCount,
-        // This component renders in BOTH shells (`/settings?tab=plan` and
-        // `/dashboard/billing`), so the post-payment destination has to be
-        // whichever one is asking. Hardcoding it server-side dropped a
-        // customer into the other shell right after they paid. The server
-        // re-validates; this is a hint, not a permission.
-        returnPath: window.location.pathname + window.location.search,
-      },
-    });
-    setBusy(null);
-
-    if ("error" in result) {
-      toast.error(result.error.message);
-      return;
-    }
-    router.push(result.data.checkoutUrl);
+  /**
+   * Open the payment-method dialog for a plan. No direct-to-provider
+   * navigation happens here: the DODO rail must never ambush a customer
+   * who expected to transfer dinars, and the reverse.
+   */
+  function openCheckout(planCode: string) {
+    const target = plans.find((p) => p.code === planCode) ?? null;
+    if (!target) return;
+    setCheckoutPlan(target);
   }
 
   async function changePlan(planCode: string) {
@@ -286,7 +277,7 @@ export function BillingView() {
         <PaywallState
           plans={plans}
           lang="en"
-          onCheckout={(planCode) => void beginCheckout(planCode)}
+          onCheckout={(planCode) => openCheckout(planCode)}
           disabled={busy !== null}
         />
       ) : null}
@@ -403,14 +394,15 @@ export function BillingView() {
                 {/* D17 Info */}
                 <div className="text-center md:text-left">
                   <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pay with D17</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pay with D17 or card</h3>
                     <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">
                       La Poste Tunisia
                     </Badge>
                   </div>
                   <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                    Transfer via DigiPost Bank (D17) at any La Poste counter or through the D17 mobile app. 
-                    Proof of payment is verified manually — usually within hours.
+                    Prefer dinars? Transfer via DigiPost Bank (D17) at any La Poste
+                    counter or through the D17 mobile app — staff verify it by hand.
+                    Elsewhere, pay by card through Dodo at checkout.
                   </p>
                   <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 dark:text-gray-400 md:justify-start">
                     <span className="flex items-center gap-1.5">
@@ -445,33 +437,6 @@ export function BillingView() {
                     </span>
                   ) : (
                     <>
-                      <div className="grid gap-2 md:w-64">
-                        <label className="grid gap-1 text-xs text-gray-600 dark:text-gray-400">
-                          Payment method
-                          <select
-                            className="rounded-md border px-2 py-2 text-sm"
-                            value={method}
-                            onChange={(e) => setMethod(e.target.value as "d17" | "dodo")}
-                          >
-                            <option value="d17">D17 transfer (Tunisia, TND)</option>
-                            <option value="dodo">Card (Dodo, USD)</option>
-                          </select>
-                        </label>
-                        {(plan.maxSeats ?? 1) > 1 ? (
-                          <label className="grid gap-1 text-xs text-gray-600 dark:text-gray-400">
-                            Seats
-                            <select
-                              className="rounded-md border px-2 py-2 text-sm"
-                              value={seats}
-                              onChange={(e) => setSeats(Number(e.target.value))}
-                            >
-                              {Array.from({ length: plan.maxSeats ?? 1 }, (_, i) => i + 1).map((n) => (
-                                <option key={n} value={n}>{n}</option>
-                              ))}
-                            </select>
-                          </label>
-                        ) : null}
-                      </div>
                       <Button
                         className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
                         size="lg"
@@ -481,44 +446,45 @@ export function BillingView() {
                             ? `Renewal opens ${renewalOpensLabel} — 2 days before your period ends.`
                             : undefined
                         }
-                        onClick={() => void beginCheckout(plan.code)}
+                        onClick={() => openCheckout(plan.code)}
                       >
                         <CreditCard className="mr-2 size-4" />
                         {busy
                           ? "Opening checkout…"
                           : hasPlan
                             ? isRenewableNow
-                              ? method === "dodo" ? "Pay by card" : "Renew with D17"
+                              ? "Renew plan"
                               : `Renews ${renews ?? "next period"}`
-                            : method === "dodo" ? "Pay by card" : "Pay with D17"}
+                            : "Choose payment"}
                       </Button>
                     </>
                   )}
                 </div>
               </div>
 
-              {/* How it works strip */}
+              {/* How it works strip — both rails, since the chooser may
+                  land a customer on either. */}
               <div className="border-t border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/30 px-6 py-4">
                 <div className="grid gap-4 text-sm sm:grid-cols-3">
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">1</span>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">Start checkout</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Get your unique transfer amount</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Choose how to pay</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Card worldwide, or D17 in Tunisia</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">2</span>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">Transfer via D17</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">At La Poste or D17 app</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Pay</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Card is instant; D17 by transfer via La Poste or the app</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">3</span>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">Submit proof</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Authorization number activates your plan</p>
+                      <p className="font-medium text-gray-900 dark:text-gray-100">Your plan activates</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Cards immediately; D17 after staff confirmation, usually within hours</p>
                     </div>
                   </div>
                 </div>
@@ -672,7 +638,7 @@ export function BillingView() {
           <PlanComparisonTable
             plans={plans}
             currentPlanCode={plan.code}
-            onSelectPlan={(code) => void beginCheckout(code)}
+            onSelectPlan={(code) => openCheckout(code)}
             disabled={busy !== null}
           />
         </>
@@ -759,6 +725,10 @@ export function BillingView() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* The rail chooser: opened by every buy/renew/compare trigger
+          above, one place where D17 vs card is decided. */}
+      <PaymentMethodDialog plan={checkoutPlan} onDismiss={() => setCheckoutPlan(null)} />
     </>
   );
 }
