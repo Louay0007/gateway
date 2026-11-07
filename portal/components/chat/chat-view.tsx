@@ -744,7 +744,12 @@ function Turn({
     );
   }
 
-  const pending = streaming && message.content === "" && !message.reasoning;
+  // The thinking detail lives while the stream is open and the answer
+  // has not started — INCLUDING when the model is reasoning (heavy
+  // tasks stream deliberation first). Hiding it once reasoning arrived
+  // is exactly the "no indicator" bug: the orb + shimmer + elapsed
+  // seconds must stay up until the first answer token lands.
+  const thinking = streaming && message.content === "";
   // Truncation is its own state: the model hit the ceiling rather than
   // choosing to stop. Reporting both as "Stopped" would tell the user to
   // scroll when there is nothing below.
@@ -754,10 +759,10 @@ function Turn({
   return (
     <Message align="start">
       <MessageContent>
-        {pending ? (
+        {thinking ? (
           <Loader label="Thinking" />
-        ) : (
-          <>
+        ) : null}
+        <>
             {message.sources && message.sources.length > 0 ? (
               <Sources sources={message.sources} />
             ) : null}
@@ -782,7 +787,6 @@ function Turn({
               </p>
             ) : null}
           </>
-        )}
 
         <MessageActions>
           {cut ? (

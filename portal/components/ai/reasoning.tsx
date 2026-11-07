@@ -49,7 +49,10 @@ export function Reasoning({
         )}
       >
         <Brain className={cn("size-3.5", live && "animate-pulse")} aria-hidden />
-        <span>{live ? "Thinking…" : "Thought process"}</span>
+        <span className={cn(live && "thinking-shimmer")}>{live ? "Thinking…" : "Thought process"}</span>
+        {live ? (
+          <span aria-hidden className="thinking-dot inline-block size-1 rounded-full bg-foreground/70" />
+        ) : null}
         <ChevronDown
           className={cn("ml-auto size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
