@@ -39,6 +39,9 @@ import { toast } from "sonner";
 
 type Method = "d17" | "dodo";
 
+/** Every dialog open starts here until the customer changes it. */
+const DEFAULT_SEATS = 1;
+
 const METHODS: {
   id: Method;
   title: string;
@@ -70,15 +73,23 @@ interface PaymentMethodDialogProps {
 
 export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProps) {
   const [method, setMethod] = React.useState<Method>("d17");
-  const [seats, setSeats] = React.useState(1);
+  const [seats, setSeats] = React.useState(DEFAULT_SEATS);
   const [busy, setBusy] = React.useState(false);
+  const [resetFor, setResetFor] = React.useState<string | null>(null);
 
-  // A fresh plan (or a re-open) starts clean: seats on Pro begin at 1
-  // again instead of whatever a previous click left behind.
-  React.useEffect(() => {
-    setSeats(1);
+  // Pro (and any per-seat plan) always OPENS at exactly 1 seat. The reset
+  // is synchronous during render, not in an effect: an effect fires after
+  // paint, so a reopened dialog would flash the previous seat count
+  // before snapping back. One visible footgun this kills: pick 3 seats,
+  // close, reopen a minute later — you must see $30 / 90 DT for 1, never
+  // the stale 3. (A failed checkout keeps the dialog open and does NOT
+  // reset, since the same open means the same decision in progress.)
+  const planCode = plan?.code ?? null;
+  if (planCode !== resetFor) {
+    setResetFor(planCode);
+    setSeats(DEFAULT_SEATS);
     setMethod("d17");
-  }, [plan?.code]);
+  }
 
   const maxSeats = plan?.maxSeats ?? 1;
   const listCents = plan?.promo?.priceCents ?? plan?.priceCents ?? 0;
