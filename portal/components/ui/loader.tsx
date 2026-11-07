@@ -48,7 +48,7 @@ export function Loader({
       // (seconds ticking, phrase rotating) must not re-announce — a
       // screen reader still gets `aria-busy` on the message log.
       aria-label={`${label} — the model is working on your request`}
-      className={cn("thinking-enter inline-flex w-full flex-col gap-2.5", className)}
+      className={cn("thinking-enter inline-flex w-full flex-col gap-3", className)}
       {...props}
     >
       <span className="inline-flex items-center gap-2">
@@ -70,7 +70,7 @@ export function Loader({
         </span>
 
         {/* Hopping dots — the classic "still going" beat. */}
-        <span aria-hidden className="ml-0.5 inline-flex items-center gap-1">
+        <span aria-hidden className="inline-flex items-center gap-1">
           {[0, 1, 2].map((i) => (
             <span key={i} className="thinking-dot size-1 rounded-full bg-foreground/70" />
           ))}
@@ -80,7 +80,7 @@ export function Loader({
         {elapsed >= 3 ? (
           <span
             aria-hidden
-            className="ml-1 rounded-full border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] tabular text-muted-foreground"
+            className="ml-1.5 rounded-full border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] tabular text-muted-foreground"
           >
             {elapsed}s
           </span>
@@ -88,12 +88,17 @@ export function Loader({
       </span>
 
       {/* The answer taking shape — two muted bars the shimmer sweeps
-          through. Widths stop short of the column so the placeholder
-          never pretends to already be the reply. */}
+          through.
+          THE CAP IS THE POINT. At a 72%/48% split of a 490px column the bars
+          ran 353px and 235px, which is the full width of a paragraph — the
+          row read as an UPLOAD PROGRESS BAR, not as text arriving. A line of
+          prose the reader might be about to get is a few words wide, so the
+          bars are capped at a realistic measure and the second one is short
+          enough to look like a broken line rather than a second track. */}
       <span aria-hidden className="flex flex-col gap-2">
-        <span className="thinking-skeleton block h-2.5 w-[72%] rounded-full" />
+        <span className="thinking-skeleton block h-2.5 w-full max-w-[17rem] rounded-full" />
         <span
-          className="thinking-skeleton block h-2.5 w-[48%] rounded-full"
+          className="thinking-skeleton block h-2.5 w-full max-w-[9rem] rounded-full"
           style={{ animationDelay: "0.35s" }}
         />
       </span>

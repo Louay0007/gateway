@@ -629,6 +629,130 @@ export async function editUserMessage(input: {
 }
 
 /**
+ * Rewind the conversation: hide one turn and everything after it.
+ *
+ * WHY A SUPERSEDE AND NOT A DELETE. The same reason an edit is a new row:
+ * those turns were billed in `usage_records`, and a transcript that no
+ * longer contains what was charged for is a receipt that disagrees with the
+ * ledger. `meta.superseded` already exists for regenerate and edit, and
+ * BOTH readers honour it — `listMessages` (what the page renders) and
+ * `historyForModel` (what the model is sent) — so a revert is honest in
+ * both places with no new query path. A delete would need both to be
+ * changed twice and would still lose the audit trail.
+ *
+ * THE TARGET TURN IS HIDDEN TOO, and that is deliberate. Keeping the user
+ * turn while hiding its answer leaves the history ending in a user message,
+ * so the next send would put two user turns in a row and read to the model
+ * as a glitch. Hiding the pair and handing the text back to the composer is
+ * the same shape ChatGPT's edit has: the user gets their sentence back,
+ * fixes it, and re-asks from a clean history.
+ *
+ * The batch id is what makes Undo safe. Only rows THIS call hid carry it,
+ * so undo cannot resurrect a turn that an earlier edit retired — and two
+ * reverts in a row cannot undo each other's work.
+ */
+export async function revertToMessage(input: {
+  organizationId: string;
+  userId: string;
+  conversationId: string;
+  messageId: string;
+}): Promise<{ batchId: string; hiddenIds: string[] } | null> {
+  const owned = (await db.execute(sql`
+    SELECT id FROM conversations
+     WHERE id              = ${input.conversationId}::uuid
+       AND organization_id = ${input.organizationId}::uuid
+       AND user_id         = ${input.userId}::uuid
+       AND archived_at IS NULL
+  `)) as unknown as { id: string }[];
+  if (owned.length === 0) return null;
+
+  const target = (await db.execute(sql`
+    SELECT id, role, created_at, parent_message_id
+      FROM messages
+     WHERE id              = ${input.messageId}::uuid
+       AND conversation_id = ${input.conversationId}::uuid
+  `)) as unknown as {
+    id: string;
+    role: string;
+    created_at: string | Date;
+    parent_message_id: string | null;
+  }[];
+  const original = target[0];
+  // A user turn only. Reverting to an assistant message is regenerate, which
+  // already has a path — and offering both for one row would be two buttons
+  // that do nearly the same thing.
+  if (!original || original.role !== 'user') return null;
+
+  const batchId = crypto.randomUUID();
+
+  // Ordering is (created_at, id) to match `historyForModel` and
+  // `editUserMessage` exactly. A different comparison here would hide a
+  // set the model does not agree with, which is a transcript that argues
+  // with itself.
+  const hidden = (await db.execute(sql`
+    UPDATE messages
+       SET meta = COALESCE(meta, '{}'::jsonb)
+                  || jsonb_build_object('superseded', true, 'revertBatch', ${batchId}::text)
+     WHERE conversation_id = ${input.conversationId}::uuid
+       AND (created_at, id) >= (${original.created_at}::timestamptz, ${original.id}::uuid)
+       AND COALESCE(meta->>'superseded', 'false') <> 'true'
+    RETURNING id
+  `)) as unknown as { id: string }[];
+
+  // The branch pointer follows the rewind, so a later edit does not branch
+  // off a turn that is no longer on screen.
+  await db.execute(sql`
+    UPDATE conversations
+       SET updated_at = now(), active_branch_head = ${original.parent_message_id}::uuid
+     WHERE id = ${input.conversationId}::uuid
+  `);
+
+  return { batchId, hiddenIds: hidden.map((h) => h.id) };
+}
+
+/**
+ * Undo one revert, by the batch it wrote.
+ *
+ * Deliberately narrow: it clears the flag ONLY from rows carrying this
+ * batch id. A row an earlier edit superseded has no batch and is left
+ * hidden, so undo restores exactly what the revert removed and nothing
+ * else. Returns how many rows came back, which is what the UI reconciles
+ * against.
+ */
+export async function undoRevert(input: {
+  organizationId: string;
+  userId: string;
+  conversationId: string;
+  batchId: string;
+}): Promise<{ restoredIds: string[] } | null> {
+  const owned = (await db.execute(sql`
+    SELECT id FROM conversations
+     WHERE id              = ${input.conversationId}::uuid
+       AND organization_id = ${input.organizationId}::uuid
+       AND user_id         = ${input.userId}::uuid
+       AND archived_at IS NULL
+  `)) as unknown as { id: string }[];
+  if (owned.length === 0) return null;
+
+  const restored = (await db.execute(sql`
+    UPDATE messages
+       SET meta = (COALESCE(meta, '{}'::jsonb) - 'superseded' - 'revertBatch')
+     WHERE conversation_id = ${input.conversationId}::uuid
+       AND meta->>'revertBatch' = ${input.batchId}
+    RETURNING id
+  `)) as unknown as { id: string }[];
+
+  if (restored.length > 0) {
+    await db.execute(sql`
+      UPDATE conversations SET updated_at = now()
+       WHERE id = ${input.conversationId}::uuid
+    `);
+  }
+
+  return { restoredIds: restored.map((r) => r.id) };
+}
+
+/**
  * Switch which answer is shown when a turn was regenerated or edited.
  *
  * A no-op beyond a column write: the transcript query filters on

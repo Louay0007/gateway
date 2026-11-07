@@ -10,7 +10,18 @@ import {
   Globe,
   Pin,
   RotateCcw,
+  Undo2,
+  X,
 } from "lucide-react";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Markdown } from "@/components/ai/markdown";
 import { Button } from "@/components/ui/button";
 import {
@@ -149,6 +160,129 @@ export function ChatView({
   const abortRef = React.useRef<AbortController | null>(null);
   const activeId = React.useRef<string | null>(conversationId ?? null);
 
+  /**
+   * REVERT. Rewind the thread to one of the person's own turns: that turn and
+   * everything after it disappear, and its text comes back to the composer so
+   * they can fix what they actually meant to say.
+   *
+   * `revertTarget` is the turn waiting in the confirmation dialog — reverting
+   * is destructive to the screen (the answer being read vanishes) so it must
+   * not fire on a stray click. `reverted` is the last one applied, held so the
+   * toast's Undo can put the rows back without a round trip. `null` once the
+   * person sends again, because from that point the tail is stale and
+   * re-inserting it would put turns after a turn that came later.
+   */
+  const [revertTarget, setRevertTarget] = React.useState<{
+    messageId: string;
+    content: string;
+    hides: number;
+  } | null>(null);
+  const [reverting, setReverting] = React.useState(false);
+  const reverted = React.useRef<{ batchId: string; tail: ChatMessage[] } | null>(null);
+  /**
+   * The bar offering to take the last revert back. Held in state because it is
+   * RENDERED, not toasted: a toast lands bottom-right, which is exactly where
+   * the composer's send button is, so "Your text is back" covered the thing it
+   * was talking about. A strip directly above the composer names the action
+   * and sits next to what it undoes.
+   *
+   * It outlives a rewrite of the thread but not the person sending again: once
+   * they re-ask, the rewind is the history they chose.
+   */
+  const [undoOffer, setUndoOffer] = React.useState<{ batchId: string; hides: number } | null>(
+    null,
+  );
+
+  // ponytail: the reverted text and the undo offer survive a reload in
+  // sessionStorage, not in the database — the TAIL cannot, because it is only
+  // ever read from the server. Good enough until someone asks for undo after
+  // closing the tab, which needs the batch id on the conversation row.
+  const revertKey = conversationId ? `revert:${conversationId}` : null;
+  React.useEffect(() => {
+    if (!revertKey) return;
+    const held = window.sessionStorage.getItem(revertKey);
+    if (!held) return;
+    window.sessionStorage.removeItem(revertKey);
+    try {
+      const saved = JSON.parse(held) as { draft: string; batchId: string; hides: number };
+      setDraft((prev) => prev || saved.draft);
+      setUndoOffer({ batchId: saved.batchId, hides: saved.hides });
+    } catch {
+      // A malformed value is not worth a broken page.
+    }
+  }, [revertKey]);
+
+  async function applyRevert() {
+    const target = revertTarget;
+    const id = activeId.current;
+    if (!target || !id || reverting) return;
+    setReverting(true);
+    try {
+      const res = await fetch(`/api/chat/conversations/${id}/revert`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId: target.messageId }),
+      });
+      if (!res.ok) {
+        toast.error("Could not revert this chat. Try again.");
+        return;
+      }
+      const body = (await res.json()) as { batchId: string };
+
+      // The rows stay in the database — they were billed, and the ledger has
+      // to agree with the transcript. The server hides them; this mirrors it
+      // locally so the screen does not need a reload to show the rewind.
+      //
+      // The tail is captured from `messages`, NOT inside the state updater:
+      // React may run an updater more than once, and writing a ref from in
+      // there would be a side effect in the render phase.
+      const at = messages.findIndex((m) => m.id === target.messageId);
+      if (at >= 0) {
+        reverted.current = { batchId: body.batchId, tail: messages.slice(at) };
+        setMessages(messages.slice(0, at));
+      }
+      setDraft(target.content);
+      // The dialog confirms, then the screen changes under it — so if the
+      // person reloads before sending, the sentence they meant to fix has to
+      // still be in the composer rather than gone with the client state.
+      if (revertKey) {
+        window.sessionStorage.setItem(
+          revertKey,
+          JSON.stringify({ draft: target.content, batchId: body.batchId, hides: target.hides }),
+        );
+      }
+      setUndoOffer({ batchId: body.batchId, hides: target.hides });
+      setRevertTarget(null);
+    } catch {
+      toast.error("Could not revert this chat. Try again.");
+    } finally {
+      setReverting(false);
+    }
+  }
+
+  async function undoRevert(batchId: string) {
+    const id = activeId.current;
+    if (!id) return;
+    const res = await fetch(`/api/chat/conversations/${id}/revert?batchId=${batchId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) {
+      toast.error("Could not undo. Reload the chat to see it restored.");
+      return;
+    }
+    // After a reload the tail is not in memory — only the server has it — so
+    // re-reading the page is the honest way back.
+    const held = reverted.current;
+    reverted.current = null;
+    if (revertKey) window.sessionStorage.removeItem(revertKey);
+    setUndoOffer(null);
+    if (held && held.batchId === batchId) {
+      setMessages((prev) => [...prev, ...held.tail]);
+    } else {
+      window.location.reload();
+    }
+  }
+
   // Tell the header which conversation is open. The header lives in the
   // layout and cannot be handed a page prop, so this is the same DOM-event
   // channel the sidebar already uses for a newly created conversation.
@@ -253,6 +387,14 @@ export function ChatView({
     setFailure(null);
 
     if (!regenerate) lastSent.current = text;
+
+    // Sending after a revert joins fresh rows behind the truncated head, so
+    // the held tail is no longer contiguous with the thread and Undo would
+    // splice turns in out of order. The rows stay recoverable server-side;
+    // only the one-click undo goes away, which is the honest trade.
+    reverted.current = null;
+    if (revertKey) window.sessionStorage.removeItem(revertKey);
+    setUndoOffer(null);
 
     // Only READY files ride this turn. An upload still in flight is dropped
     // from the payload rather than blocking the send: the user's sentence is
@@ -519,7 +661,7 @@ export function ChatView({
                   </p>
                 </div>
               ) : (
-                messages.map((m) => (
+                messages.map((m, i) => (
                   <MessageScrollerItem
                     key={m.id}
                     messageId={m.id}
@@ -536,6 +678,23 @@ export function ChatView({
                         !streaming && m.id === lastAssistantId && m.content.length > 0
                       }
                       onRegenerate={() => void send(lastSent.current ?? "", { regenerate: true })}
+                      // Only the person's turns rewind, only while nothing is
+                      // in flight, and only when there is something after
+                      // them to hide — reverting the newest turn would be a
+                      // no-op that still cleared the composer.
+                      onRevert={
+                        !streaming &&
+                        m.role === "user" &&
+                        i < messages.length - 1 &&
+                        !temporary
+                          ? () =>
+                              setRevertTarget({
+                                messageId: m.id,
+                                content: m.content,
+                                hides: messages.length - i,
+                              })
+                          : undefined
+                      }
                     />
                   </MessageScrollerItem>
                 ))
@@ -572,6 +731,37 @@ export function ChatView({
               Showing it mid-thread competes with the composer and pushes the
               input down the page for no gain. */}
           {empty ? <Suggestion suggestions={SUGGESTIONS} onPick={(t) => setDraft(t)} /> : null}
+
+          {/* The revert receipt. Above the composer rather than in a toast
+              (bottom-right is where the send button is), and dismissible so
+              it never becomes permanent furniture. */}
+          {undoOffer ? (
+            <div
+              role="status"
+              className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground"
+            >
+              <Undo2 className="size-3.5 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1">
+                Reverted {undoOffer.hides} {undoOffer.hides === 1 ? "message" : "messages"}. Your
+                text is back in the composer — edit it and send again.
+              </span>
+              <button
+                type="button"
+                onClick={() => void undoRevert(undoOffer.batchId)}
+                className="shrink-0 rounded px-1.5 py-1 font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={() => setUndoOffer(null)}
+                aria-label="Dismiss"
+                className="shrink-0 rounded p-1 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <X className="size-3.5" aria-hidden />
+              </button>
+            </div>
+          ) : null}
 
           <PromptInput
             onSend={send}
@@ -672,6 +862,47 @@ export function ChatView({
             }
           />
         </div>
+
+        {/* Confirmation, because the visible effect is a chunk of the
+            conversation disappearing. It states the COUNT rather than a
+            vague "later messages": the person is about to lose an answer
+            they may still be reading, and "3 messages" is what makes them
+            check first. `destructive` is deliberately absent — nothing is
+            deleted, and the toast's Undo puts it straight back. */}
+        <Dialog
+          open={revertTarget !== null}
+          onOpenChange={(open) => {
+            if (!open && !reverting) setRevertTarget(null);
+          }}
+        >
+          <DialogContent showCloseButton={false}>
+            <DialogHeader>
+              <DialogTitle>Revert to this message?</DialogTitle>
+              <DialogDescription>
+                {revertTarget
+                  ? `${revertTarget.hides} ${revertTarget.hides === 1 ? "message" : "messages"} — this one and everything after it — will be hidden from the chat. Your text goes back into the composer so you can change it. You can undo this.`
+                  : null}
+              </DialogDescription>
+            </DialogHeader>
+            {revertTarget ? (
+              <p className="line-clamp-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[13px] text-muted-foreground">
+                {revertTarget.content}
+              </p>
+            ) : null}
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setRevertTarget(null)}
+                disabled={reverting}
+              >
+                Cancel
+              </Button>
+              <Button onClick={() => void applyRevert()} disabled={reverting}>
+                {reverting ? "Reverting…" : "Revert"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MessageScrollerProvider>
   );
@@ -699,11 +930,14 @@ function Turn({
   streaming,
   onRegenerate,
   canRegenerate,
+  onRevert,
 }: {
   message: ChatMessage;
   streaming: boolean;
   onRegenerate: () => void;
   canRegenerate: boolean;
+  /** Absent when this turn cannot be rewound to — see the caller. */
+  onRevert?: () => void;
 }) {
   if (message.role === "user") {
     return (
@@ -739,6 +973,23 @@ function Turn({
               ))}
             </ul>
           )}
+          {/* The rewind lives on the PERSON'S turn, not on the answer.
+              "Revert to here" means "this question was the wrong one", so
+              the control belongs where the question is — and it keeps the
+              answer's toolbar (Copy, Regenerate, cost) meaning exactly what
+              it says. */}
+          {onRevert ? (
+            <MessageActions className="justify-end">
+              <button
+                type="button"
+                onClick={onRevert}
+                className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              >
+                <Undo2 className="size-3" aria-hidden />
+                Revert to here
+              </button>
+            </MessageActions>
+          ) : null}
         </MessageContent>
       </Message>
     );
@@ -759,16 +1010,24 @@ function Turn({
   return (
     <Message align="start">
       <MessageContent>
+        {/* ONE SPACING AUTHORITY for the answer's stacked blocks.
+            Sources and Reasoning carry `mb-4` of their own (they are used
+            standalone elsewhere), so spacing them here as well produced
+            16px in one gap and 0px in the next — the Sources pill sat flush
+            under the thinking skeleton. A gap column plus `mb-0` at the call
+            site gives every block the same rhythm instead of whichever
+            component happened to have a margin. */}
+        <div className="flex flex-col gap-4">
         {thinking ? (
           <Loader label="Thinking" />
         ) : null}
         <>
             {message.sources && message.sources.length > 0 ? (
-              <Sources sources={message.sources} />
+              <Sources sources={message.sources} className="mb-0" />
             ) : null}
 
             {message.reasoning ? (
-              <Reasoning text={message.reasoning} live={streaming} />
+              <Reasoning text={message.reasoning} live={streaming} className="mb-0" />
             ) : null}
 
             {message.content ? (
@@ -782,11 +1041,12 @@ function Turn({
             ) : null}
 
             {truncated && !streaming ? (
-              <p className="mt-2 text-[11px] text-amber-600 dark:text-amber-500">
+              <p className="text-[11px] text-amber-600 dark:text-amber-500">
                 This answer hit the length limit and was cut off. Ask it to continue.
               </p>
             ) : null}
           </>
+        </div>
 
         <MessageActions>
           {cut ? (
