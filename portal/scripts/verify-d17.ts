@@ -193,10 +193,18 @@ async function main(): Promise<void> {
   // the gateway, the checkout and the landing page must agree on, so the
   // test derives from it too.
   const [starterPlan] = await db
-    .select({ priceCents: plans.priceCents })
+    .select({
+      priceCents: plans.priceCents,
+      priceTndMillimes: plans.priceTndMillimes,
+    })
     .from(plans)
     .where(eq(plans.code, 'starter'));
-  const expectedMillimes = planPriceTndMillimes(starterPlan!.priceCents);
+  // The catalog's exact dinar ask wins (0037), the same precedence the
+  // payment-row creation uses: conversion is only a fallback for a plan
+  // with no local ask, and converting $15 at 3.1 would round 46.5 up to
+  // 47.000 DT — the drift the exact column exists to stop.
+  const expectedMillimes =
+    starterPlan!.priceTndMillimes ?? planPriceTndMillimes(starterPlan!.priceCents);
   check(
     `the row asks for ${formatTndMillimes(expectedMillimes)} DT (${expectedMillimes} millimes)`,
     paymentA?.amountMillimes === expectedMillimes && paymentA?.currency === 'TND',
