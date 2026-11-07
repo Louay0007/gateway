@@ -418,20 +418,6 @@ html.light,
 }
 
 
-/* The chat thinking indicator (see components/chat/chat-view.tsx). An
- * exponential fade with a 1px lift — deliberately not a bounce. */
-@keyframes chat-dot {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: translateY(0);
-  }
-  40% {
-    opacity: 1;
-    transform: translateY(-1px);
-  }
-}
-
 /* The loader's richer working indicator (components/ui/loader.tsx):
  *
  *   thinking-orb-core   the solid centre, breathing in place
@@ -467,12 +453,16 @@ html.light,
   }
 }
 
+/* Sweeps within 0–100%, never past them. The image is 200% wide, so
+ * `200%` resolves the offset to -2x the element and parks the whole
+ * gradient outside the box — the phrase then renders fully transparent
+ * (and, frozen at the first frame under reduced motion, forever). */
 @keyframes thinking-shimmer {
   0% {
-    background-position: 200% 0;
+    background-position: 100% 0;
   }
   100% {
-    background-position: -200% 0;
+    background-position: 0% 0;
   }
 }
 
@@ -570,20 +560,6 @@ html.light,
   animation: thinking-skeleton 1.8s linear infinite;
 }
 
-@keyframes thinking-bar {
-  0% {
-    transform: scaleX(0);
-  }
-  100% {
-    transform: scaleX(1);
-  }
-}
-
-.thinking-bar {
-  transform-origin: left;
-  animation: thinking-bar 1.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
 /* The shimmer paints the phrase with a gradient, so in forced-colors mode
  * (where gradients are stripped) it must fall back to painted text or the
  * label disappears entirely. */
@@ -591,6 +567,15 @@ html.light,
   .thinking-shimmer {
     background-image: none;
     color: CanvasText;
+  }
+}
+
+/* Reduced motion freezes the sweep on one frame. A frozen gradient slice of
+ * a word is not text, so hand the phrase back its colour instead. */
+@media (prefers-reduced-motion: reduce) {
+  .thinking-shimmer {
+    background-image: none;
+    color: var(--muted-foreground);
   }
 }
 
