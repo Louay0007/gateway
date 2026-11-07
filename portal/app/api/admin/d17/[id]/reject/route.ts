@@ -11,7 +11,7 @@
  * they believe they made, so it is the escalation step, not the first one.
  */
 
-import { resolveActorId, requireGateOrStaff } from '@/lib/admin/gate';
+import { requireOperator } from '@/lib/admin/gate';
 import { rejectD17Payment } from '@/lib/billing/d17-admin';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
@@ -25,12 +25,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    // Gate OR staff — the secret code is sufficient on this deployment.
-    const { gateOk } = await requireGateOrStaff();
-    if (!gateOk) {
-      return jsonError('unauthorized', 'Not signed in');
-    }
-    const actorId = await resolveActorId();
+    // Gate OR staff. Gate-only operators pass; staff are held to `admin`,
+    // matching the UI's hidden Reject button.
+    const actorId = await requireOperator('admin');
 
     const { id } = await params;
     if (!UUID.test(id)) {

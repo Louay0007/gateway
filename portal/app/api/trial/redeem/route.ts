@@ -3,73 +3,67 @@
  *
  * Requires an authenticated user with an active organization.
  * Body: { code: string }
+ *
+ * Errors go through the shared envelope (`{ error: { code, message } }`)
+ * like every other route. A dead code is `gone`/410: the campaign ended,
+ * retrying will not help, and the UI says so.
  */
-import { NextResponse } from 'next/server';
-import { auth } from '@/auth';
+import { z } from 'zod';
 import { currentUser, requireActiveOrg } from '@/lib/auth/authorize';
-import { redeemTrialCode } from '@/lib/trial/service';
+import { jsonError } from '@/lib/api/errors';
+import { redeemTrialCode, type RedeemError } from '@/lib/trial/service';
 
-export async function POST(request: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
+const Body = z.object({ code: z.string().trim().min(1).max(64) });
+
+const ERROR_MAP: Record<RedeemError, 'not_found' | 'gone' | 'validation' | 'conflict' | 'forbidden' | 'internal'> = {
+  invalid_code: 'not_found',
+  code_expired: 'gone',
+  code_not_yet_valid: 'validation',
+  max_redemptions_reached: 'conflict',
+  already_redeemed: 'conflict',
+  active_paid_subscription: 'conflict',
+  org_not_found: 'forbidden',
+  trial_plan_missing: 'internal',
+  sync_failed: 'internal',
+};
+
+export async function POST(request: Request): Promise<Response> {
   // The domain id, not the session id: the session carries the AUTH
   // identity (auth_users.id) while trial_redemptions.user_id references
   // the domain mirror (users.id) — the two are different UUIDs bridged by
   // email (see create-user.ts). Passing the session id here violated the
   // FK on every redemption; requireActiveOrg's userId is the domain id.
   const user = await currentUser();
-  if (!user) {
-    return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
-  }
+  if (!user) return jsonError('unauthorized', 'Sign in to redeem a code.');
 
-  let body: { code?: string };
+  let ctx: { orgId: string; userId: string };
   try {
-    body = await request.json();
+    ctx = await requireActiveOrg();
   } catch {
-    return NextResponse.json({ error: 'invalid_json' }, { status: 400 });
+    return jsonError('forbidden', 'You must have an organization to redeem a trial code.');
   }
 
-  const code = body.code;
-  if (!code || typeof code !== 'string' || code.trim().length === 0) {
-    return NextResponse.json({ error: 'validation', message: 'A trial code is required.' }, { status: 400 });
-  }
-
-  // Resolve the user's active organization
-  let orgId: string;
-  let domainUserId: string;
+  let raw: unknown;
   try {
-    const resolved = await requireActiveOrg();
-    orgId = resolved.orgId;
-    domainUserId = resolved.userId;
+    raw = await request.json();
   } catch {
-    return NextResponse.json(
-      { error: 'no_org', message: 'You must have an organization to redeem a trial code.' },
-      { status: 403 },
-    );
+    return jsonError('validation', 'Request body must be JSON.');
+  }
+  const parsed = Body.safeParse(raw);
+  if (!parsed.success) {
+    return jsonError('validation', 'A trial code is required.');
   }
 
-  const result = await redeemTrialCode(domainUserId, orgId, code);
-
+  const result = await redeemTrialCode(ctx.userId, ctx.orgId, parsed.data.code);
   if (!result.ok) {
-    const statusMap: Record<string, number> = {
-      invalid_code: 404,
-      code_expired: 410,
-      code_not_yet_valid: 400,
-      max_redemptions_reached: 409,
-      already_redeemed: 409,
-      active_paid_subscription: 409,
-      org_not_found: 403,
-      trial_plan_missing: 500,
-      sync_failed: 500,
-    };
-    return NextResponse.json(
-      { error: result.error, message: result.message },
-      { status: statusMap[result.error!] ?? 400 },
+    return jsonError(
+      ERROR_MAP[result.error ?? 'invalid_code'],
+      result.message ?? 'That code could not be redeemed.',
     );
   }
 
-  return NextResponse.json({ ok: true, message: result.message, expiresAt: result.expiresAt });
+  return Response.json({ ok: true, message: result.message, expiresAt: result.expiresAt });
 }

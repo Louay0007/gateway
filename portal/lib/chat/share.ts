@@ -188,19 +188,21 @@ export async function listShares(input: {
 }
 
 /**
- * Revoke. Scoped by org so a stale id from another tenant cannot revoke
- * somebody else's link; the conversation is not needed because the share
- * already carries the org.
+ * Revoke. Scoped by org AND conversation, so a share id lifted from
+ * another tenant, or from a different chat of the same person, revokes
+ * nothing. The caller's URL names both; both are predicates.
  */
 export async function revokeShare(input: {
   organizationId: string;
   userId: string;
+  conversationId: string;
   shareId: string;
 }): Promise<boolean> {
   const rows = (await db.execute(sql`
     UPDATE conversation_shares
        SET revoked_at = now()
      WHERE id              = ${input.shareId}::uuid
+       AND conversation_id = ${input.conversationId}::uuid
        AND organization_id = ${input.organizationId}::uuid
        AND created_by      = ${input.userId}::uuid
        AND revoked_at IS NULL

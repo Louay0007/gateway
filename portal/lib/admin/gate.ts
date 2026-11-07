@@ -19,19 +19,21 @@
  *     dev/self-host posture, and it is explicit: `gatePassed()` returning
  *     true on an unset secret is "no gate installed", never "gate locked".
  *   - Secret set → the request must carry EITHER a valid gate cookie OR a
- *     staff session at the required role. The gate code and the staff
- *     login are independent credentials; holding either one is sufficient.
- *     The gate alone never GRANTS a role — `requireGateOrStaff('support')`
- *     still returns null when there is no staff session, and callers that
- *     need the role for anything beyond the boolean must still call
- *     `requireStaff()` themselves.
+ *     staff session. The gate code and the staff login are independent
+ *     credentials; holding either one is sufficient to be an operator.
+ *   - A staff session is still rank-checked by the caller, because a
+ *     `read_only` account must not approve payments just because it is
+ *     signed in. The gate itself carries no rank — an operator who proved
+ *     the shared secret is the highest trust this deployment has, so they
+ *     pass every rank check. A signed-in staff member is held to their role.
  */
 
 import { cookies } from 'next/headers';
 import crypto from 'node:crypto';
 
 import { currentStaffRole } from '@/lib/auth/authorize';
-import type { StaffRole } from '@/lib/auth/staff-roles';
+import { AuthzError } from '@/lib/auth/errors';
+import { staffAtLeast, type StaffRole } from '@/lib/auth/staff-roles';
 
 export const ADMIN_GATE_COOKIE = 'admin_gate';
 
@@ -76,25 +78,29 @@ export async function requireGateOrStaff(): Promise<{
 }
 
 /**
- * Resolve the actor ID for audit/DB writes from a gate-or-staff check.
+ * Authorize a STATE-CHANGING admin action. Returns the actor ID to record.
  *
- * Returns the real staff user ID when a staff session exists, otherwise
- * falls back to `GATE_ACTOR_ID` for gate-only operators. This lets
- * approve/reject routes write audit rows and `verifiedBy` columns
- * without demanding a staff login — the gate secret IS the credential
- * on this deployment.
+ *   - no gate cookie and no staff session → 401.
+ *   - staff session below `required` → 403 (a `read_only` account must not
+ *     approve money movements just because it is signed in).
+ *   - staff session at or above `required` → their user ID.
+ *   - gate cookie only → `GATE_ACTOR_ID`. The gate secret is the operator
+ *     credential on this deployment and carries no rank, so it passes every
+ *     rank check; that is the documented posture, not an oversight.
  */
-export async function resolveActorId(): Promise<string> {
-  const { role } = await requireGateOrStaff();
-  // When there's a staff session, currentStaffRole already resolved it.
-  // We need the actual user ID though, not just the role.
-  if (role) {
-    // Re-read the session to get the user ID. currentStaffRole reads
-    // the same session internally, so this is one extra lookup only
-    // for staff users — gate-only callers skip it entirely.
-    const { auth } = await import('@/auth');
-    const session = await auth();
-    if (session?.user?.id) return session.user.id;
+export async function requireOperator(required: StaffRole): Promise<string> {
+  const { gateOk, role } = await requireGateOrStaff();
+  if (!gateOk) throw new AuthzError('Not signed in', 'unauthorized', 401);
+  if (role === null) return GATE_ACTOR_ID;
+  if (!staffAtLeast(role, required)) {
+    throw new AuthzError(`Staff role '${required}' or higher is required`, 'forbidden', 403);
   }
-  return GATE_ACTOR_ID;
+  return (await currentStaffUserId()) ?? GATE_ACTOR_ID;
+}
+
+/** The signed-in user's ID, or null when the session carries none. */
+async function currentStaffUserId(): Promise<string | null> {
+  const { auth } = await import('@/auth');
+  const session = await auth();
+  return session?.user?.id ?? null;
 }

@@ -36,7 +36,7 @@ export function RedeemForm() {
         setTimeout(() => router.refresh(), 1500);
       } else {
         setStatus("error");
-        setMessage(data.message ?? "Failed to redeem code.");
+        setMessage(data.error?.message ?? data.message ?? "Failed to redeem code.");
       }
     } catch {
       setStatus("error");

@@ -19,6 +19,8 @@ import { z } from 'zod';
 import { db } from '@/db';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 import { requireActiveOrg } from '@/lib/auth/authorize';
+import { getAllowedModels } from '@/lib/entitlements/allowed-models';
+import { wallRefusal } from '@/lib/chat/wall';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -98,6 +100,12 @@ export async function POST(request: Request): Promise<Response> {
         `A schedule needs a prompt and an interval of at least ${MIN_EVERY_MINUTES} minutes.`,
       );
     }
+
+    // A schedule spends tokens with nobody watching, so it hits the same
+    // wall a manual turn does — and it hits it for the alias it will run.
+    const wall = await getAllowedModels(ctx.orgId);
+    const refused = wallRefusal(wall, body.alias ?? 'smart');
+    if (refused) return refused;
 
     // A schedule attached to a chat the caller does not own would append
     // answers into somebody else's transcript.

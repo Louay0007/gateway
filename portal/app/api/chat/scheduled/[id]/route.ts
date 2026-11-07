@@ -12,6 +12,8 @@ import { z } from 'zod';
 import { db } from '@/db';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 import { requireActiveOrg } from '@/lib/auth/authorize';
+import { getAllowedModels } from '@/lib/entitlements/allowed-models';
+import { wallRefusal } from '@/lib/chat/wall';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -44,6 +46,13 @@ export async function PATCH(
       body = Patch.parse(await request.json());
     } catch {
       return jsonError('validation', 'That change could not be read.');
+    }
+
+    // Retargeting a schedule at an alias the plan does not allow would fail
+    // silently at run time; refuse it here with the same words `/api/chat` uses.
+    if (body.alias !== undefined) {
+      const refused = wallRefusal(await getAllowedModels(ctx.orgId), body.alias);
+      if (refused) return refused;
     }
 
     const reschedule =

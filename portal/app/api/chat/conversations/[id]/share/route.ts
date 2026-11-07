@@ -121,7 +121,10 @@ export async function DELETE(
 ): Promise<Response> {
   try {
     const ctx = await requireActiveOrg();
-    await context.params;
+    // The conversation id in the URL is a real predicate, not decoration: a
+    // share of chat A cannot be revoked through chat B's path.
+    const { id } = await context.params;
+    if (!UUID.test(id)) return jsonError('not_found', 'That conversation does not exist.');
 
     const shareId = new URL(request.url).searchParams.get('shareId');
     if (!shareId || !UUID.test(shareId)) return jsonError('validation', 'Unknown share.');
@@ -129,6 +132,7 @@ export async function DELETE(
     const revoked = await revokeShare({
       organizationId: ctx.orgId,
       userId: ctx.userId,
+      conversationId: id,
       shareId,
     });
     if (!revoked) return jsonError('not_found', 'That link is already gone.');

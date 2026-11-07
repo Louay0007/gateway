@@ -31,7 +31,11 @@ export const dynamic = "force-dynamic";
  * nothing on this page reads an organization the caller belongs to.
  */
 export default async function AdminD17Page() {
-  const role = (await currentStaffRole()) as StaffRole;
+  // Same fallback the layout uses: a gate-only operator proved the shared
+  // secret, which is this deployment's full-trust credential, so the buttons
+  // match what `requireOperator` will allow. A signed-in staff member keeps
+  // their real rank, and the UI must not offer a button the route 403s.
+  const role: StaffRole = (await currentStaffRole()) ?? "owner";
 
   const [rows, recon] = await Promise.all([
     // Read the service directly rather than self-fetching the route: same
@@ -40,6 +44,7 @@ export default async function AdminD17Page() {
     d17Reconciliation(30),
   ]);
 
+  const canApprove = staffAtLeast(role, "support");
   const canReject = staffAtLeast(role, "admin");
   const waiting = rows.filter((r) => r.status === "proof_submitted").length;
 
@@ -75,7 +80,11 @@ export default async function AdminD17Page() {
       </dl>
 
       <div className="mt-8 grid gap-8">
-        <D17AdminQueue rows={rows as D17QueueItem[]} canReject={canReject} />
+        <D17AdminQueue
+          rows={rows as D17QueueItem[]}
+          canApprove={canApprove}
+          canReject={canReject}
+        />
       </div>
     </AdminPage>
   );

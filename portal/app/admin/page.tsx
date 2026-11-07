@@ -211,7 +211,7 @@ export default async function AdminGatePage() {
                 window.location.href = '/admin/ops';
               } else {
                 return res.json().catch(function() { return {}; }).then(function(data) {
-                  errorMsg.textContent = data.error || 'Invalid code';
+                  var e = data && data.error; errorMsg.textContent = (e && e.message) || (typeof e === 'string' ? e : 'Invalid code');
                   errorDiv.classList.add('show');
                   btn.disabled = false;
                   btn.textContent = 'Enter console';

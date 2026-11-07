@@ -1,6 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { cookies } from "next/headers";
 import crypto from "node:crypto";
+
+import { jsonError } from "@/lib/api/errors";
+import { clientIp, MINUTE, rateLimit } from "@/lib/api/ratelimit";
+import { log } from "@/lib/log";
 
 /**
  * Admin secret-code gate.
@@ -16,37 +20,62 @@ import crypto from "node:crypto";
  * httpOnly, secure, same-site strict, and scoped to /admin — it never
  * leaks to customer routes. TTL is 24 hours so a stolen cookie expires
  * faster than a session JWT.
+ *
+ * Every failure answers the SAME 401 envelope, whatever the cause. An
+ * unset secret is logged server-side and reported as a bad code: telling
+ * a caller "the server forgot to configure this" is an oracle, and the
+ * difference is useless to an operator who can read the logs.
  */
 
-const SECRET = process.env.ADMIN_GATE_SECRET ?? "";
 const COOKIE_NAME = "admin_gate";
 const TTL_SECONDS = 60 * 60 * 24; // 24 hours
+
+// 10 attempts per 15 minutes per IP. A human typing a shared secret needs
+// three; anything past that is a script.
+const MAX_ATTEMPTS = 10;
+const WINDOW_MS = 15 * MINUTE;
 
 function sign(secret: string): string {
   return crypto.createHmac("sha256", secret).update(COOKIE_NAME).digest("hex");
 }
 
+/** Constant-time compare that tolerates a length mismatch (no early exit). */
+function codeMatches(code: string, secret: string): boolean {
+  const a = crypto.createHash("sha256").update(code).digest();
+  const b = crypto.createHash("sha256").update(secret).digest();
+  return crypto.timingSafeEqual(a, b) && code.length === secret.length;
+}
+
 export async function POST(req: NextRequest) {
-  if (!SECRET) {
-    return NextResponse.json(
-      { error: "ADMIN_GATE_SECRET is not configured on the server" },
-      { status: 503 },
-    );
+  const ip = clientIp(req);
+  const limit = await rateLimit(`admin-gate:ip:${ip}`, {
+    max: MAX_ATTEMPTS,
+    windowMs: WINDOW_MS,
+  });
+  if (!limit.allowed) {
+    return jsonError("rate_limited", "Too many attempts. Wait a few minutes and try again.", {
+      "Retry-After": String(limit.retryAfterSeconds),
+    });
   }
 
-  const body = await req.json().catch(() => null);
+  // Read the secret per request, not at module load: `next start` is not
+  // the only entry point, and a module-level constant bakes in whatever
+  // the env held when the bundle was first imported.
+  const secret = process.env.ADMIN_GATE_SECRET ?? "";
+  if (!secret) {
+    log.error("admin gate: ADMIN_GATE_SECRET is not set — every code is refused");
+    return invalid();
+  }
+
+  const body = (await req.json().catch(() => null)) as { code?: unknown } | null;
   const code = typeof body?.code === "string" ? body.code.trim() : "";
 
-  if (
-    !code ||
-    code.length !== SECRET.length ||
-    !crypto.timingSafeEqual(Buffer.from(code), Buffer.from(SECRET))
-  ) {
-    return NextResponse.json({ error: "Invalid code" }, { status: 401 });
+  if (!code || !codeMatches(code, secret)) {
+    return invalid();
   }
 
   const cookieStore = await cookies();
-  cookieStore.set(COOKIE_NAME, sign(SECRET), {
+  cookieStore.set(COOKIE_NAME, sign(secret), {
     httpOnly: true,
     // Derived from the REQUEST, not NODE_ENV.
     //
@@ -75,5 +104,9 @@ export async function POST(req: NextRequest) {
     maxAge: TTL_SECONDS,
   });
 
-  return NextResponse.json({ ok: true });
+  return Response.json({ ok: true });
+}
+
+function invalid(): Response {
+  return jsonError("unauthorized", "Invalid code");
 }

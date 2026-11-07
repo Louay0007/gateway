@@ -14,7 +14,7 @@
  * payment".
  */
 
-import { resolveActorId, requireGateOrStaff } from '@/lib/admin/gate';
+import { requireOperator } from '@/lib/admin/gate';
 import { approveD17Payment } from '@/lib/billing/d17-admin';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 
@@ -28,14 +28,9 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    // Gate OR staff — the secret code is sufficient on this deployment.
-    // The actor ID resolves to the real staff user ID when a session exists,
-    // or falls back to 'gate-operator' for gate-only callers.
-    const { gateOk } = await requireGateOrStaff();
-    if (!gateOk) {
-      return jsonError('unauthorized', 'Not signed in');
-    }
-    const actorId = await resolveActorId();
+    // Gate OR staff. A gate-only operator passes (the secret is the
+    // credential here); a signed-in staff member is held to `support`.
+    const actorId = await requireOperator('support');
 
     const { id } = await params;
     if (!UUID.test(id)) {

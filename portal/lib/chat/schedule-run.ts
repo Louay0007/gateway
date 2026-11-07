@@ -20,6 +20,8 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import { completeOnce } from '@/lib/chat/gateway';
 import { getChatCredential } from '@/lib/chat/key';
+import { wallReason } from '@/lib/chat/wall';
+import { getAllowedModels } from '@/lib/entitlements/allowed-models';
 import { appendMessage, finishMessage } from '@/lib/chat/service';
 import { log } from '@/lib/log';
 
@@ -107,6 +109,15 @@ async function runOne(job: {
   prompt: string;
   alias: string;
 }): Promise<void> {
+  // The wall, again. CRUD checked it, but a plan can lapse between then and
+  // the run, and an automatic turn must not be the one exemption: check
+  // first so a refused run does not leave a conversation behind.
+  const wall = await getAllowedModels(job.organization_id);
+  const refused = wallReason(wall, job.alias);
+  if (refused) {
+    throw new Error(refused.message);
+  }
+
   // A schedule with no conversation gets one created for it, so the answer
   // has somewhere to live. The title names the schedule rather than the
   // prompt, so a user scanning the sidebar can tell automated chats apart.

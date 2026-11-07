@@ -7,11 +7,12 @@
  * separators before use, the file is read from the uploads directory
  * (outside the web root), and the response is marked no-store.
  *
- * Why the gate counts here and nowhere else: viewing a screenshot is
- * read-only evidence, and the gate code is the operator's credential on
- * this deployment — there is no staff login session to present. Every
- * route that CHANGES something (approve, reject, export) still demands
- * `requireStaff()`, and this route must never grow a write.
+ * Why the gate counts here: viewing a screenshot is read-only evidence,
+ * and the gate code is the operator's credential on this deployment —
+ * there is no staff login session to present. The state-changing D17
+ * routes (approve, reject) call `requireOperator(rank)` instead, so a
+ * signed-in staff member is held to their role there; the gate alone
+ * carries no rank. This route must never grow a write.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -26,6 +27,8 @@ import { AuthzError } from '@/lib/auth/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function GET(
   _request: Request,
@@ -47,6 +50,11 @@ export async function GET(
     }
 
     const { id } = await params;
+    // A malformed id is 404, matching every other route: it must never
+    // reach Postgres as a cast error (that would be a 500 oracle).
+    if (!UUID.test(id)) {
+      return jsonError('not_found', 'No screenshot for this payment.');
+    }
     const payment = await db.query.paymentsD17.findFirst({
       where: eq(paymentsD17.id, id),
     });
@@ -60,7 +68,17 @@ export async function GET(
       return jsonError('not_found', 'Invalid screenshot reference.');
     }
 
-    const bytes = await readFile(`${d17UploadsDir()}/${name}`);
+    let bytes: Buffer;
+    try {
+      bytes = await readFile(`${d17UploadsDir()}/${name}`);
+    } catch (e) {
+      // Row says there is a file, disk disagrees: that is a missing
+      // resource, not a server fault. Anything but ENOENT still 500s.
+      if ((e as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        return jsonError('not_found', 'No screenshot for this payment.');
+      }
+      throw e;
+    }
     return new Response(new Uint8Array(bytes), {
       headers: {
         // Re-encoded to PNG at upload, so the type is known.

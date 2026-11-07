@@ -28,6 +28,7 @@ import { sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { errorResponse, jsonError } from '@/lib/api/errors';
+import { MINUTE, rateLimit } from '@/lib/api/ratelimit';
 import { requireActiveOrg } from '@/lib/auth/authorize';
 import { ATTACHMENT_TYPES_HINT, isAllowedFile } from '@/lib/chat/attachments';
 import { engineConfigured, extractDocument, maxUploadBytes } from '@/lib/engine/client';
@@ -48,6 +49,19 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: Request): Promise<Response> {
   try {
     const ctx = await requireActiveOrg();
+
+    // Uploads are the most expensive thing a client can ask for: bytes,
+    // an engine parse, a row. 20 a minute per person is generous for a
+    // human and a wall for a loop.
+    const throttle = await rateLimit(`attachments:user:${ctx.userId}`, {
+      max: 20,
+      windowMs: MINUTE,
+    });
+    if (!throttle.allowed) {
+      return jsonError('rate_limited', 'Too many uploads. Wait a moment and try again.', {
+        'Retry-After': String(throttle.retryAfterSeconds),
+      });
+    }
 
     if (!engineConfigured()) {
       return jsonError('validation', 'File attachments are not enabled on this deployment.');
@@ -100,6 +114,8 @@ export async function POST(request: Request): Promise<Response> {
     // tenants uploading the same public PDF get two rows (the unique index
     // is per org), so one tenant deleting it cannot blank another's.
     const existing = await findByHash(ctx.orgId, ctx.userId, contentHash);
+    // A dedupe hit is a success, not a creation: 200, matching what the
+    // client has always received for a file it already uploaded.
     if (existing) return Response.json({ attachment: existing });
 
     // ── 4. Extraction. The engine parses in memory and never writes the
@@ -151,18 +167,24 @@ export async function POST(request: Request): Promise<Response> {
     const row = rows[0];
     if (!row) return jsonError('internal', 'The attachment could not be saved.');
 
-    return Response.json({
-      attachment: {
-        id: row.id,
-        filename: row.filename,
-        mimeType: row.mime_type,
-        byteSize: Number(row.byte_size),
-        kind: row.kind,
-        truncated: row.truncated,
-        chars: doc.text.length,
-        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    return Response.json(
+      {
+        attachment: {
+          id: row.id,
+          filename: row.filename,
+          mimeType: row.mime_type,
+          byteSize: Number(row.byte_size),
+          kind: row.kind,
+          truncated: row.truncated,
+          chars: doc.text.length,
+          createdAt:
+            row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+        },
       },
-    });
+      // 201: a new attachment row exists. Every other creator in this API
+      // answers 201; 200 here was the odd one out.
+      { status: 201 },
+    );
   } catch (e) {
     return errorResponse(e);
   }

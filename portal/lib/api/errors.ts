@@ -27,7 +27,9 @@ export type ApiErrorCode =
   | 'validation'
   | 'upstream'
   | 'internal'
-  | 'payment_required';
+  | 'payment_required'
+  | 'gone'
+  | 'rate_limited';
 
 const STATUS: Record<ApiErrorCode, number> = {
   unauthorized: 401,
@@ -38,6 +40,8 @@ const STATUS: Record<ApiErrorCode, number> = {
   upstream: 502,
   internal: 500,
   payment_required: 402,
+  gone: 410,
+  rate_limited: 429,
 };
 
 const GENERIC: Partial<Record<ApiErrorCode, string>> = {
@@ -45,10 +49,14 @@ const GENERIC: Partial<Record<ApiErrorCode, string>> = {
   internal: 'Something went wrong. Please try again.',
 };
 
-export function jsonError(code: ApiErrorCode, message: string): Response {
+export function jsonError(
+  code: ApiErrorCode,
+  message: string,
+  headers?: Record<string, string>,
+): Response {
   return Response.json(
     { error: { code, message: GENERIC[code] ?? message } },
-    { status: STATUS[code] },
+    { status: STATUS[code], headers },
   );
 }
 

@@ -64,9 +64,11 @@ export interface D17QueueItem {
  */
 export function D17AdminQueue({
   rows,
+  canApprove,
   canReject,
 }: {
   rows: D17QueueItem[];
+  canApprove: boolean;
   canReject: boolean;
 }) {
   const router = useRouter();
@@ -191,16 +193,18 @@ export function D17AdminQueue({
                         Proof
                       </Button>
                     ) : null}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:text-destructive"
-                      disabled={busy === row.paymentId}
-                      onClick={() => act(row.paymentId, "approve")}
-                    >
-                      <ShieldCheck />
-                      Approve
-                    </Button>
+                    {canApprove ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive"
+                        disabled={busy === row.paymentId}
+                        onClick={() => act(row.paymentId, "approve")}
+                      >
+                        <ShieldCheck />
+                        Approve
+                      </Button>
+                    ) : null}
                     {canReject ? (
                       <Button
                         variant="ghost"

@@ -50,7 +50,9 @@ import { z } from 'zod';
 
 import { requireActiveOrg } from '@/lib/auth/authorize';
 import { errorResponse, jsonError } from '@/lib/api/errors';
+import { MINUTE, rateLimit } from '@/lib/api/ratelimit';
 import { getAllowedModels } from '@/lib/entitlements/allowed-models';
+import { wallRefusal } from '@/lib/chat/wall';
 import { getChatCredential, retireCredential, ChatKeyError } from '@/lib/chat/key';
 import {
   streamChatCompletion,
@@ -200,24 +202,21 @@ export async function POST(request: Request): Promise<Response> {
     return errorResponse(e);
   }
 
+  // ── Burst throttle. NOT a token budget — the wall below is the budget.
+  // This stops one client from opening 60 parallel streams: each turn
+  // holds a gateway key and a socket, and a loop is cheaper than a
+  // conversation. 30 a minute is far above a human typing pace.
+  const throttle = await rateLimit(`chat:user:${ctx.userId}`, { max: 30, windowMs: MINUTE });
+  if (!throttle.allowed) {
+    return jsonError('rate_limited', 'That is a lot of messages at once. Give it a second.', {
+      'Retry-After': String(throttle.retryAfterSeconds),
+    });
+  }
+
   // ── The wall. Not a second computation: the same function the job uses.
   const wall = await getAllowedModels(ctx.orgId);
-  if (wall.allowed.length === 0) {
-    // Two different refusals wear the same status, and conflating them is
-    // the bug that makes a paying customer think their plan is broken.
-    return wall.entitled.length === 0
-      ? jsonError('payment_required', 'Choose a plan to start chatting.')
-      : jsonError(
-          'forbidden',
-          'You have used your token budget for this period. It resets automatically — you can see when under Settings → Usage.',
-        );
-  }
-  if (!wall.allowed.includes(parsed.alias)) {
-    return jsonError(
-      'forbidden',
-      'That model is not available on your plan right now. Pick another from the list.',
-    );
-  }
+  const refused = wallRefusal(wall, parsed.alias);
+  if (refused) return refused;
 
   // ── Ownership. A 404 for both "missing" and "not yours".
   let conversationId = parsed.conversationId ?? null;

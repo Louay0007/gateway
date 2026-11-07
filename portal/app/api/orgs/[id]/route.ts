@@ -1,4 +1,10 @@
 /**
+ * GET /api/orgs/[id] — one org the caller belongs to.
+ *
+ * The mirror of the list route, for a client that holds an id and wants the
+ * current name/slug/role without re-reading the whole list. Membership is
+ * proven by the session (requireOrgMembership), so a guessed UUID is a 404.
+ *
  * PATCH /api/orgs/[id] — org settings (C-09).
  *
  * Body: { name?, slug? } — both optional, at least one required.
@@ -41,6 +47,30 @@ const patchSchema = z
   .refine((v) => v.name !== undefined || v.slug !== undefined, {
     message: 'Nothing to update.',
   });
+
+export async function GET(
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> },
+): Promise<Response> {
+  try {
+    const { id } = await params;
+    const ctx = await requireOrgMembership(id);
+    return Response.json(
+      {
+        organization: {
+          id: ctx.org.id,
+          name: ctx.org.name,
+          slug: ctx.org.slug,
+          status: ctx.org.status,
+          role: ctx.role,
+        },
+      },
+      { headers: { 'Cache-Control': 'no-store' } },
+    );
+  } catch (e) {
+    return errorResponse(e);
+  }
+}
 
 export async function PATCH(
   request: Request,
