@@ -251,6 +251,11 @@ pull: ## Pull a new gateway image (review release notes first)
 # unlink fails with EACCES, rsync exits 23, and the `&&` chain aborts
 # BEFORE the rebuild. Worse, a deploy that could delete those files would
 # be deleting customer payment evidence. Runtime state, not source.
+# SERVICES names the containers to rebuild, e.g.
+# `make deploy HOST=… SERVICES=portal`. Empty rebuilds everything — and
+# `docker compose up --build` also rebuilds `engine` (a Rust build) and
+# `searxng`, which no gateway change touches. On a 2-vCPU box that is ~20
+# minutes of swapping for no new bytes.
 deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	@: "$${HOST:?set HOST=user@ip}"
 	@DIR="$${DIR:-/opt/gateway}"; \
@@ -261,6 +266,8 @@ deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	  --exclude '.env' --exclude '.git/' --exclude '_rescue/' \
 	  --exclude 'backup-*.tar.gz' --exclude 'latency.csv' \
 	  --exclude 'portal/node_modules/' --exclude 'portal/.next/' \
+	  --exclude 'node_modules/' --exclude 'target/' --exclude '**/target/' \
+	  --exclude '.turbo/' \
 	  --exclude 'docker-compose.mock.yml' --exclude 'mock-upstream.log' \
 	  --exclude 'docker-compose.local.yml' \
 	  --exclude 'mobile-app/' \
@@ -268,7 +275,7 @@ deploy: ## Rsync repo to VPS (excludes .env), migrate, rebuild, restart
 	  ./ "$${HOST}:$${DIR}/" && \
 	ssh $$SSH_OPTS -t "$${HOST}" "cd $${DIR} && if [ -f .env ]; then \
 	    make db-init && make db-migrate && \
-	    docker compose up -d --build && sleep 8 && make health; \
+	    docker compose up -d --build $(SERVICES) && sleep 8 && make health; \
 	  else echo '  first deploy: ssh in and run: make init  (then fill .env, make probe, make up)'; fi"
 
 verify-config: ## Validate config files parse
