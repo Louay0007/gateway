@@ -19,6 +19,8 @@ import {
   isInTunisDay,
   outOfTokensMessage,
   mapGatewayModelError,
+  chargedTokensFor,
+  UNKNOWN_TOKENS_KEY,
 } from '@/lib/entitlements/quota';
 import { resolveTokenLimits } from '@/lib/entitlements/policy';
 
@@ -343,5 +345,50 @@ describe('mapGatewayModelError — generic 403 → per-alias token message', () 
     expect(m?.model).toBe('smart');
     expect(m?.friendly).toMatch(/out of smart tokens/i);
     expect(m?.friendly).not.toContain('sonnet');
+  });
+});
+
+
+/**
+ * G20 — unmapped spend is still spend.
+ *
+ * A row whose `model` resolved to `UNKNOWN_ALIAS` belongs to no alias, so a
+ * plain per-alias sum charges it to nothing and it becomes unlimited free
+ * inference. The rule: charge the `unknown` bucket to EVERY alias. Over-
+ * charging is the correct direction; the collector already reports the
+ * unmapped model loudly, so the operator sees the cause.
+ */
+describe('unmapped tokens are charged to every alias (G20)', () => {
+  it('adds the unknown bucket to an alias\'s own spend', () => {
+    expect(chargedTokensFor('fast', { fast: 10, [UNKNOWN_TOKENS_KEY]: 5 })).toBe(15);
+    // A different alias is charged the strays too — they belong to no one.
+    expect(chargedTokensFor('smart', { fast: 10, [UNKNOWN_TOKENS_KEY]: 5 })).toBe(5);
+  });
+
+  it('treats missing or negative values as zero, not as a credit', () => {
+    expect(chargedTokensFor('fast', {})).toBe(0);
+    expect(chargedTokensFor('fast', { fast: -1, [UNKNOWN_TOKENS_KEY]: -9 })).toBe(0);
+  });
+
+  it('spends an alias whose own usage is fine once strays push it over', () => {
+    const allowed = computeTokenAllowedModels(
+      ['fast', 'smart'],
+      { fast: 100, smart: 100 },
+      { fast: 90, smart: 0, [UNKNOWN_TOKENS_KEY]: 20 },
+    );
+    // 90 + 20 > 100 for fast; 0 + 20 < 100 for smart.
+    expect(allowed).toEqual(['smart']);
+  });
+
+  it('remaining and exhausted agree with the wall about the same number', () => {
+    const limits = { fast: 100 };
+    const used = { fast: 50, [UNKNOWN_TOKENS_KEY]: 60 };
+    expect(remainingTokensByModel(limits, used)).toEqual({ fast: 0 });
+    expect(isTokenExhausted('fast', limits, used)).toBe(true);
+    expect(computeTokenAllowedModels(['fast'], limits, used)).toEqual([]);
+  });
+
+  it('leaves a plan unaffected when nothing is unmapped', () => {
+    expect(computeTokenAllowedModels(['fast'], { fast: 100 }, { fast: 99 })).toEqual(['fast']);
   });
 });

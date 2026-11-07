@@ -58,13 +58,24 @@ export function computeTokenAllowedModels(
   const e = Array.isArray(entitled) ? entitled : [];
   const l = tokenLimits ?? {};
   const u = usedTokensBy ?? {};
+  // UNMAPPED SPEND IS STILL SPEND. A row whose `model` resolved to
+  // `UNKNOWN_ALIAS` (a deployed model with no `aliases:` entry in
+  // prices/models.yaml) belongs to no alias, so with a plain per-alias sum
+  // it counts against nothing and the tokens are free. That is not a
+  // theoretical hole: it opens the moment an upstream is added to LiteLLM
+  // without a matching alias, and it opens silently.
+  //
+  // The unknown bucket is charged to EVERY entitled alias. Over-charging is
+  // the correct direction — the alternative is unlimited free inference —
+  // and the collector already reports unmapped models loudly, so an
+  // operator sees the cause instead of a customer seeing a free tier.
   return e.filter((alias) => {
     const limit = Number((l as Record<string, unknown>)[alias] ?? Infinity);
     if (!Number.isFinite(limit)) return true; // missing = unlimited
     if (limit <= 0) return true; // 0 = unlimited, same rule
     const usedRaw = Number((u as Record<string, unknown>)[alias] ?? 0);
     if (!Number.isFinite(usedRaw) || usedRaw < 0) return false;
-    return usedRaw < limit;
+    return chargedTokensFor(alias, u) < limit;
   });
 }
 
@@ -145,6 +156,26 @@ export function usageWindowForSubscription(
   return tunisDayWindow(now);
 }
 
+/**
+ * Tokens charged to an alias: its own spend PLUS every unmapped token.
+ *
+ * See `computeTokenAllowedModels` for why the `unknown` bucket is charged
+ * to all aliases. Exported so the wall, the device pre-check and the
+ * dashboard all read one number — three surfaces disagreeing about what a
+ * customer used is the exact class of bug this module exists to prevent.
+ */
+export function chargedTokensFor(alias: string, usedTokensBy: UsageTokensByModel): number {
+  const u = usedTokensBy ?? {};
+  const own = Number((u as Record<string, unknown>)[alias] ?? 0);
+  const stray = Number((u as Record<string, unknown>)[UNKNOWN_TOKENS_KEY] ?? 0);
+  const ownTokens = Number.isFinite(own) && own > 0 ? own : 0;
+  const strayTokens = Number.isFinite(stray) && stray > 0 ? stray : 0;
+  return ownTokens + strayTokens;
+}
+
+/** The key `aliasForRow` writes when no `aliases:` entry matched. */
+export const UNKNOWN_TOKENS_KEY = 'unknown';
+
 export function remainingTokensByModel(
   tokenLimits: TokenLimits,
   usedTokensBy: UsageTokensByModel,
@@ -152,9 +183,7 @@ export function remainingTokensByModel(
   const out: Record<string, number> = {};
   for (const [alias, limit] of Object.entries(tokenLimits ?? {})) {
     if (typeof limit !== 'number' || !Number.isFinite(limit)) continue;
-    const raw = Number((usedTokensBy ?? {})[alias] ?? 0);
-    const used = Number.isFinite(raw) && raw > 0 ? raw : 0;
-    out[alias] = Math.max(0, limit - used);
+    out[alias] = Math.max(0, limit - chargedTokensFor(alias, usedTokensBy));
   }
   return out;
 }
@@ -166,9 +195,9 @@ export function isTokenExhausted(
 ): boolean {
   const limit = Number((tokenLimits ?? {})[alias] ?? Infinity);
   if (!Number.isFinite(limit) || limit <= 0) return false; // unlimited
-  const used = Number((usedTokensBy ?? {})[alias] ?? 0);
-  if (!Number.isFinite(used) || used < 0) return true;
-  return used >= limit;
+  const own = Number((usedTokensBy ?? {})[alias] ?? 0);
+  if (!Number.isFinite(own) || own < 0) return true;
+  return chargedTokensFor(alias, usedTokensBy) >= limit;
 }
 
 export function outOfTokensMessage(

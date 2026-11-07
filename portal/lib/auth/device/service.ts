@@ -65,7 +65,14 @@ export async function issueDeviceKey(
     /** Display name of the machine being signed in, when it reported one. */
     deviceName?: string | null;
   },
-): Promise<{ keyId: string; plaintext: string; models: string[]; expiresAt: Date }> {
+): Promise<{
+  keyId: string;
+  plaintext: string;
+  models: string[];
+  expiresAt: Date;
+  /** Prior device keys this mint rotated out (revoked upstream + locally). */
+  revokedDevices: number;
+}> {
   const { keys, gateway } = deps;
   const now = deps.now();
 
@@ -236,7 +243,13 @@ export async function issueDeviceKey(
     after: { name: DEVICE_KEY_NAME, models: models.models, kind: 'device' },
   });
 
-  return { keyId: row.id, plaintext: customerKey, models: models.models, expiresAt };
+  return {
+    keyId: row.id,
+    plaintext: customerKey,
+    models: models.models,
+    expiresAt,
+    revokedDevices: previous.length,
+  };
 }
 
 /** Request a fresh device code. Returns the plaintext device code exactly once. */
@@ -274,7 +287,17 @@ export async function approveDeviceCode(
     organizationId: string;
     role: OrgRole;
   },
-): Promise<{ userCode: string; approved: boolean }> {
+): Promise<{
+  userCode: string;
+  approved: boolean;
+  /**
+   * How many previously signed-in devices this approval rotated out. The
+   * device page says so ("Signed out on 2 other computers"), because a
+   * silent rotation looks like a bug to whoever is still holding the old
+   * machine. Zero on an idempotent re-approval — nothing was rotated.
+   */
+  revokedDevices: number;
+}> {
   if (!canCreateKey(input.role)) {
     throw new DeviceServiceError(
       'Your role cannot create API keys.',
@@ -294,7 +317,7 @@ export async function approveDeviceCode(
   // consume() nulls the plaintext after the first successful poll; a second
   // approval for the same code cannot mint a second key.
   if (code.status === 'approved' || code.status === 'consumed') {
-    return { userCode: input.userCode, approved: true };
+    return { userCode: input.userCode, approved: true, revokedDevices: 0 };
   }
   if (code.status === 'expired') {
     throw new DeviceServiceError(
@@ -351,7 +374,11 @@ export async function approveDeviceCode(
   });
   await deps.store.updateModels(code.id, issued.models);
 
-  return { userCode: input.userCode, approved: true };
+  return {
+    userCode: input.userCode,
+    approved: true,
+    revokedDevices: issued.revokedDevices,
+  };
 }
 
 /**

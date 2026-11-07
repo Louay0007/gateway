@@ -71,8 +71,41 @@ interface Job {
  * schedule that has waited is late, never free.
  */
 const JOBS: readonly Job[] = [
-  { name: 'collect_usage', everyMs: 5 * 60_000, run: () => collectUsage() },
-  { name: 'enforce_prompt_limits', everyMs: 5 * 60_000, run: () => enforcePromptLimits() },
+  {
+    // COLLECT, THEN ENFORCE — one tick, in that order.
+    //
+    // These were two independent 5-minute jobs, so a request that pushed an
+    // alias over its budget at T could sit behind a collector that had
+    // already run AND an enforcer that had already run, leaving the gateway
+    // accepting a spent alias for up to ~10 minutes. Chaining them here
+    // means the wall is recomputed from the ledger that was just written:
+    // the worst case is the next tick, not the next two.
+    //
+    // Deliberately one job, not a dependency graph: a failure in collect
+    // must still let enforce run (the ledger from the previous pass is
+    // still truth), and a failure in enforce must never roll back
+    // collection. Each is individually idempotent, which is what makes this
+    // safe to chain without a transaction.
+    name: 'collect_usage',
+    everyMs: 5 * 60_000,
+    run: async () => {
+      const collected = await collectUsage();
+
+      // Named so a deliberate chain does not lose the enforcer's own
+      // accounting: the row this returns rides into the collector's log line.
+      let enforced: unknown = null;
+      try {
+        enforced = await enforcePromptLimits();
+      } catch (e) {
+        log.error('enforce after collect failed', {
+          error: e instanceof Error ? e.message : String(e),
+        });
+        enforced = { failed: -1, error: e instanceof Error ? e.message : String(e) };
+      }
+
+      return { ...collected, enforced };
+    },
+  },
   { name: 'rollup_usage', everyMs: 15 * 60_000, run: () => rollupUsage() },
   {
     name: 'reconcile_entitlements',

@@ -240,9 +240,11 @@ litellm_settings:
   # Strip params the upstream rejects instead of failing the request.
   drop_params: true
 
-  success_callback: ["prometheus"]
-  failure_callback: ["prometheus"]
-
+  # NO `prometheus` callback. It was declared with no Prometheus service on
+  # the host to receive it, so every request tried to emit metrics into
+  # nothing — wasted work and a log line per call. The ledger is the
+  # metering surface (spend logs → portal.usage_records), not a metrics
+  # scrape. Re-add a callback only together with the service that reads it.
   json_logs: true
 
 # ═══════════════════════════════════════════════════════════════════════

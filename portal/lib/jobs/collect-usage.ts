@@ -204,6 +204,23 @@ export async function collectUsage(opts?: {
     const statusCode = statusCodeForRow(row);
     const promptCount = promptCountForRow(route, statusCode);
 
+    // ── Latency. ──────────────────────────────────────────────────────
+    //
+    // `LiteLLM_SpendLogs.request_duration_ms` is NOT NULL and carried by
+    // every row (verified live), so it is the only latency signal the
+    // ledger can hold. It was written as a literal NULL here for as long as
+    // this insert existed, so every p50/p95 built on `usage_records` read
+    // an empty column.
+    //
+    // A non-finite or negative value is NULL, never 0: 0 ms is a
+    // measurement, and a missing one must not enter an average as "instant".
+    const latencyMs =
+      typeof row.request_duration_ms === 'number' &&
+      Number.isFinite(row.request_duration_ms) &&
+      row.request_duration_ms >= 0
+        ? Math.round(row.request_duration_ms)
+        : null;
+
     const inserted = await db.execute(sql`
       INSERT INTO usage_records (
         organization_id, api_key_id, member_user_id, occurred_at, billing_period,
@@ -225,7 +242,7 @@ export async function collectUsage(opts?: {
         ${row.api_key ?? null},
         ${u.inputTokens}, ${u.freshInput}, ${u.outputTokens},
         ${u.cacheWrite5m}, ${u.cacheWrite1h}, ${u.cacheRead},
-        NULL,
+        ${latencyMs},
         ${statusCode},
         ${upstream}, ${customer},
         ${PRICE_VERSION},

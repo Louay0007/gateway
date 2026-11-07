@@ -13,23 +13,29 @@
  * can never show or enforce its quota.
  */
 import { describe, it, expect } from 'vitest';
-import { createHash } from 'node:crypto';
 import { keyHashFor, mintKey } from '@/lib/keys/policy';
+// The REAL helpers, not a mirror: `keyDigest` is the hashing rule and
+// `bearerKey` is the format gate, and the bug this file was written for is
+// exactly what a mirrored copy cannot catch.
+import { bearerKey, keyDigest } from '@/lib/device/auth';
 
 /**
- * Mirrors the lookup in app/api/device/usage/route.ts.
- *
- * A duplicate of the route's query on purpose: the test asserts the
- * HASHING RULE, and the rule is what the route must implement. If the
- * route and this helper ever disagree, this file is what needs updating
- * — and the test below fails loudly when the hash shape changes.
+ * Mirrors only the WHERE clause of the lookup in lib/device/auth.ts, because
+ * that clause needs Postgres. The hash itself is the real `keyDigest`, so a
+ * change to the hashing rule cannot silently pass here.
  */
 function resolveOrgId(rows: { key_hash: string; revoked_at: Date | null; org_status: string }[], key: string) {
-  const hash = createHash('sha256').update(key, 'utf8').digest('hex');
+  const hash = keyDigest(key);
   const row = rows.find(
     (r) => r.key_hash === hash && r.revoked_at === null && r.org_status === 'active',
   );
   return row?.key_hash ?? null;
+}
+
+function request(authorization?: string): Request {
+  return new Request('https://portal.example/api/device/usage', {
+    headers: authorization ? { authorization } : {},
+  });
 }
 
 describe('device usage key lookup', () => {
@@ -84,5 +90,38 @@ describe('device usage key lookup', () => {
     ];
     // Same prefix, different body — must not resolve.
     expect(resolveOrgId(rows, `zn-${'A'.repeat(customerKey.length - 3)}`)).toBe(null);
+  });
+});
+
+describe('bearerKey', () => {
+  it('accepts the zn- form the desktop sends', () => {
+    const { customerKey } = mintKey();
+    expect(bearerKey(request(`Bearer ${customerKey}`))).toBe(customerKey);
+  });
+
+  it('trims the surrounding whitespace a config file leaves behind', () => {
+    const { customerKey } = mintKey();
+    expect(bearerKey(request(`Bearer  ${customerKey}  `))).toBe(customerKey);
+  });
+
+  it('rejects a key that has no zn- prefix', () => {
+    // A portal session token, or the `sk-` form the edge rewrites to, must
+    // never be hashed and looked up as a customer key.
+    expect(bearerKey(request(`Bearer ${'sk-' + 'a'.repeat(32)}`))).toBe(null);
+  });
+
+  it('rejects a missing or non-Bearer header', () => {
+    expect(bearerKey(request())).toBe(null);
+    expect(bearerKey(request('Basic abcdef'))).toBe(null);
+    expect(bearerKey(request('Bearer '))).toBe(null);
+  });
+});
+
+describe('throttle bucket', () => {
+  it('is derived from the key, so two keys never share a bucket', () => {
+    const a = keyDigest(mintKey().customerKey);
+    const b = keyDigest(mintKey().customerKey);
+    expect(a).not.toBe(b);
+    expect(a).toMatch(/^[0-9a-f]{64}$/);
   });
 });

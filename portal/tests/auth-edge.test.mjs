@@ -29,7 +29,7 @@ const EDGE_ENTRY = fileURLToPath(new URL('../../edge/server.mjs', import.meta.ur
  * which two processes can pick the same number.
  *
  * @param {Record<string, string>} envExtra
- * @returns {Promise<{ proc: import('node:child_process').ChildProcess, port: number }>}
+ * @returns {Promise<{ proc: import('node:child_process').ChildProcess, port: number, lines: any[] }>}
  */
 async function startEdge(envExtra) {
   const { spawn } = await import('node:child_process');
@@ -44,6 +44,14 @@ async function startEdge(envExtra) {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  // Every JSON line the edge writes, in order, for the whole life of the
+  // process — not just the handshake. The audit fields (`model`,
+  // `key_prefix`) are only observable here: they are written to stdout and
+  // nowhere else, so a dropped argument at a `log(...)` call site would be
+  // invisible without this buffer.
+  /** @type {any[]} */
+  const lines = [];
+
   const port = await new Promise((resolve, reject) => {
     let buf = '';
     const timer = setTimeout(
@@ -53,18 +61,21 @@ async function startEdge(envExtra) {
     proc.stdout.setEncoding('utf8');
     proc.stdout.on('data', (chunk) => {
       buf += chunk;
-      for (const line of buf.split('\n')) {
+      const parts = buf.split('\n');
+      // The last element is a partial line until its newline arrives.
+      buf = parts.pop() ?? '';
+      for (const line of parts) {
         if (!line.trim()) continue;
         let msg;
         try {
           msg = JSON.parse(line);
         } catch {
-          continue; // not the handshake line; keep reading
+          continue; // not one of ours; keep reading
         }
+        lines.push(msg);
         if (msg?.msg === 'auth_edge.listening' && msg.port) {
           clearTimeout(timer);
           resolve(msg.port);
-          return;
         }
       }
     });
@@ -74,7 +85,7 @@ async function startEdge(envExtra) {
     });
   });
 
-  return { proc, port };
+  return { proc, port, lines };
 }
 
 /**
@@ -139,9 +150,11 @@ afterAll(async () => {
 /** @type {import('node:child_process').ChildProcess} */
 let edge;
 let edgePort;
+/** @type {any[]} */
+let edgeLines;
 
 beforeAll(async () => {
-  ({ proc: edge, port: edgePort } = await startEdge({
+  ({ proc: edge, port: edgePort, lines: edgeLines } = await startEdge({
     AUTH_EDGE_UPSTREAM: `http://127.0.0.1:${upstreamPort}`,
   }));
   // The port handshake above already proves the listener is up. Poll the
@@ -219,8 +232,44 @@ describe('end to end through the edge', () => {
     expect(seen.authorization).toBe('Bearer sk-ABCdef0123456789XYZ');
   });
 
-  it('works through x-api-key as well as Authorization', async () => {
-    const r = await call('/v1/messages', { 'x-api-key': 'zn-XYZabc0123456789DEF' });
+  it('logs the alias and the 12-char key prefix, never the key', async () => {
+    // The spend log answers "how many tokens", not "which model, which key".
+    // These two fields are the only bridge from an edge log line to a
+    // LiteLLM spend row and to `api_keys.key_prefix`, so a dropped argument
+    // at any `log(...)` call site is a silent attribution gap.
+    const ours = () =>
+      edgeLines.find(
+        (entry) =>
+          entry.msg === 'auth_edge' &&
+          entry.path === '/v1/chat/completions' &&
+          entry.key_prefix === 'zn-ABCdef012',
+      );
+
+    const r = await call(
+      '/v1/chat/completions',
+      { authorization: 'Bearer zn-ABCdef0123456789XYZ', 'content-type': 'application/json' },
+      'POST',
+      JSON.stringify({ model: 'haiku-5.5', messages: [] }),
+    );
+    expect(r.status).toBe(200);
+
+    // The line is written after the response ends, off the request path, so
+    // it can land a tick after the client sees the body. Poll rather than
+    // assert on whatever happened to be buffered.
+    const deadline = Date.now() + 5_000;
+    while (!ours() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 20));
+
+    const line = ours();
+    expect(line).toBeDefined();
+    // The customer-facing alias, not the upstream name it was routed to.
+    expect(line.model).toBe('fast');
+    expect(line.key_prefix).toBe('zn-ABCdef012');
+    // Bounded: the prefix can never reconstitute the credential.
+    expect(line.key_prefix.length).toBe(12);
+    expect(JSON.stringify(line)).not.toContain('zn-ABCdef0123456789XYZ');
+  });
+
+  it('works through x-api-key as well as Authorization', async () => {    const r = await call('/v1/messages', { 'x-api-key': 'zn-XYZabc0123456789DEF' });
     expect(r.status).toBe(200);
     expect(seen.xApiKey).toBe('sk-XYZabc0123456789DEF');
   });
@@ -340,6 +389,26 @@ describe('end to end through the edge', () => {
     expect(m?.message).toMatch(/out of frontier tokens/i);
     expect(mapModelDeniedBody(403, 'overloaded, try again')).toBeNull();
     expect(mapModelDeniedBody(200, "Model 'frontier' is not available")).toBeNull();
+  });
+
+  it('maps a fable denial without leaking the upstream model name', async () => {
+    // `fable` is served by `gpt-6-astra`. A denial that names the ROUTED
+    // model must still reach the customer as the alias — the whole point of
+    // the alias layer is that no upstream name is ever customer-visible.
+    const byUpstream = mapModelDeniedBody(
+      403,
+      `{"error":{"message":"Model 'gpt-6-astra' is not available for this API key"}}`,
+    );
+    expect(byUpstream?.model).toBe('fable');
+    expect(byUpstream?.message).toMatch(/out of fable tokens/i);
+    expect(byUpstream?.message).not.toMatch(/gpt-6-astra/);
+
+    // And the alias spelling itself still maps.
+    const byAlias = mapModelDeniedBody(
+      403,
+      `{"error":{"message":"Model 'fable' is not available for this API key"}}`,
+    );
+    expect(byAlias?.model).toBe('fable');
   });
 
   it('never names the model after the JSON error key (2026-10-27 regression)', async () => {

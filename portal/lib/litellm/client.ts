@@ -496,6 +496,16 @@ export interface SpendLogRow {
   cache_hit_rate?: number;
   startTimeSeconds?: number;
   /**
+   * Server-measured wall time for the request, in milliseconds. A NOT NULL
+   * column on `LiteLLM_SpendLogs` (verified against v1.103.1: 5342 of 5342
+   * rows carried it), so it is the ledger's only latency signal.
+   *
+   * Absent from some older rows and from any row logged before the column
+   * existed — a missing value is written as NULL rather than as 0, because
+   * 0 ms is a measurement and NULL is not.
+   */
+  request_duration_ms?: number | null;
+  /**
    * Full messages array from the request, populated when
    * `store_prompts_in_spend_logs: true` is set in litellm.yaml.
    * Each entry has at least `role` and `content`.

@@ -74,7 +74,13 @@ export async function POST(request: Request): Promise<Response> {
       organizationId: ctx.orgId,
       role: ctx.role,
     });
-    return Response.json({ approved: true, userCode: result.userCode });
+    return Response.json({
+      approved: true,
+      userCode: result.userCode,
+      // Only a count, never a machine list: the device page names what it
+      // itself rotated out, and the store keeps no readable device rows.
+      revokedDevices: result.revokedDevices,
+    });
   } catch (e) {
     return errorResponse(e);
   }

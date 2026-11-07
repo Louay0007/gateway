@@ -243,6 +243,11 @@ const UPSTREAM_TO_ALIAS = {
   "haiku-5.5": "fast",
   "sonnet-5.5": "smart",
   "opus-5.5": "frontier",
+  // `fable` is served by the provider's `gpt-6-astra`. Without this entry a
+  // denial that named the routed model fell through to the quoted-candidate
+  // heuristic and could surface the upstream name to a customer — the one
+  // thing the alias layer exists to prevent.
+  "gpt-6-astra": "fable",
 };
 
 /** Quoted tokens that are error-dialect words, never a model name. Guards
@@ -299,7 +304,7 @@ export function mapModelDeniedBody(status, rawText, requestedModel = null) {
   } catch {
     // Plaintext body — scan as-is.
   }
-  const bodyAlias = /\b(fast|smart|frontier)\b/i.exec(text)?.[1]?.toLowerCase() ?? null;
+  const bodyAlias = /\b(fast|smart|frontier|fable)\b/i.exec(text)?.[1]?.toLowerCase() ?? null;
   const requested = displayAlias(requestedModel);
   const quoted = messageText.match(/["']([A-Za-z0-9][A-Za-z0-9_.\-]{1,64})["']/g) ?? [];
   const candidates = quoted
@@ -315,7 +320,7 @@ export function mapModelDeniedBody(status, rawText, requestedModel = null) {
 }
 
 /** Buffer a small upstream error body, map a model denial, answer. */
-function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders, requestedModel = null) {
+function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders, requestedModel = null, keyPrefix = null) {
   const chunks = [];
   upstreamRes.on('data', (c) => chunks.push(c));
   upstreamRes.on('end', () => {
@@ -325,7 +330,7 @@ function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, sta
       // Not a model denial — pass through byte-identical.
       res.writeHead(status, outHeaders);
       res.end(raw);
-      log(req, started, status, rewritten, null, 'proxy');
+      log(req, started, status, rewritten, null, 'proxy', displayAlias(requestedModel), keyPrefix);
       return;
     }
     const body = JSON.stringify({ error: { message: mapped.message, type: 'auth_edge_error', model: mapped.model } });
@@ -334,7 +339,7 @@ function handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, sta
       'content-length': Buffer.byteLength(body),
     });
     res.end(body);
-    log(req, started, status, rewritten, null, 'proxy:model-denied');
+    log(req, started, status, rewritten, null, 'proxy:model-denied', mapped.model, keyPrefix);
   });
 }
 
@@ -377,6 +382,10 @@ const server = http.createServer((req, res) => {
   let rewritten = false;
   let malformed = false;
 
+  // Read the prefix BEFORE the substitution below: the portal stores the
+  // display prefix of the `zn-` credential it issued, so a prefix taken
+  // from the rewritten `sk-` header could never be joined to `api_keys`.
+  const keyPrefix = credentialPrefix(req.headers);
   for (const [name, lower] of [['Authorization', 'authorization'], ['X-Api-Key', 'x-api-key']]) {
     const raw = req.headers[lower];
     if (typeof raw !== 'string' || raw.length === 0) continue;
@@ -399,7 +408,7 @@ const server = http.createServer((req, res) => {
   const wantsShim = RESPONSES_SHIM && req.method === 'POST' && pathname === RESPONSES_PATH;
 
   if (wantsShim) {
-    return handleResponses(req, res, headers, started, rewritten);
+    return handleResponses(req, res, headers, started, rewritten, keyPrefix);
   }
 
   // Buffer + handle model alias for chat/completions so LiteLLM receives a
@@ -447,21 +456,26 @@ const server = http.createServer((req, res) => {
       // it so the customer gets `out of <alias> tokens` instead of the
       // generic gateway wording. Everything else streams untouched.
       if (status === 403 && (req.method === 'POST' || req.method === 'GET')) {
-        handleProxyUpstreamError(upstreamRes, res, req, started, rewritten, status, outHeaders, requestedModel);
+        handleProxyUpstreamError(
+          upstreamRes, res, req, started, rewritten, status, outHeaders, requestedModel, keyPrefix,
+        );
         return;
       }
       res.writeHead(status, outHeaders);
       upstreamRes.pipe(res);
       upstreamRes.on('end', () => {
         res.end();
-        log(req, started, upstreamRes.statusCode ?? 502, rewritten, null, 'proxy');
+        log(
+          req, started, upstreamRes.statusCode ?? 502, rewritten, null, 'proxy',
+          displayAlias(requestedModel), keyPrefix,
+        );
       });
     },
   );
 
   // Fail closed: an unreachable gateway is a 502, never a silent success.
   upstreamReq.on('error', (err) => {
-    log(req, started, 502, rewritten, err);
+    log(req, started, 502, rewritten, err, 'proxy', displayAlias(requestedModel), keyPrefix);
     failClosed(res, 502, 'The API gateway is unavailable. Please retry.');
   });
 
@@ -491,7 +505,21 @@ const server = http.createServer((req, res) => {
   })();
 });
 
-function log(req, started, status, rewritten, err, route = 'proxy') {
+/**
+ * One line per request for forensics.
+ *
+ * `model` is the customer-facing ALIAS the request resolved to, never the
+ * upstream name (the alias layer's whole point). It is what answers "which
+ * model burned this key's tokens" without going to LiteLLM's spend table,
+ * and it is the only field here that can attribute spend to a model.
+ *
+ * `key_prefix` is the credential's display prefix — exactly what the portal
+ * stores in `api_keys.key_prefix` (`keyPrefixFor`, KEY_PREFIX_LENGTH = 12),
+ * never enough to reconstruct the body. Without it an operator cannot tell
+ * two of a customer's keys apart in the log, and with a different length the
+ * line could not be joined to the portal's own row at all.
+ */
+function log(req, started, status, rewritten, err, route = 'proxy', model = null, keyPrefix = null) {
   const ms = Number(process.hrtime.bigint() - started) / 1e6;
   const line = {
     msg: 'auth_edge',
@@ -503,8 +531,27 @@ function log(req, started, status, rewritten, err, route = 'proxy') {
     prefix_substituted: rewritten,
     route,
   };
+  if (model) line.model = model;
+  if (keyPrefix) line.key_prefix = keyPrefix;
   if (err) line.error = err.code ?? err.message;
   process.stdout.write(`${JSON.stringify(line)}\n`);
+}
+
+/**
+ * The display prefix of whichever credential the request carried.
+ *
+ * Bounded and non-secret by construction: KEY_PREFIX_LENGTH characters of a
+ * `zn-`/`sk-` body, matching `keyPrefixFor` in the portal. A credential
+ * shorter than the prefix is not reported at all rather than reported whole.
+ */
+const KEY_PREFIX_LENGTH = 12;
+
+function credentialPrefix(headers) {
+  const raw = headers?.Authorization ?? headers?.authorization;
+  const value = typeof raw === 'string' ? raw : '';
+  const token = value.startsWith('Bearer ') ? value.slice(7).trim() : value;
+  if (!/^(zn|sk)-[A-Za-z0-9_-]{16,}$/.test(token)) return null;
+  return token.slice(0, KEY_PREFIX_LENGTH);
 }
 
 // ── Responses route ─────────────────────────────────────────────────────
@@ -552,7 +599,7 @@ function failResponses(res, status, message) {
 }
 
 /** Translate one /v1/responses request into a /v1/chat/completions call. */
-async function handleResponses(req, res, headers, started, rewritten) {
+async function handleResponses(req, res, headers, started, rewritten, keyPrefix = null) {
   let raw;
   try {
     raw = await readBody(req);
@@ -617,11 +664,11 @@ async function handleResponses(req, res, headers, started, rewritten) {
       headers: outHeaders,
       agent: UPSTREAM_AGENT,
     },
-    (upstreamRes) => { handleResponsesUpstream(upstreamRes, res, req, started, rewritten, parsed.model); },
+    (upstreamRes) => { handleResponsesUpstream(upstreamRes, res, req, started, rewritten, parsed.model, keyPrefix); },
   );
 
   upstreamReq.on('error', (err) => {
-    log(req, started, 502, rewritten, err, 'responses');
+    log(req, started, 502, rewritten, err, 'responses', displayAlias(parsed.model), keyPrefix);
     failResponses(res, 502, 'The API gateway is unavailable. Please retry.');
   });
 
@@ -629,7 +676,7 @@ async function handleResponses(req, res, headers, started, rewritten) {
   upstreamReq.end(chatBody);
 }
 
-function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requestedModel) {
+function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix = null) {
   const status = upstreamRes.statusCode ?? 502;
   const type = String(upstreamRes.headers['content-type'] ?? '');
 
@@ -652,14 +699,14 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
           message = JSON.parse(raw)?.error?.message ?? message;
         } catch { /* keep the generic message */ }
       }
-      log(req, started, status, rewritten, null, 'responses:upstream-error');
+      log(req, started, status, rewritten, null, 'responses:upstream-error', displayAlias(requestedModel), keyPrefix);
       failResponses(res, status, message);
     });
     return;
   }
 
   if (type.includes('text/event-stream')) {
-    streamResponses(upstreamRes, res, req, started, rewritten, requestedModel);
+    streamResponses(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix);
     return;
   }
 
@@ -679,7 +726,7 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
       'content-length': Buffer.byteLength(body),
     });
     res.end(body);
-    log(req, started, 200, rewritten, null, 'responses');
+    log(req, started, 200, rewritten, null, 'responses', displayAlias(requestedModel), keyPrefix);
   });
 }
 
@@ -691,7 +738,7 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
  * is always emitted, including when the upstream produced no chunks at all —
  * a client that waits for `completed` would otherwise hang until timeout.
  */
-function streamResponses(upstreamRes, res, req, started, rewritten, requestedModel) {
+function streamResponses(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix = null) {
   const tr = new ResponsesStreamTranslator({ model: requestedModel });
 
   res.writeHead(200, {
@@ -746,12 +793,12 @@ function streamResponses(upstreamRes, res, req, started, rewritten, requestedMod
       for (const e of tr.finish()) res.write(encodeSse(e));
       res.end();
     }
-    log(req, started, 200, rewritten, null, 'responses:stream');
+    log(req, started, 200, rewritten, null, 'responses:stream', displayAlias(requestedModel), keyPrefix);
   };
 
   upstreamRes.on('end', finish);
   upstreamRes.on('error', (err) => {
-    log(req, started, 502, rewritten, err, 'responses:stream');
+    log(req, started, 502, rewritten, err, 'responses:stream', displayAlias(requestedModel), keyPrefix);
     if (!res.writableEnded) {
       // Still terminate the event sequence so the client gets a definitive
       // end rather than an infinite wait.

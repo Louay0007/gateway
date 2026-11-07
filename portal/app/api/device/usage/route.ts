@@ -17,10 +17,6 @@
  * the current billing period. No PII, no spend figures, no admin data.
  */
 
-import { createHash } from 'node:crypto';
-import { sql } from 'drizzle-orm';
-import { db } from '@/db';
-import { apiKeys, organizations } from '@/db/schema';
 import { subscriptionBundle } from '@/lib/billing';
 import {
   remainingTokensByModel as computeRemainingTokens,
@@ -28,43 +24,55 @@ import {
   outOfTokensMessage,
 } from '@/lib/entitlements/quota';
 import { errorResponse, jsonError } from '@/lib/api/errors';
+import { MINUTE, rateLimit } from '@/lib/api/ratelimit';
+import { bearerKey, keyDigest, keyInfoFor } from '@/lib/device/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-async function orgIdForKey(key: string): Promise<string | null> {
-  // The desktop sends the zn- form as its Bearer token. `api_keys.key_hash`
-  // stores the SHA-256 hex of that plaintext (lib/keys/policy.ts keyHashFor),
-  // NOT the plaintext itself — so the lookup has to hash before comparing.
-  // Comparing the raw plaintext against key_hash can never match, which
-  // made this endpoint answer 401 for every caller, including valid keys.
-  const hash = createHash('sha256').update(key, 'utf8').digest('hex');
-  const [row] = await db.execute(sql`
-    SELECT ak.organization_id
-      FROM api_keys ak
-      JOIN organizations o ON o.id = ak.organization_id
-     WHERE ak.key_hash = ${hash}
-       AND ak.revoked_at IS NULL
-       AND o.status = 'active'
-     LIMIT 1
-  `) as unknown as { organization_id: string }[];
-  return row?.organization_id ?? null;
-}
+/**
+ * Per-key request ceiling.
+ *
+ * The desktop gate calls this before a prompt, so a chatty client could
+ * drive it once per keystroke-send — and every call runs the whole
+ * `subscriptionBundle` (plan lookup, entitlement query and two
+ * `usage_records` aggregates over the day's window). That is the most
+ * expensive read in the portal behind the least expensive credential to
+ * obtain, so it is throttled per key rather than trusted.
+ *
+ * 60/min: a human cannot send faster, the client caches for 60 s anyway,
+ * and a burst of a dozen parallel prompts still fits. Over the limit the
+ * endpoint answers 429 with `rate_limited` — deliberately NOT the
+ * `quota_exhausted` 429 shape, because a throttle is not exhaustion and the
+ * desktop must not render "out of tokens" for it.
+ */
+const USAGE_MAX_PER_MINUTE = 60;
 
 export async function GET(request: Request): Promise<Response> {
-  const auth = request.headers.get('authorization') ?? '';
-  if (!auth.startsWith('Bearer ')) {
+  const key = bearerKey(request);
+  if (!key) {
     return jsonError('unauthorized', 'Missing or malformed authorization header.');
-  }
-  const key = auth.slice(7).trim();
-  if (!key || !key.startsWith('zn-')) {
-    return jsonError('unauthorized', 'Invalid key format.');
   }
 
   try {
-    const orgId = await orgIdForKey(key);
-    if (!orgId) {
+    const info = await keyInfoFor(key);
+    if (!info) {
       return jsonError('unauthorized', 'Key not found or organization inactive.');
+    }
+    const orgId = info.organizationId;
+
+    // Throttle AFTER the key resolves: an unauthenticated caller must not be
+    // able to fill the throttle table with junk buckets, and a real key is
+    // the only thing worth metering. Bucketed by the key's digest so the
+    // table holds no credential.
+    const limit = await rateLimit(`device-usage:${keyDigest(key).slice(0, 32)}`, {
+      max: USAGE_MAX_PER_MINUTE,
+      windowMs: MINUTE,
+    });
+    if (!limit.allowed) {
+      return jsonError('rate_limited', 'Too many usage checks. Retry in a moment.', {
+        'retry-after': String(limit.retryAfterSeconds),
+      });
     }
 
     const bundle = await subscriptionBundle(orgId);
@@ -119,6 +127,11 @@ export async function GET(request: Request): Promise<Response> {
       ),
       periodStart: bundle.period.start,
       periodEnd: bundle.period.end,
+      // G11: when the KEY dies, as distinct from when the allowance resets.
+      // Both were `periodEnd` on the client, so a pasted key carried no
+      // expiry and the app could only discover a lapsed key on a failed
+      // prompt. Null = no expiry (an org key, or one minted before TTLs).
+      keyExpiresAt: info.expiresAt,
     });
   } catch (e) {
     return errorResponse(e);
