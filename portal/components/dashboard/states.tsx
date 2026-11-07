@@ -158,7 +158,7 @@ export function RefreshingBar({ show }: { show: boolean }) {
   return (
     <div
       aria-live="polite"
-      className={`flex h-4 items-center justify-end text-xs text-muted-transition ${show ? "" : "invisible"}`}
+      className={`flex h-4 items-center justify-end text-xs text-muted-foreground ${show ? "" : "invisible"}`}
     >
       {show ? "Updating…" : " "}
     </div>

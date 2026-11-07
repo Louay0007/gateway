@@ -29,14 +29,22 @@ export default async function DashboardSettingsPage({
   const tab = resolveSettingsTab(sp.tab);
 
   return (
-    <>
+    // `max-w-5xl`, matching the chat shell's settings page. The console
+    // layout deliberately has no max width — Usage and Billing want every
+    // pixel — but a settings form stretched across a 2560px monitor puts
+    // a 120px label 2000px from its field. The measure belongs to the
+    // page, not the group.
+    <div className="mx-auto grid w-full max-w-5xl gap-6">
+      {/* `h2`: the shell's sticky header already owns the page's `h1`
+          (site-header.tsx), so a second `h1` here would be a duplicate
+          heading, not a bigger one. */}
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
-        <p className="text-sm text-muted-foreground">
+        <p className="mt-1 text-sm text-muted-foreground">
           Your plan, usage, keys and account — in one place.
         </p>
       </div>
       <SettingsPanel tab={tab} shell="console" />
-    </>
+    </div>
   );
 }

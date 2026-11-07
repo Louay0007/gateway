@@ -429,18 +429,20 @@ export function PasswordCard() {
           ) : null}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Button size="sm" disabled={!canSubmit} onClick={() => void submit()}>
             {saving ? "Updating…" : "Update password"}
           </Button>
-          {current ? (
-            <a
-              href="/reset-password"
-              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
-            >
-              Forgotten your current password?
-            </a>
-          ) : null}
+          {/* Always offered. It used to render only once the current
+              password field had text — so the person who has FORGOTTEN it,
+              the only person who needs this link, was the one who could
+              not see it. */}
+          <a
+            href="/reset-password"
+            className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+          >
+            Forgotten your password?
+          </a>
         </div>
       </CardContent>
     </Card>
@@ -452,9 +454,13 @@ export function PasswordCard() {
 // ───────────────────────────────────────────────────────────────────────
 
 export function DangerCard() {
-  const { data, loading } = useApi<{ orgs: OrgListItem[] }>("/api/orgs");
-  const org = data?.orgs?.[0] ?? null;
-  const isOwner = org?.role === "owner";
+  const { data, loading, error: loadError, reload } = useApi<{ orgs: OrgListItem[] }>("/api/orgs");
+  // The account is always one personal org plus any orgs you joined, so
+  // `[0]` is the wrong one to delete as soon as a membership exists: the
+  // list is not ordered, and deleting a shared org is not "delete my
+  // account". Pick the one you own, and say which.
+  const org = data?.orgs?.find((o) => o.role === "owner") ?? null;
+  const isOwner = org !== null;
 
   const [open, setOpen] = React.useState(false);
   const [typed, setTyped] = React.useState("");
@@ -491,7 +497,11 @@ export function DangerCard() {
     window.location.assign("/sign-in");
   }
 
-  if (loading) return null;
+  // A skeleton, not `null`: returning nothing made the Danger tab render a
+  // header with an empty page under it for the first second, then pop a
+  // card in. Same shape as every other panel's loading state.
+  if (loading) return <PanelSkeleton rows={2} />;
+  if (loadError) return <ErrorState error={loadError} onRetry={reload} />;
 
   return (
     <Card className="border-destructive/40">
@@ -511,9 +521,15 @@ export function DangerCard() {
             Only the account owner can delete it.
           </p>
         ) : (
-          <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
-            Delete account
-          </Button>
+          <div className="grid justify-items-start gap-2">
+            <Button variant="destructive" size="sm" onClick={() => setOpen(true)}>
+              Delete account
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              This deletes <span className="font-medium text-foreground">{org.name}</span>{" "}
+              (<code>{org.slug}</code>) — the organisation this account owns.
+            </p>
+          </div>
         )}
       </CardContent>
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabsContent } from "@/components/ui/tabs";
+import { SettingsTabs } from "@/components/settings/settings-tabs";
 import { BillingView, PaymentHistory } from "@/components/dashboard/billing-view";
 import { KeysView } from "@/components/dashboard/keys-view";
 import { UsageView } from "@/components/dashboard/usage-view";
@@ -64,18 +65,12 @@ export function SettingsPanel({
 }) {
   return (
     <>
-      <Tabs defaultValue={tab}>
-        <TabsList className="mb-2 w-full overflow-x-auto">
-          <TabsTrigger value="plan">Plan</TabsTrigger>
-          <TabsTrigger value="usage">Usage</TabsTrigger>
-          <TabsTrigger value="keys">API keys</TabsTrigger>
-          <TabsTrigger value="billing">Billing</TabsTrigger>
-          <TabsTrigger value="profile">Profile</TabsTrigger>
-          <TabsTrigger value="ai">AI</TabsTrigger>
-          <TabsTrigger value="danger">Danger</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="plan" className="grid gap-4">
+      <SettingsTabs tab={tab}>
+        {/* One consistent rhythm for every panel: the same 1rem stack,
+            and a readable measure inside cards (`max-w-2xl` on the panel
+            container would fight the tables in Usage/Billing, which want
+            the full width — so each card narrows itself instead). */}
+        <TabsContent value="plan" className="grid gap-4 sm:gap-6">
           <BillingView />
           <Card>
             <CardHeader>
@@ -99,21 +94,21 @@ export function SettingsPanel({
           <KeysView />
         </TabsContent>
 
-        <TabsContent value="billing" className="grid gap-4">
+        <TabsContent value="billing" className="grid gap-4 sm:gap-6">
           <PaymentHistory />
-          <p className="text-sm text-muted-foreground">
-            Payments are manual D17 transfers (La Poste Tunisienne). Your
-            plan tab opens the checkout with the transfer instructions.
+          <p className="max-w-prose text-sm text-muted-foreground">
+            Payments are manual D17 transfers (La Poste Tunisienne). Your plan
+            tab opens the checkout with the transfer instructions.
           </p>
         </TabsContent>
 
-        <TabsContent value="profile" className="grid gap-4">
+        <TabsContent value="profile" className="grid gap-4 sm:gap-6">
           <ProfileCard />
           <PasswordCard />
           <ChatSettings />
         </TabsContent>
 
-        <TabsContent value="ai" className="grid gap-4">
+        <TabsContent value="ai" className="grid gap-4 sm:gap-6">
           <MemoryPanel />
           <InstructionsPanel />
         </TabsContent>
@@ -121,14 +116,14 @@ export function SettingsPanel({
         <TabsContent value="danger">
           <DangerCard />
         </TabsContent>
-      </Tabs>
+      </SettingsTabs>
 
       <p className="mt-8 text-xs text-muted-foreground">
         {shell === "chat" ? (
           <>
             Need your API keys for a script?{" "}
-            <Link href="/dashboard" className="underline underline-offset-4">
-              Open the classic dashboard
+            <Link href="/dashboard/settings?tab=keys" className="underline underline-offset-4">
+              Open them in the dashboard
             </Link>
             .
           </>

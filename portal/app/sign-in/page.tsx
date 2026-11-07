@@ -31,16 +31,25 @@ export const metadata: Metadata = {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; passwordChanged?: string }>;
 }) {
   if (await hasLiveSession()) redirect("/chat");
   const params = await searchParams;
   const raw = params.callbackUrl ?? "/chat";
   const callbackUrl = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/chat";
+  // The password form signs you out of everything, including the tab you
+  // changed it in, and lands here. Without this the redirect was
+  // unexplained: you were told "sign in again" by a toast you had 0.2s to
+  // read, then dropped on a bare form with no memory of why.
+  const changed = params.passwordChanged === "1";
   return (
     <AuthShell
       title="Welcome back"
-      subtitle="Sign in to manage your keys and usage."
+      subtitle={
+        changed
+          ? "Password changed. Every device was signed out — sign in with your new password."
+          : "Sign in to manage your keys and usage."
+      }
       footer={
         <>
           No account yet?{" "}

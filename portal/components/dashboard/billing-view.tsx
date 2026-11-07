@@ -57,7 +57,19 @@ const MODEL_PRICES: Record<string, { input: number; output: number; label: strin
   fast: { input: 1.00, output: 5.00, label: "Fast (Haiku 5.5)" },
   smart: { input: 3.00, output: 15.00, label: "Smart (Sonnet 5.5)" },
   frontier: { input: 15.00, output: 75.00, label: "Frontier (Opus 5.5)" },
+  // Same rates as frontier by design (prices/models.yaml) — fable is a
+  // second frontier-class route, not a cheaper one.
+  fable: { input: 15.00, output: 75.00, label: "Fable (GPT-6 Astra)" },
 };
+
+/** "1 November" from an ISO instant, in the sale's own timezone. */
+function promoEndsLabel(endsAt: string): string {
+  return new Date(endsAt).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "long",
+    timeZone: "Africa/Tunis",
+  });
+}
 
 function usdPerMtok(usd: number): string {
   return `$${usd.toFixed(2)} / MTok`;
@@ -253,13 +265,15 @@ export function BillingView() {
       {promo ? (
         <Card className="border-orange-500/40 bg-orange-500/5">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <span aria-hidden className="text-lg">🎃</span>
             <p className="text-sm">
               <span className="font-medium">
                 {promo.label}: {promo.percentOff}% off every plan.
               </span>{" "}
-              Ends 1 Nov, 00:00 (Tunisia). The discount is applied automatically
-              when you pay by D17.
+              {/* The date comes from the promo, not from a string — the old
+                  copy said "Ends 1 Nov" forever, including after it ended
+                  and on any future campaign with a different window. */}
+              Ends {promoEndsLabel(promo.endsAt)}. The discount is applied
+              automatically when you pay by D17.
             </p>
           </CardContent>
         </Card>
@@ -424,7 +438,7 @@ export function BillingView() {
                             timeZone: "UTC",
                           })
                         : "your trial end date"}
-                      {" "}— renewal opens when the trial ends. Campaign ends 31 October.
+                      {" "}— renewal opens when the trial ends.
                     </span>
                   ) : (
                     <Button
@@ -515,7 +529,7 @@ export function BillingView() {
                     </p>
                     {plan.promo ? (
                       <p className="text-xs font-medium text-orange-600 dark:text-orange-400">
-                        {plan.promo.percentOff}% Halloween discount applied
+                        {plan.promo.percentOff}% discount applied
                       </p>
                     ) : null}
                     {renews ? (
@@ -733,6 +747,12 @@ function PlanComparisonTable({
 }) {
   if (plans.length === 0) return null;
 
+  // The plan the table emphasises. It was `p.code === "pro"`, which starts
+  // highlighting a row that does not exist the moment the catalog is
+  // renamed and highlights nothing at all on a single-plan catalog. The
+  // most expensive plan is the one a comparison table exists to sell.
+  const featured = plans.reduce((a, b) => (b.priceCents > a.priceCents ? b : a)).code;
+
   const features = [
     { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => {
       const price = centsDt(p.promo?.priceCents ?? p.priceCents);
@@ -778,7 +798,7 @@ function PlanComparisonTable({
                     key={p.code}
                     className={cn(
                       "px-4 py-3 text-center",
-                      p.code === "pro" && "bg-emerald-50/50 dark:bg-emerald-900/30",
+                      p.code === featured && "bg-emerald-50/50 dark:bg-emerald-900/30",
                     )}
                   >
                     <div className="flex flex-col items-center gap-1">
@@ -786,7 +806,7 @@ function PlanComparisonTable({
                       {p.code === currentPlanCode && (
                         <Badge className="bg-emerald-600 text-white text-xs">Current</Badge>
                       )}
-                      {p.code === "pro" && p.code !== currentPlanCode && (
+                      {p.code === featured && p.code !== currentPlanCode && (
                         <Badge className="bg-emerald-600 text-white text-xs">Popular</Badge>
                       )}
                     </div>
@@ -811,7 +831,7 @@ function PlanComparisonTable({
                       key={p.code}
                       className={cn(
                         "px-4 py-3 text-center tabular-nums text-gray-600 dark:text-gray-300",
-                        p.code === "pro" && "bg-emerald-50/30 dark:bg-emerald-900/30 font-medium text-gray-900 dark:text-gray-100",
+                        p.code === featured && "bg-emerald-50/30 dark:bg-emerald-900/30 font-medium text-gray-900 dark:text-gray-100",
                       )}
                     >
                       {feat.getValue(p)}
@@ -864,8 +884,8 @@ function PlanComparisonTable({
                     ) : (
                       <Button
                         size="sm"
-                        className={p.code === "pro" ? "bg-emerald-600 text-white hover:bg-emerald-700 w-full" : "w-full"}
-                        variant={p.code === "pro" ? "default" : "outline"}
+                        className={p.code === featured ? "bg-emerald-600 text-white hover:bg-emerald-700 w-full" : "w-full"}
+                        variant={p.code === featured ? "default" : "outline"}
                         disabled={disabled}
                         onClick={() => onSelectPlan(p.code)}
                       >
