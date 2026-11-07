@@ -14,7 +14,7 @@ LOCAL := http://127.0.0.1:4000
         report reconcile smoke latency backup restore pull deploy verify-config \
         check-format verify-caddy db-init db-migrate jobs jobs-once accounts \
         health-local test-local e2e plan \
-        verify-metering verify-d17 verify-grant backup-drill verify-engine
+        verify-metering verify-d17 verify-dodo verify-grant backup-drill verify-engine
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -440,6 +440,11 @@ verify-d17: ## Prove the manual D17 payment path (duplicate, expiry, double-appr
 	@$(COMPOSE) build jobs
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-d17.ts
+
+verify-dodo: ## Prove the Dodo payment path (checkout, seats, signed webhook, replay, grace, cancel)
+	@$(COMPOSE) build jobs
+	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/verify-dodo.ts
 
 verify-grant: ## Prove the manual plan grant (one row, one-live-row, idempotent window, audit, cut)
 	@$(COMPOSE) build jobs
