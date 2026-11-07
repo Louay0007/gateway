@@ -205,7 +205,9 @@ export async function redeemTrialCode(
 
   return {
     ok: true,
-    message: `Free trial activated! Your trial expires on ${expiresAt.toLocaleDateString('en-TN', { year: 'numeric', month: 'long', day: 'numeric' })}. The free trial campaign ends 31 October.`,
+    // The campaign end comes from the code's own valid_until, never a
+    // constant: this sentence said "ends 31 October" through November.
+    message: `Free trial activated! Your trial expires on ${expiresAt.toLocaleDateString('en-TN', { year: 'numeric', month: 'long', day: 'numeric' })}. The free trial campaign ends ${tc.validUntil.toLocaleDateString('en-TN', { month: 'long', day: 'numeric' })}.`,
     expiresAt: expiresAt.toISOString(),
   };
 }

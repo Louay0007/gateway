@@ -40,13 +40,11 @@ export default async function RedeemPage() {
           Promo codes unlock temporary access to fast and smart. Enter one
           below if you have it.
           {/*
-            This used to read "Free trial campaign ends 31 October — redeem
-            before then." It is now 1 November: the single code,
-            ZAINO-FREE-OCT26, has valid_until 2026-10-31, so
-            /api/trial/redeem answers 410 code_expired for every input. An
-            instruction to hurry up and redeem something that cannot be
-            redeemed is worse than no instruction — it makes a finished
-            campaign look like a broken form.
+            The notice is driven by hasRedeemableTrialCode(), never a date
+            constant. ZAINO-FREE-OCT26 expired on 31 October; 0036 added
+            ZAINO-FREE-NOV26, so this is quiet today — but on 1 December it
+            says the campaign ended instead of telling people to hurry and
+            redeem a code the API will answer 410 for.
           */}
           {campaignEnded && (
             <> The free trial campaign has now ended.</>
