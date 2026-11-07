@@ -441,7 +441,7 @@ async function main(): Promise<void> {
   reportAndExit();
 }
 
-function reportAndExit(): void {
+function reportAndExit(): never {
   process.stdout.write(
     `\n${failures.length === 0 ? '✓ all dodo checks passed' : `✗ ${failures.length} check(s) failed:`}\n`,
   );
