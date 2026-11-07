@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { promoView } from "@/lib/billing/promo";
-import { centsDt } from "@/lib/dashboard/format";
+import { formatPlanPrice } from "@/lib/dashboard/format";
 
 /**
  * Docs hero + table of contents — shared by public /docs and
@@ -105,11 +105,11 @@ const TOC = [
 
 export function DocsToc() {
   // Same promotion module the checkout charges with, so the docs line can
-  // never advertise a price the D17 page will not ask for. 1613 is the
-  // Starter list price in USD cents — 50 DT at the 3.1 D17 rate
-  // (migration 0024); it is the floor.
-  const starterPromo = promoView(1613);
-  const starterPrice = centsDt(starterPromo?.priceCents ?? 1613);
+  // never advertise a price the D17 page will not ask for. 1500/50000 are
+  // Starter's two list prices (USD cents / exact dinar millimes) since
+  // migration 0037; neither is derived from the other.
+  const starterPromo = promoView(1500);
+  const starterPrice = formatPlanPrice(starterPromo?.priceCents ?? 1500, 50000);
   const labels: Record<string, string> = {
     quickstart: "Quickstart",
     models: "Models",

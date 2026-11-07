@@ -189,6 +189,9 @@ services:
       # real PSP once finalised. See lib/billing/types.ts.
       BILLING_PROVIDER: ${BILLING_PROVIDER:-dev}
       BILLING_DEV_SECRET: ${BILLING_DEV_SECRET:?set in .env}
+      DODO_PAYMENTS_API_KEY: ${DODO_PAYMENTS_API_KEY:-}
+      DODO_PAYMENTS_WEBHOOK_KEY: ${DODO_PAYMENTS_WEBHOOK_KEY:-}
+      DODO_PAYMENTS_ENVIRONMENT: ${DODO_PAYMENTS_ENVIRONMENT:-test_mode}
 
       # Email. Password reset lives here (lib/auth/reset.ts); receipts
       # for the real payment provider reuse the same transport.
@@ -279,6 +282,9 @@ services:
       # origin for its simulator URL and the callback it drives).
       BILLING_PROVIDER: ${BILLING_PROVIDER:-dev}
       BILLING_DEV_SECRET: ${BILLING_DEV_SECRET:?set in .env}
+      DODO_PAYMENTS_API_KEY: ${DODO_PAYMENTS_API_KEY:-}
+      DODO_PAYMENTS_WEBHOOK_KEY: ${DODO_PAYMENTS_WEBHOOK_KEY:-}
+      DODO_PAYMENTS_ENVIRONMENT: ${DODO_PAYMENTS_ENVIRONMENT:-test_mode}
       APP_URL: http://127.0.0.1:3000
       # Reach the portal over the compose network (not the host's
       # loopback, which inside a container is the container itself).

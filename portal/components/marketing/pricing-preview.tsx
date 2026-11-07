@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { ErrorState, PanelSkeleton } from "@/components/dashboard/states";
 import { useApi } from "@/lib/api/use-api";
 import type { PlanListResponse, ProfileView } from "@/lib/api/types";
-import { centsDt, compact } from "@/lib/dashboard/format";
+import { formatPlanPrice, compact } from "@/lib/dashboard/format";
 
 const WHATSAPP_NUMBER = "21656794578";
 const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("Hi, I'm interested in Zaino AI Enterprise plan.")}`;
@@ -112,11 +112,11 @@ export function PricingPreview() {
 
               <p className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums text-gray-900 dark:text-gray-100">
-                  {centsDt(plan.promo?.priceCents ?? plan.priceCents)}
+                  {formatPlanPrice(plan.promo?.priceCents ?? plan.priceCents, plan.priceTndMillimes)}
                 </span>
                 {plan.promo ? (
                   <span className="text-sm tabular-nums text-gray-500 line-through dark:text-gray-400">
-                    {centsDt(plan.promo.originalPriceCents)}
+                    {formatPlanPrice(plan.promo.originalPriceCents, plan.priceTndMillimes)}
                   </span>
                 ) : null}
                 <span className="text-sm text-gray-600 dark:text-gray-400">/{plan.interval}</span>

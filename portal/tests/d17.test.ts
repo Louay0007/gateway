@@ -130,20 +130,23 @@ describe('amount (USD cents -> TND millimes)', () => {
 
 describe('planPriceTndMillimes (whole-dinar transfer amount)', () => {
   it('asks for the advertised whole dinars, not the fractional conversion', () => {
-    // Starter 50 DT list, Pro 90 DT list.
-    expect(planPriceTndMillimes(1613, 3.1)).toBe(50_000);
-    expect(planPriceTndMillimes(2903, 3.1)).toBe(90_000);
+    // Starter/Pro USD lists (1500/3000¢ since 0037). Pure conversion:
+    // the 50/90 DT asks now live in the exact price_tnd_millimes
+    // column (50000/90000), which d17.begin prefers — this helper is
+    // only the fallback for plans with no exact ask.
+    expect(planPriceTndMillimes(1500, 3.1)).toBe(47_000);
+    expect(planPriceTndMillimes(3000, 3.1)).toBe(93_000);
   });
 
   it('applies the Halloween price to the same round numbers', () => {
-    // 30% off: 50 DT → 35 DT, 90 DT → 63 DT.
-    expect(planPriceTndMillimes(1129, 3.1)).toBe(35_000);
-    expect(planPriceTndMillimes(2032, 3.1)).toBe(63_000);
+    // 30% off the USD list, converted (promo path still converts).
+    expect(planPriceTndMillimes(1050, 3.1)).toBe(33_000);
+    expect(planPriceTndMillimes(2100, 3.1)).toBe(65_000);
   });
 
   it('rounds to the nearest dinar rather than truncating', () => {
-    // 1613 cents × 3.1 = 49.9… DT → 50 DT, not 49.
-    expect(planPriceTndMillimes(1613, 3.1)).toBe(50_000);
+    // 1500 cents × 3.1 = 46.5 DT → 47 DT, not 46.
+    expect(planPriceTndMillimes(1500, 3.1)).toBe(47_000);
     expect(planPriceTndMillimes(1000, 3.1)).toBe(31_000);
   });
 });

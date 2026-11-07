@@ -45,7 +45,7 @@ import type {
   SubscriptionBundle,
   PaymentHistoryItem,
 } from "@/lib/api/types";
-import { centsDt, compact, usd } from "@/lib/dashboard/format";
+import { compact, formatPlanPrice, usd } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -91,6 +91,8 @@ export function BillingView() {
   const [changeOpen, setChangeOpen] = React.useState(false);
   const [cancelMode, setCancelMode] = React.useState<"period" | "now" | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const [method, setMethod] = React.useState<"d17" | "dodo">("d17");
+  const [seats, setSeats] = React.useState(1);
 
   const justPaid = search.get("state") === "active";
 
@@ -170,12 +172,13 @@ export function BillingView() {
     catalog.reload();
   }
 
-  async function beginCheckout(planCode: string, method?: "d17") {
+  async function beginCheckout(planCode: string, chosenMethod: "d17" | "dodo" = method, seatCount: number = seats) {
     setBusy(planCode);
     const result = await apiSend<{ checkoutUrl: string }>("/api/checkout", {
       body: {
         planCode,
-        ...(method ? { method } : {}),
+        method: chosenMethod,
+        seats: seatCount,
         // This component renders in BOTH shells (`/settings?tab=plan` and
         // `/dashboard/billing`), so the post-payment destination has to be
         // whichever one is asking. Hardcoding it server-side dropped a
@@ -425,8 +428,8 @@ export function BillingView() {
                   </div>
                 </div>
 
-                {/* Action Button */}
-                <div className="flex justify-center md:justify-end">
+                {/* Action Button — two rails */}
+                <div className="flex flex-col items-stretch justify-center gap-2 md:items-end">
                   {trialActive ? (
                     <span className="text-sm text-emerald-700 dark:text-emerald-400 font-medium px-4 py-3">
                       Free trial active until{" "}
@@ -441,26 +444,55 @@ export function BillingView() {
                       {" "}— renewal opens when the trial ends.
                     </span>
                   ) : (
-                    <Button
-                      className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
-                      size="lg"
-                      disabled={busy !== null || !isRenewableNow}
-                      title={
-                        !isRenewableNow
-                          ? `Renewal opens ${renewalOpensLabel} — 2 days before your period ends.`
-                          : undefined
-                      }
-                      onClick={() => void beginCheckout(plan.code, "d17")}
-                    >
-                      <CreditCard className="mr-2 size-4" />
-                      {busy
-                        ? "Opening checkout…"
-                        : hasPlan
-                          ? isRenewableNow
-                            ? "Renew with D17"
-                            : `Renews ${renews ?? "next period"}`
-                          : "Pay with D17"}
-                    </Button>
+                    <>
+                      <div className="grid gap-2 md:w-64">
+                        <label className="grid gap-1 text-xs text-gray-600 dark:text-gray-400">
+                          Payment method
+                          <select
+                            className="rounded-md border px-2 py-2 text-sm"
+                            value={method}
+                            onChange={(e) => setMethod(e.target.value as "d17" | "dodo")}
+                          >
+                            <option value="d17">D17 transfer (Tunisia, TND)</option>
+                            <option value="dodo">Card (Dodo, USD)</option>
+                          </select>
+                        </label>
+                        {(plan.maxSeats ?? 1) > 1 ? (
+                          <label className="grid gap-1 text-xs text-gray-600 dark:text-gray-400">
+                            Seats
+                            <select
+                              className="rounded-md border px-2 py-2 text-sm"
+                              value={seats}
+                              onChange={(e) => setSeats(Number(e.target.value))}
+                            >
+                              {Array.from({ length: plan.maxSeats ?? 1 }, (_, i) => i + 1).map((n) => (
+                                <option key={n} value={n}>{n}</option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                      </div>
+                      <Button
+                        className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
+                        size="lg"
+                        disabled={busy !== null || !isRenewableNow}
+                        title={
+                          !isRenewableNow
+                            ? `Renewal opens ${renewalOpensLabel} — 2 days before your period ends.`
+                            : undefined
+                        }
+                        onClick={() => void beginCheckout(plan.code)}
+                      >
+                        <CreditCard className="mr-2 size-4" />
+                        {busy
+                          ? "Opening checkout…"
+                          : hasPlan
+                            ? isRenewableNow
+                              ? method === "dodo" ? "Pay by card" : "Renew with D17"
+                              : `Renews ${renews ?? "next period"}`
+                            : method === "dodo" ? "Pay by card" : "Pay with D17"}
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
@@ -517,10 +549,10 @@ export function BillingView() {
                   </div>
                   <div className="text-right">
                     <p className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-2xl font-semibold tabular-nums">
-                      {centsDt(plan.promo?.priceCents ?? plan.priceCents)}
+                      {formatPlanPrice(plan.promo?.priceCents ?? plan.priceCents, plan.priceTndMillimes)}
                       {plan.promo ? (
                         <span className="text-sm font-normal text-muted-foreground line-through">
-                          {centsDt(plan.promo.originalPriceCents)}
+                          {formatPlanPrice(plan.promo.originalPriceCents, plan.priceTndMillimes)}
                         </span>
                       ) : null}
                       <span className="text-sm font-normal text-muted-foreground">
@@ -640,7 +672,7 @@ export function BillingView() {
           <PlanComparisonTable
             plans={plans}
             currentPlanCode={plan.code}
-            onSelectPlan={(code) => void beginCheckout(code, "d17")}
+            onSelectPlan={(code) => void beginCheckout(code)}
             disabled={busy !== null}
           />
         </>
@@ -671,10 +703,10 @@ export function BillingView() {
                   {p.code === plan?.code ? <Badge className="bg-emerald-600 text-white">Current</Badge> : null}
                 </div>
                 <p className="flex flex-wrap items-baseline gap-2 text-2xl font-semibold tabular-nums">
-                  {centsDt(p.promo?.priceCents ?? p.priceCents)}
+                  {formatPlanPrice(p.promo?.priceCents ?? p.priceCents, p.priceTndMillimes)}
                   {p.promo ? (
                     <span className="text-sm font-normal text-muted-foreground line-through">
-                      {centsDt(p.promo.originalPriceCents)}
+                      {formatPlanPrice(p.promo.originalPriceCents, p.priceTndMillimes)}
                     </span>
                   ) : null}
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
@@ -755,8 +787,8 @@ function PlanComparisonTable({
 
   const features = [
     { key: "price", label: "Monthly price", getValue: (p: typeof plans[0]) => {
-      const price = centsDt(p.promo?.priceCents ?? p.priceCents);
-      return p.promo ? `${price} (was ${centsDt(p.promo.originalPriceCents)})` : price;
+      const price = formatPlanPrice(p.promo?.priceCents ?? p.priceCents, p.priceTndMillimes);
+      return p.promo ? `${price} (was ${formatPlanPrice(p.promo.originalPriceCents, p.priceTndMillimes)})` : price;
     } },
     { key: "fast-tokens", label: "Fast tokens (Haiku 5.5)", getValue: (p: typeof plans[0]) => {
       const limit = (p.tokenLimits as Record<string, number>)?.fast;

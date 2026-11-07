@@ -14,7 +14,7 @@ import { PlanCard } from './plan-card';
 import type { PlanSummary } from '@/lib/billing/state';
 import type { D17Lang } from '@/lib/i18n/d17';
 import { t17 } from '@/lib/i18n/d17';
-import { centsDt, compact } from '@/lib/dashboard/format';
+import { compact, formatPlanPrice } from '@/lib/dashboard/format';
 
 interface PaywallStateProps {
   plans: PlanSummary[];
@@ -116,9 +116,9 @@ export function PaywallState({
             <PlanCard
               key={plan.code}
               name={t(isPro ? 'd17.plan_pro_name' : 'd17.plan_starter_name')}
-              priceLabel={`${centsDt(plan.promo?.priceCents ?? plan.priceCents)}/mo`}
+              priceLabel={`${formatPlanPrice(plan.promo?.priceCents ?? plan.priceCents, plan.priceTndMillimes)}/mo`}
               originalPriceLabel={
-                plan.promo ? `${centsDt(plan.promo.originalPriceCents)}/mo` : undefined
+                plan.promo ? `${formatPlanPrice(plan.promo.originalPriceCents, plan.priceTndMillimes)}/mo` : undefined
               }
               promoLabel={plan.promo ? `${plan.promo.percentOff}% off — Halloween` : undefined}
               features={features}

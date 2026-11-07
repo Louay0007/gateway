@@ -128,7 +128,15 @@ export function initialsFor(name?: string | null, email?: string | null): string
   return "?";
 }
 
-/** D17 rate for client-side DT display (matches server D17_USD_TND_RATE default). */
+/**
+ * D17 rate for client-side DT display of USAGE figures (spend, included
+ * allowance), which are USD metered amounts with no dinar equivalent of
+ * their own. Never for a PLAN PRICE: since 0037 the catalog carries both
+ * prices and `formatPlanPrice` below reads them directly. ponytail: a
+ * hardcoded rate is a display estimate, not a charge; replace with a
+ * server-provided rate when spend is ever shown in DT to a customer who
+ * can pay in DT.
+ */
 const D17_RATE = 3.1;
 
 /** Integer USD cents → DT as a number (whole Dinars, for arithmetic/display). */
@@ -139,6 +147,40 @@ export function centsDtNumber(cents: number): number {
 /** Integer USD cents → "50 DT" (Tunisian Dinars, no decimals for plan prices). */
 export function centsDt(cents: number): string {
   return `${centsDtNumber(cents)} DT`;
+}
+
+/**
+ * A plan price, from the catalog's own two numbers.
+ *
+ * `priceCents` is the USD ask and `priceTndMillimes` the exact dinar ask;
+ * neither is derived from the other (0037), so this never converts. A
+ * plan with no dinar price shows USD only — that is a USD-only plan, not
+ * a missing value to guess at.
+ */
+export function usdPrice(cents: number): string {
+  const dollars = cents / 100;
+  return dollars % 1 === 0 ? `$${dollars}` : `$${dollars.toFixed(2)}`;
+}
+
+/** Exact dinar ask → "50 DT" / "89.500 DT" (millimes shown only when non-zero). */
+export function tndPrice(millimes: number): string {
+  const dinars = millimes / 1000;
+  return Number.isInteger(dinars) ? `${dinars} DT` : `${dinars.toFixed(3)} DT`;
+}
+
+/**
+ * Both prices, for a surface a customer may pay from either rail:
+ * "$15 / 50 DT". Per seat when the plan sells more than one.
+ */
+export function formatPlanPrice(
+  usdCents: number,
+  tndMillimes: number | null | undefined,
+  seats = 1,
+): string {
+  const usd = usdPrice(usdCents * seats);
+  const tnd = tndMillimes ? tndPrice(tndMillimes * seats) : null;
+  const suffix = seats > 1 ? " each" : "";
+  return tnd ? `${usd} / ${tnd}${suffix}` : usd;
 }
 
 const tndFormatter = new Intl.NumberFormat("fr-TN", {

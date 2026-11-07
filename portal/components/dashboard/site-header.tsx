@@ -15,7 +15,7 @@ import {
 import { signOutAction } from "@/lib/auth/actions";
 import { titleForPath } from "@/components/dashboard/nav";
 import { useShellIdentity } from "@/components/dashboard/shell-identity";
-import { centsDt, relativeTime, usdToTnd } from "@/lib/dashboard/format";
+import { relativeTime, usd } from "@/lib/dashboard/format";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -152,7 +152,7 @@ function AccountStatusMenu() {
 
   const facts: { label: string; value: string }[] = [
     { label: "Plan", value: plan?.name ?? "None" },
-    { label: "Spend this period", value: `${usdToTnd(spent)}${included && plan ? ` of ${centsDt(plan?.includedSpendCents ?? 0)} (${pct}%)` : ""}` },
+    { label: "Spend this period", value: `${usd(spent)}${included && plan ? ` of ${usd(plan?.includedSpendCents ? plan.includedSpendCents / 100 : 0)} (${pct}%)` : ""}` },
     { label: "Active keys", value: `${bundle?.keys.active ?? 0}${bundle?.keys.max ? ` of ${bundle.keys.max}` : ""}` },
     {
       label: "Gateway limits",

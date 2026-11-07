@@ -63,10 +63,12 @@ export interface BeginCheckoutInput {
   subscriptionId: string;
   /** Where the provider returns the user after payment. */
   returnUrl: string;
+  /** Seats bought. Flat plans are always 1; Pro is priced per seat. */
+  seats: number;
 }
 
 export interface BillingProvider {
-  readonly name: 'dev' | 'd17';
+  readonly name: 'dev' | 'd17' | 'dodo';
 
   /** Create the provider-side payment and return where the user pays. */
   begin(input: BeginCheckoutInput): Promise<CheckoutIntent>;
@@ -76,8 +78,12 @@ export interface BillingProvider {
    * Throws on a bad signature — the route answers 400 and writes
    * nothing. Parsing before verifying loses the bytes and is the bug
    * this exists to prevent.
+   *
+   * Returns `null` for a verified event we deliberately do not act on
+   * (a provider sends dozens of kinds; only a few move a subscription).
+   * The route answers 200 so the provider stops retrying.
    */
-  verify(rawBody: string, headers: Record<string, string | null>): Promise<ProviderEvent>;
+  verify(rawBody: string, headers: Record<string, string | null>): Promise<ProviderEvent | null>;
 
   /** Cancel at the provider. Called before the local row flips. */
   cancel(input: {

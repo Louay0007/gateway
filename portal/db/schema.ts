@@ -164,7 +164,10 @@ export const plans = pgTable('plans', {
   public:                boolean('public').notNull().default(true),
   sortOrder:             integer('sort_order').notNull().default(0),
   providerPriceId:      text('provider_price_id').unique(),
+  /** USD list price, charged by Dodo. Migration 0037. */
   priceCents:            integer('price_cents').notNull().default(0),
+  /** Exact dinar ask, charged by D17 (0037). NULL = derive from priceCents. */
+  priceTndMillimes:      integer('price_tnd_millimes'),
   interval:              planInterval('interval').notNull().default('month'),
   includedSpendCents:    integer('included_spend_cents').notNull().default(0),
   overageMarkupBps:      integer('overage_markup_bps').notNull().default(3000),
@@ -191,6 +194,10 @@ export const subscriptions = pgTable('subscriptions', {
   organizationId:       uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
   planId:               uuid('plan_id').notNull().references(() => plans.id),
   status:               subStatus('status').notNull(),
+  /** Which rail sold this row: 'dodo' | 'd17' | NULL (legacy/dev). 0037. */
+  provider:             text('provider'),
+  /** Seats bought; Dodo's product_cart quantity. 0037. */
+  seats:                integer('seats').notNull().default(1),
   providerCustomerId:   text('provider_customer_id'),
   providerSubscriptionId: text('provider_subscription_id').unique(),
   currentPeriodStart:   timestamp('current_period_start', { withTimezone: true }),

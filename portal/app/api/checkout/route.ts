@@ -1,13 +1,18 @@
 /**
  * POST /api/checkout — start a subscription.
  *
- * Body: { planCode, method? }.
+ * Body: { planCode, method?, seats?, returnPath? }.
  *
  * `method` is the customer's payment choice: 'd17' selects the La Poste
- * flow (instruction page + manual verification), anything else uses the
- * provider configured for the deployment. The org comes from the
- * session, never the body — a checkout that trusted the body's org id
- * is a free upgrade for anyone who can count.
+ * flow (instruction page + manual verification, charged in TND), 'dodo'
+ * the international card checkout (USD). Absent → the provider configured
+ * for the deployment. The org comes from the session, never the body — a
+ * checkout that trusted the body's org id is a free upgrade for anyone
+ * who can count.
+ *
+ * `seats` is bounded HERE because this is a trust boundary, and again in
+ * the service against `plans.max_seats` because the catalog is the
+ * authority. Pro is per seat; Starter is pinned to one.
  *
  * Returns the provider's payment URL. For D17 that is our own
  * instruction page: the transfer itself happens inside the D17 app.
@@ -24,7 +29,8 @@ export const dynamic = 'force-dynamic';
 
 const schema = z.object({
   planCode: z.string().trim().min(1).max(40),
-  method: z.enum(['d17']).optional(),
+  method: z.enum(['d17', 'dodo']).optional(),
+  seats: z.coerce.number().int().min(1).max(25).optional(),
   // Where to land after paying. Optional, and VALIDATED IN THE SERVICE
   // (lib/billing/state.ts safeReturnPath) rather than here, so the open
   // redirect rule has exactly one definition and the dev-pay action
@@ -63,6 +69,7 @@ export async function POST(request: Request): Promise<Response> {
       ctx.userId,
       parsed.data.method ?? null,
       parsed.data.returnPath ?? null,
+      parsed.data.seats,
     );
     return Response.json({
       checkoutUrl: intent.checkoutUrl,

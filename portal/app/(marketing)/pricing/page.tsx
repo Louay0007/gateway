@@ -5,7 +5,7 @@ import { PricingPreview } from "@/components/marketing/pricing-preview";
 import SiteNav from '@/components/marketing/site-nav';
 import { listPlans } from "@/lib/billing/service";
 import type { PlanSummary } from "@/lib/billing/state";
-import { centsDt } from "@/lib/dashboard/format";
+import { formatPlanPrice } from "@/lib/dashboard/format";
 
 export const metadata: Metadata = {
   title: "Pricing Plans",
@@ -95,8 +95,12 @@ function Badge({ plans }: { plans: PlanSummary[] }) {
   const line = plans
     .map((p) => {
       const price = p.promo?.priceCents ?? p.priceCents;
-      const was = p.promo ? ` (was ${centsDt(p.priceCents)})` : '';
-      return `${p.name} ${centsDt(price)}${was} / ${p.interval}`;
+      // Both rails, from the catalog's own two numbers (0037) — a
+      // customer in Tunis pays TND, everyone else USD, and both are live.
+      const was = p.promo
+        ? ` (was ${formatPlanPrice(p.priceCents, p.priceTndMillimes)})`
+        : '';
+      return `${p.name} ${formatPlanPrice(price, p.priceTndMillimes)}${was} / ${p.interval}`;
     })
     .join(' · ');
 

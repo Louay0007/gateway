@@ -48,6 +48,8 @@ describe('dev provider callback verification', () => {
   it('accepts a correctly signed body and normalises the event', async () => {
     const { raw, sig } = signedBody(goodPayload);
     const event = await devBillingProvider.verify(raw, { [DEV_SIGNATURE_HEADER]: sig });
+    expect(event).not.toBeNull();
+    if (!event) return; // narrows for tsc; the expect above already failed otherwise
 
     expect(event.id).toBe('evt_1');
     expect(event.kind).toBe('subscription.activated');

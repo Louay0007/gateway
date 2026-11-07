@@ -88,6 +88,9 @@ export async function financialSummary(
     cache_read_tokens: string;
   }[];
 
+  // NOTE (0037): `collectedUsd` is now D17-collected only. Dodo revenue
+  // is not in payments_d17 at all, so this figure reads as "D17
+  // collected", not "total collected".
   const [payments] = (await db.execute(sql`
     SELECT COALESCE(sum(p.usd_amount_cents), 0)::float8 / 100 AS collected_usd,
            count(*)::int                                       AS collected_count

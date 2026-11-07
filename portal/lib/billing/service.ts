@@ -370,6 +370,23 @@ function isRenewable(sub: typeof subscriptions.$inferSelect): boolean {
   return now >= windowStart;
 }
 
+/**
+ * Clamp a requested seat count to what the plan actually sells.
+ *
+ * `maxSeats` is 1 on Starter and on every flat plan, so a body that asks
+ * for 5 seats on Starter silently gets 1 rather than a 400 — the seat
+ * picker is the ONLY caller that sets it, and it is rendered from
+ * `maxSeats`, so a mismatch means a stale page, not an attack. Refusing
+ * would fail a payment the customer cannot fix without reloading.
+ * Zero, negative and non-integers collapse to 1 for the same reason.
+ */
+function coerceSeats(requested: number | null | undefined, maxSeats: number): number {
+  const ceiling = Math.max(1, Math.trunc(maxSeats || 1));
+  const n = Math.trunc(Number(requested ?? 1));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(n, ceiling);
+}
+
 async function planByCode(planCode: string) {
   const plan = await db.query.plans.findFirst({ where: eq(plans.code, planCode) });
   if (!plan || !plan.public) {
@@ -409,9 +426,17 @@ export async function beginCheckout(
    * default rather than failing a payment over a bad query string.
    */
   returnPath?: string | null,
+  /**
+   * Seats bought. Pro is priced per seat; every flat plan is one seat.
+   * Validated against `plans.max_seats` BEFORE the provider is called, so
+   * a merchant of record never creates a session for an illegal quantity.
+   */
+  seats?: number | null,
 ): Promise<{ intent: Awaited<ReturnType<typeof billingProvider.begin>>; changed: boolean }> {
   const provider = resolveBillingProvider(providerName);
   const plan = await planByCode(planCode);
+
+  const seatCount = coerceSeats(seats, plan.maxSeats);
 
   // A suspended account must not be able to re-enter the money path. The
   // entitlement sync already cuts a suspended org's keys; this stops the
@@ -457,6 +482,9 @@ export async function beginCheckout(
       // payment on top of money already received. The customer should
       // contact support or use the admin retry-entitlement-sync surface;
       // starting a new checkout would orphan the paid row.
+      // D17-SHAPED ON PURPOSE. Only the D17 rail leaves a `payments_d17`
+      // row, so a Dodo subscription always falls through this guard
+      // harmlessly — there is nothing to query and nothing to orphan.
       const paidD17 = await db.query.paymentsD17.findFirst({
         where: and(
           eq(paymentsD17.subscriptionId, existing.id),
@@ -487,6 +515,12 @@ export async function beginCheckout(
             organizationId,
             planId: plan.id,
             status: 'incomplete',
+            // Recorded on the row, not inferred from the deployment
+            // default: with two rails live, the *configured* provider is
+            // not necessarily the one that sold this subscription, and
+            // the audit log used to record exactly that wrong value.
+            provider: provider.name,
+            seats: seatCount,
             updatedAt: now,
           })
           .returning()
@@ -499,6 +533,8 @@ export async function beginCheckout(
             .set({
               planId: plan.id,
               status: 'incomplete',
+              provider: provider.name,
+              seats: seatCount,
               providerCustomerId: existing.providerCustomerId,
               providerSubscriptionId: null,
               currentPeriodStart: null,
@@ -516,6 +552,7 @@ export async function beginCheckout(
     organizationId,
     planCode,
     subscriptionId: sub.id,
+    seats: seatCount,
     // Not hardcoded to /dashboard/billing any more: a customer who pays
     // from `/settings?tab=plan` used to be dropped into the other shell,
     // which reads as "where did my account go" right after handing over
@@ -666,7 +703,9 @@ export async function applyCallback(event: ProviderEvent): Promise<{
       targetType: 'subscription',
       targetId: sub.id,
       before,
-      after: { ...after, provider: billingProvider.name },
+      // The row's own rail, NOT the configured one: with Dodo live, a D17
+      // approval stamped `dodo` on the audit trail.
+      after: { ...after, provider: sub.provider ?? billingProvider.name },
     });
 
     await db
@@ -789,7 +828,7 @@ export async function cancelSubscription(
       targetType: 'subscription',
       targetId: sub.id,
       after: {
-        provider: billingProvider.name,
+        provider: sub.provider ?? billingProvider.name,
         currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
       },
     });
@@ -800,7 +839,10 @@ export async function cancelSubscription(
 
   let providerError: string | undefined;
   try {
-    await billingProvider.cancel({
+    // Cancel on the rail that SOLD this subscription. The configured
+    // default may be the other one, and cancelling there would leave the
+    // real mandate alive — the customer keeps getting charged.
+    await resolveBillingProvider(sub.provider).cancel({
       organizationId,
       providerSubscriptionId: sub.providerSubscriptionId,
     });
@@ -826,7 +868,7 @@ export async function cancelSubscription(
     action: 'subscription.canceled',
     targetType: 'subscription',
     targetId: sub.id,
-    after: { provider: billingProvider.name, providerError: providerError ?? null },
+    after: { provider: sub.provider ?? billingProvider.name, providerError: providerError ?? null },
   });
 
   return providerError ? { providerError } : {};
@@ -876,7 +918,7 @@ export async function resumeSubscription(
     targetType: 'subscription',
     targetId: sub.id,
     after: {
-      provider: billingProvider.name,
+      provider: sub.provider ?? billingProvider.name,
       currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
     },
   });

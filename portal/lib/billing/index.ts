@@ -4,6 +4,9 @@
  * `dev`   — the simulated payment used by local verification.
  * `d17`   — manual payment via La Poste Tunisienne (real in the sense
  *           that a human verifies it; there is no API to call).
+ *           Tunisian customers, charged in TND.
+ * `dodo`  — Dodo Payments, a merchant of record: cards, hosted checkout,
+ *           webhooks, renewals. International customers, charged in USD.
  *
  * Importing this module is how every other file gets a provider; none of
  * them knows which one is live — except the checkout route, which may
@@ -12,19 +15,27 @@
 
 import { devBillingProvider } from './dev';
 import { d17BillingProvider } from './d17';
+import { dodoBillingProvider } from './dodo';
 import type { BillingProvider } from './types';
 
 const PROVIDERS = {
   dev: devBillingProvider,
   d17: d17BillingProvider,
+  dodo: dodoBillingProvider,
 } as const;
 
 export type BillingProviderName = keyof typeof PROVIDERS;
 
+/**
+ * The DEFAULT rail. It does not disable the others: a customer's `method`
+ * choice overrides it per checkout via `resolveBillingProvider`.
+ */
 function configuredName(): BillingProviderName {
   const name = (process.env.BILLING_PROVIDER ?? 'dev').toLowerCase();
-  if (name === 'd17' || name === 'dev') return name;
-  throw new Error(`BILLING_PROVIDER must be 'dev' or 'd17' (got '${name}').`);
+  if (name in PROVIDERS) return name as BillingProviderName;
+  throw new Error(
+    `BILLING_PROVIDER must be one of ${Object.keys(PROVIDERS).join(', ')} (got '${name}').`,
+  );
 }
 
 /** The configured provider. */

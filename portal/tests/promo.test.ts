@@ -38,15 +38,15 @@ describe('promoActive — the window', () => {
 });
 
 describe('promoPriceCents — 30% off list', () => {
-  // Catalog list prices are 1613 / 2903 cents — 50 DT / 90 DT at the 3.1
+  // Catalog list prices are 1500 / 3000 cents — 50 DT / 90 DT at the 3.1
   // D17 rate (migration 0024). The sale takes 30% off those, so the charged
   // amounts are 35 DT / 63 DT, exactly what the pricing surfaces show.
-  it('discounts Starter 1613 → 1129 (50 DT → 35 DT)', () => {
-    expect(promoPriceCents(1613, INSIDE)).toBe(1129);
+  it('discounts Starter 1500 → 1050 (50 DT → 35 DT)', () => {
+    expect(promoPriceCents(1500, INSIDE)).toBe(1050);
   });
 
-  it('discounts Pro 2903 → 2032 (90 DT → 63 DT)', () => {
-    expect(promoPriceCents(2903, INSIDE)).toBe(2032);
+  it('discounts Pro 3000 → 2100 (90 DT → 63 DT)', () => {
+    expect(promoPriceCents(3000, INSIDE)).toBe(2100);
   });
 
   it('leaves free and negative prices untouched', () => {
@@ -55,8 +55,8 @@ describe('promoPriceCents — 30% off list', () => {
   });
 
   it('returns the list price outside the window', () => {
-    expect(promoPriceCents(1613, BEFORE)).toBe(1613);
-    expect(promoPriceCents(2903, AT_END)).toBe(2903);
+    expect(promoPriceCents(1500, BEFORE)).toBe(1500);
+    expect(promoPriceCents(3000, AT_END)).toBe(3000);
   });
 
   it('rounds to whole cents', () => {
@@ -67,19 +67,19 @@ describe('promoPriceCents — 30% off list', () => {
 
 describe('promoView — what the UI renders', () => {
   it('carries both prices while live', () => {
-    expect(promoView(2903, INSIDE)).toEqual({
+    expect(promoView(3000, INSIDE)).toEqual({
       code: 'halloween-2026',
       label: 'Halloween Special',
       percentOff: 30,
-      originalPriceCents: 2903,
-      priceCents: 2032,
+      originalPriceCents: 3000,
+      priceCents: 2100,
       endsAt: '2026-11-01T00:00:00+01:00',
     });
   });
 
   it('is null outside the window, so callers fall back to list price', () => {
-    expect(promoView(2903, BEFORE)).toBeNull();
-    expect(promoView(2903, AT_END)).toBeNull();
+    expect(promoView(3000, BEFORE)).toBeNull();
+    expect(promoView(3000, AT_END)).toBeNull();
   });
 
   it('is null for the free trial plan', () => {
@@ -92,7 +92,7 @@ describe('summarizePlan — promo projection', () => {
     code: 'starter',
     name: 'Starter',
     description: null,
-    priceCents: 1613,
+    priceCents: 1500,
     interval: 'month',
     includedSpendCents: 2000,
     hardCapCents: 10000,
@@ -107,14 +107,14 @@ describe('summarizePlan — promo projection', () => {
 
   it('keeps the list price and adds the discount', () => {
     const summary = summarizePlan(row, INSIDE);
-    expect(summary.priceCents).toBe(1613);
-    expect(summary.promo?.priceCents).toBe(1129);
-    expect(summary.promo?.originalPriceCents).toBe(1613);
+    expect(summary.priceCents).toBe(1500);
+    expect(summary.promo?.priceCents).toBe(1050);
+    expect(summary.promo?.originalPriceCents).toBe(1500);
   });
 
   it('projects no promo outside the window', () => {
     const summary = summarizePlan(row, AT_END);
-    expect(summary.priceCents).toBe(1613);
+    expect(summary.priceCents).toBe(1500);
     expect(summary.promo).toBeNull();
   });
 });

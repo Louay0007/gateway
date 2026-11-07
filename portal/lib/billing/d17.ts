@@ -70,7 +70,14 @@ export const d17BillingProvider: BillingProvider = {
     // proof later never re-prices the sale, even if the window has closed.
     const promo = promoView(plan.priceCents);
     const chargedUsdCents = promo?.priceCents ?? plan.priceCents;
-    const millimes = planPriceTndMillimes(chargedUsdCents, rate);
+    // The catalog's exact dinar ask wins (0037). Deriving it from USD
+    // cents would turn the $15 list price into 47 DT and quietly undercut
+    // the 50 DT the local price has always been — the same drift 0024 was
+    // written to stop, in reverse. The conversion stays as the fallback
+    // for any plan that has no local ask (a USD-only plan).
+    const millimes = promo?.priceCents
+      ? planPriceTndMillimes(chargedUsdCents, rate)
+      : plan.priceTndMillimes ?? planPriceTndMillimes(chargedUsdCents, rate);
     const expiresAt = paymentDeadline();
     if (promo) {
       log.info('d17: promotion applied', {

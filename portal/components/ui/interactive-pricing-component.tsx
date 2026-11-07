@@ -5,10 +5,8 @@ import { Ambient } from "@/components/marketing/ambient";
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/lib/api/use-api';
 import type { PlanListResponse, ProfileView } from '@/lib/api/types';
-import { HALLOWEEN_PROMO, promoActive } from '@/lib/billing/promo';
-import { centsDtNumber, compact } from '@/lib/dashboard/format';
+import { compact, formatPlanPrice } from '@/lib/dashboard/format';
 import { Button } from '@/components/ui/button';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Check, X } from 'lucide-react';
 
@@ -21,28 +19,23 @@ interface PricingPlan {
   id: string;
   name: string;
   description: string;
-  monthlyPrice: number | null;
-  annualPrice: number | null;
+  /**
+   * Both rails, already formatted from the catalog ("$15 / 50 DT").
+   * A STRING, not a number: the two prices are independent (0037) so
+   * there is nothing to do arithmetic on — and a number here is what
+   * let this card invent a 20%-off annual price that nobody sells.
+   */
+  priceLabel: string | null;
   customPrice?: string;
   features: Feature[];
   popular?: boolean;
   buttonText: string;
   buttonVariant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost' | 'link';
-  /** Live discount, when the API reports one. Undefined outside the sale. */
-  promo?: {
-    label: string;
-    percentOff: number;
-    originalMonthly: number;
-    originalAnnual: number;
-  };
 }
 
 interface PricingComponentProps {
   plans?: PricingPlan[];
-  onPlanSelect?: (planId: string, billingCycle: 'monthly' | 'annual') => void;
-  defaultBillingCycle?: 'monthly' | 'annual';
-  currency?: string;
-  annualDiscount?: number;
+  onPlanSelect?: (planId: string) => void;
   className?: string;
   showComparison?: boolean;
 }
@@ -52,8 +45,7 @@ const zainoPlans: PricingPlan[] = [
     id: 'starter',
     name: 'Starter',
     description: 'Perfect for individuals exploring AI coding',
-    monthlyPrice: 50,
-    annualPrice: 40,
+    priceLabel: '$15 / 50 DT',
     features: [
       { name: '100M Zaino Haiku 5.5 tokens/day', included: true },
       { name: '100M Zaino Sonnet 5.5 tokens/day', included: true },
@@ -66,8 +58,7 @@ const zainoPlans: PricingPlan[] = [
     id: 'pro',
     name: 'Pro',
     description: 'For professionals who need full power',
-    monthlyPrice: 90,
-    annualPrice: 72,
+    priceLabel: '$30 / 90 DT',
     features: [
       { name: '100M Zaino Sonnet 5.5 tokens/day', included: true },
       { name: '100M Zaino Opus 5.5 tokens/day', included: true },
@@ -84,8 +75,7 @@ const zainoPlans: PricingPlan[] = [
     id: 'enterprise',
     name: 'Enterprise',
     description: 'Unlimited power for teams and organizations',
-    monthlyPrice: null,
-    annualPrice: null,
+    priceLabel: null,
     customPrice: "Let's Talk",
     features: [
       { name: 'Unlimited Haiku 5.5 tokens', included: true },
@@ -117,10 +107,6 @@ const MODEL_LABELS: Record<string, string> = {
  */
 function fromCatalogPlan(p: PlanListResponse['plans'][number]): PricingPlan {
   const template = zainoPlans.find((t) => t.id === p.code);
-  const monthly = centsDtNumber(p.promo?.priceCents ?? p.priceCents);
-  const originalMonthly = centsDtNumber(p.priceCents);
-  const annual = Math.round(monthly * 0.8);
-  const originalAnnual = Math.round(originalMonthly * 0.8);
 
   const generatedFeatures: Feature[] = Object.entries(p.tokenLimits ?? {}).map(
     ([alias, limit]) => ({
@@ -137,45 +123,19 @@ function fromCatalogPlan(p: PlanListResponse['plans'][number]): PricingPlan {
     id: p.code,
     name: p.name,
     description: template?.description ?? p.description ?? '',
-    monthlyPrice: monthly,
-    annualPrice: annual,
+    priceLabel: formatPlanPrice(
+      p.promo?.priceCents ?? p.priceCents,
+      p.priceTndMillimes,
+    ),
     features: template?.features ?? generatedFeatures,
     popular: p.code === 'pro',
     buttonText: template?.buttonText ?? 'Get Started',
-    promo: p.promo
-      ? {
-          label: p.promo.label,
-          percentOff: p.promo.percentOff,
-          originalMonthly,
-          originalAnnual,
-        }
-      : undefined,
-  };
-}
-
-/** Fallback when the catalog is unreachable: discount the local copy too. */
-function applyLocalPromo(plan: PricingPlan): PricingPlan {
-  if (!promoActive() || !plan.monthlyPrice || !plan.annualPrice) return plan;
-  const percentOff = HALLOWEEN_PROMO.percentOff;
-  return {
-    ...plan,
-    monthlyPrice: Math.round(plan.monthlyPrice * (100 - percentOff) / 100),
-    annualPrice: Math.round(plan.annualPrice * (100 - percentOff) / 100),
-    promo: {
-      label: HALLOWEEN_PROMO.label,
-      percentOff,
-      originalMonthly: plan.monthlyPrice,
-      originalAnnual: plan.annualPrice,
-    },
   };
 }
 
 export default function PricingComponent({
   plans: plansProp = zainoPlans,
   onPlanSelect,
-  defaultBillingCycle = 'monthly',
-  currency = 'DT',
-  annualDiscount = 20,
   className = '',
   showComparison = true,
 }: PricingComponentProps) {
@@ -193,21 +153,19 @@ export default function PricingComponent({
   const plans = React.useMemo(() => {
     if (!usingDefault) return plansProp;
     const rows = catalog.data?.plans ?? [];
-    if (rows.length === 0) return zainoPlans.map(applyLocalPromo);
+    if (rows.length === 0) return zainoPlans;
     return [
       ...rows.map(fromCatalogPlan),
       ...zainoPlans.filter((p) => p.id === 'enterprise'),
     ];
   }, [usingDefault, plansProp, catalog.data]);
-  const activePromo = plans.find((p) => p.promo)?.promo ?? null;
   const session = profile.data ? { user: profile.data } : null;
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'annual'>(defaultBillingCycle);
   const [activeTab, setActiveTab] = useState<'pricing' | 'comparison'>('pricing');
 
   const handlePlanSelect = useCallback(
     (planId: string) => {
       if (onPlanSelect) {
-        onPlanSelect(planId, billingCycle);
+        onPlanSelect(planId);
         return;
       }
       // Auth-aware redirect: authenticated → billing, unauthenticated → sign-up
@@ -217,40 +175,13 @@ export default function PricingComponent({
         router.push('/sign-up');
       }
     },
-    [onPlanSelect, billingCycle, session, router]
+    [onPlanSelect, session, router]
   );
-
-  const handleBillingToggle = useCallback((isAnnual: boolean) => {
-    setBillingCycle(isAnnual ? 'annual' : 'monthly');
-  }, []);
 
   const formatPrice = useCallback(
-    (plan: PricingPlan) => {
-      if (plan.customPrice) return plan.customPrice;
-      const price = billingCycle === 'annual' ? plan.annualPrice : plan.monthlyPrice;
-      return `${price} ${currency}`;
-    },
-    [billingCycle, currency]
+    (plan: PricingPlan) => plan.customPrice ?? plan.priceLabel ?? '—',
+    [],
   );
-
-  const formatOriginalPrice = useCallback(
-    (plan: PricingPlan) => {
-      if (!plan.promo) return null;
-      const price =
-        billingCycle === 'annual'
-          ? plan.promo.originalAnnual
-          : plan.promo.originalMonthly;
-      return `${price} ${currency}`;
-    },
-    [billingCycle, currency]
-  );
-
-  const getAnnualSavings = useCallback((plan: PricingPlan) => {
-    if (!plan.monthlyPrice || !plan.annualPrice) return 0;
-    const monthlyCost = plan.monthlyPrice * 12;
-    const annualCost = plan.annualPrice * 12;
-    return Math.round(((monthlyCost - annualCost) / monthlyCost) * 100);
-  }, []);
 
   const allFeatures = React.useMemo(() => {
     const featureSet = new Set<string>();
@@ -268,44 +199,9 @@ export default function PricingComponent({
             Choose Your Plan
           </h2>
           <p className="text-lg text-white/60 max-w-2xl mx-auto mb-8">
-            Every model, one API. Simple token budgets with D17 payment.
+            Every model, one API. Pay in dinars by D17 transfer, or by card
+            anywhere in the world.
           </p>
-
-          {activePromo ? (
-            <div className="mx-auto mb-8 inline-flex flex-wrap items-center justify-center gap-2 rounded-full border border-[#A558FB]/40 bg-[#A558FB]/10 px-4 py-2 text-sm font-medium text-[#c9a4ff]">
-              <span aria-hidden>🎃</span>
-              {activePromo.label} — {activePromo.percentOff}% off every plan
-              until 1 Nov, 00:00 (Tunisia). Applied automatically at checkout.
-            </div>
-          ) : null}
-
-          {/* Billing Toggle */}
-          <div className="flex items-center justify-center gap-4 mb-8">
-            <span
-              className={`text-sm font-medium transition-colors ${
-                billingCycle === 'monthly' ? 'text-white' : 'text-white/50'
-              }`}
-            >
-              Monthly
-            </span>
-            <Switch
-              checked={billingCycle === 'annual'}
-              onCheckedChange={handleBillingToggle}
-              aria-label="Toggle billing cycle"
-            />
-            <span
-              className={`text-sm font-medium transition-colors ${
-                billingCycle === 'annual' ? 'text-white' : 'text-white/50'
-              }`}
-            >
-              Annual
-            </span>
-            {billingCycle === 'annual' && (
-              <Badge variant="secondary" className="ml-2 text-xs bg-[#A558FB]/20 text-[#c9a4ff] border-[#A558FB]/30">
-                Save up to {annualDiscount}%
-              </Badge>
-            )}
-          </div>
 
           {/* Tab Navigation */}
           {showComparison && (
@@ -375,27 +271,10 @@ export default function PricingComponent({
                           <span className="text-4xl font-bold tracking-tight text-white">
                             {formatPrice(plan)}
                           </span>
-                          {formatOriginalPrice(plan) ? (
-                            <span className="text-lg font-medium text-white/40 line-through tabular-nums">
-                              {formatOriginalPrice(plan)}
-                            </span>
-                          ) : null}
                           {!plan.customPrice && (
-                            <span className="text-white/50 text-sm">
-                              /{billingCycle === 'annual' ? 'mo' : 'month'}
-                            </span>
+                            <span className="text-white/50 text-sm">/month</span>
                           )}
                         </div>
-                        {plan.promo ? (
-                          <div className="mt-1 inline-flex items-center rounded-full bg-[#A558FB]/20 px-2 py-0.5 text-xs font-semibold text-[#c9a4ff]">
-                            −{plan.promo.percentOff}% off
-                          </div>
-                        ) : null}
-                        {billingCycle === 'annual' && !plan.customPrice && plan.monthlyPrice && plan.annualPrice && (
-                          <div className="text-sm text-[#A558FB] mt-1 font-medium">
-                            Billed annually • Save {getAnnualSavings(plan)}%
-                          </div>
-                        )}
                         {plan.customPrice && (
                           <div className="text-sm text-white/50 mt-1">
                             Custom pricing for your team
@@ -458,15 +337,8 @@ export default function PricingComponent({
                         <div className="space-y-1">
                           <div className="font-bold text-white">{plan.name}</div>
                           <div className="text-2xl font-bold text-white">{formatPrice(plan)}</div>
-                          {formatOriginalPrice(plan) ? (
-                            <div className="text-xs text-white/40 line-through">
-                              {formatOriginalPrice(plan)}
-                            </div>
-                          ) : null}
                           {!plan.customPrice && (
-                            <div className="text-xs text-white/50">
-                              /{billingCycle === 'annual' ? 'mo' : 'month'}
-                            </div>
+                            <div className="text-xs text-white/50">/month</div>
                           )}
                         </div>
                       </th>
@@ -505,7 +377,7 @@ export default function PricingComponent({
         {/* Footer */}
         <div className="text-center mt-12 pt-8 border-t border-white/10">
           <p className="text-sm text-white/50">
-            Pay securely with D17. Cancel anytime.
+            Pay by D17 transfer (Tunisia) or card worldwide. Cancel anytime.
           </p>
         </div>
       </div>
