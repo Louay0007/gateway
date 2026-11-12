@@ -1382,7 +1382,9 @@ async function main(): Promise<void> {
       status: 'active',
       currentPeriodStart: new Date(),
       currentPeriodEnd: new Date(Date.now() + 30 * 86_400_000),
-      dailyQuota: true,
+      // FALSE to match what production writes since 0038: the mule's
+      // allowance is summed over the period it just opened, not the day.
+      dailyQuota: false,
     })
     .returning();
   await db.insert(paymentsD17).values({

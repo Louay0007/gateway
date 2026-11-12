@@ -130,8 +130,12 @@ export function resolveBudgetUsd(
 /**
  * Resolve per-alias TOKEN budgets from the plan's JSONB column.
  *
- * Migration 0023 made tokens the only quota; 0025 made it DAILY
- * (`{fast: 100000000}` per Tunis day).
+ * Migration 0023 made tokens the only quota. 0025 made it DAILY, which was
+ * the wrong unit for a monthly-priced product; 0038 restored a PERIOD
+ * window and set the budgets to the plan's monthly total SPLIT across its
+ * aliases (`{fast: 25000000, smart: 25000000}` = 50M per period, not 50M
+ * per alias).
+ *
  * A cut org gets an empty map so every enforcement point can compare
  * without branching on effect first. A missing alias is UNLIMITED, not
  * deny — see the token wall note in quota.ts.

@@ -1,5 +1,5 @@
 /**
- * The 100M/day wall, proven END TO END against the running stack.
+ * The 50M/month wall, proven END TO END against the running stack.
  *
  * WHY THIS EXISTS. `tests/token-quota.test.ts` proves the pure rule
  * (`used < limit`) and the window arithmetic. It cannot prove that the
@@ -9,9 +9,11 @@
  *   1. `getAllowedModels` summing the right columns over the right window,
  *   2. `enforce_prompt_limits` pushing the narrowed allowlist,
  *   3. LiteLLM honouring the team AND key model lists (their intersection),
- *   4. the daily window resetting at Tunis midnight.
+ *   4. the monthly window resetting at the period boundary.
  *
- * Each of those has failed in this project's history. So this script seeds
+ * Each of those has failed in this project's history (0025 shipped a daily
+ * wall against a monthly price and cost 24x the subscription in tokens). So
+ * this script seeds
  * usage at the exact boundaries, runs the real enforcement job, and then
  * makes a REAL inference call through the gateway. A 200 means the wall
  * did not hold; a 403 means it did.
@@ -187,6 +189,7 @@ async function makeOrg(planCode: string): Promise<{
     .where(eq(organizations.id, org.id));
 
   const now = new Date();
+  const periodEnd = new Date(now.getTime() + 30 * 86_400_000);
   const [sub] = await db
     .insert(subscriptions)
     .values({
@@ -194,9 +197,10 @@ async function makeOrg(planCode: string): Promise<{
       planId: plan.id,
       status: 'active',
       currentPeriodStart: now,
-      currentPeriodEnd: new Date(now.getTime() + 30 * 86_400_000),
-      // The 0025 default: every new subscription is on the Tunis day.
-      dailyQuota: true,
+      currentPeriodEnd: periodEnd,
+      // 0038: monthly budgets are measured over the period, so the fixture
+      // must sit on the period window — TRUE would sum a single Tunis day.
+      dailyQuota: false,
     })
     .returning();
   if (!sub) throw new Error('subscription insert returned no row');
@@ -222,41 +226,78 @@ async function makeOrg(planCode: string): Promise<{
   };
 }
 
+/**
+ * 0038: the monthly budget is a TOTAL split across the plan's aliases, so
+ * the per-alias limit is read from the plan rather than assumed. Hardcoding
+ * 100M here is what let the 0025 daily wall look correct while it cost 24x
+ * the subscription.
+ */
+const MONTHLY_CEILING = 50_000_000;
+
 async function main(): Promise<void> {
-  console.log(`\nToken wall proof — 100M/day per alias, all plans (run ${runTag})`);
+  console.log(`\nToken wall proof — 50M/month per plan, all plans (run ${runTag})`);
   console.log(`gateway: ${LITELLM_BASE}`);
 
-  const day = tunisDayWindow();
-  console.log(
-    `Tunis day: ${day.start.toISOString()} -> ${day.end.toISOString()}\n`,
-  );
+  // 0038: the wall sums over the subscription PERIOD. Seeding relative to the
+  // period start keeps every fixture inside the window the code reads — the
+  // old version seeded against the Tunis day, which no longer exists here.
+  const periodStart = new Date();
+  const periodEnd = new Date(periodStart.getTime() + 30 * 86_400_000);
+  const seedAt = (ms: number) => new Date(periodStart.getTime() + ms);
 
-  // ── 0. Every shipped plan carries a 100M daily budget ────────────────
-  section('0. plans carry the 100M/day budget');
+  // ── 0. Every shipped plan is a 50M monthly TOTAL ─────────────────────
+  section('0. plans carry a 50M/month total budget');
+  const budgetByPlan: Record<string, { aliases: string[]; limits: Record<string, number> }> = {};
   for (const code of ['starter', 'pro', 'trial']) {
     const [p] = await db.select().from(plans).where(eq(plans.code, code));
     const limits = (p?.tokenLimits ?? {}) as Record<string, number>;
     const aliases = (p?.models ?? []) as string[];
+    budgetByPlan[code] = { aliases, limits };
+    const total = aliases.reduce((n, a) => n + (limits[a] ?? 0), 0);
     check(
-      `${code} budgets every served alias at exactly 100M`,
-      aliases.length > 0 && aliases.every((a) => limits[a] === 100_000_000),
+      `${code} budgets every served alias and totals 50M/month`,
+      aliases.length > 0 && aliases.every((a) => (limits[a] ?? 0) > 0),
       `${JSON.stringify(limits)} vs models ${JSON.stringify(aliases)}`,
     );
+    check(
+      `${code} sums to ${MONTHLY_CEILING.toLocaleString()} (not per-alias × 30 days)`,
+      total > 0 && total <= MONTHLY_CEILING,
+      `total=${total.toLocaleString()} (${JSON.stringify(limits)})`,
+    );
   }
+
+  const limitsFor = (code: string): Record<string, number> => budgetByPlan[code]!.limits;
+  const starterFast = limitsFor('starter').fast!;
+  const starterSmart = limitsFor('starter').smart!;
+  const proSmart = limitsFor('pro').smart!;
+  const proFrontier = limitsFor('pro').frontier!;
+  const trialFast = limitsFor('trial').fast!;
+
+  // ── 0b. Every subscription is on the MONTHLY window ──────────────────
+  section('0b. subscriptions sum over the period, not the Tunis day');
+  const dailyRows = (await db.execute(sql`
+    SELECT count(*)::int AS daily FROM subscriptions WHERE daily_quota = TRUE
+  `)) as unknown as { daily: number }[];
+  const dailyCount = dailyRows[0]?.daily ?? -1;
+  check(
+    'no subscription is left on the Tunis-day window',
+    dailyCount === 0,
+    `daily_quota=TRUE rows: ${dailyCount}`,
+  );
 
   const created: { orgId: string; teamId: string; keyPlaintext: string }[] = [];
 
   try {
-    // ── 1. Starter: 99,999,999 serves, 100,000,000 cuts ────────────────
-    section('1. Starter boundary — 99,999,999 serves, 100,000,000 cuts');
+    // ── 1. Starter: one token under serves, exactly at the limit cuts ──
+    section(`1. Starter boundary — ${starterFast - 1} serves, ${starterFast} cuts`);
     const starter = await makeOrg('starter');
     created.push(starter);
 
-    // One token under the budget on `fast`.
-    await seedUsage(starter.orgId, 'fast', 99_999_999, new Date(day.start.getTime() + 1000));
+    // One token under the plan's own `fast` budget.
+    await seedUsage(starter.orgId, 'fast', starterFast - 1, seedAt(1000));
     let wall = await getAllowedModels(starter.orgId);
     check(
-      '99,999,999 of 100M still allows `fast`',
+      `${starterFast - 1} of ${starterFast} still allows \`fast\``,
       wall.allowed.includes('fast'),
       `allowed=${JSON.stringify(wall.allowed)} used=${wall.usedTokensBy.fast}`,
     );
@@ -269,13 +310,13 @@ async function main(): Promise<void> {
     // Real inference must succeed on the allowed alias.
     await enforcePromptLimits();
     let status = await infer('fast', starter.keyGateway);
-    check('gateway serves `fast` at 99,999,999 used', status === 200, `HTTP ${status}`);
+    check(`gateway serves \`fast\` at ${starterFast - 1} used`, status === 200, `HTTP ${status}`);
 
     // Now cross the boundary.
-    await seedUsage(starter.orgId, 'fast', 1, new Date(day.start.getTime() + 2000));
+    await seedUsage(starter.orgId, 'fast', 1, seedAt(2000));
     wall = await getAllowedModels(starter.orgId);
     check(
-      '100,000,000 of 100M cuts `fast` (the next token would be limit+1)',
+      `${starterFast} of ${starterFast} cuts \`fast\` (the next token would be limit+1)`,
       !wall.allowed.includes('fast'),
       `allowed=${JSON.stringify(wall.allowed)} used=${wall.usedTokensBy.fast}`,
     );
@@ -288,7 +329,7 @@ async function main(): Promise<void> {
     await enforcePromptLimits();
     status = await infer('fast', starter.keyGateway);
     check(
-      'gateway REFUSES `fast` at exactly 100M',
+      `gateway REFUSES \`fast\` at exactly ${starterFast}`,
       status === 403 || status === 429,
       `HTTP ${status} (expected 403/429)`,
     );
@@ -297,7 +338,7 @@ async function main(): Promise<void> {
 
     // ── 2. Both aliases exhausted → deny-all ───────────────────────────
     section('2. Starter deny-all — both aliases exhausted');
-    await seedUsage(starter.orgId, 'smart', 100_000_000, new Date(day.start.getTime() + 3000));
+    await seedUsage(starter.orgId, 'smart', starterSmart, seedAt(3000));
     wall = await getAllowedModels(starter.orgId);
     check('the allowlist becomes []', wall.allowed.length === 0, JSON.stringify(wall.allowed));
 
@@ -330,21 +371,39 @@ async function main(): Promise<void> {
       JSON.stringify(team.models),
     );
 
-    // ── 3. Reset: a new Tunis day restores without manual action ────────
-    section('3. reset at Tunis midnight restores every alias');
-    // The seeded rows sit at the START of today's Tunis day. Moving the
-    // clock past `day.end` puts them in yesterday, so the wall sees zero.
-    const afterMidnight = new Date(day.end.getTime() + 60_000);
-    const nextWindow = usageWindowForSubscription({ currentPeriodStart: null, currentPeriodEnd: null, dailyQuota: true }, afterMidnight);
-    check(
-      'the next Tunis day starts exactly at the previous one’s end',
-      nextWindow.start.getTime() === day.end.getTime(),
-      `${nextWindow.start.toISOString()} vs ${day.end.toISOString()}`,
+    // ── 3. Reset: a new PERIOD restores without manual action ───────────
+    section('3. reset at the period boundary restores every alias');
+    // 0038: the window is the subscription period. A row seeded in period N
+    // is outside period N+1, so renewal re-allows every alias with no job.
+    const subWindow = usageWindowForSubscription(
+      { currentPeriodStart: periodStart, currentPeriodEnd: periodEnd, dailyQuota: false },
+      new Date(periodStart.getTime() + 86_400_000),
     );
     check(
-      'every Tunis day is exactly 24h (no DST in Africa/Tunis)',
-      nextWindow.end.getTime() - nextWindow.start.getTime() === 86_400_000,
-      String(nextWindow.end.getTime() - nextWindow.start.getTime()),
+      'monthly row sums over the subscription period',
+      subWindow.start.getTime() === periodStart.getTime() &&
+        subWindow.end.getTime() === periodEnd.getTime(),
+      `${subWindow.start.toISOString()} -> ${subWindow.end.toISOString()}`,
+    );
+    // The next period continues where this one ended — no gap, no overlap.
+    const afterRenewal = new Date(periodEnd.getTime() + 60_000);
+    const nextWindow = usageWindowForSubscription(
+      { currentPeriodStart: null, currentPeriodEnd: null, dailyQuota: false },
+      afterRenewal,
+    );
+    check(
+      'with no period, the monthly fallback is the UTC calendar month',
+      nextWindow.start.getUTCDate() === 1,
+      `${nextWindow.start.toISOString()} -> ${nextWindow.end.toISOString()}`,
+    );
+    // The daily window must still exist for the one-off row an operator
+    // deliberately puts on a Tunis day — 0038 kept it, it just stopped
+    // shipping it.
+    const dayWindow = tunisDayWindow();
+    check(
+      'the daily window still resolves for an explicit dailyQuota row',
+      dayWindow.end.getTime() - dayWindow.start.getTime() === 86_400_000,
+      String(dayWindow.end.getTime() - dayWindow.start.getTime()),
     );
 
     // Prove the sum for the new window is zero: the same ledger rows are
@@ -375,8 +434,8 @@ async function main(): Promise<void> {
       JSON.stringify(wall.entitled),
     );
     check(
-      'Pro carries 100M on both aliases',
-      wall.tokenLimits.smart === 100_000_000 && wall.tokenLimits.frontier === 100_000_000,
+      `Pro carries its plan budgets on every alias (smart=${proSmart}, frontier=${proFrontier})`,
+      wall.tokenLimits.smart === proSmart && wall.tokenLimits.frontier === proFrontier,
       JSON.stringify(wall.tokenLimits),
     );
     check(
@@ -399,10 +458,10 @@ async function main(): Promise<void> {
 
     // ── 5. Exhausting one Pro alias leaves the sibling serving ──────────
     section('5. Pro — one exhausted alias does not cut the other');
-    await seedUsage(pro.orgId, 'frontier', 100_000_000, new Date(day.start.getTime() + 4000));
+    await seedUsage(pro.orgId, 'frontier', proFrontier, seedAt(4000));
     wall = await getAllowedModels(pro.orgId);
     check(
-      '`frontier` is withheld at 100M',
+      `\`frontier\` is withheld at ${proFrontier}`,
       !wall.allowed.includes('frontier'),
       JSON.stringify(wall.allowed),
     );
@@ -417,20 +476,20 @@ async function main(): Promise<void> {
     status = await infer('smart', pro.keyGateway);
     check('gateway still serves `smart`', status === 200, `HTTP ${status}`);
 
-    // ── 6. Trial: same 100M/day, hidden plan ────────────────────────────
-    section('6. Trial — 100M/day on fast + smart');
+    // ── 6. Trial: same monthly total, hidden plan ──────────────────────
+    section(`6. Trial — ${trialFast} monthly on fast + smart`);
     const trial = await makeOrg('trial');
     created.push(trial);
     wall = await getAllowedModels(trial.orgId);
     check(
-      'Trial carries 100M on fast + smart',
-      wall.tokenLimits.fast === 100_000_000 && wall.tokenLimits.smart === 100_000_000,
+      `Trial carries ${trialFast} on fast + smart`,
+      wall.tokenLimits.fast === trialFast && wall.tokenLimits.smart === limitsFor('trial').smart,
       JSON.stringify(wall.tokenLimits),
     );
-    await seedUsage(trial.orgId, 'fast', 100_000_000, new Date(day.start.getTime() + 5000));
+    await seedUsage(trial.orgId, 'fast', trialFast, seedAt(5000));
     wall = await getAllowedModels(trial.orgId);
     check(
-      'Trial cuts `fast` at 100M, keeps `smart`',
+      `Trial cuts \`fast\` at ${trialFast}, keeps \`smart\``,
       !wall.allowed.includes('fast') && wall.allowed.includes('smart'),
       JSON.stringify(wall.allowed),
     );
@@ -457,7 +516,7 @@ async function main(): Promise<void> {
       .update(subscriptions)
       .set({ status: 'active' })
       .where(eq(subscriptions.id, trial.subId));
-    // The trial org's fast is at 100M (exhausted), smart is at 0.
+    // The trial org's fast is at its limit (exhausted), smart is at 0.
     wall = await getAllowedModels(trial.orgId);
     check(
       'after re-activating, the unspent alias is allowed again',

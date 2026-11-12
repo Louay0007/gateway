@@ -146,12 +146,16 @@ function currentPeriod(): { start: string; end: string } {
 }
 
 /**
- * Usage window for an org (0025).
+ * Usage window for an org (0038).
  *
- * Daily-quota subscriptions: the TUNIS CALENDAR DAY — the token wall sums
- * today's blended tokens only (100M/day budgets). Legacy grandfathered
- * rows (dailyQuota FALSE): the SUBSCRIPTION period when one exists,
- * calendar month otherwise.
+ * Monthly subscriptions (dailyQuota FALSE — every row since 0038): the
+ * SUBSCRIPTION PERIOD when one exists, calendar month otherwise. The token
+ * budgets are monthly totals, so the window they are measured against must
+ * be the period the customer paid for.
+ *
+ * A `dailyQuota` TRUE row still resolves to the Tunis calendar day (0025's
+ * shape, kept for a single row an operator wants on a daily window). No plan
+ * ships that way.
  *
  * `billing_period` on the ledger is date_trunc('month', occurred_at) — a
  * CALENDAR month, kept as a chart accelerator for the rollup. The bundle —
@@ -200,6 +204,14 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   } | null;
   entitlement: { status: string; syncedAt: string | null; lastError: string | null } | null;
   period: { start: string; end: string };
+  /**
+   * What the token budgets reset against (0038).
+   *
+   * Every shipping row is `period` (monthly). Exposed because the customer
+   * copy differs — "resets at midnight Tunis time" is wrong and misleading
+   * for a monthly budget, and the device endpoint builds that message.
+   */
+  cadence: 'daily' | 'period';
   usage: {
     requests: number;
     inputTokens: number;
@@ -292,6 +304,9 @@ export async function subscriptionBundle(organizationId: string): Promise<{
         costCustomerUsd: Number(row?.costCustomerUsd ?? 0),
         tokensByModel,
         window,
+        // Same row that produced the window decides the cadence, so the
+        // message and the arithmetic cannot disagree.
+        cadence: (subRow?.dailyQuota === true ? 'daily' : 'period') as 'daily' | 'period',
       };
     })(),
     db
@@ -339,6 +354,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       start: usage.window.start.toISOString(),
       end: usage.window.end.toISOString(),
     },
+    cadence: usage.cadence,
     usage: {
       requests: usage.requests,
       inputTokens: usage.inputTokens,
@@ -678,10 +694,11 @@ export async function applyCallback(event: ProviderEvent): Promise<{
           currentPeriodStart: start,
           currentPeriodEnd: end,
           cancelAtPeriodEnd: false,
-          // 0025 cutover: a (re)activation moves the row onto the daily
-          // Tunis-day quota. Grandfathered monthly rows flip here, at the
-          // start of the period the customer just paid for.
-          dailyQuota: true,
+          // 0038: budgets are monthly, so a (re)activation must keep the row
+          // on the PERIOD window. 0025 wrote TRUE here to move rows onto the
+          // daily quota; leaving that would re-break every renewal back to a
+          // 50M-per-DAY allowance, which is 30x what the plan sells.
+          dailyQuota: false,
           lastProviderEventId: event.id,
           lastProviderEventAt: new Date(),
           updatedAt: new Date(),
@@ -778,9 +795,10 @@ export async function changePlan(
     .set({
       planId: plan.id,
       cancelAtPeriodEnd: false,
-      // 0025: a plan change moves onto the daily quota immediately — the
-      // new plan's limits apply from this instant, not from renewal.
-      dailyQuota: true,
+      // 0038: a plan change keeps the PERIOD window. The new plan's monthly
+      // budget applies from this instant, not from renewal — but measured
+      // over the period, not a Tunis day (see the 0025 comment above).
+      dailyQuota: false,
       updatedAt: new Date(),
     })
     .where(eq(subscriptions.id, sub.id));

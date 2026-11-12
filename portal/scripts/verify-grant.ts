@@ -139,7 +139,7 @@ async function main() {
   check('row plan is the granted plan', bareSubs[0]?.planId === proMonth!.id);
   check('cancelAtPeriodEnd cleared', bareSubs[0]?.cancelAtPeriodEnd === false);
   check('trialEnd is null', bareSubs[0]?.trialEnd === null, bareSubs[0]?.trialEnd);
-  check('dailyQuota true (0025 model)', bareSubs[0]?.dailyQuota === true);
+  check('dailyQuota false (0038 model — period window)', bareSubs[0]?.dailyQuota === false);
   check(
     'period written matches what was returned',
     bareSubs[0]?.currentPeriodStart?.toISOString() === (r1.ok ? r1.periodStart : ''),

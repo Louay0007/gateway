@@ -154,9 +154,9 @@ function rank(alias: string): number {
 /**
  * The window end, in the customer's words.
  *
- * `wall.period` is already correct for BOTH clock models — a Tunis day for
- * a `daily_quota` subscription, the billing period for a grandfathered paid
- * one (`subscriptions.daily_quota` is FALSE on those, 0025). So this
+ * `wall.period` is already correct for BOTH clock models — the billing
+ * period for every row since 0038 (`subscriptions.daily_quota` is FALSE), a
+ * Tunis day for the one-off row an operator leaves on a daily quota. So this
  * formats whatever it was given and NEVER invents "today": the two-clock
  * trap is precisely labelling a monthly window as a daily one.
  */

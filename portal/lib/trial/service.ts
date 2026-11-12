@@ -141,8 +141,11 @@ export async function redeemTrialCode(
             currentPeriodStart: now,
             currentPeriodEnd: expiresAt,
             cancelAtPeriodEnd: false,
-            // 0025: trials are daily-quota from redemption (Tunis day).
-            dailyQuota: true,
+            // 0038: the trial's budget is a single MONTHLY-shape total
+            // measured over the trial's own window (currentPeriodStart ..
+            // trialEnd), so it must not resolve to a Tunis day — that would
+            // grant 50M per DAY for 3 days instead of 50M for the trial.
+            dailyQuota: false,
             updatedAt: now,
           })
           .where(eq(subscriptions.id, existingSub.id));
@@ -159,8 +162,9 @@ export async function redeemTrialCode(
             currentPeriodStart: now,
             currentPeriodEnd: expiresAt,
             cancelAtPeriodEnd: false,
-            // 0025: trials are daily-quota from redemption (Tunis day).
-            dailyQuota: true,
+            // 0038: measured over the trial window, not a Tunis day — see
+            // the update path above for why.
+            dailyQuota: false,
           })
           .returning({ id: subscriptions.id });
         subscriptionId = inserted!.id;

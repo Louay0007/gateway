@@ -1,11 +1,13 @@
 /**
- * Token quota wall — the only quota since migration 0023, DAILY since 0025.
+ * Token quota wall — the only quota since migration 0023, PER BILLING
+ * PERIOD since 0038 (it was the Tunis day under 0025/0029).
  *
  * RULE: allowed = entitled WHERE tokens_used < token_limit.
  * Missing / zero TOKEN entry = UNLIMITED (fail-open for plans created
  * before token budgets existed). Units: RAW TOKENS as the ledger stores
- * them (not millions, not cents). Budgets are per TUNIS DAY (0025):
- * Starter fast/smart 100M each, Pro smart/frontier 100M each.
+ * them (not millions, not cents). Budgets are the plan's MONTHLY total
+ * SPLIT across its aliases (0038), never repeated per alias:
+ * Starter 25M + 25M = 50M per period, Pro 16,666,667 ×3 ≈ 50M.
  */
 import { describe, it, expect } from 'vitest';
 import {
@@ -25,10 +27,10 @@ import {
 import { resolveTokenLimits } from '@/lib/entitlements/policy';
 
 const STARTER_ENTITLED = ['fast', 'smart'];
-const STARTER_TOKENS = { fast: 100_000_000, smart: 100_000_000 };
+const STARTER_TOKENS = { fast: 25_000_000, smart: 25_000_000 };
 
-const PRO_ENTITLED = ['smart', 'frontier'];
-const PRO_TOKENS = { smart: 100_000_000, frontier: 100_000_000 };
+const PRO_ENTITLED = ['smart', 'frontier', 'fable'];
+const PRO_TOKENS = { smart: 16_666_667, frontier: 16_666_667, fable: 16_666_666 };
 
 describe('BILLABLE_TOKEN_COLUMNS — the blended-token definition', () => {
   it('sums all five ledger token columns', () => {
@@ -57,7 +59,7 @@ describe('computeTokenAllowedModels — the wall rule', () => {
   it('blocks only the token-exhausted alias', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
-        fast: 100_000_000,
+        fast: 25_000_000,
         smart: 1_000,
       }),
     ).toEqual(['smart']);
@@ -65,15 +67,16 @@ describe('computeTokenAllowedModels — the wall rule', () => {
 
   it('denies at-limit (used == limit): the next token would be limit+1', () => {
     expect(
-      computeTokenAllowedModels(['smart'], PRO_TOKENS, { smart: 100_000_000 }),
+      computeTokenAllowedModels(['smart'], PRO_TOKENS, { smart: 16_666_667 }),
     ).toEqual([]);
   });
 
   it('returns [] when every alias is token-exhausted (deny-all)', () => {
     expect(
       computeTokenAllowedModels(PRO_ENTITLED, PRO_TOKENS, {
-        smart: 100_000_001,
-        frontier: 250_000_000,
+        smart: 16_666_667,
+        frontier: 16_666_667,
+        fable: 16_666_666,
       }),
     ).toEqual([]);
   });
@@ -186,23 +189,23 @@ describe('tunisDayWindow — Africa/Tunis is UTC+1 year-round (no DST)', () => {
 describe('remainingTokensByModel — clamped at 0, raw tokens', () => {
   it('computes remaining per alias', () => {
     expect(
-      remainingTokensByModel(STARTER_TOKENS, { fast: 30_000_000 }),
-    ).toEqual({ fast: 70_000_000, smart: 100_000_000 });
+      remainingTokensByModel(STARTER_TOKENS, { fast: 7_000_000 }),
+    ).toEqual({ fast: 18_000_000, smart: 25_000_000 });
   });
 
   it('shows 0 remaining when over limit (not negative)', () => {
     expect(remainingTokensByModel(STARTER_TOKENS, { fast: 190_000_000 })).toEqual(
-      { fast: 0, smart: 100_000_000 },
+      { fast: 0, smart: 25_000_000 },
     );
   });
 });
 
 describe('isTokenExhausted', () => {
   it('names token exhaustion exactly at the limit', () => {
-    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 99_999_999 })).toBe(
+    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 24_999_999 })).toBe(
       false,
     );
-    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 100_000_000 })).toBe(
+    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 25_000_000 })).toBe(
       true,
     );
   });
@@ -215,21 +218,21 @@ describe('isTokenExhausted', () => {
   });
 });
 
-describe('100M/day boundary — 99,999,999 allowed, 100,000,000 cut', () => {
-  it('one token under the daily budget still serves', () => {
+describe('25M/period boundary — 24,999,999 allowed, 25,000,000 cut', () => {
+  it('one token under the period budget still serves', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
-        fast: 99_999_999,
-        smart: 99_999_999,
+        fast: 24_999_999,
+        smart: 24_999_999,
       }),
     ).toEqual(['fast', 'smart']);
   });
 
-  it('exactly at the daily budget cuts that alias only', () => {
+  it('exactly at the period budget cuts that alias only', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
-        fast: 100_000_000,
-        smart: 50_000_000,
+        fast: 25_000_000,
+        smart: 12_000_000,
       }),
     ).toEqual(['smart']);
   });
@@ -237,18 +240,27 @@ describe('100M/day boundary — 99,999,999 allowed, 100,000,000 cut', () => {
   it('the sibling alias keeps serving while one is exhausted', () => {
     expect(
       computeTokenAllowedModels(PRO_ENTITLED, PRO_TOKENS, {
-        smart: 100_000_000,
+        smart: 16_666_667,
         frontier: 1_000,
+        fable: 0,
       }),
-    ).toEqual(['frontier']);
+    ).toEqual(['frontier', 'fable']);
   });
 });
 
 describe('outOfTokensMessage — the contract string', () => {
-  it('daily message names the alias and midnight Tunis reset', () => {
+  // 0038: monthly is the only cadence on a shipped plan, so it is the
+  // DEFAULT. A monthly budget described as "resets at midnight" makes the
+  // customer wait up for a reset that never comes.
+  it('defaults to the period wording, not the daily one', () => {
     expect(outOfTokensMessage('smart')).toMatch(/out of smart tokens/i);
-    expect(outOfTokensMessage('smart')).toMatch(/today/i);
-    expect(outOfTokensMessage('smart')).toMatch(/midnight.*tunis/i);
+    expect(outOfTokensMessage('smart')).toMatch(/this period/i);
+    expect(outOfTokensMessage('smart')).not.toMatch(/today|midnight/i);
+  });
+
+  it('daily wording is still available when a row is put on a Tunis day', () => {
+    expect(outOfTokensMessage('smart', null, 'daily')).toMatch(/today/i);
+    expect(outOfTokensMessage('smart', null, 'daily')).toMatch(/midnight.*tunis/i);
   });
 
   it('legacy period message keeps the renewal wording', () => {
@@ -303,11 +315,13 @@ describe('mapGatewayModelError — generic 403 → per-alias token message', () 
   it('a token-exhaustion body names tokens, not prompts', () => {
     const m = mapGatewayModelError(
       403,
-      `{"error":{"message":"Model 'smart' is not available — out of smart tokens for today"}}`,
+      `{"error":{"message":"Model 'smart' is not available — out of smart tokens for this period"}}`,
     );
     expect(m?.model).toBe('smart');
     expect(m?.friendly).toMatch(/out of smart tokens/i);
-    expect(m?.friendly).toMatch(/today/i);
+    // 0038: the mapped copy must not promise a daily reset.
+    expect(m?.friendly).toMatch(/this period/i);
+    expect(m?.friendly).not.toMatch(/today|midnight/i);
   });
 
   it('still answers when no alias can be extracted', () => {

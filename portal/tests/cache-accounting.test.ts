@@ -208,39 +208,34 @@ describe('BILLABLE_TOKEN_COLUMNS — the wall sums the normalised column', () =>
   });
 });
 
-describe('daily window — every live subscription sums the Tunis day (0029)', () => {
-  it('a plan budget is a PER-DAY number, so the window must be a day', () => {
-    // THE UNITS BUG. 0025 stored 100M per alias as a DAILY budget but left
-    // grandfathered rows on a MONTHLY window. A daily number summed over a
-    // month is a 30x-tighter cap than it reads, and it cut paying customers
-    // below the allowance they had already bought (Pro smart 210M -> 100M).
-    //
-    // Any subscription whose plan carries `token_limits` must therefore
-    // resolve to the Tunis day, never the legacy period.
-    const plan = { tokenLimits: { smart: 100_000_000 } };
+describe('quota window — the period is live since 0038, the day is the escape hatch', () => {
+  it('every live subscription resolves the PERIOD (dailyQuota false)', () => {
+    // 0038 flipped every row to FALSE and made it the column default, so
+    // the period is the shipped behaviour: a plan's budgets are its
+    // monthly total, split across aliases, and summing them over a day
+    // would grant 30x the allowance.
+    const sub = {
+      currentPeriodStart: '2026-10-25T00:00:00Z',
+      currentPeriodEnd: '2026-11-25T00:00:00Z',
+      dailyQuota: false,
+    };
+    const w = usageWindowForSubscription(sub, new Date('2026-11-02T12:00:00Z'));
+    expect(w.start.toISOString()).toBe('2026-10-25T00:00:00.000Z');
+    expect(w.end.toISOString()).toBe('2026-11-25T00:00:00.000Z');
+  });
+
+  it('an explicit dailyQuota row still resolves the Tunis day', () => {
+    // The one-row escape hatch. Nothing writes TRUE any more (0038 sets the
+    // default to FALSE and every writer passes false), but the code path
+    // stays: a restored pre-0038 dump must still behave, and an operator
+    // who deliberately wants a per-day cap has to have a way to ask.
     const sub = {
       currentPeriodStart: '2026-10-25T00:00:00Z',
       currentPeriodEnd: '2026-11-25T00:00:00Z',
       dailyQuota: true,
     };
-    expect(Object.keys(plan.tokenLimits).length).toBeGreaterThan(0);
 
     const w = usageWindowForSubscription(sub, new Date('2026-11-02T12:00:00Z'));
     expect(w.end.getTime() - w.start.getTime()).toBe(86_400_000);
-  });
-
-  it('a grandfathered row (dailyQuota false) still resolves monthly — by design', () => {
-    // The flag still works; 0029 removes the rows that carried it, it does
-    // not remove the code path (a restored older dump must still behave).
-    const w = usageWindowForSubscription(
-      {
-        currentPeriodStart: '2026-10-25T00:00:00Z',
-        currentPeriodEnd: '2026-11-25T00:00:00Z',
-        dailyQuota: false,
-      },
-      new Date('2026-11-02T12:00:00Z'),
-    );
-    expect(w.start.toISOString()).toBe('2026-10-25T00:00:00.000Z');
-    expect(w.end.toISOString()).toBe('2026-11-25T00:00:00.000Z');
   });
 });

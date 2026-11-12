@@ -209,7 +209,7 @@ function validatePlan(input: PlanInput): { ok: true; value: PlanInput } | { ok: 
   // decides alone.
   if (input.tokenLimits != null) {
     if (typeof input.tokenLimits !== 'object' || Array.isArray(input.tokenLimits)) {
-      return { ok: false, message: 'Token limits must be an object like {"fast": 100000000} (raw tokens per day).' };
+      return { ok: false, message: 'Token limits must be an object like {"fast": 25000000} (raw tokens per PERIOD — the plan\'s monthly total, split across aliases).' };
     }
     for (const [k, v] of Object.entries(input.tokenLimits)) {
       if (!/^[a-z0-9][a-z0-9.-]{0,63}$/.test(k)) {

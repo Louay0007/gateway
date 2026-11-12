@@ -103,7 +103,10 @@ export async function GET(request: Request): Promise<Response> {
         {
           error: {
             code: 'quota_exhausted',
-            message: outOfTokensMessage(wanted, resetDate),
+            // 0038: pass the cadence so the copy matches the budget. A
+            // monthly allowance that says "resets at midnight Tunis time"
+            // is a lie the customer waits up for.
+            message: outOfTokensMessage(wanted, resetDate, bundle.cadence),
             model: wanted,
             exhaustedBy: 'tokens',
             remainingTokensByModel: remainingTokens,
@@ -127,6 +130,9 @@ export async function GET(request: Request): Promise<Response> {
       ),
       periodStart: bundle.period.start,
       periodEnd: bundle.period.end,
+      // 'period' (monthly) on every plan since 0038. The client uses this to
+      // label the reset correctly instead of assuming a daily midnight.
+      cadence: bundle.cadence,
       // G11: when the KEY dies, as distinct from when the allowance resets.
       // Both were `periodEnd` on the client, so a pasted key carried no
       // expiry and the app could only discover a lapsed key on a failed

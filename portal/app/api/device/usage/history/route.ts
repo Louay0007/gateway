@@ -2,12 +2,17 @@
  * GET /api/device/usage/history?days=7 — per-day per-alias token spend.
  *
  * The desktop panel showed one instant (`/api/device/usage`), so a customer
- * could see "12M of 100M used" and had no way to tell whether that was a
+ * could see "12M of 50M used" and had no way to tell whether that was a
  * heavy morning or a week of steady burn. This is the trend line behind the
  * number, and the cheapest retention feature on the roadmap: it reads the
- * same `usage_records` the wall reads, grouped by the SAME Tunis calendar
- * day the wall resets on, so a bar in the sparkline and the quota panel can
- * never disagree about which day a token belongs to.
+ * same `usage_records` the wall reads, grouped by Tunis calendar day.
+ *
+ * PER-DAY GROUPING IS INDEPENDENT OF THE QUOTA WINDOW. Since 0038 the wall
+ * sums over the billing period, not the day — this endpoint still groups by
+ * day because a spend TREND is genuinely daily, and "how much did I burn
+ * yesterday" is the only question a trend answers. It reads the same rows
+ * as the wall, so a bar and the quota panel can never disagree about which
+ * day a token belongs to; they measure different spans on purpose.
  *
  * Bounded on purpose: `days` is clamped to 1..30 and a single grouped scan
  * over `usage_records_org_occurred_idx` serves it. No new table, no rollup

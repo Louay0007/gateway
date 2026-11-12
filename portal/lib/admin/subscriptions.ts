@@ -127,11 +127,13 @@ export async function grantPlan(
       cancelAtPeriodEnd: false,
       // A grant is a fresh period, not a trial remnant: clearing trial_end
       // stops `trial` logic and the dashboard from calling a comped plan a
-      // trial. `dailyQuota` is TRUE because that is the current model
-      // (0025) — a newly written period is enforced against the per-alias
-      // daily budgets on the plan, exactly like a trial or a new row.
+      // trial. `dailyQuota` is FALSE because that is the current model
+      // (0038) — a granted period is measured over the period it just
+      // opened, against the plan's monthly budgets, exactly like a paid
+      // renewal or a new row. TRUE here would hand a comped account 30x
+      // its allowance.
       trialEnd: null,
-      dailyQuota: true,
+      dailyQuota: false,
       updatedAt: now,
     };
 

@@ -181,10 +181,10 @@ export const plans = pgTable('plans', {
   models:                text('models').array().notNull().default([]),
   trialDays:             integer('trial_days').notNull().default(0),
   features:              jsonb('features').notNull().default({}),
-  /** Per-alias blended-token budgets: {fast: 100000000}. DAILY per Tunis day since 0025. */
+  /** Per-alias blended-token budgets, MONTHLY split total: {fast: 25000000}. 0038. */
   tokenLimits:           jsonb('token_limits').notNull().default({}),
-  /** Display/documentation marker: 'daily' since 0025. Enforcement reads subscriptions.daily_quota. */
-  quotaCadence:          text('quota_cadence').notNull().default('daily'),
+  /** Display/documentation marker: 'monthly' since 0038. Enforcement reads subscriptions.daily_quota. */
+  quotaCadence:          text('quota_cadence').notNull().default('monthly'),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:             timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 });
@@ -205,12 +205,13 @@ export const subscriptions = pgTable('subscriptions', {
   cancelAtPeriodEnd:    boolean('cancel_at_period_end').notNull().default(false),
   trialEnd:             timestamp('trial_end', { withTimezone: true }),
   /**
-   * Daily-quota flag (0025). TRUE = enforce blended tokens over the Tunis
-   * calendar day (100M/day). FALSE = legacy monthly window (period else
-   * calendar month) until the next renewal flips it to TRUE. New rows
-   * default TRUE; live paid rows were backfilled FALSE.
+   * Quota-window flag. FALSE (default since 0038) = enforce blended tokens
+   * over the SUBSCRIPTION PERIOD (period else calendar month), matching the
+   * monthly budgets the plans sell. TRUE = the 0025 Tunis-calendar-day
+   * window, kept for a single row an operator deliberately puts on a daily
+   * quota; no plan ships that way.
    */
-  dailyQuota:           boolean('daily_quota').notNull().default(true),
+  dailyQuota:           boolean('daily_quota').notNull().default(false),
   lastProviderEventId:  text('last_provider_event_id'),
   lastProviderEventAt:  timestamp('last_provider_event_at', { withTimezone: true }),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -596,7 +597,11 @@ export const trialCodes = pgTable('trial_codes', {
   maxRedemptions:  integer('max_redemptions').notNull().default(0), // 0 = unlimited
   redeemedCount:   integer('redeemed_count').notNull().default(0),
   models:          text('models').array().notNull().default(['fast', 'smart']),
-  /** Per-code token budget override; plan fallback when empty. The only quota. 0023. */
+  /**
+   * Per-code MONTHLY token budget, split across the code's models (0038).
+   * Measured over the trial's own window, so a 3-day trial with 50M gets 50M
+   * for those 3 days, not 50M per day. Plan fallback when empty.
+   */
   tokenLimits:     jsonb('token_limits').notNull().default({}),
   trialDays:       integer('trial_days').notNull().default(3),
   validFrom:       timestamp('valid_from', { withTimezone: true }).notNull(),

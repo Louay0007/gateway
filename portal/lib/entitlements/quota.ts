@@ -5,20 +5,33 @@
  * different allowlists; sync resurrected what enforce narrowed. Both now
  * compute through computeTokenAllowedModels so they cannot disagree.
  *
- * RULE (migration 0025): allowed = entitled WHERE tokens_used < token_limit.
+ * RULE (migration 0038): allowed = entitled WHERE tokens_used < token_limit.
  * tokens_used = SUM(input + output + cache_write_5m + cache_write_1h +
- * cache_read) over the TUNIS CALENDAR DAY (00:00–24:00 Africa/Tunis) when
- * the subscription is on daily quota, else the legacy monthly window
- * (subscription period when known, calendar month otherwise — grandfathered
- * rows until renewal). Prompts are no longer a quota; `prompt_count` stays
- * in the ledger for historical analytics only.
+ * cache_read) over the SUBSCRIPTION PERIOD (or the calendar month when no
+ * period is known). Prompts are no longer a quota; `prompt_count` stays in
+ * the ledger for historical analytics only.
+ *
+ * WHY MONTHLY, NOT DAILY. 0025 made the window the Tunis calendar day and
+ * 0029 forced every row onto it, which turned a monthly token purchase into
+ * a 30x giveaway: a per-alias 100M/day budget summed over a month is 3B per
+ * alias, or 1,200 DT of tokens at 0.20 DT/M sold for 50 DT. A daily cap can
+ * only be correct for a daily-priced product; this one bills monthly, so the
+ * budget and the window must share that unit. 0038 rewrote both.
+ *
+ * `dailyQuota` is kept on the subscription row for the direction it now
+ * documents: FALSE = monthly, the only shipping value since 0038. A TRUE row
+ * still resolves to the Tunis day, so the helper below stays the single
+ * definition and an operator can hand one row a daily window without a code
+ * change — but no plan ships that way.
  *
  * Units: RAW TOKENS as the ledger stores them (integers, NOT millions, NOT
- * cents): {fast: 100000000} = 100M tokens per day.
+ * cents): {fast: 25000000} = 25M tokens over the billing period. Plans split
+ * a monthly TOTAL across their aliases rather than repeating it per alias —
+ * repeating is what multiplied the exposure in 0025.
  *
  * MISSING / ZERO = UNLIMITED. Token budgets postdate plans, so a plan an
  * operator created before 0023 may have no entry — failing closed would cut
- * every such plan on the first pass after deploy. The 0025 guard forces
+ * every such plan on the first pass after deploy. The 0038 guard forces
  * budgets onto starter/pro/trial and the admin editor writes them, so the
  * fail-open only covers plans nobody configured.
  */
@@ -124,17 +137,20 @@ export function isInTunisDay(t: Date | string | number, dayStart: Date): boolean
 export interface QuotaSubscriptionWindow {
   currentPeriodStart: Date | string | null;
   currentPeriodEnd: Date | string | null;
-  /** 0025: TRUE = Tunis-day window; FALSE/absent = legacy monthly window. */
+  /** 0038: FALSE = monthly window (the only shipping value). TRUE = Tunis day. */
   dailyQuota?: boolean | null;
 }
 
 /**
  * The window the token wall sums over.
  *
+ * - monthly (dailyQuota FALSE with a period): the subscription period. This
+ *   is every row since 0038, and the only window a monthly token budget can
+ *   be measured against.
+ * - monthly fallback (dailyQuota FALSE without a period): UTC calendar month.
  * - daily (dailyQuota TRUE, or no subscription row at all): the Tunis
- *   calendar day — generous budgets reset at midnight Tunis time.
- * - legacy (dailyQuota FALSE with a period): the subscription period.
- * - legacy fallback (dailyQuota FALSE without a period): UTC calendar month.
+ *   calendar day. Kept so one row can be given a daily window without a code
+ *   change; no plan ships this way since 0038.
  */
 export function usageWindowForSubscription(
   subscription: QuotaSubscriptionWindow | null,
@@ -200,10 +216,19 @@ export function isTokenExhausted(
   return chargedTokensFor(alias, usedTokensBy) >= limit;
 }
 
+/**
+ * Customer-facing exhaustion copy.
+ *
+ * Defaults to `period` because every budget shipping since 0038 is monthly.
+ * `daily` remains for the one case a row is deliberately put on a Tunis day.
+ * Getting this backwards is not cosmetic: telling a customer with a monthly
+ * allowance that it "resets at midnight" makes them wait up for a reset that
+ * never comes, and then churn.
+ */
 export function outOfTokensMessage(
   alias: string,
   resetDate?: Date | string | null,
-  cadence: 'daily' | 'period' = 'daily',
+  cadence: 'daily' | 'period' = 'period',
 ): string {
   const base =
     cadence === 'daily'
@@ -231,7 +256,7 @@ export function mapGatewayModelError(
   upstreamStatus: number,
   bodyText: string,
   requestedModel?: string | null,
-  cadence: 'daily' | 'period' = 'daily',
+  cadence: 'daily' | 'period' = 'period',
 ): { model: string | null; friendly: string } | null {
   if (upstreamStatus !== 403 && upstreamStatus !== 429 && upstreamStatus !== 404) return null;
   const text = String(bodyText ?? '');

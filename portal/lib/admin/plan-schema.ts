@@ -30,7 +30,12 @@ export const planBodySchema = z.object({
   rateMultiplierBps: z.number().int().min(11_000).max(100_000),
   models: z.array(z.string().trim().min(1).max(64)).min(1, 'Grant at least one model.'),
   trialDays: z.number().int().min(0).max(365).optional(),
-  /** Per-alias DAILY blended-token budgets in RAW TOKENS: {fast: 100000000}. 0025. */
+  /**
+   * Per-alias blended-token budgets in RAW TOKENS, summing to the plan's
+   * MONTHLY total: {fast: 25000000, smart: 25000000} = 50M per period.
+   * Split the total across aliases — do not repeat it on each one, which
+   * multiplies the exposure by the alias count (the 0025 mistake). 0038.
+   */
   tokenLimits: z.record(z.string(), z.number().int().min(0)).optional(),
 });
 

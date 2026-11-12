@@ -349,3 +349,57 @@ describe('scripts/reconcile.sh alias map', () => {
     expect([...served].filter((a) => !mapped.has(a)), 'aliases with no reconcile.sh mapping').toEqual([]);
   });
 });
+
+/**
+ * 0038 — the monthly budget must stay a MONTHLY total.
+ *
+ * The 0025 model granted 100M to every alias every DAY, which summed to 3B
+ * per alias over a month: 1,200 DT of tokens at 0.20 DT/M sold for 50 DT.
+ * Nothing at runtime compares the plan budget to the window, so this test
+ * parses the shipping migration and holds two invariants:
+ *
+ *   1. the alias budgets of a plan SUM to <= 50M (a monthly total, not a
+ *      per-alias figure repeated once per model);
+ *   2. no shipping plan is left on the daily window.
+ *
+ * A future campaign that copies an old row, or an edit that doubles one
+ * alias, fails here instead of on the invoice.
+ */
+describe('0038 monthly budget shape', () => {
+  const sql = readFileSync(
+    new URL('portal/db/migrations/0038_monthly_50m.sql', REPO_ROOT),
+    'utf8',
+  );
+  const CEILING = 50_000_000;
+
+  it('every plan budget is a monthly TOTAL at or under the ceiling', () => {
+    const literals = [...sql.matchAll(/'(\{[^']*\})'::jsonb/g)]
+      .map((m) => m[1]!)
+      .filter((s) => s !== '{}');
+    expect(literals.length, 'no plan budgets found in 0038').toBeGreaterThan(0);
+    for (const raw of literals) {
+      const parsed = JSON.parse(raw) as Record<string, number>;
+      const sum = Object.values(parsed).reduce((a, b) => a + b, 0);
+      expect(
+        sum,
+        `budget ${raw} sums to ${sum} > ${CEILING} — that is a per-alias figure repeated, not a monthly total`,
+      ).toBeLessThanOrEqual(CEILING);
+    }
+  });
+
+  it('puts every subscription on the monthly window', () => {
+    expect(sql).toMatch(/UPDATE subscriptions\s+SET daily_quota = FALSE/i);
+    expect(sql, 'new rows would inherit the daily default without this').toMatch(
+      /ALTER TABLE subscriptions\s+ALTER COLUMN daily_quota SET DEFAULT FALSE/i,
+    );
+  });
+
+  it('guards the column default so a signup cannot inherit a daily window', () => {
+    const schema = readFileSync(new URL('portal/db/schema.ts', REPO_ROOT), 'utf8');
+    expect(schema).toMatch(/dailyQuota:\s+boolean\('daily_quota'\)\.notNull\(\)\.default\(false\)/);
+  });
+
+  it('forces cached entitlements so the new budgets reach the gateway', () => {
+    expect(sql).toMatch(/UPDATE entitlements\s+SET synced_at = synced_at - INTERVAL '2 hours'/i);
+  });
+});
