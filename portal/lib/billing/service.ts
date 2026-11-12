@@ -58,7 +58,11 @@ import {
   type PlanSummary,
 } from './state';
 import { syncOrganizationEntitlements } from '@/lib/entitlements/sync';
-import { usageWindowForSubscription } from '@/lib/entitlements/quota';
+import {
+  usageWindowForSubscription,
+  tokenPoolFromLimits,
+  tokensUsedInWindow,
+} from '@/lib/entitlements/quota';
 import { billingProvider, resolveBillingProvider } from './index';
 import { loadD17Payment } from './d17';
 import { log } from '@/lib/log';
@@ -220,9 +224,18 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     costUpstreamUsd: number;
     costCustomerUsd: number;
   };
-  /** Blended tokens used per alias in the window. Migration 0023. */
+  /** Blended tokens used per alias in the window — the spend breakdown. */
   tokensByModel: Record<string, number>;
-  /** Which aliases are exhausted on tokens. Migration 0023. */
+  /**
+   * The plan's SHARED allowance and what of it is spent (0039).
+   *
+   * `null` pool = unlimited. The customer spends it on whichever alias they
+   * like, so these are the only two numbers that describe "how much is
+   * left"; every per-alias figure would be a different lie.
+   */
+  poolTokens: number | null;
+  poolUsedTokens: number;
+  /** Which aliases are exhausted on tokens. Uniform under one pool. */
   exhaustedByModel: Record<string, 'tokens' | null>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };
@@ -327,6 +340,13 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       ),
       ]);
 
+  // 0039: one shared pool. Computed once, here, so the banner, the meters,
+  // the device pre-check and the gateway wall cannot disagree about how
+  // much allowance is left.
+  const tokenPool = tokenPoolFromLimits(plan?.tokenLimits ?? {});
+  const poolUsed = tokensUsedInWindow(usage.tokensByModel);
+  const poolExhausted = tokenPool !== null && poolUsed >= tokenPool;
+
   return {
     state,
     plan,
@@ -364,18 +384,17 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       costCustomerUsd: usage.costCustomerUsd,
     },
     tokensByModel: usage.tokensByModel,
-    // Token exhaustion per entitled alias, computed HERE (not in the
-    // client) so the banner, meters, device pre-check and gateway wall
-    // read one value.
+    // 0039: ONE POOL. Every alias shares the plan's allowance, so exhaustion
+    // is a plan-level fact and this map is uniform by construction — it is
+    // kept (rather than deleted) because the banner, meters, device
+    // pre-check and gateway wall all read it, and they must agree.
+    poolTokens: tokenPool,
+    poolUsedTokens: poolUsed,
     exhaustedByModel: Object.fromEntries(
-      (plan?.models ?? []).map((alias) => {
-        const tLimit = Number((plan?.tokenLimits ?? {})[alias] ?? Infinity);
-        const tUsed = Number((usage.tokensByModel ?? {})[alias] ?? 0);
-        return [
-          alias,
-          Number.isFinite(tLimit) && tLimit > 0 && tUsed >= tLimit ? 'tokens' : null,
-        ];
-      }),
+      (plan?.models ?? []).map((alias) => [
+        alias,
+        poolExhausted ? 'tokens' : null,
+      ]),
     ),
     limits: plan,
     keys: { active: Number(activeKeys[0]?.count ?? 0), max: plan?.maxKeys ?? null },

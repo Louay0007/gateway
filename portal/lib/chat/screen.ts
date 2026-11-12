@@ -17,6 +17,7 @@ import { ALIAS_ORDER } from '@/components/chat/aliases';
 import { currentUser, listMemberships } from '@/lib/auth/authorize';
 import { ensureSessionReady } from '@/lib/auth/provision';
 import { getAllowedModels } from '@/lib/entitlements/allowed-models';
+import { tokenPoolFromLimits, tokensUsedInWindow } from '@/lib/entitlements/quota';
 import { webSearchConfigured } from '@/lib/chat/web-search';
 
 export interface ChatScreen {
@@ -55,16 +56,18 @@ export async function loadChatScreen(): Promise<ChatScreen> {
   // name (`aliasMeta`) and never under an upstream model name.
   const entitled = [...new Set(wall.entitled)].sort((a, b) => rank(a) - rank(b));
 
-  const options: ModelOption[] = entitled.map((alias) => {
-    const limit = wall.tokenLimits[alias];
-    const used = wall.usedTokensBy[alias] ?? 0;
-    return {
-      alias,
-      tokenLimit: limit,
-      remainingTokens:
-        typeof limit === 'number' && limit > 0 ? Math.max(0, limit - used) : undefined,
-    };
-  });
+  // 0039: ONE POOL. Every option carries the plan's shared allowance and
+  // what is left of it, because that is the only budget that exists. A
+  // per-alias `limit - used` would grey out a model the customer can still
+  // afford while leaving another enabled that they cannot use either — the
+  // exact confusion the pool removes.
+  const pool = tokenPoolFromLimits(wall.tokenLimits);
+  const remaining = pool === null ? undefined : Math.max(0, pool - tokensUsedInWindow(wall.usedTokensBy));
+  const options: ModelOption[] = entitled.map((alias) => ({
+    alias,
+    tokenLimit: pool ?? undefined,
+    remainingTokens: remaining,
+  }));
 
   return {
     options,

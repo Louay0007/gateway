@@ -60,9 +60,17 @@ export interface SubscriptionBundle {
     costUpstreamUsd: number;
     costCustomerUsd: number;
   };
-  /** Blended tokens used per alias in the window. Migration 0023. */
+  /** Blended tokens used per alias in the window — the spend breakdown. */
   tokensByModel: Record<string, number>;
-  /** Which aliases are out of tokens. Migration 0023. */
+  /**
+   * The plan's SHARED allowance and what of it is spent (0039).
+   *
+   * One pool, spendable on any alias the plan unlocks, so these are the only
+   * two figures that describe what is left. `poolTokens` null = unlimited.
+   */
+  poolTokens: number | null;
+  poolUsedTokens: number;
+  /** Which aliases are out of tokens. Uniform under one pool. */
   exhaustedByModel: Record<string, 'tokens' | null>;
   limits: PlanSummary | null;
   keys: { active: number; max: number | null };

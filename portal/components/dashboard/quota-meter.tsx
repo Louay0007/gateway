@@ -10,9 +10,80 @@ import { compact } from "@/lib/dashboard/format";
  * it reads as "blocked" rather than merely "almost done".
  */
 
-/** Raw-token formatter: 80000000 → "80M", 1500 → "1.5k". */
+/** Raw-token formatter: 50000000 → "50M", 1500 → "1.5k". */
 export function tokensCompact(value: number): string {
   return compact(value);
+}
+
+/**
+ * QuotaPoolMeter — ONE bar for the plan's shared allowance (0039).
+ *
+ * Replaces the per-alias meters. Under a shared pool the per-alias figures
+ * described a split that no longer binds: a customer with 3M "left on
+ * smart" and 0 "left on fast" was being told the product was broken, when
+ * in truth the pool simply had 3M in it. `poolTokens === null` means the
+ * plan has no budget and the bar is not drawn.
+ */
+export function QuotaPoolMeter({
+  poolTokens,
+  poolUsedTokens,
+  entitled,
+  className,
+}: {
+  /** Total shared allowance, raw tokens. Null = unlimited. */
+  poolTokens: number | null | undefined;
+  poolUsedTokens: number;
+  /** Shown as text so the customer knows what the pool may be spent on. */
+  entitled?: string[];
+  className?: string;
+}) {
+  const unlimited = typeof poolTokens !== 'number' || !Number.isFinite(poolTokens) || poolTokens <= 0;
+  const used = Math.max(0, poolUsedTokens ?? 0);
+  const limit = unlimited ? 0 : poolTokens;
+  const percent = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100));
+  const exhausted = !unlimited && used >= limit;
+  const remaining = unlimited ? 0 : Math.max(0, limit - used);
+
+  const tone =
+    exhausted || percent >= 95
+      ? "[&_[data-slot=progress-indicator]]:bg-destructive"
+      : percent >= 80
+        ? "[&_[data-slot=progress-indicator]]:bg-amber-500"
+        : undefined;
+
+  return (
+    <div className={cn("grid gap-2", className)}>
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="flex items-center gap-2 font-medium">
+          Tokens
+          {exhausted ? (
+            <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+              Out of tokens
+            </span>
+          ) : null}
+        </span>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {unlimited ? (
+            <>Unlimited</>
+          ) : (
+            <>{tokensCompact(remaining)} / {tokensCompact(limit)} tokens left</>
+          )}
+        </span>
+      </div>
+      {unlimited ? null : (
+        <Progress
+          value={exhausted ? 100 : percent}
+          aria-label={`Shared token pool: ${exhausted ? 100 : percent}% of ${limit} used${exhausted ? ' (exhausted)' : ''}`}
+          className={cn("[&_[data-slot=progress-track]]:h-1.5", tone)}
+        />
+      )}
+      {entitled && entitled.length > 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Shared across {entitled.join(", ")} — spend it on whichever you like.
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function QuotaMeter({
@@ -84,41 +155,31 @@ export function QuotaMeter({
 }
 
 /**
- * Exhausted-quota banner — `Out of <alias> tokens for this period — resets
- * <period end>` (0038: monthly budgets).
+ * Exhausted-quota banner — `Out of tokens for this period — resets <end>`.
  *
- * Same source as the gateway wall (token limits vs period usage): when an
- * entitled alias has 0 tokens remaining, the wall is already 403ing it.
- * Null when nothing is exhausted.
+ * 0039: ONE POOL, so this is a plan-level banner. It used to name each
+ * exhausted alias, which was honest under per-alias caps and became wrong
+ * the moment the allowance was shared: there is no "fast pool" to be out
+ * of. Driven by the resolved pool numbers so it cannot disagree with the
+ * gateway wall.
  */
 export function QuotaExhaustedBanner({
-  tokensByModel,
-  tokenLimits,
-  entitled,
+  poolTokens,
+  poolUsedTokens,
   resetDate,
   className,
 }: {
-  tokensByModel?: Record<string, number>;
-  tokenLimits?: Record<string, number>;
-  entitled?: string[];
+  poolTokens?: number | null;
+  poolUsedTokens?: number;
   resetDate?: string | null;
   className?: string;
 }) {
-  const planAliases =
-    Array.isArray(entitled) && entitled.length > 0
-      ? entitled
-      : [];
-  const out: { alias: string }[] = [];
-  for (const alias of planAliases) {
-    const tLimit = Number((tokenLimits ?? {})[alias] ?? Infinity);
-    const tUsed = Number((tokensByModel ?? {})[alias] ?? 0);
-    if (Number.isFinite(tLimit) && tLimit > 0 && tUsed >= tLimit) {
-      out.push({ alias });
-    }
+  if (typeof poolTokens !== 'number' || !Number.isFinite(poolTokens) || poolTokens <= 0) {
+    return null;
   }
-  if (out.length === 0) return null;
-  // 0038: budgets are monthly, so the reset is the period end — never a
-  // midnight. Saying "tomorrow" sends the customer to bed for nothing.
+  if ((poolUsedTokens ?? 0) < poolTokens) return null;
+  // Budgets are monthly, so the reset is the period end — never a midnight.
+  // Saying "tomorrow" sends the customer to bed for nothing.
   return (
     <div
       role="alert"
@@ -127,9 +188,7 @@ export function QuotaExhaustedBanner({
         className,
       )}
     >
-      <span className="font-medium">
-        {out.map((o) => `Out of ${o.alias} tokens for this period`).join(' · ')}
-      </span>
+      <span className="font-medium">Out of tokens for this period</span>
       <span className="text-muted-foreground">
         {resetDate
           ? `— resets ${new Date(resetDate).toLocaleDateString('en-US', {
@@ -139,14 +198,9 @@ export function QuotaExhaustedBanner({
             })}. Upgrade for more or wait for renewal.`
           : '— upgrade for more or wait for renewal.'}
       </span>
-      {out.map((o) => (
-        <span
-          key={o.alias}
-          className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive"
-        >
-          {o.alias}: 0 tokens left
-        </span>
-      ))}
+      <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+        {tokensCompact(poolTokens)} used
+      </span>
     </div>
   );
 }

@@ -174,6 +174,10 @@ export function ModelPicker({
  * A budget of 0 is UNLIMITED, not spent — `computeTokenAllowedModels`
  * treats a missing/zero limit that way (quota.ts), and reversing it here
  * would grey out every alias on an unlimited plan.
+ *
+ * 0039: the options now carry the plan's SHARED pool rather than a
+ * per-alias allowance, so this returns the same answer for every alias —
+ * which is correct: when the pool is spent, no model can serve.
  */
 function isExhausted(o: ModelOption): boolean {
   if (o.tokenLimit === undefined || o.tokenLimit <= 0) return false;

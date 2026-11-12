@@ -15,7 +15,7 @@ import {
 import { StatCard } from "@/components/dashboard/stat-card";
 import {
   QuotaExhaustedBanner,
-  QuotaMeters,
+  QuotaPoolMeter,
 } from "@/components/dashboard/quota-meter";
 import {
   ErrorState,
@@ -59,18 +59,16 @@ export function DashboardOverview() {
   const keys = keysApi.data?.keys ?? [];
   const noPlan = b?.state === "no_subscription";
 
-  // Token-only view: blended tokens are the only quota, so the summary is
-  // budgets vs used per alias — no spend, prompt or key KPIs.
-  const tokenLimits = plan?.tokenLimits ?? {};
-  const tokensByModel = b?.tokensByModel ?? {};
-  const aliases = plan?.models ?? [];
-  const usedTokens = aliases.reduce((sum, a) => sum + (tokensByModel[a] ?? 0), 0);
-  const budgeted = aliases
-    .map((a) => Number(tokenLimits[a] ?? 0))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  const totalBudget = budgeted.reduce((sum, n) => sum + n, 0);
-  const hasBudget = budgeted.length > 0;
-  const remainingTokens = hasBudget ? Math.max(0, totalBudget - usedTokens) : null;
+  // Token-only view: blended tokens are the only quota.
+  //
+  // 0039: ONE POOL. The bundle resolves the plan's shared allowance and how
+  // much of it is spent, so the summary reads those two numbers directly
+  // instead of summing per-alias budgets — summing was the old split, and
+  // it silently assumed every alias was entitled to its own slice.
+  const poolTokens = b?.poolTokens ?? null;
+  const poolUsed = b?.poolUsedTokens ?? 0;
+  const hasBudget = typeof poolTokens === "number" && poolTokens > 0;
+  const remainingTokens = hasBudget ? Math.max(0, poolTokens - poolUsed) : null;
   const periodEnd = b?.period.end ?? null;
   // 0038: quotas are monthly, so b.period.end is the end of the billing
   // period the budgets are measured over — not the end of a Tunis day.
@@ -93,9 +91,8 @@ export function DashboardOverview() {
 
       {b.plan ? (
         <QuotaExhaustedBanner
-          tokensByModel={b.tokensByModel ?? {}}
-          tokenLimits={b.plan.tokenLimits ?? {}}
-          entitled={b.plan.models ?? []}
+          poolTokens={b.poolTokens}
+          poolUsedTokens={b.poolUsedTokens}
           resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
         />
       ) : null}
@@ -145,7 +142,7 @@ export function DashboardOverview() {
       <div className="grid gap-4 sm:grid-cols-3">
         <StatCard
           label="Tokens used"
-          value={compact(usedTokens)}
+          value={compact(poolUsed)}
           hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
           icon={BarChart3}
         />
@@ -156,7 +153,7 @@ export function DashboardOverview() {
           }
           hint={
             hasBudget
-              ? `of ${compact(totalBudget)} this period — resets ${periodEndLabel}`
+              ? `of ${compact(poolTokens)} this period — resets ${periodEndLabel}`
               : "No token budget on this plan"
           }
           icon={Gauge}
@@ -172,15 +169,16 @@ export function DashboardOverview() {
       {plan ? (
         <Card>
           <CardHeader>
-            <CardTitle>Token budgets</CardTitle>
+            <CardTitle>Token budget</CardTitle>
             <CardDescription>
-              Each model tier stops when its blended-token budget is spent.
+              One shared allowance across the models your plan unlocks.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <QuotaMeters
-              tokensByModel={tokensByModel}
-              tokenLimits={tokenLimits}
+            <QuotaPoolMeter
+              poolTokens={b.poolTokens}
+              poolUsedTokens={b.poolUsedTokens}
+              entitled={plan.models ?? []}
             />
           </CardContent>
         </Card>

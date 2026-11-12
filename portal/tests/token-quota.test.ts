@@ -15,6 +15,8 @@ import {
   computeTokenAllowedModels,
   remainingTokensByModel,
   isTokenExhausted,
+  tokenPoolFromLimits,
+  tokensUsedInWindow,
   usageWindowFor,
   usageWindowForSubscription,
   tunisDayWindow,
@@ -46,7 +48,7 @@ describe('BILLABLE_TOKEN_COLUMNS — the blended-token definition', () => {
   });
 });
 
-describe('computeTokenAllowedModels — the wall rule', () => {
+describe('computeTokenAllowedModels — ONE shared pool (0039)', () => {
   it('allows everything under quota', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
@@ -56,27 +58,54 @@ describe('computeTokenAllowedModels — the wall rule', () => {
     ).toEqual(['fast', 'smart']);
   });
 
-  it('blocks only the token-exhausted alias', () => {
+  it('spending the whole allowance on ONE alias does not cut it at that alias slice', () => {
+    // THE POINT OF THE POOL. Starter publishes {fast: 25M, smart: 25M} = 50M.
+    // A customer who spends all 50M on fast must keep serving on fast: the
+    // per-alias split is an allocation, not a cap.
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
+        fast: 45_000_000,
+        smart: 0,
+      }),
+    ).toEqual(['fast', 'smart']);
+  });
+
+  it('a partly-spent alias leaves the rest spendable on another model', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
         fast: 25_000_000,
         smart: 1_000,
       }),
-    ).toEqual(['smart']);
+    ).toEqual(['fast', 'smart']);
   });
 
-  it('denies at-limit (used == limit): the next token would be limit+1', () => {
+  it('cuts EVERY alias once the pool is spent — not just the one that spent it', () => {
     expect(
-      computeTokenAllowedModels(['smart'], PRO_TOKENS, { smart: 16_666_667 }),
+      computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
+        fast: 50_000_000,
+      }),
     ).toEqual([]);
-  });
-
-  it('returns [] when every alias is token-exhausted (deny-all)', () => {
+    // Pro's three aliases pool to 50M too, so the same total cuts all three.
     expect(
       computeTokenAllowedModels(PRO_ENTITLED, PRO_TOKENS, {
         smart: 16_666_667,
         frontier: 16_666_667,
         fable: 16_666_666,
+      }),
+    ).toEqual([]);
+  });
+
+  it('denies at-limit (used == pool): the next token would be pool+1', () => {
+    expect(
+      computeTokenAllowedModels(['smart'], PRO_TOKENS, { smart: 50_000_000 }),
+    ).toEqual([]);
+  });
+
+  it('counts unmapped spend against the pool (no free inference)', () => {
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
+        fast: 20_000_000,
+        [UNKNOWN_TOKENS_KEY]: 30_000_000,
       }),
     ).toEqual([]);
   });
@@ -100,6 +129,48 @@ describe('computeTokenAllowedModels — the wall rule', () => {
     expect(computeTokenAllowedModels(['a'], { a: -5 }, { a: 999_999 })).toEqual([
       'a',
     ]);
+  });
+});
+
+describe('tokenPoolFromLimits — the allocation sums to one allowance', () => {
+  it('sums the per-alias values into a single pool', () => {
+    expect(tokenPoolFromLimits({ fast: 25_000_000, smart: 25_000_000 })).toBe(
+      50_000_000,
+    );
+    expect(
+      tokenPoolFromLimits({
+        smart: 16_666_667,
+        frontier: 16_666_667,
+        fable: 16_666_666,
+      }),
+    ).toBe(50_000_000);
+  });
+
+  it('a one-alias plan is the same total', () => {
+    expect(tokenPoolFromLimits({ fast: 50_000_000 })).toBe(50_000_000);
+  });
+
+  it('ignores zero and negative entries rather than letting them shrink the pool', () => {
+    expect(tokenPoolFromLimits({ fast: 50_000_000, smart: 0 })).toBe(50_000_000);
+  });
+
+  it('returns null when the plan has no budget at all (unlimited)', () => {
+    expect(tokenPoolFromLimits({})).toBeNull();
+    expect(tokenPoolFromLimits({ fast: 0 })).toBeNull();
+  });
+});
+
+describe('tokensUsedInWindow — every alias plus unmapped', () => {
+  it('sums all aliases and the unknown bucket', () => {
+    expect(
+      tokensUsedInWindow({ fast: 1, smart: 2, [UNKNOWN_TOKENS_KEY]: 3 }),
+    ).toBe(6);
+  });
+
+  it('ignores negative and non-numeric entries', () => {
+    expect(
+      tokensUsedInWindow({ fast: -5, smart: 10 } as Record<string, number>),
+    ).toBe(10);
   });
 });
 
@@ -186,28 +257,48 @@ describe('tunisDayWindow — Africa/Tunis is UTC+1 year-round (no DST)', () => {
   });
 });
 
-describe('remainingTokensByModel — clamped at 0, raw tokens', () => {
-  it('computes remaining per alias', () => {
+describe('remainingTokensByModel — one pool figure, clamped at 0', () => {
+  it('reports what is left of the shared pool', () => {
+    // Starter pools to 50M; 7M spent on fast leaves 43M to spend anywhere.
     expect(
       remainingTokensByModel(STARTER_TOKENS, { fast: 7_000_000 }),
-    ).toEqual({ fast: 18_000_000, smart: 25_000_000 });
+    ).toEqual({ pool: 43_000_000 });
   });
 
-  it('shows 0 remaining when over limit (not negative)', () => {
-    expect(remainingTokensByModel(STARTER_TOKENS, { fast: 190_000_000 })).toEqual(
-      { fast: 0, smart: 25_000_000 },
-    );
+  it('spend on a different alias draws from the same pool', () => {
+    expect(
+      remainingTokensByModel(STARTER_TOKENS, {
+        fast: 10_000_000,
+        smart: 10_000_000,
+      }),
+    ).toEqual({ pool: 30_000_000 });
+  });
+
+  it('clamps at 0 when over the pool (never negative)', () => {
+    expect(
+      remainingTokensByModel(STARTER_TOKENS, { fast: 190_000_000 }),
+    ).toEqual({ pool: 0 });
+  });
+
+  it('returns an empty map for an unlimited plan', () => {
+    expect(remainingTokensByModel({}, { fast: 1_000 })).toEqual({});
   });
 });
 
-describe('isTokenExhausted', () => {
-  it('names token exhaustion exactly at the limit', () => {
-    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 24_999_999 })).toBe(
-      false,
-    );
-    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 25_000_000 })).toBe(
+describe('isTokenExhausted — plan-wide, identical for every alias', () => {
+  it('is false one token under the pool and true at it', () => {
+    expect(
+      isTokenExhausted('fast', STARTER_TOKENS, { fast: 49_999_999 }),
+    ).toBe(false);
+    expect(isTokenExhausted('fast', STARTER_TOKENS, { fast: 50_000_000 })).toBe(
       true,
     );
+  });
+
+  it('gives the SAME answer whichever alias is asked about', () => {
+    const used = { fast: 50_000_000 };
+    expect(isTokenExhausted('fast', STARTER_TOKENS, used)).toBe(true);
+    expect(isTokenExhausted('smart', STARTER_TOKENS, used)).toBe(true);
   });
 
   it('treats missing/zero limits as never exhausted', () => {
@@ -218,33 +309,33 @@ describe('isTokenExhausted', () => {
   });
 });
 
-describe('25M/period boundary — 24,999,999 allowed, 25,000,000 cut', () => {
-  it('one token under the period budget still serves', () => {
+describe('50M pool boundary — 49,999,999 allowed, 50,000,000 cuts everything', () => {
+  it('one token under the pool still serves', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
-        fast: 24_999_999,
-        smart: 24_999_999,
+        fast: 49_999_999,
       }),
     ).toEqual(['fast', 'smart']);
   });
 
-  it('exactly at the period budget cuts that alias only', () => {
+  it('exactly at the pool cuts every alias at once', () => {
     expect(
       computeTokenAllowedModels(STARTER_ENTITLED, STARTER_TOKENS, {
         fast: 25_000_000,
-        smart: 12_000_000,
+        smart: 25_000_000,
       }),
-    ).toEqual(['smart']);
+    ).toEqual([]);
   });
 
-  it('the sibling alias keeps serving while one is exhausted', () => {
+  it('an exhausted-looking alias does not cut its siblings', () => {
+    // Pro spends its entire 50M on smart; frontier and fable never ran, and
+    // the pool is gone, so all three are cut — but not before that point.
     expect(
       computeTokenAllowedModels(PRO_ENTITLED, PRO_TOKENS, {
-        smart: 16_666_667,
+        smart: 49_000_000,
         frontier: 1_000,
-        fable: 0,
       }),
-    ).toEqual(['frontier', 'fable']);
+    ).toEqual(['smart', 'frontier', 'fable']);
   });
 });
 
@@ -253,9 +344,17 @@ describe('outOfTokensMessage — the contract string', () => {
   // DEFAULT. A monthly budget described as "resets at midnight" makes the
   // customer wait up for a reset that never comes.
   it('defaults to the period wording, not the daily one', () => {
-    expect(outOfTokensMessage('smart')).toMatch(/out of smart tokens/i);
+    expect(outOfTokensMessage('smart')).toMatch(/out of tokens/i);
     expect(outOfTokensMessage('smart')).toMatch(/this period/i);
     expect(outOfTokensMessage('smart')).not.toMatch(/today|midnight/i);
+  });
+
+  it('names NO model, because the allowance is one shared pool (0039)', () => {
+    // Saying "out of smart tokens" sends the customer to another alias that
+    // is equally empty — they conclude the product is broken.
+    for (const alias of ['fast', 'smart', 'frontier', 'fable']) {
+      expect(outOfTokensMessage(alias)).not.toMatch(/fast|smart|frontier|fable/i);
+    }
   });
 
   it('daily wording is still available when a row is put on a Tunis day', () => {
@@ -265,7 +364,7 @@ describe('outOfTokensMessage — the contract string', () => {
 
   it('legacy period message keeps the renewal wording', () => {
     expect(outOfTokensMessage('smart', '2026-11-01T00:00:00Z', 'period')).toMatch(
-      /out of smart tokens/i,
+      /out of tokens/i,
     );
     expect(outOfTokensMessage('smart', '2026-11-01T00:00:00Z', 'period')).toMatch(
       /November 1/,
@@ -273,9 +372,7 @@ describe('outOfTokensMessage — the contract string', () => {
   });
 
   it('reads sensibly without a reset date', () => {
-    expect(outOfTokensMessage('frontier', null)).toMatch(
-      /out of frontier tokens/i,
-    );
+    expect(outOfTokensMessage('frontier', null)).toMatch(/out of tokens/i);
   });
 });
 
@@ -302,14 +399,17 @@ describe('resolveTokenLimits — policy', () => {
   });
 });
 
-describe('mapGatewayModelError — generic 403 → per-alias token message', () => {
+describe('mapGatewayModelError — generic 403 → plan-wide token message', () => {
   it('maps a LiteLLM model-denied 403 naming the alias', () => {
     const m = mapGatewayModelError(
       403,
       `{"error":{"message":"Model 'frontier' is not available for this API key"}}`,
     );
+    // The alias is still extracted for attribution, but the copy is
+    // plan-wide: under one pool the model the body names is not the reason.
     expect(m?.model).toBe('frontier');
-    expect(m?.friendly).toMatch(/out of frontier tokens/i);
+    expect(m?.friendly).toMatch(/out of tokens/i);
+    expect(m?.friendly).not.toMatch(/out of frontier tokens/i);
   });
 
   it('a token-exhaustion body names tokens, not prompts', () => {
@@ -318,7 +418,7 @@ describe('mapGatewayModelError — generic 403 → per-alias token message', () 
       `{"error":{"message":"Model 'smart' is not available — out of smart tokens for this period"}}`,
     );
     expect(m?.model).toBe('smart');
-    expect(m?.friendly).toMatch(/out of smart tokens/i);
+    expect(m?.friendly).toMatch(/out of tokens/i);
     // 0038: the mapped copy must not promise a daily reset.
     expect(m?.friendly).toMatch(/this period/i);
     expect(m?.friendly).not.toMatch(/today|midnight/i);
@@ -348,7 +448,7 @@ describe('mapGatewayModelError — generic 403 → per-alias token message', () 
     const raw = '{"error":{"message":"The requested model is not available for this API key"}}';
     const m = mapGatewayModelError(403, raw, 'smart');
     expect(m?.model).toBe('smart');
-    expect(m?.friendly).toMatch(/out of smart tokens/i);
+    expect(m?.friendly).toMatch(/out of tokens/i);
   });
 
   it('translates an upstream model name in the denial to the alias', () => {
@@ -357,7 +457,6 @@ describe('mapGatewayModelError — generic 403 → per-alias token message', () 
       '{"error":{"message":"Model \'sonnet-5.5\' is not available for this API key"}}',
     );
     expect(m?.model).toBe('smart');
-    expect(m?.friendly).toMatch(/out of smart tokens/i);
     expect(m?.friendly).not.toContain('sonnet');
   });
 });
@@ -384,20 +483,31 @@ describe('unmapped tokens are charged to every alias (G20)', () => {
     expect(chargedTokensFor('fast', { fast: -1, [UNKNOWN_TOKENS_KEY]: -9 })).toBe(0);
   });
 
-  it('spends an alias whose own usage is fine once strays push it over', () => {
+  it('spends the pool with stray usage, cutting the whole plan', () => {
     const allowed = computeTokenAllowedModels(
       ['fast', 'smart'],
       { fast: 100, smart: 100 },
       { fast: 90, smart: 0, [UNKNOWN_TOKENS_KEY]: 20 },
     );
-    // 90 + 20 > 100 for fast; 0 + 20 < 100 for smart.
-    expect(allowed).toEqual(['smart']);
+    // Pool = 200; 90 + 20 = 110 spent, so 90 remain and both aliases serve.
+    // The strays are counted exactly once, against the pool the customer
+    // actually bought.
+    expect(allowed).toEqual(['fast', 'smart']);
+
+    // Push past the pool and the whole plan stops together.
+    expect(
+      computeTokenAllowedModels(
+        ['fast', 'smart'],
+        { fast: 100, smart: 100 },
+        { fast: 190, smart: 0, [UNKNOWN_TOKENS_KEY]: 20 },
+      ),
+    ).toEqual([]);
   });
 
   it('remaining and exhausted agree with the wall about the same number', () => {
     const limits = { fast: 100 };
     const used = { fast: 50, [UNKNOWN_TOKENS_KEY]: 60 };
-    expect(remainingTokensByModel(limits, used)).toEqual({ fast: 0 });
+    expect(remainingTokensByModel(limits, used)).toEqual({ pool: 0 });
     expect(isTokenExhausted('fast', limits, used)).toBe(true);
     expect(computeTokenAllowedModels(['fast'], limits, used)).toEqual([]);
   });

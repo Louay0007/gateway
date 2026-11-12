@@ -19,7 +19,6 @@
 
 import { subscriptionBundle } from '@/lib/billing';
 import {
-  remainingTokensByModel as computeRemainingTokens,
   isTokenExhausted,
   outOfTokensMessage,
 } from '@/lib/entitlements/quota';
@@ -79,26 +78,31 @@ export async function GET(request: Request): Promise<Response> {
 
     // Project only what the desktop agent needs. The full bundle contains
     // cost figures and internal state the device client should not see.
-    // `remainingTokensByModel` lets the client block before spending
-    // tokens it does not have.
     //
-    // Same pure helpers the gateway wall uses (computeTokenAllowedModels),
-    // so the number here and the 403 there cannot disagree. Clamped at 0 —
-    // a negative remaining is still "stop". A missing limit = unlimited
-    // (fail-open, see quota.ts).
+    // 0039: ONE POOL. The bundle has already resolved the plan-level
+    // allowance (`poolTokens` / `poolUsedTokens`), so this endpoint reports
+    // a single remaining figure instead of a per-alias map — a map would
+    // invite the client to block a model the customer can still afford.
+    // Same bundle the gateway wall reads, so this and the 403 cannot
+    // disagree. A null pool = unlimited.
     const tokenLimits = bundle.plan?.tokenLimits ?? {};
-    const usedTokens = bundle.tokensByModel ?? {};
-    const remainingTokens = computeRemainingTokens(tokenLimits, usedTokens);
     const entitled = bundle.plan?.models ?? [];
-    const tokenExhausted = entitled.filter((a) => isTokenExhausted(a, tokenLimits, usedTokens));
+    const poolTokens = bundle.poolTokens ?? null;
+    const poolUsed = bundle.poolUsedTokens ?? 0;
+    const poolRemaining = poolTokens === null ? null : Math.max(0, poolTokens - poolUsed);
+    const tokenExhausted = entitled.filter((a) =>
+      isTokenExhausted(a, tokenLimits, bundle.tokensByModel ?? {}),
+    );
     const resetDate = bundle.period?.end ?? bundle.subscription?.currentPeriodEnd ?? null;
 
-    // Sync guard: when a `model` query names an exhausted alias, answer
-    // 429 HERE rather than letting the client spend a call the gateway
-    // wall will 403 a moment later.
+    // Sync guard: when a `model` query names a model this plan unlocks and
+    // the pool is spent, answer 429 HERE rather than letting the client
+    // spend a call the gateway wall will 403 a moment later. The check is
+    // plan-wide on purpose: under one pool every alias is exhausted
+    // together, so testing only the requested one would be a coincidence.
     const url = new URL(request.url);
     const wanted = (url.searchParams.get('model') ?? '').trim().toLowerCase();
-    if (wanted && tokenExhausted.includes(wanted)) {
+    if (wanted && tokenExhausted.length > 0) {
       return Response.json(
         {
           error: {
@@ -109,7 +113,9 @@ export async function GET(request: Request): Promise<Response> {
             message: outOfTokensMessage(wanted, resetDate, bundle.cadence),
             model: wanted,
             exhaustedBy: 'tokens',
-            remainingTokensByModel: remainingTokens,
+            poolTokens,
+            poolUsedTokens: poolUsed,
+            remainingTokens: poolRemaining,
             periodStart: bundle.period.start,
             periodEnd: bundle.period.end,
           },
@@ -122,8 +128,12 @@ export async function GET(request: Request): Promise<Response> {
       planCode: bundle.plan?.code ?? null,
       models: entitled,
       tokenLimits,
-      tokensByModel: usedTokens,
-      remainingTokensByModel: remainingTokens,
+      tokensByModel: bundle.tokensByModel ?? {},
+      // One shared pool: `remainingTokens` is the only "how much is left"
+      // this API answers. `poolTokens` is null when the plan is unlimited.
+      poolTokens,
+      poolUsedTokens: poolUsed,
+      remainingTokens: poolRemaining,
       tokenExhausted,
       exhaustedByModel: Object.fromEntries(
         entitled.map((a) => [a, tokenExhausted.includes(a) ? 'tokens' : null]),

@@ -598,9 +598,12 @@ export const trialCodes = pgTable('trial_codes', {
   redeemedCount:   integer('redeemed_count').notNull().default(0),
   models:          text('models').array().notNull().default(['fast', 'smart']),
   /**
-   * Per-code MONTHLY token budget, split across the code's models (0038).
-   * Measured over the trial's own window, so a 3-day trial with 50M gets 50M
-   * for those 3 days, not 50M per day. Plan fallback when empty.
+   * Per-code MONTHLY token budget — one SHARED pool (0039).
+   *
+   * The entries are allocations whose SUM is the allowance: `{fast: 25M,
+   * smart: 25M}` means 50M spendable on fast, on smart, or split, never 25M
+   * each. Measured over the trial's own window, so a 3-day trial with 50M
+   * gets 50M for those 3 days. Plan fallback when empty.
    */
   tokenLimits:     jsonb('token_limits').notNull().default({}),
   trialDays:       integer('trial_days').notNull().default(3),

@@ -128,17 +128,21 @@ export function resolveBudgetUsd(
  * upstream as a catastrophic backstop (token wall always hits first).
  */
 /**
- * Resolve per-alias TOKEN budgets from the plan's JSONB column.
+ * Resolve the plan's TOKEN allocation map from its JSONB column.
  *
  * Migration 0023 made tokens the only quota. 0025 made it DAILY, which was
  * the wrong unit for a monthly-priced product; 0038 restored a PERIOD
- * window and set the budgets to the plan's monthly total SPLIT across its
- * aliases (`{fast: 25000000, smart: 25000000}` = 50M per period, not 50M
- * per alias).
+ * window.
+ *
+ * 0039 made the allowance ONE SHARED POOL: the entries are allocations
+ * whose SUM is what the customer may spend, on any alias the plan
+ * unlocks. `{fast: 25M, smart: 25M}` is 50M total, not 25M per model —
+ * enforcement reads only the sum (see tokenPoolFromLimits), so a customer
+ * can put the whole 50M through one alias if that is what they want.
  *
  * A cut org gets an empty map so every enforcement point can compare
- * without branching on effect first. A missing alias is UNLIMITED, not
- * deny — see the token wall note in quota.ts.
+ * without branching on effect first. An alias with no entry is UNLIMITED,
+ * not deny — see the token wall note in quota.ts.
  */
 export function resolveTokenLimits(
   plan: { tokenLimits?: Record<string, number> | null },

@@ -5,35 +5,42 @@
  * different allowlists; sync resurrected what enforce narrowed. Both now
  * compute through computeTokenAllowedModels so they cannot disagree.
  *
- * RULE (migration 0038): allowed = entitled WHERE tokens_used < token_limit.
- * tokens_used = SUM(input + output + cache_write_5m + cache_write_1h +
- * cache_read) over the SUBSCRIPTION PERIOD (or the calendar month when no
- * period is known). Prompts are no longer a quota; `prompt_count` stays in
- * the ledger for historical analytics only.
+ * RULE (0039): ONE SHARED POOL per plan. The plan's allowance is the SUM of
+ * its `token_limits`, and that pool is spendable on ANY alias the plan
+ * unlocks — 50M means 50M, whether it goes to fast, to smart, or split. An
+ * alias is never cut while the pool has tokens left; when the pool is gone,
+ * every alias is cut at once.
  *
- * WHY MONTHLY, NOT DAILY. 0025 made the window the Tunis calendar day and
- * 0029 forced every row onto it, which turned a monthly token purchase into
- * a 30x giveaway: a per-alias 100M/day budget summed over a month is 3B per
- * alias, or 1,200 DT of tokens at 0.20 DT/M sold for 50 DT. A daily cap can
- * only be correct for a daily-priced product; this one bills monthly, so the
- * budget and the window must share that unit. 0038 rewrote both.
+ * WHY POOLED, NOT PER-ALIAS (0038 → 0039). 0038 split 50M into fifteens of
+ * millions per alias, which quietly reintroduced the problem it was written
+ * to fix: Pro's 50M across three aliases gave 16.7M per model, LESS per
+ * model than Starter's 25M on a plan costing 1.8x more. A customer who
+ * wanted to spend their whole allowance on one strong model could not. The
+ * pool has no such inversion and needs no product decision about how to
+ * split — the customer decides, by spending.
  *
- * `dailyQuota` is kept on the subscription row for the direction it now
- * documents: FALSE = monthly, the only shipping value since 0038. A TRUE row
- * still resolves to the Tunis day, so the helper below stays the single
- * definition and an operator can hand one row a daily window without a code
- * change — but no plan ships that way.
+ * `token_limits` therefore now means **allocations that sum to the pool**,
+ * not independent caps. The per-alias values stay in the column (and in the
+ * admin editor) so a plan can still describe its shape, but enforcement
+ * reads only their sum. Migration 0038's numbers already sum to exactly
+ * 50M per plan, so this needed no schema change; a future plan can publish
+ * `{fast: 50000000}` or `{fast: 25000000, smart: 25000000}` and both mean
+ * 50M shared.
+ *
+ * WINDOW: the subscription period (or the calendar month when none is
+ * known). 0025's daily window was a 30x giveaway on a monthly-priced
+ * product — a per-alias daily budget summed over a month. 0038 fixed the
+ * unit; this module fixes the shape.
  *
  * Units: RAW TOKENS as the ledger stores them (integers, NOT millions, NOT
- * cents): {fast: 25000000} = 25M tokens over the billing period. Plans split
- * a monthly TOTAL across their aliases rather than repeating it per alias —
- * repeating is what multiplied the exposure in 0025.
+ * cents). 50000000 = 50M blended tokens per period.
  *
  * MISSING / ZERO = UNLIMITED. Token budgets postdate plans, so a plan an
  * operator created before 0023 may have no entry — failing closed would cut
- * every such plan on the first pass after deploy. The 0038 guard forces
- * budgets onto starter/pro/trial and the admin editor writes them, so the
- * fail-open only covers plans nobody configured.
+ * every such plan on the first pass after deploy. An alias with no entry is
+ * NOT part of the pool and is never cut by it; the 0038 guard forces
+ * budgets onto starter/pro/trial, so the fail-open only covers plans nobody
+ * configured.
  */
 export type TokenLimits = Record<string, number>;
 export type UsageTokensByModel = Record<string, number>;
@@ -63,33 +70,64 @@ export const BILLABLE_TOKEN_COLUMNS =
   '+ COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0) ' +
   '+ COALESCE(u.cache_read_tokens,0)';
 
+/**
+ * The plan's shared token pool: the SUM of its per-alias allocations.
+ *
+ * `null` means the plan has no token budget at all (every entry missing or
+ * non-positive) and is therefore UNLIMITED. A partially-filled plan still
+ * pools — `{fast: 50000000}` and `{fast: 25000000, smart: 25000000}` both
+ * yield 50,000,000, because the column describes the shape of one
+ * allowance, not a cap per model.
+ */
+export function tokenPoolFromLimits(tokenLimits: TokenLimits): number | null {
+  let sum = 0;
+  let sawPositive = false;
+  for (const value of Object.values(tokenLimits ?? {})) {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n <= 0) continue; // 0 / missing = not part of the pool
+    sawPositive = true;
+    sum += n;
+  }
+  return sawPositive ? sum : null;
+}
+
+/**
+ * Blended tokens spent in the window — the number compared to the pool.
+ *
+ * Counts every alias the org used plus the `unknown` bucket. Unmapped spend
+ * must land somewhere or it is free inference, and with one pool there is no
+ * over-charging question left to answer: the stray tokens are simply part of
+ * what the org consumed. The collector still reports unmapped models
+ * loudly, so an operator sees the cause rather than a customer seeing a
+ * free tier.
+ */
+export function tokensUsedInWindow(usedTokensBy: UsageTokensByModel): number {
+  const u = usedTokensBy ?? {};
+  let total = 0;
+  for (const value of Object.values(u)) {
+    const n = Number(value);
+    if (Number.isFinite(n) && n > 0) total += n;
+  }
+  return total;
+}
+
+/**
+ * The wall: which entitled aliases may serve right now.
+ *
+ * ONE POOL, so this is all-or-nothing per plan — either the allowance has
+ * tokens left and every entitled alias serves, or it is spent and none do.
+ * There is no per-alias narrowing any more, which is the whole point: a
+ * customer who spent 45M on fast still has 5M to spend on smart.
+ */
 export function computeTokenAllowedModels(
   entitled: string[],
   tokenLimits: TokenLimits,
   usedTokensBy: UsageTokensByModel,
 ): string[] {
   const e = Array.isArray(entitled) ? entitled : [];
-  const l = tokenLimits ?? {};
-  const u = usedTokensBy ?? {};
-  // UNMAPPED SPEND IS STILL SPEND. A row whose `model` resolved to
-  // `UNKNOWN_ALIAS` (a deployed model with no `aliases:` entry in
-  // prices/models.yaml) belongs to no alias, so with a plain per-alias sum
-  // it counts against nothing and the tokens are free. That is not a
-  // theoretical hole: it opens the moment an upstream is added to LiteLLM
-  // without a matching alias, and it opens silently.
-  //
-  // The unknown bucket is charged to EVERY entitled alias. Over-charging is
-  // the correct direction — the alternative is unlimited free inference —
-  // and the collector already reports unmapped models loudly, so an
-  // operator sees the cause instead of a customer seeing a free tier.
-  return e.filter((alias) => {
-    const limit = Number((l as Record<string, unknown>)[alias] ?? Infinity);
-    if (!Number.isFinite(limit)) return true; // missing = unlimited
-    if (limit <= 0) return true; // 0 = unlimited, same rule
-    const usedRaw = Number((u as Record<string, unknown>)[alias] ?? 0);
-    if (!Number.isFinite(usedRaw) || usedRaw < 0) return false;
-    return chargedTokensFor(alias, u) < limit;
-  });
+  const pool = tokenPoolFromLimits(tokenLimits);
+  if (pool === null) return e; // no budget = unlimited
+  return tokensUsedInWindow(usedTokensBy) < pool ? e : [];
 }
 
 export function usageWindowFor(
@@ -173,12 +211,11 @@ export function usageWindowForSubscription(
 }
 
 /**
- * Tokens charged to an alias: its own spend PLUS every unmapped token.
+ * Tokens this alias has spent, plus every unmapped token.
  *
- * See `computeTokenAllowedModels` for why the `unknown` bucket is charged
- * to all aliases. Exported so the wall, the device pre-check and the
- * dashboard all read one number — three surfaces disagreeing about what a
- * customer used is the exact class of bug this module exists to prevent.
+ * Kept for the surfaces that report a per-alias figure (the dashboard
+ * breakdown). It is NOT compared to a limit any more — under one pool an
+ * alias is never independently cut. See `remainingTokensByModel`.
  */
 export function chargedTokensFor(alias: string, usedTokensBy: UsageTokensByModel): number {
   const u = usedTokensBy ?? {};
@@ -192,48 +229,64 @@ export function chargedTokensFor(alias: string, usedTokensBy: UsageTokensByModel
 /** The key `aliasForRow` writes when no `aliases:` entry matched. */
 export const UNKNOWN_TOKENS_KEY = 'unknown';
 
+/**
+ * Tokens left in the plan's SHARED pool, or `null` when unlimited.
+ *
+ * Deliberately not per alias. The old shape returned `{fast: N, smart: M}`
+ * with each figure measured against its own cap, which is exactly the
+ * contract this change removes: it let a customer sit on 3M of unused
+ * "smart" while being told they were out of "fast".
+ */
 export function remainingTokensByModel(
   tokenLimits: TokenLimits,
   usedTokensBy: UsageTokensByModel,
-): Record<string, number> {
-  const out: Record<string, number> = {};
-  for (const [alias, limit] of Object.entries(tokenLimits ?? {})) {
-    if (typeof limit !== 'number' || !Number.isFinite(limit)) continue;
-    out[alias] = Math.max(0, limit - chargedTokensFor(alias, usedTokensBy));
-  }
-  return out;
+): { pool: number } | Record<string, never> {
+  const pool = tokenPoolFromLimits(tokenLimits);
+  if (pool === null) return {};
+  return { pool: Math.max(0, pool - tokensUsedInWindow(usedTokensBy)) };
 }
 
+/**
+ * Is the plan out of tokens — the SAME answer for every alias.
+ *
+ * A signature that took an alias was the old per-alias contract. It stays
+ * for callers that loop over aliases, but the alias no longer changes the
+ * result: the pool is either spent or it is not.
+ */
 export function isTokenExhausted(
-  alias: string,
+  _alias: string,
   tokenLimits: TokenLimits,
   usedTokensBy: UsageTokensByModel,
 ): boolean {
-  const limit = Number((tokenLimits ?? {})[alias] ?? Infinity);
-  if (!Number.isFinite(limit) || limit <= 0) return false; // unlimited
-  const own = Number((usedTokensBy ?? {})[alias] ?? 0);
-  if (!Number.isFinite(own) || own < 0) return true;
-  return chargedTokensFor(alias, usedTokensBy) >= limit;
+  const pool = tokenPoolFromLimits(tokenLimits);
+  if (pool === null) return false; // unlimited
+  return tokensUsedInWindow(usedTokensBy) >= pool;
 }
 
 /**
  * Customer-facing exhaustion copy.
  *
- * Defaults to `period` because every budget shipping since 0038 is monthly.
- * `daily` remains for the one case a row is deliberately put on a Tunis day.
+ * ONE POOL, so the message names no model: "out of fast tokens" was wrong
+ * the moment the allowance became shared — a customer reading it would try
+ * smart, find it also refused, and conclude the product was broken. The
+ * alias argument is kept so callers that pass the requested model keep
+ * type-checking, but the copy is plan-wide.
+ *
+ * Defaults to `period` because every budget is monthly since 0038. `daily`
+ * remains for the one case a row is deliberately put on a Tunis day.
  * Getting this backwards is not cosmetic: telling a customer with a monthly
  * allowance that it "resets at midnight" makes them wait up for a reset that
  * never comes, and then churn.
  */
 export function outOfTokensMessage(
-  alias: string,
+  _alias: string,
   resetDate?: Date | string | null,
   cadence: 'daily' | 'period' = 'period',
 ): string {
   const base =
     cadence === 'daily'
-      ? `Out of ${alias} tokens for today`
-      : `Out of ${alias} tokens for this period`;
+      ? 'Out of tokens for today'
+      : 'Out of tokens for this period';
   if (!resetDate) {
     return cadence === 'daily'
       ? `${base} — resets at midnight Tunis time. Upgrade for more.`

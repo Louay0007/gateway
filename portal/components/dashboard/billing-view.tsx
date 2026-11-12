@@ -39,7 +39,7 @@ import { ErrorState, PanelSkeleton, RefreshingBar } from "@/components/dashboard
 import { PaywallState } from "@/components/dashboard/paywall-state";
 import { PaymentMethodDialog } from "@/components/dashboard/payment-method-dialog";
 import type { PlanSummary } from "@/lib/billing/state";
-import { QuotaMeters, QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
+import { QuotaPoolMeter, QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import type {
@@ -118,16 +118,13 @@ export function BillingView() {
   const hasPlan = b ? b.state !== "no_subscription" : true;
 
   // Token-only KPIs: blended tokens are the sole quota.
-  const tokenLimits = plan?.tokenLimits ?? {};
-  const tokensByModel = b?.tokensByModel ?? {};
-  const aliases = plan?.models ?? [];
-  const usedTokens = aliases.reduce((sum, a) => sum + (tokensByModel[a] ?? 0), 0);
-  const budgeted = aliases
-    .map((a) => Number(tokenLimits[a] ?? 0))
-    .filter((n) => Number.isFinite(n) && n > 0);
-  const totalBudget = budgeted.reduce((sum, n) => sum + n, 0);
-  const remainingTokens =
-    budgeted.length > 0 ? Math.max(0, totalBudget - usedTokens) : null;
+  //
+  // 0039: ONE POOL — the bundle resolves the shared allowance and the spend
+  // against it, so there is nothing to sum per alias any more.
+  const poolTokens = b?.poolTokens ?? null;
+  const poolUsed = b?.poolUsedTokens ?? 0;
+  const hasBudget = typeof poolTokens === "number" && poolTokens > 0;
+  const remainingTokens = hasBudget ? Math.max(0, poolTokens - poolUsed) : null;
 
   /**
    * Confirm an active plan independently of `?state=active`.
@@ -378,7 +375,7 @@ export function BillingView() {
           <div className="grid gap-4 sm:grid-cols-2">
             <StatCard
               label="Tokens used"
-              value={compact(usedTokens)}
+              value={compact(poolUsed)}
               hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
               icon={ArrowLeftRight}
             />
@@ -388,7 +385,7 @@ export function BillingView() {
               hint={
                 remainingTokens === null
                   ? "No token budget on this plan"
-                  : `of ${compact(totalBudget)} this period — resets ${periodEndLabel}`
+                  : `of ${compact(poolTokens ?? 0)} this period — resets ${periodEndLabel}`
               }
               icon={Landmark}
             />
@@ -561,14 +558,13 @@ export function BillingView() {
               </CardHeader>
               <CardContent className="grid gap-6">
                 <QuotaExhaustedBanner
-                  tokensByModel={b.tokensByModel ?? {}}
-                  tokenLimits={plan.tokenLimits ?? {}}
-                  entitled={plan.models ?? []}
+                  poolTokens={b.poolTokens}
+                  poolUsedTokens={b.poolUsedTokens}
                   resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
                 />
-                <QuotaMeters
-                  tokensByModel={b.tokensByModel ?? {}}
-                  tokenLimits={plan.tokenLimits ?? {}}
+                <QuotaPoolMeter
+                  poolTokens={b.poolTokens}
+                  poolUsedTokens={b.poolUsedTokens}
                   entitled={plan.models ?? []}
                 />
 
@@ -698,11 +694,18 @@ export function BillingView() {
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
                 </p>
                 <ul className="grid gap-1 text-sm text-muted-foreground">
-                  {Object.entries(p.tokenLimits ?? {}).map(([alias, limit]) => (
-                    <li key={alias}>
-                      {compact(limit)} {alias} tokens / period
-                    </li>
-                  ))}
+                  {/* 0039: one shared pool, so this states the TOTAL once
+                      instead of listing per-alias slices the customer was
+                      never actually held to. */}
+                  <li>
+                    {compact(
+                      Object.values(p.tokenLimits ?? {}).reduce(
+                        (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+                        0,
+                      ),
+                    )}{" "}
+                    tokens / period, shared
+                  </li>
                   <li>{p.maxKeys} API keys</li>
                   <li>{p.rpmLimit} req/min</li>
                   <li>{compact(p.tpmLimit ?? 0)} tok/min</li>
@@ -780,17 +783,15 @@ function PlanComparisonTable({
       const price = formatPlanPrice(p.promo?.priceCents ?? p.priceCents, p.priceTndMillimes);
       return p.promo ? `${price} (was ${formatPlanPrice(p.promo.originalPriceCents, p.priceTndMillimes)})` : price;
     } },
-    { key: "fast-tokens", label: "Fast tokens (Haiku 5.5)", getValue: (p: typeof plans[0]) => {
-      const limit = (p.tokenLimits as Record<string, number>)?.fast;
-      return limit ? `${compact(limit)} / period` : "—";
-    }, hideIfAllEmpty: true },
-    { key: "smart-tokens", label: "Smart tokens (Sonnet 5.5)", getValue: (p: typeof plans[0]) => {
-      const limit = (p.tokenLimits as Record<string, number>)?.smart;
-      return limit ? `${compact(limit)} / period` : "—";
-    }, hideIfAllEmpty: true },
-    { key: "frontier-tokens", label: "Frontier tokens (Opus 5.5)", getValue: (p: typeof plans[0]) => {
-      const limit = (p.tokenLimits as Record<string, number>)?.frontier;
-      return limit ? `${compact(limit)} / period` : "—";
+    { key: "pool-tokens", label: "Shared token pool", getValue: (p: typeof plans[0]) => {
+      // 0039: ONE POOL. Listing a row per alias advertised a split that no
+      // longer binds — a customer on 25M+25M still had all 50M available on
+      // whichever alias they chose.
+      const total = Object.values(p.tokenLimits ?? {}).reduce(
+        (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+        0,
+      );
+      return total > 0 ? `${compact(total)} / period` : "—";
     }, hideIfAllEmpty: true },
     { key: "rpm", label: "Calls / minute (rate limit)", getValue: (p: typeof plans[0]) => (p.rpmLimit ?? 0).toLocaleString() },
     { key: "tpm", label: "Tokens / minute", getValue: (p: typeof plans[0]) => compact(p.tpmLimit ?? 0) },
@@ -806,7 +807,7 @@ function PlanComparisonTable({
           Compare plans
         </CardTitle>
         <CardDescription>
-          Token budgets per model tier — a tier stops when its budget is spent.
+          One shared token pool per plan — spend it on whichever model you like.
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">

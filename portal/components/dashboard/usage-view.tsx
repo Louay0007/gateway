@@ -188,9 +188,8 @@ export function UsageView() {
 
       {bundle.data?.plan ? (
         <QuotaExhaustedBanner
-          tokensByModel={bundle.data.tokensByModel ?? {}}
-          tokenLimits={bundle.data.plan.tokenLimits ?? {}}
-          entitled={bundle.data.plan.models ?? []}
+          poolTokens={bundle.data.poolTokens}
+          poolUsedTokens={bundle.data.poolUsedTokens}
           resetDate={bundle.data.subscription?.currentPeriodEnd ?? bundle.data.period.end}
         />
       ) : null}
