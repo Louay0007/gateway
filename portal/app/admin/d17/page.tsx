@@ -31,11 +31,11 @@ export const dynamic = "force-dynamic";
  * nothing on this page reads an organization the caller belongs to.
  */
 export default async function AdminD17Page() {
-  // Same fallback the layout uses: a gate-only operator proved the shared
-  // secret, which is this deployment's full-trust credential, so the buttons
-  // match what `requireOperator` will allow. A signed-in staff member keeps
-  // their real rank, and the UI must not offer a button the route 403s.
-  const role: StaffRole = (await currentStaffRole()) ?? "owner";
+  // No fallback. The layout already refuses a caller without a staff row,
+  // so `null` here means the row disappeared between the two reads — and
+  // drawing the OWNER buttons in that case would offer actions the routes
+  // answer 403 to. Lowest rank renders nothing actionable.
+  const role: StaffRole = (await currentStaffRole()) ?? "read_only";
 
   const [rows, recon] = await Promise.all([
     // Read the service directly rather than self-fetching the route: same

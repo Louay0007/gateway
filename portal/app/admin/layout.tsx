@@ -38,7 +38,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import crypto from "node:crypto";
 import { auth } from "@/auth";
 import { currentStaffRole } from "@/lib/auth/authorize";
@@ -67,6 +67,22 @@ async function gatePassed(): Promise<boolean> {
   }
 }
 
+/**
+ * Does the request address the gate page itself (`/admin`)?
+ *
+ * This layout cannot see the pathname, so it asks the proxy: `proxy.ts`
+ * sets `x-admin-gate-path: 1` on requests whose pathname is exactly
+ * `/admin`. Without it the layout had to guess, and the guess was
+ * `redirect("/admin")` for EVERY ungated request — including a request to
+ * `/admin` itself, which is an infinite redirect loop. That made the
+ * console unreachable from the portal host for everyone: a staff member
+ * following the nav got ERR_TOO_MANY_REDIRECTS instead of the gate form.
+ */
+async function isGatePage(): Promise<boolean> {
+  const h = await headers();
+  return h.get("x-admin-gate-path") === "1";
+}
+
 export default async function AdminLayout({
   children,
 }: {
@@ -90,17 +106,39 @@ export default async function AdminLayout({
   // console is public and this secret is the only pre-auth layer, so
   // rendering children ungated would be a live exposure.
   //
-  // /admin is the one route that must stay reachable — it renders its own
-  // gate form (app/admin/page.tsx) and redirects onward once the cookie is
-  // valid, so this cannot loop.
+  // /admin is the one route that stays reachable while ungated — it
+  // renders its own gate form (app/admin/page.tsx) and redirects onward
+  // once the cookie is valid. Everything else redirects TO it, never to
+  // itself.
   if (!(await gatePassed())) {
-    redirect("/admin");
+    if (!(await isGatePage())) redirect("/admin");
   }
 
-  // When the gate cookie is valid, the secret code IS the authentication.
-  // We still try to read the staff role for display purposes (sidebar badge),
-  // but we do NOT block access if no staff row exists — the gate is sufficient.
-  const role = (await currentStaffRole()) ?? "owner";
+  // STAFF ROLE IS THE AUTHORIZATION; THE GATE IS ONLY A PRE-AUTH STEP.
+  //
+  // This used to read `(await currentStaffRole()) ?? "owner"`, on the
+  // reasoning that "the gate secret is sufficient". It is not: a shared
+  // code is one credential for the whole company, and defaulting a
+  // missing role to `owner` meant anyone who knew it rendered every
+  // console page — customers' orgs, usage, audit trail, the staff roster
+  // — with the highest rank's buttons drawn. Every mutating API still
+  // refused them (`requireStaff`), so the exposure was read-only, but it
+  // was the entire customer database behind a single string.
+  //
+  // A caller with no staff row therefore gets NOTHING from this layout
+  // except the gate page itself, which is where they are told to sign in
+  // to a staff account. The shared code alone opens no data.
+  const role = await currentStaffRole();
+  const gatePage = await isGatePage();
+  if (!role) {
+    if (!gatePage) redirect("/admin");
+    // Gate page with no session: render it WITHOUT the console shell.
+    // Mounting a sidebar here would mean drawing the whole navigation for
+    // someone who has proved nothing but the shared code, and every link
+    // in it now redirects. The gate page supplies its own full-screen
+    // styling and its own <Toaster/> is not needed.
+    return <>{children}</>;
+  }
   const session = await auth();
 
   // A failure here must not take the whole console down — an operator

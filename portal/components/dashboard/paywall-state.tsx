@@ -39,6 +39,7 @@ const PLAN_FEATURES: Record<string, string[]> = {
   pro: [
     'd17.feat_smart_tokens',
     'd17.feat_frontier_tokens',
+    'd17.feat_fable_tokens',
     'd17.feat_keys',
     'd17.feat_rpm',
     'd17.feat_tpm',
@@ -46,19 +47,32 @@ const PLAN_FEATURES: Record<string, string[]> = {
   ],
 };
 
-/** Default feature values when the plan doesn't specify overrides. */
+/**
+ * Default feature values when a plan row carries no override.
+ *
+ * THE TOKEN NUMBERS USED TO BE 80M/32M AND 210M/85M. Those were monthly
+ * figures from a plan model the product no longer has: every live plan is
+ * billed daily and `plans.token_limits` says 100M per alias per day
+ * (migrations 0035/0036). The paywall was therefore advertising between a
+ * fifth and a third of the real allowance, against a marketing campaign
+ * whose whole claim is "100M par jour". `planFeatureValues()` below reads
+ * the live row and wins whenever it is present; this table is only the
+ * fallback for a plan whose `token_limits` is empty, so it has to state
+ * the same truth.
+ */
 const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
   starter: {
-    'd17.feat_fast_tokens': '80M',
-    'd17.feat_smart_tokens': '32M',
+    'd17.feat_fast_tokens': '100M',
+    'd17.feat_smart_tokens': '100M',
     'd17.feat_keys': '3',
     'd17.feat_rpm': '60',
     'd17.feat_tpm': '100,000',
   },
   pro: {
-    'd17.feat_smart_tokens': '210M',
-    'd17.feat_frontier_tokens': '85M',
-    'd17.feat_keys': '10',
+    'd17.feat_smart_tokens': '100M',
+    'd17.feat_frontier_tokens': '100M',
+    'd17.feat_fable_tokens': '100M',
+    'd17.feat_keys': '15',
     'd17.feat_rpm': '300',
     'd17.feat_tpm': '500,000',
   },
@@ -77,6 +91,7 @@ function planFeatureValues(plan: PlanSummary): Record<string, string> {
     ['fast', 'd17.feat_fast_tokens'],
     ['smart', 'd17.feat_smart_tokens'],
     ['frontier', 'd17.feat_frontier_tokens'],
+    ['fable', 'd17.feat_fable_tokens'],
   ] as const) {
     const limit = plan.tokenLimits?.[alias];
     if (limit) values[key] = compact(limit);

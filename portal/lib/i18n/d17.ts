@@ -146,6 +146,7 @@ const fr: Dict = {
   'd17.feat_fast_tokens': '{count} tokens rapides / période',
   'd17.feat_smart_tokens': '{count} tokens intelligents / période',
   'd17.feat_frontier_tokens': '{count} tokens frontier / période',
+  'd17.feat_fable_tokens': '{count} tokens fable / période',
   'd17.token_limit_exceeded': 'Budget de tokens épuisé pour {model}',
 };
 
@@ -268,6 +269,7 @@ const ar: Dict = {
   'd17.feat_fast_tokens': '{count} رمز سريع / الفترة',
   'd17.feat_smart_tokens': '{count} رمز ذكي / الفترة',
   'd17.feat_frontier_tokens': '{count} رمز متقدم / الفترة',
+  'd17.feat_fable_tokens': '{count} رمز fable / الفترة',
   'd17.token_limit_exceeded': 'تم استهلاك ميزانية الرموز لـ {model}',
 };
 
@@ -391,6 +393,7 @@ const en: Dict = {
   'd17.feat_fast_tokens': '{count} fast tokens / period',
   'd17.feat_smart_tokens': '{count} smart tokens / period',
   'd17.feat_frontier_tokens': '{count} frontier tokens / period',
+  'd17.feat_fable_tokens': '{count} fable tokens / period',
   'd17.token_limit_exceeded': 'Token budget exhausted for {model}',
 };
 

@@ -18,14 +18,11 @@
  *   - Secret unset → the gate is DISABLED, every check passes. This is the
  *     dev/self-host posture, and it is explicit: `gatePassed()` returning
  *     true on an unset secret is "no gate installed", never "gate locked".
- *   - Secret set → the request must carry EITHER a valid gate cookie OR a
- *     staff session. The gate code and the staff login are independent
- *     credentials; holding either one is sufficient to be an operator.
- *   - A staff session is still rank-checked by the caller, because a
- *     `read_only` account must not approve payments just because it is
- *     signed in. The gate itself carries no rank — an operator who proved
- *     the shared secret is the highest trust this deployment has, so they
- *     pass every rank check. A signed-in staff member is held to their role.
+ *   - Secret set → the request must carry a valid gate cookie to see the
+ *     login form, AND a staff session to see or change anything.
+ *   - Rank is always taken from `staff_users`, never from the gate. The
+ *     gate proves only "someone knows the code"; it names nobody, so it
+ *     authorizes no action and no data.
  */
 
 import { cookies } from 'next/headers';
@@ -84,18 +81,37 @@ export async function requireGateOrStaff(): Promise<{
  *   - staff session below `required` → 403 (a `read_only` account must not
  *     approve money movements just because it is signed in).
  *   - staff session at or above `required` → their user ID.
- *   - gate cookie only → `GATE_ACTOR_ID`. The gate secret is the operator
- *     credential on this deployment and carries no rank, so it passes every
- *     rank check; that is the documented posture, not an oversight.
+ *   - gate cookie only → 403.
+ *
+ * THE GATE COOKIE USED TO PASS EVERY RANK CHECK HERE. The reasoning was
+ * "the shared secret is this deployment's full-trust credential", which
+ * holds only while the secret is held by one person. It is not a rank: it
+ * carries no identity, cannot be revoked per operator, and is written
+ * into `audit_log` as the opaque `GATE_ACTOR_ID`. Anyone who learned the
+ * string could approve D17 payments — real money — with an audit trail
+ * naming nobody.
+ *
+ * The gate is a PRE-AUTH step that reveals the login form, not a
+ * credential that moves money. State changes need a staff row.
  */
 export async function requireOperator(required: StaffRole): Promise<string> {
   const { gateOk, role } = await requireGateOrStaff();
-  if (!gateOk) throw new AuthzError('Not signed in', 'unauthorized', 401);
-  if (role === null) return GATE_ACTOR_ID;
+  if (!gateOk && role === null) {
+    throw new AuthzError('Not signed in', 'unauthorized', 401);
+  }
+  if (role === null) {
+    throw new AuthzError('Sign in with a staff account to make changes', 'forbidden', 403);
+  }
   if (!staffAtLeast(role, required)) {
     throw new AuthzError(`Staff role '${required}' or higher is required`, 'forbidden', 403);
   }
-  return (await currentStaffUserId()) ?? GATE_ACTOR_ID;
+  const actorId = await currentStaffUserId();
+  if (!actorId) {
+    // A staff session whose token carries no id cannot be attributed. An
+    // unattributable money movement is worse than a refused one.
+    throw new AuthzError('Session is missing a user id — sign in again', 'unauthorized', 401);
+  }
+  return actorId;
 }
 
 /** The signed-in user's ID, or null when the session carries none. */

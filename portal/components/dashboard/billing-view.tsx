@@ -55,13 +55,24 @@ import { cn } from "@/lib/utils";
  * Per-model token pricing from prices/models.yaml.
  * Mirrored for the client component since we cannot read YAML at runtime.
  */
+/**
+ * Per-model token pricing, in dollars per million tokens.
+ *
+ * LABELS ARE ALIAS-ONLY. They used to read "Fast (Haiku 5.5)", "Frontier
+ * (Opus 5.5)", "Fable (GPT-6 Astra)" — the upstream vendor's model names,
+ * rendered straight to customers. `CONTEXT.md` §1 makes the alias the
+ * whole surface: it is what makes swapping the engine behind a tier a
+ * config change instead of a breaking change, and it is why a customer's
+ * invoice never has to be re-explained. Naming the engine also tells a
+ * competitor exactly what we buy and at what cost.
+ */
 const MODEL_PRICES: Record<string, { input: number; output: number; label: string }> = {
-  fast: { input: 1.00, output: 5.00, label: "Fast (Haiku 5.5)" },
-  smart: { input: 3.00, output: 15.00, label: "Smart (Sonnet 5.5)" },
-  frontier: { input: 15.00, output: 75.00, label: "Frontier (Opus 5.5)" },
+  fast: { input: 1.00, output: 5.00, label: "Fast" },
+  smart: { input: 3.00, output: 15.00, label: "Smart" },
+  frontier: { input: 15.00, output: 75.00, label: "Frontier" },
   // Same rates as frontier by design (prices/models.yaml) — fable is a
   // second frontier-class route, not a cheaper one.
-  fable: { input: 15.00, output: 75.00, label: "Fable (GPT-6 Astra)" },
+  fable: { input: 15.00, output: 75.00, label: "Fable" },
 };
 
 /** "1 November" from an ISO instant, in the sale's own timezone. */
@@ -169,6 +180,15 @@ export function BillingView() {
         "en-US",
         { month: "long", day: "numeric", timeZone: "UTC" },
       )
+    : null;
+  // 0038: the token budget is monthly, so the reset the customer reads has to
+  // be the period end — not a midnight that never comes.
+  const periodEndLabel = b?.period?.end
+    ? new Date(b.period.end).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        timeZone: "UTC",
+      })
     : null;
 
   function refresh() {
@@ -368,7 +388,7 @@ export function BillingView() {
               hint={
                 remainingTokens === null
                   ? "No token budget on this plan"
-                  : `of ${compact(totalBudget)} today — resets at midnight Tunis time`
+                  : `of ${compact(totalBudget)} this period — resets ${periodEndLabel}`
               }
               icon={Landmark}
             />
