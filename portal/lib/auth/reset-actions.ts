@@ -57,11 +57,16 @@ export async function requestResetAction(
   }
 
   try {
-    await requestPasswordReset(email);
-  } catch (e) {
+    // requestPasswordReset reports a mail failure by RETURNING, not by
+    // throwing — so discarding the result here would make a dead
+    // transport look exactly like a delivered reset.
+    const result = await requestPasswordReset(email);
+    if (!result.sent && result.reason === 'send_failed') {
+      await recordFailure(throttleId(email), 'unknown').catch(() => {});
+    }
+  } catch {
     // Never surface a mail failure as a difference in the response.
     await recordFailure(throttleId(email), 'unknown').catch(() => {});
-    void e;
   }
 
   return { done: true };
