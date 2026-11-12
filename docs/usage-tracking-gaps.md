@@ -127,11 +127,11 @@ panel.
 ### G8 — the exhausted copy gives the wrong advice
 
 `renderer/zaino/messages.ts:39` — "Your {models} token allowance is used up.
-**Upgrade your plan to keep going.**" The quota is daily and resets at 00:00
-Tunis. Every exhausted user is told to pay more for a quota that returns free
-in a few hours. The portal already has the right string
-(`lib/entitlements/quota.ts outOfTokensMessage`). **Fix:** name the reset date
-from `snapshot.periodEnd`.
+**Upgrade your plan to keep going.**" The quota is measured over the billing
+period and returns when that period rolls over (0038). Every exhausted user is
+told to pay more for an allowance that comes back on its own. The portal
+already has the right string (`lib/entitlements/quota.ts outOfTokensMessage`).
+**Fix:** name the reset date from `snapshot.periodEnd`.
 
 ### G9 — retired fields still in the wire and the gate
 
@@ -185,7 +185,7 @@ retention feature on the roadmap.
 
 `docs/opencode-desktop.md:60-90` states three aliases only (there are four),
 that "only the prompt count limits usage" and tokens "are effectively
-unlimited" (false since the daily token wall), and that `/v1/models` advertises
+unlimited" (false since the token wall), and that `/v1/models` advertises
 limits (see G1). Anyone building a client from this doc builds the wrong
 client. **Fix:** rewrite that section against shipped behaviour.
 
@@ -208,13 +208,14 @@ error.
 ### G18 — `usage_periods` cannot answer "what did I use today"
 
 `rollupUsage` keys on `billing_period = date_trunc('month', ...)`
-(`collect-usage.ts`). The live wall is daily. The rollup cannot serve the
-question the product actually asks. **Fix:** add a daily rollup keyed on the
-Tunis day, which is also what G14's history endpoint needs.
+(`collect-usage.ts`). The live wall sums over the billing period. The rollup
+cannot serve the question the product actually asks. **Fix:** add a daily
+rollup keyed on the Tunis day, which is also what G14's history endpoint needs
+for its spend trend — the trend is daily even though the quota is not.
 
 ### G19 — device keys are org-scoped, so two machines share one ledger
 
-Both machines draw from the same per-alias daily allowance and neither can see
+Both machines draw from the same per-alias period allowance and neither can see
 which spend is whose. This may be intended (one subscription, one person), but
 it is not stated anywhere and it makes G17's silent revocation worse — the
 second machine looks like a plan downgrade. **Decision needed:** per-org (as

@@ -72,9 +72,8 @@ export function DashboardOverview() {
   const hasBudget = budgeted.length > 0;
   const remainingTokens = hasBudget ? Math.max(0, totalBudget - usedTokens) : null;
   const periodEnd = b?.period.end ?? null;
-  // 0025: daily quotas — the "renews" card counts down to midnight Tunis
-  // time (tomorrow), not the billing period end. b.period.end is the Tunis
-  // day end for daily rows.
+  // 0038: quotas are monthly, so b.period.end is the end of the billing
+  // period the budgets are measured over — not the end of a Tunis day.
   const periodEndLabel = periodEnd
     ? new Date(periodEnd).toLocaleDateString("en-US", {
         month: "long",
@@ -157,7 +156,7 @@ export function DashboardOverview() {
           }
           hint={
             hasBudget
-              ? `of ${compact(totalBudget)} today — resets at midnight Tunis time`
+              ? `of ${compact(totalBudget)} this period — resets ${periodEndLabel}`
               : "No token budget on this plan"
           }
           icon={Gauge}
@@ -165,7 +164,7 @@ export function DashboardOverview() {
         <StatCard
           label={b.subscription?.cancelAtPeriodEnd ? "Access until" : "Resets"}
           value={periodEndLabel}
-          hint={plan ? `${plan.name} · daily` : "No plan"}
+          hint={plan ? `${plan.name} · monthly` : "No plan"}
           icon={CalendarClock}
         />
       </div>
@@ -208,10 +207,10 @@ export function DashboardOverview() {
           ? `Entitlements last synced ${relativeTime(b.entitlement.syncedAt)}`
           : "Entitlements have not synced yet"}
         {b.period.end
-          ? ` · Daily budgets reset ${new Date(b.period.end).toLocaleDateString(
+          ? ` · Monthly token budgets reset ${new Date(b.period.end).toLocaleDateString(
               "en-US",
               { month: "long", day: "numeric", timeZone: "UTC" },
-            )} at midnight Tunis time`
+            )}`
           : ""}
         .
       </p>

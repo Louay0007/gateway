@@ -84,10 +84,10 @@ export function QuotaMeter({
 }
 
 /**
- * Exhausted-quota banner — `Out of <alias> tokens for today — resets at
- * midnight Tunis time` (0025: daily 100M budgets).
+ * Exhausted-quota banner — `Out of <alias> tokens for this period — resets
+ * <period end>` (0038: monthly budgets).
  *
- * Same source as the gateway wall (token limits vs daily usage): when an
+ * Same source as the gateway wall (token limits vs period usage): when an
  * entitled alias has 0 tokens remaining, the wall is already 403ing it.
  * Null when nothing is exhausted.
  */
@@ -117,7 +117,8 @@ export function QuotaExhaustedBanner({
     }
   }
   if (out.length === 0) return null;
-  // 0025: daily budgets reset at midnight Tunis time, every day.
+  // 0038: budgets are monthly, so the reset is the period end — never a
+  // midnight. Saying "tomorrow" sends the customer to bed for nothing.
   return (
     <div
       role="alert"
@@ -127,10 +128,16 @@ export function QuotaExhaustedBanner({
       )}
     >
       <span className="font-medium">
-        {out.map((o) => `Out of ${o.alias} tokens for today`).join(' · ')}
+        {out.map((o) => `Out of ${o.alias} tokens for this period`).join(' · ')}
       </span>
       <span className="text-muted-foreground">
-        — resets at midnight Tunis time. Upgrade for more or wait for tomorrow.
+        {resetDate
+          ? `— resets ${new Date(resetDate).toLocaleDateString('en-US', {
+              month: 'long',
+              day: 'numeric',
+              timeZone: 'UTC',
+            })}. Upgrade for more or wait for renewal.`
+          : '— upgrade for more or wait for renewal.'}
       </span>
       {out.map((o) => (
         <span

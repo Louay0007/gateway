@@ -158,7 +158,7 @@ export function ModelPicker({
                     {m.provider}
                   </span>
                   <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                    {spent ? "Out of tokens — resets at midnight Tunis" : m.blurb}
+                    {spent ? "Out of tokens — resets at plan renewal" : m.blurb}
                   </span>
                 </span>
               </DropdownMenuItem>

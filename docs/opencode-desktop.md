@@ -80,10 +80,10 @@ Two per-model exceptions to the shape above, both load-bearing:
 - The catalog (`GET /v1/models`) advertises each alias with
   `max_input_tokens` (1048576) and `max_output_tokens` (65536), which the app
   sizes its context window from. Verified against the live gateway.
-- **TOKENS are the only limit**, and the server enforces them. Each alias has
-  a daily blended-token budget (100M/alias/day on every shipped plan),
-  counted over the TUNIS calendar day (00:00–24:00 UTC+1, no DST). Blended =
-  fresh input + output + cache writes (5m and 1h) + cache reads.
+- **TOKENS are the only limit**, and the server enforces them. Each plan has
+  a monthly blended-token budget split across the aliases it serves (50M per
+  month on every shipped plan, 0038), counted over the subscription period.
+  Blended = fresh input + output + cache writes (5m and 1h) + cache reads.
 - The enforcement is an ALLOWLIST, not a budget: the portal pushes the
   still-affordable alias set onto the LiteLLM team and every key, so a spent
   alias is refused with 403. rpm, tpm and concurrency are never pushed.

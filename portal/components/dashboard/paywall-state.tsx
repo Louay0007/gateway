@@ -50,28 +50,33 @@ const PLAN_FEATURES: Record<string, string[]> = {
 /**
  * Default feature values when a plan row carries no override.
  *
- * THE TOKEN NUMBERS USED TO BE 80M/32M AND 210M/85M. Those were monthly
- * figures from a plan model the product no longer has: every live plan is
- * billed daily and `plans.token_limits` says 100M per alias per day
- * (migrations 0035/0036). The paywall was therefore advertising between a
- * fifth and a third of the real allowance, against a marketing campaign
- * whose whole claim is "100M par jour". `planFeatureValues()` below reads
- * the live row and wins whenever it is present; this table is only the
- * fallback for a plan whose `token_limits` is empty, so it has to state
- * the same truth.
+ * THE MODEL IS 50M BLENDED TOKENS PER MONTH, PER PLAN (migration 0038),
+ * SPLIT ACROSS THE ALIASES THE PLAN SERVES — never repeated on each one.
+ * Repeating it is how 0025 multiplied exposure by alias count: 100M on
+ * every alias every day is 3B tokens per alias over a month.
+ *
+ * `planFeatureValues()` below reads the live `plans.token_limits` row and
+ * wins whenever it has a value; this table is only the fallback for a plan
+ * whose budgets are empty (one an operator created before 0023), so it has
+ * to state the same truth.
+ *
+ * WHY 17M AND NOT 16.667M. These are marketing bullets for a 16,666,667
+ * token budget. They round DOWN, always: a paywall that promises 17M and a
+ * wall that enforces 16.667M is a support ticket, and the direction of the
+ * error is the whole point.
  */
 const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
   starter: {
-    'd17.feat_fast_tokens': '100M',
-    'd17.feat_smart_tokens': '100M',
+    'd17.feat_fast_tokens': '25M',
+    'd17.feat_smart_tokens': '25M',
     'd17.feat_keys': '3',
     'd17.feat_rpm': '60',
     'd17.feat_tpm': '100,000',
   },
   pro: {
-    'd17.feat_smart_tokens': '100M',
-    'd17.feat_frontier_tokens': '100M',
-    'd17.feat_fable_tokens': '100M',
+    'd17.feat_smart_tokens': '17M',
+    'd17.feat_frontier_tokens': '17M',
+    'd17.feat_fable_tokens': '17M',
     'd17.feat_keys': '15',
     'd17.feat_rpm': '300',
     'd17.feat_tpm': '500,000',

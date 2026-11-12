@@ -128,7 +128,7 @@ export function PricingPreview() {
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
-                <Feature icon={<Infinity className="size-4" />}>100M blended tokens per model tier, every day — resets at midnight Tunis time. Failures never count</Feature>
+                <Feature icon={<Infinity className="size-4" />}>50M blended tokens per month, shared across the models on this plan. Failures never count</Feature>
                 <Feature>{plan.maxKeys} API keys</Feature>
                 {(plan.models ?? []).length > 0 && (
                   <Feature>Models: {(plan.models ?? []).join(", ")}</Feature>

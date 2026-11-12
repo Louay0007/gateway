@@ -1,7 +1,7 @@
 # Zaino AI — LLM Gateway + SaaS Platform
 
-One subscription, three model tiers, 100M blended tokens per tier per day.
-No per-minute rate limits, no dollar caps on top — the daily token budget
+One subscription, three model tiers, 50M blended tokens per tier per month.
+No per-minute rate limits, no dollar caps on top — the monthly token budget
 per tier is the only limit.
 
 ```
@@ -15,7 +15,7 @@ your client ──zn-your-key──▶ api.zaino.soon.it ──sk-your-key──
                                 (Caddy + auth-edge + LiteLLM)   (both formats)
 ```
 
-The **gateway** issues scoped keys and enforces per-tier daily token budgets.
+The **gateway** issues scoped keys and enforces per-tier monthly token budgets.
 The **portal** turns that into a product: dashboards, plans, payments, and an
 admin console.
 
@@ -79,22 +79,27 @@ Per-token list rates (mirrored in `config/litellm.yaml` and
 …per 1M tokens. What the customer effectively pays is upstream × plan
 multiplier: Starter `13000` (1.30×), Pro `12500` (1.25×).
 
-## Plans & daily limits — the whole quota system
+## Plans & monthly limits — the whole quota system
 
-Each tier gets **100M blended tokens per day, resetting at midnight Tunis
-time**. That is the entire quota. There are no per-minute rate limits, no
-spend caps, no concurrency ceilings standing between a live customer and
-inference.
+Each tier gets **50M blended tokens per month**, split across the aliases the
+plan serves and measured over the subscription period. That is the entire
+quota. There are no per-minute rate limits, no spend caps, no concurrency
+ceilings standing between a live customer and inference.
 
-| Plan | Models | Daily budget per tier | Keys | Price |
+| Plan | Models | Monthly budget (split) | Keys | Price |
 |---|---|---|---|---|
-| **Starter** | `fast` + `smart` | 100M `fast` + 100M `smart` | 3 | 50 DT/mo |
-| **Pro** | `smart` + `frontier` | 100M `smart` + 100M `frontier` | 15 | 90 DT/mo |
-| **Trial** | `fast` + `smart` | 100M `fast` + 100M `smart` | 1 | free, 3 days |
+| **Starter** | `fast` + `smart` | 25M `fast` + 25M `smart` = 50M | 3 | 50 DT/mo |
+| **Pro** | `smart` + `frontier` + `fable` | ~16.7M each = 50M | 15 | 90 DT/mo |
+| **Trial** | `fast` + `smart` | 25M `fast` + 25M `smart` = 50M | 1 | free, 3 days |
+
+Budgets are a **monthly total split across aliases**, not a per-alias figure
+repeated on each one. Repeating it multiplies the exposure by the alias count
+— that is the 0025 mistake that made a 50 DT plan worth 1,200 DT of tokens
+(0038).
 
 (`fast` is Starter-only since the Pro refocus: each tier has one clear job —
 high-volume Starter work on Fast, balanced work on Smart, hardest reasoning
-on Frontier.)
+on Frontier and Fable.)
 
 ### What counts: blended tokens
 
@@ -112,17 +117,15 @@ analytics but is never read by any enforcement path.
 
 ### The window: the Tunis calendar day
 
-```
-Tunis = UTC+1 year-round — no DST — so a Tunis day is exactly 23:00Z → 23:00Z.
-```
+The wall sums `occurred_at >= period_start AND < period_end`, where the
+window is the **subscription period** (`portal/lib/entitlements/quota.ts`
+`usageWindowForSubscription()`), falling back to the UTC calendar month when
+no period is known. Since 0038 that is the only shipping window: budgets are
+monthly totals, so they must be measured over the month the customer paid
+for.
 
-The wall sums `occurred_at >= day_start AND < day_start + 24h`, where
-`day_start` is midnight Tunis (`portal/lib/entitlements/quota.ts`
-`tunisDayWindow()` — pure integer arithmetic on the UTC clock, no locale or
-date-string parsing, DST-safe precisely because Tunis has none).
-
-At midnight Tunis time the new day starts with zero usage in it, so every
-exhausted alias automatically re-allows — no manual reset, no sync needed.
+At renewal the new period starts with zero usage in it, so every exhausted
+alias automatically re-allows — no manual reset, no sync needed.
 
 ### The token wall: the ONLY thing that can block a request
 
@@ -133,8 +136,8 @@ hourly backstop (all through one helper — they cannot disagree):
 allowed = entitled WHERE tokens_used < token_limit
 ```
 
-- At `99,999,999` the alias serves. At `100,000,000` it is cut. The next
-  token would be `limit + 1`.
+- At `24,999,999` of a 25M alias budget the alias serves. At `25,000,000`
+  it is cut. The next token would be `limit + 1`.
 - A missing or `0` budget entry means **unlimited**, never deny — the
   fail-open covers only plans nobody configured (shipped plans carry a
   migration guard forcing a budget on every served alias).
@@ -161,8 +164,8 @@ without serving anything.
 ### What the customer sees when a tier is spent
 
 ```
-403  Out of <alias> tokens for today — resets at midnight Tunis time.
-     Upgrade for more.
+403  Out of <alias> tokens for this period. Upgrade for more or wait for
+     renewal.
 ```
 
 The edge maps LiteLLM's generic denial to this per-alias wording on both the
@@ -170,22 +173,24 @@ proxy and `/v1/responses` paths (naming the alias from the body, the model
 the customer actually requested, or a translated upstream name like
 `sonnet-5.5` → `smart` — never the raw JSON `"error"` key). The dashboard
 banner, remaining-tokens cards, and marketing/FAQ copy all use the same
-daily wording, and the "Resets" card counts down to midnight Tunis time.
+period wording, and the "Resets" card counts down to the period end. The
+cadence travels with the bundle (`bundle.cadence`) so the message cannot
+describe a daily reset the budget does not have.
 
 ### Old subscriptions are untouched until renewal
 
-`subscriptions.daily_quota` (`0025_daily_100m.sql`): `TRUE` sums the Tunis
-day, `FALSE` keeps the legacy monthly window (subscription period when known,
-else calendar month). Existing live paid rows were backfilled `FALSE`, so
-**nothing mid-period changes under them** — they flip to daily at their next
-renewal (`subscription.activated`), plan changes flip immediately, trials and
-new checkouts start daily from the first second. The dashboard bundle reads
-the same window helper as the gateway wall, so the numbers a customer is
-shown and the numbers that block them are one definition.
+`subscriptions.daily_quota` (`0038_monthly_50m.sql`): `FALSE` — every row
+since 0038 — sums the subscription period. `TRUE` is the 0025 Tunis-day
+window, kept only so an operator can put a single row on a daily quota; no
+plan ships that way. Renewal (`subscription.activated`), plan changes and
+trial redemption all write `FALSE`, and the column default is `FALSE`, so a
+new signup cannot inherit a daily window. The dashboard bundle reads the same
+window helper as the gateway wall, so the numbers a customer is shown and the
+numbers that block them are one definition.
 
 ### Status → access
 
-`active`, `past_due` (7-day grace keeps serving), `trialing` → full daily
+`active`, `past_due` (7-day grace keeps serving), `trialing` → full monthly
 quotas. `unpaid`, `canceled`, `paused`, `incomplete`, or no subscription →
 cut (`models []`). Expiry and trial-expiry jobs run on top of the same rule,
 so every path converges instead of racing.
@@ -225,8 +230,8 @@ always use their full allowance. The multiplier lives on `plans`
 `lib/billing/service.ts`; the overage invariant (`markup == multiplier − 10000`)
 is asserted in `portal/tests/security.test.ts`.
 
-**3. Daily 100M budgets are generous on purpose — size the margin for the
-ceiling, not the average.** A customer who burns the full 100M Smart tokens
+**3. The 50M monthly budget is generous on purpose — size the margin for the
+ceiling, not the average.** A customer who burns the full 25M `smart` tokens
 in a day costs you upstream × 1.25; the plan price must survive that day
 repeated, not the median day. Watch `verify-metering` margins per tier after
 any price or budget change.
@@ -285,8 +290,8 @@ Two hard rules the pipeline enforces, learned the painful way:
 2. **Migrations are forward-only, ledger-guarded, and run before the build.**
    `scripts/db-migrate.sh` applies each `portal/db/migrations/*.sql` exactly
    once (`schema_migrations` ledger); recovery is `make restore`, never a
-   down-migration. Currently through `0025_daily_100m` (daily 100M budgets +
-   `daily_quota` flag with grandfathering + guard).
+   down-migration. Currently through `0038_monthly_50m` (monthly 50M budgets +
+   `daily_quota` back to FALSE + guards).
 
 `make deploy HOST=gateway@<VPS_IP>` (rsync, never copies `.env`) remains as
 the manual fallback; it runs the same migrate → rebuild → health sequence.
@@ -327,8 +332,8 @@ OpenAI(api_key="zn-…", base_url="https://api.zaino.soon.it/v1")
 Anthropic(base_url="https://api.zaino.soon.it", api_key="zn-…")
 ```
 
-Spend the day's 100M on one tier and that tier answers `403 … for today`
-until midnight Tunis time while the other tier keeps serving — plan key
+Spend the month's 25M on one tier and that tier answers `403 … for this
+period` until renewal while the other tier keeps serving — plan key
 scopes and model pickers around that, not around a monthly pool.
 
 ## Code from the web
@@ -362,7 +367,7 @@ gate.
    all at the 5m rate under-bills by ~19%. `make reconcile` detects this.
 3. **The token wall is per-day now, not per-period.** Any runbook, alert, or
    support macro that says "wait for renewal" or "resets next period" is
-   stale — the answer is "resets at midnight Tunis time." Grep for it after
+   stale — the answer is "resets <period end>." Grep for it after
    every quota change.
 
 ## Portal
@@ -384,8 +389,10 @@ npm run build                        # next build (standalone)
 make db-migrate                      # every pending *.sql once each, ledger-guarded
 ```
 
-Schema, newest-first: `0025_daily_100m` (100M/day budgets per tier,
-`daily_quota` flag, grandfathering, shipped-plan guard), `0024_plan_base_prices`
+Schema, newest-first: `0038_monthly_50m` (50M/month budgets per tier, split
+across aliases; `daily_quota` FALSE plus the column default; trial-code budget;
+guards), `0025_daily_100m` (the superseded daily 100M shape),
+`0024_plan_base_prices`
 (50/90 DT catalog), `0023_tokens_only` (tokens are the only quota),
 `0022_token_limits` (per-alias budgets), `0021` (trial extension),
 `0019_pro_smart_frontier` (Fast is Starter-only), `0018`, `0010_model_tiers`,
