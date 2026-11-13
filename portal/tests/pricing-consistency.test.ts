@@ -458,3 +458,37 @@ describe('0039 shared pool totals', () => {
     expect(prior).toContain('"fable": 16666666');
   });
 });
+
+/**
+ * 0040 — every paid, public plan maps to a Dodo product.
+ *
+ * The outage this guards: `POST /api/checkout {method:"dodo"}` answered 500
+ * for every customer because `plans.provider_price_id` was empty. The
+ * products existed in Dodo; only the mapping was missing. A missing id is
+ * invisible until someone tries to pay by card.
+ */
+describe('0040 Dodo product mapping', () => {
+  const sql = readFileSync(
+    new URL('portal/db/migrations/0040_dodo_product_ids.sql', REPO_ROOT),
+    'utf8',
+  );
+
+  it('maps Starter and Pro to distinct Dodo product ids', () => {
+    expect(sql).toMatch(/pdt_0NrQPphzbadXvGi8f3nzM/);
+    expect(sql).toMatch(/pdt_0NrQQ1TIoKKqZi0k9OVtR/);
+  });
+
+  it('never maps a product to the free trial plan', () => {
+    // A stray id would make the trial purchasable.
+    expect(sql).toMatch(/SET provider_price_id = NULL[\s\S]{0,80}WHERE code = 'trial'/i);
+  });
+
+  it('guards against a paid public plan shipping with no product id', () => {
+    expect(sql).toMatch(/no Dodo product id/i);
+    expect(sql).toMatch(/RAISE EXCEPTION/);
+  });
+
+  it('guards against two plans sharing one product', () => {
+    expect(sql).toMatch(/mapped to more than one plan/i);
+  });
+});
