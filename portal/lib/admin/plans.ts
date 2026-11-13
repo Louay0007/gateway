@@ -143,7 +143,7 @@ export interface PlanInput {
   rateMultiplierBps: number;
   models: string[];
   trialDays?: number;
-  /** Blended-token budgets in raw tokens. Optional = unlimited. 0023. */
+  /** Raw blended tokens; the values SUM to the plan's shared pool (0039). Optional = unlimited. */
   tokenLimits?: Record<string, number>;
 }
 
@@ -201,15 +201,15 @@ function validatePlan(input: PlanInput): { ok: true; value: PlanInput } | { ok: 
       return { ok: false, message: `"${m}" is not a valid model alias.` };
     }
   }
-  // Token limits (0025): RAW TOKENS per TUNIS DAY, the only quota.
-  // A missing entry is UNLIMITED (fail-open for plans created before
-  // token budgets existed), so there is no missing-model check —
-  // well-formedness only. rpm/tpm/concurrency are stored but NEVER
-  // pushed to the gateway (see policy.resolveLimits): the allowlist
-  // decides alone.
+  // Token pool (0039): RAW TOKENS per billing PERIOD, and the values SUM to
+  // the plan's allowance — they are not per-model caps. A missing/empty map
+  // is UNLIMITED (fail-open for plans created before token budgets existed),
+  // so there is no missing-model check — well-formedness only.
+  // rpm/tpm/concurrency are stored but NEVER pushed to the gateway (see
+  // policy.resolveLimits): the allowlist decides alone.
   if (input.tokenLimits != null) {
     if (typeof input.tokenLimits !== 'object' || Array.isArray(input.tokenLimits)) {
-      return { ok: false, message: 'Token limits must be an object like {"fast": 25000000} (raw tokens per PERIOD — the plan\'s monthly total, split across aliases).' };
+      return { ok: false, message: 'The token pool must be an object like {"fast": 50000000} (raw tokens per period — the plan\'s total, NOT a figure per model).' };
     }
     for (const [k, v] of Object.entries(input.tokenLimits)) {
       if (!/^[a-z0-9][a-z0-9.-]{0,63}$/.test(k)) {

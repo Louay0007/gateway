@@ -24,7 +24,7 @@ export interface AllowedModelsResult {
   effect: Effect;
   entitled: string[];
   allowed: string[];
-  /** Per-alias token budgets (raw blended tokens). 0023. */
+  /** Raw blended tokens; the values SUM to the plan's shared pool (0039). */
   tokenLimits: Record<string, number>;
   /** Blended tokens used per alias in the window. 0023. */
   usedTokensBy: Record<string, number>;

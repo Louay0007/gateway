@@ -144,7 +144,7 @@ export async function redeemTrialCode(
             // 0038: the trial's budget is a single MONTHLY-shape total
             // measured over the trial's own window (currentPeriodStart ..
             // trialEnd), so it must not resolve to a Tunis day — that would
-            // grant 50M per DAY for 3 days instead of 50M for the trial.
+            // grant the 1M pool per DAY for 3 days instead of once.
             dailyQuota: false,
             updatedAt: now,
           })

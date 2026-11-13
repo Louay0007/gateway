@@ -99,7 +99,7 @@ export interface EntitlementSpec {
   maxSeats: number;
   maxBudgetUsd: number;
   budgetDuration: string;
-  /** Per-alias blended-token budgets (raw tokens). Migration 0022. */
+  /** Raw blended tokens; the values SUM to the plan's shared pool (0039). */
   tokenLimits: Record<string, number>;
 }
 

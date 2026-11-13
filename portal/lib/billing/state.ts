@@ -75,7 +75,7 @@ export interface PlanSummary {
   maxKeys: number;
   rateMultiplierBps: number;
   models: string[];
-  /** Per-alias blended-token budgets (raw tokens). Migration 0023. */
+  /** Raw blended tokens; the values SUM to the plan's shared pool (0039). */
   tokenLimits: Record<string, number>;
 }
 

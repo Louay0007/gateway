@@ -181,7 +181,14 @@ export const plans = pgTable('plans', {
   models:                text('models').array().notNull().default([]),
   trialDays:             integer('trial_days').notNull().default(0),
   features:              jsonb('features').notNull().default({}),
-  /** Per-alias blended-token budgets, MONTHLY split total: {fast: 25000000}. 0038. */
+  /**
+   * The plan's MONTHLY token allowance — ONE shared pool (0039).
+   *
+   * The values SUM to the pool; the keys are not caps. `{fast: 50000000}`
+   * is written as a single key for exactly that reason — a map like
+   * `{fast: 25000000, smart: 25000000}` reads like a per-model limit and is
+   * the shape 0025 shipped. What the pool may be spent on is `models`.
+   */
   tokenLimits:           jsonb('token_limits').notNull().default({}),
   /** Display/documentation marker: 'monthly' since 0038. Enforcement reads subscriptions.daily_quota. */
   quotaCadence:          text('quota_cadence').notNull().default('monthly'),
@@ -600,10 +607,11 @@ export const trialCodes = pgTable('trial_codes', {
   /**
    * Per-code MONTHLY token budget — one SHARED pool (0039).
    *
-   * The entries are allocations whose SUM is the allowance: `{fast: 25M,
-   * smart: 25M}` means 50M spendable on fast, on smart, or split, never 25M
-   * each. Measured over the trial's own window, so a 3-day trial with 50M
-   * gets 50M for those 3 days. Plan fallback when empty.
+   * Values sum to the pool, measured over the trial's own window (a 3-day
+   * trial with 1M gets 1M for those 3 days, not per day). NOT read for
+   * enforcement: redemption attaches the org to the hidden `trial` PLAN
+   * row, whose `token_limits` is what the wall reads. Kept aligned so the
+   * two sources cannot contradict each other.
    */
   tokenLimits:     jsonb('token_limits').notNull().default({}),
   trialDays:       integer('trial_days').notNull().default(3),

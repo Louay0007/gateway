@@ -80,8 +80,8 @@ export function effectForStatus(status: string): Effect {
  * directly would let the customer spend $130 before the cutoff — the
  * exact overshoot this function exists to prevent.
  *
- * TRIAL PLANS: trial plans use per-alias token budgets (e.g., 10M fast +
- * 10M smart) rather than dollar caps. Their `includedSpendCents` and
+ * TRIAL PLANS: trial plans use one shared token pool (1M since 0039) rather
+ * than dollar caps. Their `includedSpendCents` and
  * `hardCapCents` may be set to a generous value just to satisfy LiteLLM's
  * requirement that max_budget > 0, but the real enforcement is the token
  * wall in lib/entitlements/allowed-models.ts. For every live plan we set a

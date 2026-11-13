@@ -31,14 +31,16 @@ export const planBodySchema = z.object({
   models: z.array(z.string().trim().min(1).max(64)).min(1, 'Grant at least one model.'),
   trialDays: z.number().int().min(0).max(365).optional(),
   /**
-   * Blended-token allocation in RAW TOKENS whose SUM is the plan's MONTHLY
-   * pool: {fast: 25000000, smart: 25000000} = 50M per period (0039).
+   * The plan's shared token pool in RAW TOKENS — ONE allowance (0039).
    *
-   * This is ONE shared allowance, not a cap per model — the customer spends
-   * it on whichever alias they like — so the only number that matters is
-   * the total. Do not repeat the total on each alias: that multiplies the
-   * exposure by the alias count (the 0025 mistake), and the 0038 migration
-   * guard fails if any plan sums above 50M.
+   * The values SUM to the pool and the keys are NOT caps: {fast: 50000000}
+   * is the recommended form precisely so it cannot be misread as a
+   * per-model limit. The customer spends the total on whichever alias they
+   * like (30M fast + 20M smart, or all 50M on fast).
+   *
+   * Do not repeat the total on each alias — that multiplies exposure by the
+   * alias count (the 0025 mistake). The plan editor shows the live sum so
+   * an operator always sees the number that will be enforced.
    */
   tokenLimits: z.record(z.string(), z.number().int().min(0)).optional(),
 });

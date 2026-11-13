@@ -403,3 +403,58 @@ describe('0038 monthly budget shape', () => {
     expect(sql).toMatch(/UPDATE entitlements\s+SET synced_at = synced_at - INTERVAL '2 hours'/i);
   });
 });
+
+/**
+ * 0039 — the allowance is ONE pool, and the totals are the decided ones.
+ *
+ * 0038 fixed the UNIT (month, not day) but wrote the budgets as a per-alias
+ * split, which reads like a cap on each model. 0039 states each total once
+ * on a single key so it cannot be misread. These assertions pin the numbers
+ * the operator chose: Starter 50M, Pro 50M, Trial 1M.
+ */
+describe('0039 shared pool totals', () => {
+  const sql = readFileSync(
+    new URL('portal/db/migrations/0039_pool_totals.sql', REPO_ROOT),
+    'utf8',
+  );
+
+  it('sets Starter to a 50M pool', () => {
+    expect(sql).toMatch(
+      /UPDATE plans SET\s+token_limits = '\{"fast": 50000000\}'::jsonb,\s+updated_at\s+= now\(\)\s+WHERE code = 'starter'/i,
+    );
+  });
+
+  it('sets Pro to a 50M pool — same volume as Starter by decision', () => {
+    expect(sql).toMatch(/token_limits = '\{"smart": 50000000\}'::jsonb/);
+    expect(sql, 'Pro must not quietly out-volume Starter').not.toMatch(
+      /'smart':\s*(1[0-9]{8}|[1-9][0-9]{8,})'/,
+    );
+  });
+
+  it('cuts the trial to a 1M pool', () => {
+    expect(sql).toMatch(/token_limits = '\{"fast": 1000000\}'::jsonb/);
+    // The free trial must never equal a paid Starter month.
+    expect(sql).not.toMatch(/'fast': 50_000_000'\)?::jsonb\s*\n\s*WHERE code = 'trial'/i);
+  });
+
+  it('guards every total so a bad edit cannot ship', () => {
+    expect(sql).toMatch(/expected 50000000/);
+    expect(sql).toMatch(/expected 1000000/);
+    expect(sql).toMatch(/RAISE EXCEPTION/);
+  });
+
+  it('aligns the trial code with the trial plan', () => {
+    expect(sql).toMatch(/UPDATE trial_codes\s+SET token_limits = '\{"fast": 1000000\}'::jsonb/i);
+  });
+
+  it('is a new migration, not an edit to 0038', () => {
+    // 0038 has already run on production; forward-only means a new file.
+    // Its per-alias splits must stay exactly as shipped — historical record.
+    const prior = readFileSync(
+      new URL('portal/db/migrations/0038_monthly_50m.sql', REPO_ROOT),
+      'utf8',
+    );
+    expect(prior).toContain('{"fast": 25000000, "smart": 25000000}');
+    expect(prior).toContain('"fable": 16666666');
+  });
+});

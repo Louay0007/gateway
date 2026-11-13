@@ -339,6 +339,80 @@ describe('50M pool boundary — 49,999,999 allowed, 50,000,000 cuts everything',
   });
 });
 
+/**
+ * The contract in the customer's own words: "a sum of 50M, and he is free."
+ *
+ * These are the acceptance scenarios, written as the split a customer would
+ * actually choose. They pass trivially against a pool and would fail
+ * against ANY per-alias cap — which is precisely why they exist.
+ */
+describe('50M shared exactly as a customer would spend it', () => {
+  const POOL = { fast: 50_000_000 }; // the shipped form: total on one key
+
+  it('a 30M / 20M split is allowed — until the 50M is actually spent', () => {
+    // One token short of the split: the customer is inside their budget.
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, POOL, {
+        fast: 30_000_000,
+        smart: 19_999_999,
+      }),
+    ).toEqual(['fast', 'smart']);
+    // At exactly 30M + 20M the pool is gone, so both are cut together. The
+    // split itself was never the limit — the SUM was.
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, POOL, {
+        fast: 30_000_000,
+        smart: 20_000_000,
+      }),
+    ).toEqual([]);
+  });
+
+  it('a 10M / 40M split behaves identically — the ratio is theirs', () => {
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, POOL, {
+        fast: 10_000_000,
+        smart: 39_999_999,
+      }),
+    ).toEqual(['fast', 'smart']);
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, POOL, {
+        fast: 10_000_000,
+        smart: 40_000_000,
+      }),
+    ).toEqual([]);
+  });
+
+  it('all 50M on fast leaves nothing, and smart is cut too', () => {
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, POOL, {
+        fast: 50_000_000,
+        smart: 0,
+      }),
+    ).toEqual([]);
+  });
+
+  it('30M fast + 21M smart is over the pool, so nothing serves', () => {
+    expect(
+      computeTokenAllowedModels(STARTER_ENTITLED, POOL, {
+        fast: 30_000_000,
+        smart: 21_000_000,
+      }),
+    ).toEqual([]);
+  });
+
+  it('remaining is one number whatever the mix', () => {
+    expect(
+      remainingTokensByModel(POOL, { fast: 30_000_000, smart: 20_000_000 }),
+    ).toEqual({ pool: 0 });
+    expect(
+      remainingTokensByModel(POOL, { fast: 10_000_000, smart: 40_000_000 }),
+    ).toEqual({ pool: 0 });
+    expect(
+      remainingTokensByModel(POOL, { fast: 10_000_000, smart: 5_000_000 }),
+    ).toEqual({ pool: 35_000_000 });
+  });
+});
+
 describe('outOfTokensMessage — the contract string', () => {
   // 0038: monthly is the only cadence on a shipped plan, so it is the
   // DEFAULT. A monthly budget described as "resets at midnight" makes the

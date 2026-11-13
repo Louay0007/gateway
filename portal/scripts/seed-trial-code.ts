@@ -52,8 +52,9 @@ async function main() {
       rateMultiplierBps: 10000,
       models: ['fast', 'smart'],
       trialDays: 3,
-      // 0023: trial blended-token budgets — 10M + 10M (~$50 COGS, free).
-      tokenLimits: { fast: 10_000_000, smart: 10_000_000 },
+      // 0039: ONE shared 1M pool over the 3-day window (~0.20 DT per
+      // redemption). A free trial must not equal a paid Starter month.
+      tokenLimits: { fast: 1_000_000 },
       features: {},
     });
     console.log('✓ Created trial plan');
@@ -61,16 +62,19 @@ async function main() {
     console.log('✓ Trial plan already exists');
   }
 
-  // 0023 backfill: plans/seed rows created before token budgets existed.
+  // 0039: ONE shared pool per plan, stated once on a single key — the values
+  // SUM to the allowance and the keys are not caps. These must match
+  // 0039_pool_totals.sql, or a freshly seeded DB gets different budgets from
+  // a migrated one.
   await db.execute(sql`
-    UPDATE plans SET token_limits = '{"fast": 80000000, "smart": 32000000}'::jsonb
+    UPDATE plans SET token_limits = '{"fast": 50000000}'::jsonb
      WHERE code = 'starter' AND COALESCE((token_limits ->> 'fast')::bigint, 0) = 0;
-    UPDATE plans SET token_limits = '{"smart": 210000000, "frontier": 85000000}'::jsonb
+    UPDATE plans SET token_limits = '{"smart": 50000000}'::jsonb
      WHERE code = 'pro' AND COALESCE((token_limits ->> 'smart')::bigint, 0) = 0;
-    UPDATE plans SET token_limits = '{"fast": 10000000, "smart": 10000000}'::jsonb
+    UPDATE plans SET token_limits = '{"fast": 1000000}'::jsonb
      WHERE code = 'trial' AND COALESCE((token_limits ->> 'fast')::bigint, 0) = 0;
   `);
-  console.log('✓ Token budgets backfilled (starter/pro/trial)');
+  console.log('✓ Token pools backfilled (starter/pro/trial)');
 
   // 2. Ensure the ZAINO-FREE-OCT26 code exists
   const [existingCode] = await db
@@ -85,8 +89,8 @@ async function main() {
       createdBy: 'system',
       maxRedemptions: 0, // unlimited
       models: ['fast', 'smart'],
-      // 0023: 10M + 10M blended tokens — the only trial quota.
-      tokenLimits: { fast: 10_000_000, smart: 10_000_000 },
+      // 0039: 1M shared pooled tokens — the only trial quota.
+      tokenLimits: { fast: 1_000_000 },
       trialDays: 3,
       validFrom: new Date('2026-10-20T00:00:00+01:00'),
       // Campaign extended to end 1 Nov 00:00 Tunis (migration 0021).
