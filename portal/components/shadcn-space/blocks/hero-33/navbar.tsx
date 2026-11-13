@@ -16,8 +16,12 @@ import { MaintenanceBanner } from "@/components/marketing/maintenance-banner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChevronRight, Equal, X } from "lucide-react";
 
+// Pricing sits second, not last. It is the page a buyer looks for by name,
+// and it was reachable only from the footer — which itself linked a section
+// anchor on the landing page rather than /pricing.
 const navLinks = [
   { title: "Download", href: "/download" },
+  { title: "Pricing", href: "/pricing" },
   { title: "Docs", href: "/docs" },
   { title: "Changelog", href: "/changelog" },
   { title: "Sign in", href: "/sign-in" },

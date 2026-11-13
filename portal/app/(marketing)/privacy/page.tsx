@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import SiteNav from '@/components/marketing/site-nav';
-import { MarketingFooter } from "@/components/marketing/footer";
+import ZainoFooter from "@/components/marketing/zaino-footer";
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
@@ -119,7 +119,7 @@ export default function PrivacyPage() {
           </div>
         </article>
       </main>
-      <MarketingFooter />
+      <ZainoFooter />
     </>
   );
 }

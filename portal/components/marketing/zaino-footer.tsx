@@ -4,37 +4,46 @@ import { RuixenGradientFooter } from '@/components/ui/ruixen-gradient-footer';
 import { Ambient } from "@/components/marketing/ambient";
 import Logo from '@/assets/logo/logo';
 
+/**
+ * THE ONE FOOTER. This replaces a second implementation
+ * (components/marketing/footer.tsx) that lived alongside it and pointed
+ * Pricing at a different target — two footers is how a link rots in one
+ * place and not the other.
+ *
+ * EVERY HREF HERE RESOLVES. The previous version linked Status, About,
+ * Careers, Blog, Press, Security and Cookies to "#", and Pricing to
+ * /#pricing (a section anchor that only exists on the landing hero). A
+ * footer link that scrolls nowhere is worse than no link: it reads as a
+ * company that stopped finishing things. Pages that do not exist yet are
+ * simply absent until they do.
+ */
 const columns = [
   {
     title: 'Product',
     links: [
       { label: 'Overview', href: '/' },
-      { label: 'Desktop app', href: '/download' },
-      { label: 'Pricing', href: '/#pricing' },
+      { label: 'Pricing', href: '/pricing' },
       { label: 'Docs', href: '/docs' },
-      { label: 'API Reference', href: '/docs' },
+      { label: 'Desktop app', href: '/download' },
       { label: 'Changelog', href: '/changelog' },
+      { label: 'FAQ', href: '/faq' },
     ],
   },
   {
     title: 'Resources',
     links: [
       { label: 'Documentation', href: '/docs' },
-      { label: 'Guides', href: '/docs' },
+      { label: 'Connect your tool', href: '/connect' },
       { label: 'Support', href: 'mailto:contact.zaino.ai@gmail.com' },
       { label: 'WhatsApp', href: 'https://wa.me/21656794578' },
-      { label: 'Status', href: '#' },
     ],
   },
   {
     title: 'Company',
     links: [
-      { label: 'About', href: '#' },
-      { label: 'Careers', href: '#' },
-      { label: 'Blog', href: '#' },
-      { label: 'Press', href: '#' },
-      { label: 'Contact', href: 'mailto:hello@zaino.ai' },
+      { label: 'Contact', href: '/contact' },
       { label: 'Call +216 56 794 578', href: 'tel:+21656794578' },
+      { label: 'Sign in', href: '/sign-in' },
     ],
   },
   {
@@ -42,8 +51,6 @@ const columns = [
     links: [
       { label: 'Privacy Policy', href: '/privacy' },
       { label: 'Terms of Service', href: '/terms' },
-      { label: 'Security', href: '#' },
-      { label: 'Cookies', href: '#' },
     ],
   },
 ];

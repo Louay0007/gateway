@@ -6,9 +6,14 @@
 
 ## 0. Status
 
-**Blocked as of 2026-10-21.** The supplied key
-`ap_live_fbmOL2flEyvn4oOa5_m_bH_uPgfOieby` returns `402` on every chat
-completion:
+**RESOLVED — no key belongs in this file.** A live key was committed here
+and rotated out on 2026-11-13. The working credential now lives only in
+`.env` on the host as `UPSTREAM_API_KEY`, which is where every
+`os.environ/` reference in `config/litellm.yaml` reads it from. Never
+paste a key into a tracked document: this repo is public.
+
+For the record, the historical blocker: the previous key returned `402`
+on every chat completion:
 
 ```
 {"error":{"message":"Your free trial has ended. ...","type":"billing_error","code":402}}

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 import SiteNav from '@/components/marketing/site-nav';
-import { MarketingFooter } from "@/components/marketing/footer";
+import ZainoFooter from "@/components/marketing/zaino-footer";
 import { DocsContent } from "@/components/docs/docs-content";
 
 /**
@@ -30,7 +30,7 @@ export default function DocsPage() {
       <main>
         <DocsContent />
       </main>
-      <MarketingFooter />
+      <ZainoFooter />
     </>
   );
 }

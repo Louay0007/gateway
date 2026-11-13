@@ -88,6 +88,14 @@
      /dashboard/settings. 0.51 (~red-700) puts the text at ~4.8:1 on the tint
      and ~5.8:1 on plain white, so error text and the `bg-destructive/5`
      alert cards only get easier too. Dark mode keeps its own token below. */
+  /* --warning: the amber the product already used by hand in ~150 places
+     (bg-amber-500, text-amber-600…). Named here so a warning is one token
+     instead of a palette guess, and so it flips with the theme. */
+  --warning: oklch(0.72 0.17 70);
+  --warning-foreground: oklch(0.2 0.02 70);
+  /* --success: same story for emerald — "healthy / included / done". */
+  --success: oklch(0.63 0.16 155);
+  --success-foreground: oklch(0.99 0 0);
   --destructive: oklch(0.51 0.245 27.325);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.922 0 0);
@@ -148,6 +156,10 @@
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.8 0.15 78);
+  --warning-foreground: oklch(0.2 0.02 78);
+  --success: oklch(0.72 0.15 158);
+  --success-foreground: oklch(0.15 0 0);
   --destructive: oklch(0.704 0.191 22.216);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 10%);
@@ -264,6 +276,13 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
+  /* 0039-era semantics: status colours used by /connect and, over time, the
+     ~150 hand-picked emerald/amber classes. `bg-warning/10` works because
+     Tailwind v4 derives opacity variants from these. */
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
