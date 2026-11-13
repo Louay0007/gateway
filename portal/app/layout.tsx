@@ -56,10 +56,11 @@ export const metadata: Metadata = {
   },
   description:
     'A single OpenAI- and Anthropic-compatible API for every model, with usage-based limits, instant keys, and D17 payment for Tunisia.',
-  icons: {
-    icon: '/icon',
-    apple: '/apple-icon',
-  },
+  // Icons come from this directory's file conventions — favicon.ico,
+  // icon.png, apple-icon.png — which Next tags with the hash its route needs.
+  // Do NOT add an `icons` key here: hand-writing `{ icon: '/icon', apple:
+  // '/apple-icon' }` overrode those tags with extension-less paths that 404
+  // in Next 16, so production served a broken favicon.
   openGraph: {
     title: 'Zaino AI — One API for Every Model',
     description:
