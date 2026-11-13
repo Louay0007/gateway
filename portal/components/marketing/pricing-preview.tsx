@@ -71,13 +71,14 @@ export function PricingPreview() {
         <div className="max-w-2xl">
           <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pricing</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900 dark:text-gray-100">
-            Token-budget plans. One budget per model tier.
+            Token-budget plans. One shared pool per plan.
           </h2>
           <p className="mt-4 text-gray-600 dark:text-gray-400">
-            Prices in Tunisian Dinars (DT), billed monthly. Each tier stops
-            when its blended-token budget runs out — no spend caps, no
-            surprises. Pay by D17 transfer at La Poste — proof of payment is
-            verified by a person, usually within hours.
+            Prices in Tunisian Dinars (DT), billed monthly. Each plan gives you
+            one pool of blended tokens per month, spendable on whichever of its
+            models you like — 30M on one, 20M on another, or all of it on one.
+            No spend caps, no surprises. Pay by D17 transfer at La Poste —
+            proof of payment is verified by a person, usually within hours.
           </p>
           {promo ? (
             <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300">
@@ -133,14 +134,11 @@ export function PricingPreview() {
                 {(plan.models ?? []).length > 0 && (
                   <Feature>Models: {(plan.models ?? []).join(", ")}</Feature>
                 )}
-                {(plan.models ?? []).map((m) => {
-                  const t = (plan.tokenLimits as Record<string, number>)?.[m];
-                  return (
-                    <Feature key={m}>
-                      {m}: {t != null ? `${compact(t)} tokens / day` : "no token cap"}
-                    </Feature>
-                  );
-                })}
+                {/* 0039: ONE pool. This used to list `tokens / day` per model,
+                    which was both a per-model figure and the wrong period —
+                    a customer read "16.7M smart tokens / day" against a real
+                    monthly allowance. The total is stated once above, so
+                    there is nothing to add here. */}
               </ul>
 
               <div className="mt-6 rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-4">

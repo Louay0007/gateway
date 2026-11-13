@@ -43,11 +43,12 @@ export default function TermsPage() {
 
             <Section title="3. Token budgets and billing">
               <p>
-                Every plan has a blended-token budget per model tier enforced at the gateway. When a
-                tier&apos;s budget is spent, further inference calls on that tier return a limit-reached
-                error until the next billing period or until you upgrade. Usage is billed monthly in US
-                dollars; Tunisian accounts may pay via D17 transfer at La Poste at the published rate.
-                Usage is non-refundable once consumed.
+                Every plan includes one shared pool of blended tokens per billing period, enforced at
+                the gateway. The pool has no per-model ceiling: it may be spent on any model the plan
+                unlocks, in any proportion. When the pool is spent, further inference calls on every
+                model in that plan return a limit-reached error until the next billing period or until
+                you upgrade. Usage is billed monthly in US dollars; Tunisian accounts may pay via D17
+                transfer at La Poste at the published rate. Usage is non-refundable once consumed.
               </p>
             </Section>
 

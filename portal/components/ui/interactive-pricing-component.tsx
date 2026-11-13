@@ -47,8 +47,9 @@ const zainoPlans: PricingPlan[] = [
     description: 'Perfect for individuals exploring AI coding',
     priceLabel: '$15 / 50 DT',
     features: [
-      { name: '25M Zaino Haiku 5.5 tokens/month', included: true },
-      { name: '25M Zaino Sonnet 5.5 tokens/month', included: true },
+      // 0039: ONE shared pool — the split is the customer's to choose.
+      { name: '50M shared tokens/month', included: true },
+      { name: 'Spendable on Fast and Smart', included: true },
       { name: 'Basic agent workflows', included: true },
       { name: 'Community support', included: true },
     ],
@@ -60,10 +61,10 @@ const zainoPlans: PricingPlan[] = [
     description: 'For professionals who need full power',
     priceLabel: '$30 / 90 DT',
     features: [
-      // 0038: 50M/month TOTAL split across Pro's three aliases.
-      { name: '~16.7M Zaino Sonnet 5.5 tokens/month', included: true },
-      { name: '~16.7M Zaino Opus 5.5 tokens/month', included: true },
-      { name: '~16.6M Zaino Fable 5.1 tokens/month', included: true },
+      // 0039: 50M shared. Pro differs by model class, keys and seats —
+      // deliberately NOT by token volume — so it must not claim more here.
+      { name: '50M shared tokens/month', included: true },
+      { name: 'Spendable on Smart, Frontier and Fable', included: true },
       { name: 'Advanced agent workflows', included: true },
       { name: 'Priority support', included: true },
       { name: 'Priority queue', included: true },
@@ -109,12 +110,24 @@ const MODEL_LABELS: Record<string, string> = {
 function fromCatalogPlan(p: PlanListResponse['plans'][number]): PricingPlan {
   const template = zainoPlans.find((t) => t.id === p.code);
 
-  const generatedFeatures: Feature[] = Object.entries(p.tokenLimits ?? {}).map(
-    ([alias, limit]) => ({
-      name: `${compact(limit)} ${MODEL_LABELS[alias] ?? alias} tokens/month`,
-      included: true,
-    }),
+  // 0039: ONE pool. The old version emitted one bullet per alias
+  // ("25M Fast tokens/month", "25M Smart tokens/month"), which reads as two
+  // separate allowances and hides that either can spend the whole amount.
+  // State the total once, then what it may be spent on.
+  const poolTotal = Object.values(p.tokenLimits ?? {}).reduce(
+    (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+    0,
   );
+  const generatedFeatures: Feature[] =
+    poolTotal > 0
+      ? [{ name: `${compact(poolTotal)} shared tokens/month`, included: true }]
+      : [];
+  if ((p.models ?? []).length > 0) {
+    generatedFeatures.push({
+      name: `Spendable on ${(p.models ?? []).join(', ')}`,
+      included: true,
+    });
+  }
   generatedFeatures.push(
     { name: `${p.maxKeys} API keys`, included: true },
     { name: `${compact(p.tpmLimit ?? 0)} tokens/min`, included: true },

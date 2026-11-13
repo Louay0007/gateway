@@ -74,11 +74,16 @@ export default async function RedeemPage() {
               <span>{trial.daysRemaining} day{trial.daysRemaining !== 1 ? "s" : ""} remaining</span>
             </div>
             <div className="text-sm text-green-800 dark:text-green-300">
+              {/* 0039: one shared pool — listing per-model figures implied
+                  separate allowances that do not exist. */}
               <strong>Limits:</strong>{" "}
-              {Object.entries(trial.tokenLimits ?? {})
-                .map(([model, limit]) => `${compact(limit)} ${model} tokens`)
-                .join(", ")}{" "}
-              total across the trial period.
+              {compact(
+                Object.values(trial.tokenLimits ?? {}).reduce(
+                  (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+                  0,
+                ),
+              )}{" "}
+              shared tokens across the trial period.
             </div>
             <div className="pt-2">
               <Link href="/dashboard/keys" className="flex w-full items-center justify-center rounded-md border border-green-300 bg-transparent px-4 py-2 text-sm font-medium text-green-900 hover:bg-green-100 dark:border-green-800 dark:text-green-300 dark:hover:bg-green-900/50">

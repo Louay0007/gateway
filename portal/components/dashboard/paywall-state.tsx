@@ -30,16 +30,15 @@ interface PaywallStateProps {
  */
 const PLAN_FEATURES: Record<string, string[]> = {
   starter: [
-    'd17.feat_fast_tokens',
-    'd17.feat_smart_tokens',
+    // 0039: ONE shared pool, stated once. The per-alias token keys that used
+    // to live here listed a split the customer was never actually held to.
+    'd17.feat_pool_tokens',
     'd17.feat_keys',
     'd17.feat_rpm',
     'd17.feat_tpm',
   ],
   pro: [
-    'd17.feat_smart_tokens',
-    'd17.feat_frontier_tokens',
-    'd17.feat_fable_tokens',
+    'd17.feat_pool_tokens',
     'd17.feat_keys',
     'd17.feat_rpm',
     'd17.feat_tpm',
@@ -50,57 +49,52 @@ const PLAN_FEATURES: Record<string, string[]> = {
 /**
  * Default feature values when a plan row carries no override.
  *
- * THE MODEL IS 50M BLENDED TOKENS PER MONTH, PER PLAN (migration 0038),
- * SPLIT ACROSS THE ALIASES THE PLAN SERVES — never repeated on each one.
- * Repeating it is how 0025 multiplied exposure by alias count: 100M on
- * every alias every day is 3B tokens per alias over a month.
+ * THE MODEL IS ONE SHARED POOL PER PLAN (migration 0039): 50M per month,
+ * spendable on whichever of the plan's models the customer likes. Pro is
+ * the same 50M as Starter — it differs by model class, 15 keys and 25
+ * seats — so both must state the same number here or the paywall invents a
+ * volume difference that does not exist.
  *
  * `planFeatureValues()` below reads the live `plans.token_limits` row and
  * wins whenever it has a value; this table is only the fallback for a plan
  * whose budgets are empty (one an operator created before 0023), so it has
  * to state the same truth.
- *
- * WHY 17M AND NOT 16.667M. These are marketing bullets for a 16,666,667
- * token budget. They round DOWN, always: a paywall that promises 17M and a
- * wall that enforces 16.667M is a support ticket, and the direction of the
- * error is the whole point.
  */
 const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
   starter: {
-    'd17.feat_fast_tokens': '25M',
-    'd17.feat_smart_tokens': '25M',
+    'd17.feat_pool_tokens': '50M',
     'd17.feat_keys': '3',
     'd17.feat_rpm': '60',
     'd17.feat_tpm': '100,000',
   },
   pro: {
-    'd17.feat_smart_tokens': '17M',
-    'd17.feat_frontier_tokens': '17M',
-    'd17.feat_fable_tokens': '17M',
+    'd17.feat_pool_tokens': '50M',
     'd17.feat_keys': '15',
     'd17.feat_rpm': '300',
     'd17.feat_tpm': '500,000',
   },
 };
 
-/** Live values from the plan row — the paywall must not disagree with the
- * gateway. `tokenLimits` is keyed by alias (facade/migration 0023), so the
- * bullets reflect the same budget the entitlement sync pushes. */
+/**
+ * Live values from the plan row — the paywall must not disagree with the
+ * gateway.
+ *
+ * 0039: the pool is the SUM of `token_limits`, not one entry per alias.
+ * Rounding DOWN is deliberate and load-bearing: a paywall that promises
+ * more than the wall enforces is a support ticket, and the direction of the
+ * error is the whole point.
+ */
 function planFeatureValues(plan: PlanSummary): Record<string, string> {
   const values: Record<string, string> = {
     'd17.feat_keys': String(plan.maxKeys),
     'd17.feat_rpm': plan.rpmLimit ? String(plan.rpmLimit) : '',
     'd17.feat_tpm': plan.tpmLimit ? compact(plan.tpmLimit) : '',
   };
-  for (const [alias, key] of [
-    ['fast', 'd17.feat_fast_tokens'],
-    ['smart', 'd17.feat_smart_tokens'],
-    ['frontier', 'd17.feat_frontier_tokens'],
-    ['fable', 'd17.feat_fable_tokens'],
-  ] as const) {
-    const limit = plan.tokenLimits?.[alias];
-    if (limit) values[key] = compact(limit);
-  }
+  const pool = Object.values(plan.tokenLimits ?? {}).reduce(
+    (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+    0,
+  );
+  if (pool > 0) values['d17.feat_pool_tokens'] = compact(pool);
   return values;
 }
 

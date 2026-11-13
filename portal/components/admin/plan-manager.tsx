@@ -150,7 +150,19 @@ export function PlanManager({
                   {p.rpmLimit ?? "∞"} rpm · {p.tpmLimit ? `${(p.tpmLimit / 1000).toFixed(0)}k` : "∞"} tpm
                   <span className="block">{p.models.join(", ")}</span>
                   <span className="block">
-                    {Object.entries(p.tokenLimits ?? {}).map(([k, v]) => `${k}:${compact(v)}`).join(" · ") || "no token cap"}
+                    {/* 0039: the pool is the sum — showing per-key figures
+                        here made a shared 50M look like two 25M caps. */}
+                    {(Object.values(p.tokenLimits ?? {}).reduce(
+                      (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+                      0,
+                    ) > 0
+                      ? `${compact(
+                          Object.values(p.tokenLimits ?? {}).reduce(
+                            (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+                            0,
+                          ),
+                        )} shared / period`
+                      : "no token cap")}
                   </span>
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{p.subscriberCount}</TableCell>
@@ -241,7 +253,18 @@ function PlanDialog({
     setMaxKeys(plan ? String(plan.maxKeys) : "1");
     setTrialDays(plan ? String(plan.trialDays) : "0");
     setModels(plan?.models.join(", ") ?? "");
-    setTokenLimits(plan ? Object.entries(plan.tokenLimits ?? {}).map(([k, v]) => `${k}:${v}`).join(", ") : "fast:80000000, smart:32000000");
+    // 0039: seed with the plan's TOTAL, not a per-model split — the editor
+    // must not teach an operator that aliases carry separate caps.
+    setTokenLimits(
+      plan
+        ? String(
+            Object.values(plan.tokenLimits ?? {}).reduce(
+              (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+              0,
+            ),
+          )
+        : "50000000",
+    );
   }, [open, plan]);
 
   const mult = Number.parseFloat(multiplier);
@@ -262,14 +285,28 @@ function PlanDialog({
         maxKeys: Number(maxKeys || "1"),
         trialDays: Number(trialDays || "0"),
         models: models.split(",").map((m) => m.trim()).filter(Boolean),
-        // Blended-token budgets in RAW TOKENS (not millions): "fast:80000000".
-        // Empty = unlimited (fail-open for plans without token budgets).
-        tokenLimits: Object.fromEntries(
-          tokenLimits.split(",").map((s) => s.trim()).filter(Boolean).map((pair) => {
-            const [k, v] = pair.split(":").map((s) => s.trim());
-            return [k, Math.max(0, Math.round(Number(v)))];
-          }).filter(([k, v]) => k && Number.isFinite(v)),
-        ),
+        // 0039: ONE shared pool in RAW TOKENS (not millions). A bare number
+        // is stored on the first model alias, which is where the total is
+        // written; several entries are kept as allocations whose SUM is the
+        // pool. Empty = unlimited (fail-open for plans without budgets).
+        tokenLimits: (() => {
+          const firstAlias = models.split(",").map((m) => m.trim()).filter(Boolean)[0] ?? "fast";
+          const entries = tokenLimits
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .map((pair) => {
+              if (!pair.includes(":")) {
+                const n = Math.max(0, Math.round(Number(pair)));
+                return Number.isFinite(n) ? ([firstAlias, n] as const) : null;
+              }
+              const [k, v] = pair.split(":").map((s) => s.trim());
+              const n = Math.max(0, Math.round(Number(v)));
+              return k && Number.isFinite(n) ? ([k, n] as const) : null;
+            })
+            .filter((e): e is readonly [string, number] => e !== null);
+          return Object.fromEntries(entries);
+        })(),
       };
 
       const res = await fetch(plan ? `/api/admin/plans/${plan.id}` : "/api/admin/plans", {
@@ -364,11 +401,26 @@ function PlanDialog({
           </label>
 
           <label className="grid gap-1.5 text-sm sm:col-span-2">
-            <span className="font-medium">Token limits (alias:raw-tokens, comma separated — blank = unlimited)</span>
-            <input value={tokenLimits} onChange={(e) => setTokenLimits(e.target.value)} className={FIELD} placeholder="fast:80000000, smart:32000000" />
+            <span className="font-medium">
+              Shared token pool (raw tokens — blank = unlimited)
+            </span>
+            <input value={tokenLimits} onChange={(e) => setTokenLimits(e.target.value)} className={FIELD} placeholder="50000000" />
             <span className="text-xs text-muted-foreground">
-              Blended tokens = input + output + cache writes + cache reads. Raw tokens, not millions (80M = 80000000).
-              This is the only quota — a tier stops when its budget runs out. Blank = no token cap.
+              Blended tokens = input + output + cache writes + cache reads. Raw tokens, not millions (50M = 50000000).
+              The plan gets ONE pool spendable on any of its models, so put the TOTAL here — never a figure per model.
+              Accepted forms: <code>50000000</code> (recommended), or <code>fast:50000000</code>;
+              if you enter several, they are SUMMED and the total is the pool.
+            </span>
+            <span className="text-xs font-medium">
+              Pool: {(() => {
+                const total = tokenLimits
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean)
+                  .map((pair) => Number(pair.includes(":") ? pair.split(":")[1]?.trim() : pair))
+                  .reduce((sum, n) => sum + (Number.isFinite(n) && n > 0 ? n : 0), 0);
+                return total > 0 ? `${compact(total)} tokens per period` : "unlimited";
+              })()}
             </span>
           </label>
 

@@ -19,12 +19,12 @@ const faqItems: FaqItem[] = [
   {
     question: 'How does usage-based billing work?',
     answer:
-      'Each plan includes 50M blended tokens per month, shared across the models it unlocks. Blended tokens count every token that passes through the gateway — input, output, cache writes and cache reads — so long conversations consume proportionally more of the budget. Only successful inference calls are metered; failures never consume quota. There are no per-minute rate limits and no dollar caps on top — the monthly token budget is the only limit.',
+      'Each plan includes one pool of 50M blended tokens per month. Spend it on whichever of the plan\'s models you like — 30M on one and 20M on another, 10M and 40M, or all 50M on a single model. There is no per-model cap. Blended tokens count every token that passes through the gateway — input, output, cache writes and cache reads — so long conversations consume proportionally more of the budget. Only successful inference calls are metered; failures never consume quota. There are no per-minute rate limits and no dollar caps on top — the monthly token pool is the only limit.',
   },
   {
     question: 'What happens when I reach my monthly token budget?',
     answer:
-      'Your service continues without interruption on models that still have budget left. Once a tier\'s monthly blended-token budget is spent, additional inference calls on that tier return a clear "out of tokens for this period" error until your plan renews — or you upgrade for more allowance immediately.',
+      'Your allowance is one shared pool, so it has no per-model limit: a heavy month on one model still leaves the rest spendable on another. When the whole pool is spent, every model on the plan returns a clear "out of tokens for this period" error until your plan renews — or you upgrade for more allowance immediately.',
   },
   {
     question: 'Do you have an official agreement with Anthropic?',
