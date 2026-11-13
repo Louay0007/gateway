@@ -52,6 +52,16 @@ ENV DATABASE_URL=postgresql://127.0.0.1:5432/build
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+
+# The canonical public origin, baked in because Next replaces
+# `process.env.NEXT_PUBLIC_*` at build time — a runtime-only value reaches
+# the server process but NOT `/sitemap.xml` or `/robots.txt`, which are
+# prerendered. Without this arg those routes shipped `http://localhost:3000`
+# to crawlers in production. Not a secret: it is the domain in the browser
+# bar, and compose passes it from PORTAL_DOMAIN.
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+
 # `COPY . .` above is keyed on the source tree, so every code change
 # invalidates this layer — and `npm run build` was 233s of the 2026-11-06
 # deploy (11m28s total). Next keeps a webpack/turbopack build cache under

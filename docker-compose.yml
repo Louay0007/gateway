@@ -119,6 +119,11 @@ services:
     build:
       context: ./portal
       target: runner
+      args:
+        # Build-time, because Next inlines NEXT_PUBLIC_* — /sitemap.xml and
+        # /robots.txt are prerendered and cannot read the runtime env. This
+        # is the portal origin, not a secret.
+        NEXT_PUBLIC_APP_URL: https://${PORTAL_DOMAIN:?set in .env}
     restart: unless-stopped
     environment:
       # Our own database. db/index.ts REFUSES to start against `litellm`,
