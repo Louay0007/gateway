@@ -6,29 +6,35 @@ import { TIERS } from "@/components/docs/docs-data";
 import { cn } from "@/lib/utils";
 
 /**
- * Models — the three aliases, priced and positioned.
+ * Models — the four aliases, priced and positioned.
  *
  * ALIAS-ONLY by invariant: no upstream deployment name appears here.
  * Cards are glance-first: alias up top, price pair in the middle,
  * use-cases as chips, specs as a footer line. No icons — typography
  * and spacing carry the hierarchy.
+ *
+ * The plan list on each card comes from the same `TIERS[].plans` value the
+ * /pricing page and the database agree on; a card that claims an alias is
+ * Pro-only while Starter can call it is the exact contradiction that makes
+ * a developer stop trusting the meter.
  */
 export function ModelsSection() {
   return (
     <Section
       id="models"
       kicker="Models"
-      title="Three names. That's the whole catalog."
+      title="Four names. That's the whole catalog."
       body={
         <>
           You never pick a deployment — you pick a tier and the gateway
-          load-balances across several models behind it, skipping a
-          rate-limited pool instead of failing your request. Swapping the
-          models behind an alias is a deploy, not a migration.
+          routes it. Swapping the models behind an alias is a deploy, not a
+          migration, which is why no vendor model name appears anywhere in
+          this catalog. Every plan gets one shared token pool spendable on
+          any alias the plan includes.
         </>
       }
     >
-      <div className="grid gap-6 md:grid-cols-3">
+      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {TIERS.map((t) => {
           const featured = t.alias === "smart";
           return (
@@ -123,10 +129,10 @@ export function ModelsSection() {
         })}
       </div>
       <p className="mt-8 rounded-xl border border-border bg-muted/40 px-4 py-4 text-xs leading-relaxed text-muted-foreground">
-        Pricing reflects Zaino's official rates for Haiku 5.5, Sonnet 5.5,
-        and Opus 5.5. Your plan's multiplier (Starter ×1.30, Pro ×1.25)
-        applies on top. Cache reads are billed separately at the rates
-        shown above.
+        Rates are per 1M blended tokens, listed on the alias. Your plan's
+        multiplier (Starter ×1.30, Pro ×1.25) applies on top. Cache reads are
+        billed separately at the rate shown on each card. Failed requests are
+        never billed.
       </p>
     </Section>
   );

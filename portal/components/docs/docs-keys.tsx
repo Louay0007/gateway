@@ -4,6 +4,7 @@ import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Section } from "@/components/docs/docs-section";
 import { CodeBlock } from "@/components/docs/code-block";
+import { POOL_NOTE, POOL_PLANS } from "@/components/docs/docs-data";
 
 /**
  * Keys & limits — the operational tail: where keys live, how auth
@@ -67,6 +68,46 @@ x-api-key: zn-…              # equivalent`}
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="rounded-xl border border-border bg-card p-4 sm:p-6">
+        <p className="text-sm font-medium">One shared token pool</p>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          {POOL_NOTE}
+        </p>
+        <div className="mt-4 overflow-hidden rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/50 text-left">
+                <th className="px-4 py-2 font-medium">Plan</th>
+                <th className="px-4 py-2 font-medium">Pool</th>
+                <th className="px-4 py-2 font-medium">Spendable on</th>
+                <th className="px-4 py-2 font-medium">Keys</th>
+              </tr>
+            </thead>
+            <tbody>
+              {POOL_PLANS.map((p) => (
+                <tr key={p.code} className="border-b border-border last:border-0">
+                  <td className="px-4 py-2 font-medium">{p.label}</td>
+                  <td className="px-4 py-2 font-mono text-[13px]">
+                    {p.tokensLabel} / month
+                  </td>
+                  <td className="px-4 py-2 text-muted-foreground">
+                    {p.models.join(" · ")}
+                  </td>
+                  <td className="px-4 py-2 tabular-nums text-muted-foreground">
+                    {p.maxKeys}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+          Usage is summed over the billing period, not per day, and not per
+          model. Cache reads and writes count toward the same pool. Failed
+          requests are never billed.
+        </p>
       </div>
 
       <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-zinc-800 bg-zinc-950 p-6 sm:flex-row sm:items-center sm:p-8">

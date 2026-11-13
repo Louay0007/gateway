@@ -51,9 +51,9 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
             </>
           ) : (
             <>
-              A single OpenAI- and Anthropic-compatible endpoint, three
-              model tiers, and hard spend ceilings. Grab a key, paste one
-              snippet, and you&apos;re calling.
+              A single OpenAI- and Anthropic-compatible endpoint, four
+              model tiers, and one shared token pool per plan. Grab a key,
+              paste one snippet, and you&apos;re calling.
             </>
           )}
         </p>
@@ -108,6 +108,9 @@ export function DocsToc() {
   // never advertise a price the D17 page will not ask for. 1500/50000 are
   // Starter's two list prices (USD cents / exact dinar millimes) since
   // migration 0037; neither is derived from the other.
+  // promoView is still consulted so a live campaign discounts the line, but
+  // the copy no longer names a date: the Halloween window ended and a
+  // hard-coded "until 1 Nov" survived it in production for two weeks.
   const starterPromo = promoView(1500);
   const starterPrice = formatPlanPrice(starterPromo?.priceCents ?? 1500, 50000);
   const labels: Record<string, string> = {
@@ -138,8 +141,7 @@ export function DocsToc() {
           <p className="text-sm font-medium">Need a key?</p>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             Keys are minted in seconds and shown once. Plans start at{" "}
-            {starterPrice}/mo
-            {starterPromo ? ` — Halloween special, ${starterPromo.percentOff}% off until 1 Nov.` : "."}
+            {starterPrice}/mo — 50M shared tokens, 3 API keys.
           </p>
           <Button size="sm" className="mt-3 w-full rounded-full" nativeButton={false} render={<Link href="/sign-up" />}>
             Get an API key
