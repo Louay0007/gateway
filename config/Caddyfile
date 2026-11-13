@@ -1,5 +1,5 @@
 {
-	email you@zaino.soon.it
+	email ceo-louayrjili@sohabi.app
 
 	# ── Every site address is prefixed with {$CADDY_SCHEME:} ──────────
 	# Empty on the VPS, so each address stays bare and Caddy gets a
@@ -270,51 +270,12 @@
 	}
 }
 
-# Browser access to `opencode web` (systemd unit `opencode-web`,
-# loopback 127.0.0.1:4096, working dir /opt/gateway).
-#
-# WARNING: opencode web has NO built-in auth — this host is the entire
-# security boundary. Default-deny, IP-gated like the admin host.
-# Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl ifconfig.me) before
-# first use. Requires DNS: code A <VPS_IP>.
-{$CADDY_SCHEME:}{$CODE_DOMAIN} {
-	# The allowlist is an env var with the production value as its default,
-	# for the same reason as the upstreams at the top of this file: a
-	# missing value would expand to an empty `remote_ip`, which is a syntax
-	# error, and a hardcoded list cannot account for a local stack where
-	# caddy sees the bridge gateway (172.x) rather than 127.0.0.1.
-	#
-	# Locally docker-compose.local.yml sets this to 0.0.0.0/0 so the vhost
-	# is reachable at all. That is safe ONLY because code.localhost has no
-	# upstream in that stack — the request 502s. It must never be relaxed
-	# on a box where opencode-web is actually running: this vhost is that
-	# service's entire security boundary (see the WARNING above).
-	@blocked not remote_ip {$CODE_ALLOW:127.0.0.1/32 ::1 203.0.113.4/32 102.159.152.165/32}
-	respond @blocked "Forbidden" 403
+# `code.` vhost REMOVED for this host.
+# It proxied to 127.0.0.1:4096, a systemd unit (`opencode-web`) that does
+# not exist on this box. Caddy would attempt ACME for a hostname with no
+# upstream and answer 502 to its allowlist, so the vhost was dropped
+# rather than shipped broken. CODE_DOMAIN is consequently unused.
 
-	reverse_proxy {$CODE_UPSTREAM:127.0.0.1:4096} {
-		# Terminal UI streams over SSE + websockets (Caddy upgrades
-		# automatically). Flush everything; no read/write timeout —
-		# an idle coding session must not be killed mid-thought.
-		flush_interval -1
-		transport http {
-			dial_timeout 10s
-			response_header_timeout 60s
-		}
-	}
-
-	log {
-		output stdout
-		format json
-	}
-
-	header {
-		Strict-Transport-Security "max-age=31536000; includeSubDomains"
-		X-Content-Type-Options "nosniff"
-		Referrer-Policy "no-referrer"
-		-Server
-	}
-}
 # ── Operations console (admin.zaino.soon.it) ────────────────────────
 # The staff-facing Next.js console — suspend accounts, verify D17
 # payments, read revenue and margin, manage plans and staff.
