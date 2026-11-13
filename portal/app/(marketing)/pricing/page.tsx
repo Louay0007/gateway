@@ -51,19 +51,19 @@ export default async function PricingPage() {
     <>
       <SiteNav />
       <main className="pt-16">
-        <section className="bg-white dark:bg-black py-16 sm:py-24">
+        <section className="bg-background py-16 sm:py-24">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <div className="max-w-2xl">
               <Badge plans={plans} />
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 sm:text-5xl">
+              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
                 Pay monthly, in dollars, or by D17
               </h1>
-              <p className="mt-5 text-lg text-gray-600 dark:text-gray-400">
+              <p className="mt-5 text-lg text-muted-foreground">
                 Every plan includes usage, enforces a hard spend ceiling at the
                 gateway, and hands you the key the moment payment clears.
               </p>
               {promo ? (
-                <div className="mt-6 inline-flex flex-wrap items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300">
+                <div className="mt-6 inline-flex flex-wrap items-center gap-2 rounded-full border border-warning/40 bg-warning/10 px-4 py-2 text-sm font-medium text-warning">
                   <span aria-hidden>🎃</span>
                   {promo.label} — {promo.percentOff}% off every plan until 1 Nov,
                   00:00 (Tunisia). Applied automatically at checkout.
@@ -73,11 +73,11 @@ export default async function PricingPage() {
           </div>
         </section>
         <PricingPreview />
-        <div className="border-t border-gray-200/60 dark:border-gray-800 bg-white dark:bg-black py-12">
+        <div className="border-t border-border bg-background py-12">
           <div className="mx-auto max-w-7xl px-4 lg:px-8">
             <Link
               href="/"
-              className="text-sm text-gray-600 dark:text-gray-400 underline-offset-4 hover:text-gray-900 dark:hover:text-gray-100 hover:underline"
+              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:text-foreground/80 hover:underline"
             >
               ← Back to the homepage
             </Link>
@@ -109,7 +109,7 @@ function Badge({ plans }: { plans: PlanSummary[] }) {
   if (!line) return null;
 
   return (
-    <span className="inline-flex h-7 w-fit items-center rounded-full border border-gray-900 dark:border-gray-700 px-3 text-sm font-normal text-gray-900 dark:text-gray-100">
+    <span className="inline-flex h-7 w-fit items-center rounded-full border border-foreground px-3 text-sm font-normal text-foreground">
       {line}
     </span>
   );

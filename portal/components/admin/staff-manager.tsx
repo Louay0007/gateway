@@ -163,7 +163,7 @@ export function StaffManager({
                         you · cannot change your own role
                       </span>
                     ) : isLastOwner ? (
-                      <span className="mt-1 block text-xs text-amber-600 dark:text-amber-400">
+                      <span className="mt-1 block text-xs text-warning">
                         only owner
                       </span>
                     ) : null}
@@ -173,7 +173,7 @@ export function StaffManager({
                       {s.revokedAt ? "revoked" : "active"}
                     </Badge>
                     {!s.hasCredential && !s.revokedAt ? (
-                      <p className="mt-1 max-w-40 truncate text-xs text-amber-600 dark:text-amber-400">
+                      <p className="mt-1 max-w-40 truncate text-xs text-warning">
                         no sign-in account yet
                       </p>
                     ) : null}

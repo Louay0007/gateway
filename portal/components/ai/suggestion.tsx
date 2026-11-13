@@ -57,7 +57,7 @@ export function Suggestion({
               "text-left text-xs font-medium whitespace-normal transition-colors duration-150",
               "hover:bg-accent hover:text-accent-foreground",
               "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-              "dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+              " dark:bg-input/30 dark:hover:bg-input/50",
             )}
           >
             {s}

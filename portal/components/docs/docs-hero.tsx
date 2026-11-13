@@ -17,7 +17,7 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
     <section
       className={cn(
         "border-b",
-        dashboard ? "border-border bg-background" : "border-gray-200/60 bg-white dark:border-gray-800 dark:bg-black",
+        dashboard ? "border-border bg-background" : "border-border/60 bg-white  ",
       )}
     >
       <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
@@ -28,7 +28,7 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
         <h1
           className={cn(
             "mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl",
-            dashboard ? "text-foreground" : "text-black dark:text-white",
+            dashboard ? "text-foreground" : "text-foreground",
           )}
         >
           One API for every model. First call in two minutes.
@@ -36,7 +36,7 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
         <p
           className={cn(
             "mt-4 max-w-2xl text-lg",
-            dashboard ? "text-muted-foreground" : "text-gray-600 dark:text-gray-400",
+            dashboard ? "text-muted-foreground" : "text-muted-foreground",
           )}
         >
           {dashboard ? (

@@ -28,9 +28,9 @@ export default function FaqPage() {
       <SiteNav active="FAQ" />
       <main className="pt-16">
         <FaqSection />
-        <div className="border-t border-gray-200/60 bg-white py-12 dark:border-gray-800 dark:bg-black">
+        <div className="border-t border-border/60 bg-white py-12">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 lg:px-8">
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               Still unsure which plan fits?
             </p>
             <div className="flex flex-wrap gap-3 text-sm">

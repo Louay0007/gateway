@@ -223,21 +223,13 @@ export default function PricingComponent({
               <div className="inline-flex items-center bg-white/5 border border-white/10 p-1 rounded-lg">
                 <button
                   onClick={() => setActiveTab('pricing')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                    activeTab === 'pricing'
-                      ? 'bg-white/10 text-white shadow-sm'
-                      : 'text-white/50 hover:text-white'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${ activeTab === 'pricing' ? 'bg-white/10 text-white shadow-sm' : 'text-white/50 hover:text-white' }`}
                 >
                   Pricing
                 </button>
                 <button
                   onClick={() => setActiveTab('comparison')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${
-                    activeTab === 'comparison'
-                      ? 'bg-white/10 text-white shadow-sm'
-                      : 'text-white/50 hover:text-white'
-                  }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${ activeTab === 'comparison' ? 'bg-white/10 text-white shadow-sm' : 'text-white/50 hover:text-white' }`}
                 >
                   Compare Features
                 </button>
@@ -253,11 +245,7 @@ export default function PricingComponent({
               <div key={plan.id} className={`flex flex-col ${plan.popular ? 'relative z-10' : ''}`}>
                 {/* Outer wrapper for gradient border on popular card */}
                 <div
-                  className={`relative rounded-2xl h-full flex flex-col transition-all duration-300 ${
-                    plan.popular
-                      ? 'p-[2px] bg-gradient-to-b from-[#A558FB] via-[#4922E5]/70 to-[#4922E5]/20 shadow-[0_0_40px_rgba(76,34,229,0.35)] scale-[1.03] lg:scale-[1.06]'
-                      : 'border border-white/10 shadow-md hover:shadow-lg bg-[#0b0714]'
-                  }`}
+                  className={`relative rounded-2xl h-full flex flex-col transition-all duration-300 ${ plan.popular ? 'p-[2px] bg-gradient-to-b from-[#A558FB] via-[#4922E5]/70 to-[#4922E5]/20 shadow-[0_0_40px_rgba(76,34,229,0.35)] scale-[1.03] lg:scale-[1.06]' : 'border border-white/10 shadow-md hover:shadow-lg bg-[#0b0714]' }`}
                 >
                   {/* Inner card */}
                   <div
@@ -300,9 +288,7 @@ export default function PricingComponent({
                         {plan.features.map((feature, idx) => (
                           <li key={idx} className="flex items-start gap-3">
                             <div
-                              className={`mt-0.5 shrink-0 ${
-                                feature.included ? 'text-[#A558FB]' : 'text-white/20'
-                              }`}
+                              className={`mt-0.5 shrink-0 ${ feature.included ? 'text-[#A558FB]' : 'text-white/20' }`}
                             >
                               {feature.included ? (
                                 <Check className="h-5 w-5" aria-hidden="true" strokeWidth={2.5} />
@@ -311,9 +297,7 @@ export default function PricingComponent({
                               )}
                             </div>
                             <span
-                              className={`text-sm ${
-                                feature.included ? 'text-white' : 'text-white/50'
-                              }`}
+                              className={`text-sm ${ feature.included ? 'text-white' : 'text-white/50' }`}
                             >
                               {feature.name}
                             </span>
@@ -363,9 +347,7 @@ export default function PricingComponent({
                   {allFeatures.map((featureName, idx) => (
                     <tr
                       key={featureName}
-                      className={`border-b border-white/5 hover:bg-white/5 transition-colors ${
-                        idx % 2 === 0 ? '' : 'bg-white/[0.02]'
-                      }`}
+                      className={`border-b border-white/5 hover:bg-white/5 transition-colors ${ idx % 2 === 0 ? '' : 'bg-white/[0.02]' }`}
                     >
                       <td className="py-4 px-4 font-medium text-white">{featureName}</td>
                       {plans.map((plan) => {

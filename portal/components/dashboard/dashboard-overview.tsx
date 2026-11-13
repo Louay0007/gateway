@@ -25,6 +25,7 @@ import {
 } from "@/components/dashboard/states";
 import { OverviewKeysPanel } from "@/components/dashboard/overview-keys-panel";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
+import { GettingStarted } from "@/components/dashboard/getting-started";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import { useApi } from "@/lib/api/use-api";
 import type {
@@ -94,6 +95,21 @@ export function DashboardOverview() {
           poolTokens={b.poolTokens}
           poolUsedTokens={b.poolUsedTokens}
           resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
+        />
+      ) : null}
+
+      {/* Checklist first: a new account's job is a next step, not a
+          dashboard reading zero. It renders nothing once complete. */}
+      {plan ? (
+        <GettingStarted
+          hasPlan
+          trial={{
+            active: b?.subscription?.status === "trialing",
+            daysRemaining: trialDaysLeft(b?.subscription?.currentPeriodEnd ?? null),
+            tokens: b?.poolTokens != null ? compact(b.poolTokens) : null,
+          }}
+          keyCount={keys.filter((k) => !k.revokedAt).length}
+          hasAnyRequest={(recent.data?.rows?.length ?? 0) > 0}
         />
       ) : null}
 
@@ -214,4 +230,17 @@ export function DashboardOverview() {
       </p>
     </>
   );
+}
+
+/**
+ * Whole days remaining until an ISO instant, or null when unknown.
+ *
+ * Rounded UP: a trial ending in 4 hours reads "1 day left", not "0", because
+ * "0 days left" while the thing still works is alarming and wrong.
+ */
+function trialDaysLeft(iso: string | null): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Math.ceil(ms / 86_400_000));
 }

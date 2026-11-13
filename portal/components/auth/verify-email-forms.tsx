@@ -23,10 +23,10 @@ export function ConfirmEmailForm({ token }: { token: string }) {
     return (
       <div
         role="status"
-        className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 px-4 py-5 text-center"
+        className="rounded-lg border border-border bg-muted px-4 py-5 text-center"
       >
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Email confirmed</p>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+        <p className="text-sm font-medium text-foreground">Email confirmed</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           {state.email ? `${state.email} is verified. ` : ""}You can create an
           API key and start a subscription.
         </p>
@@ -38,7 +38,7 @@ export function ConfirmEmailForm({ token }: { token: string }) {
     <form action={action} className="space-y-5">
       <input type="hidden" name="token" value={token} />
       {state.error ? (
-        <p role="alert" aria-live="assertive" className="text-sm text-red-600">
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive">
           {state.error}
         </p>
       ) : null}
@@ -56,7 +56,7 @@ export function ResendVerification() {
 
   if (state.done) {
     return (
-      <p role="status" className="text-sm text-gray-600 dark:text-gray-400">
+      <p role="status" className="text-sm text-muted-foreground">
         Sent. Check your inbox for the confirmation link.
       </p>
     );
@@ -65,7 +65,7 @@ export function ResendVerification() {
   return (
     <form action={action} className="space-y-3">
       {state.error ? (
-        <p role="alert" aria-live="assertive" className="text-sm text-red-600">
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive">
           {state.error}
         </p>
       ) : null}

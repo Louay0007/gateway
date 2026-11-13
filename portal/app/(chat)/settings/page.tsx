@@ -44,7 +44,7 @@ export default async function SettingsPage({
         </div>
 
         {!verified ? (
-          <Card className="mb-6 border-amber-300 dark:border-amber-800">
+          <Card className="mb-6 border-warning/30">
             <CardHeader>
               <CardTitle className="text-base">Confirm your email address</CardTitle>
               <CardDescription>

@@ -39,7 +39,7 @@ export function DevPayForm({
         <p
           role="alert"
           aria-live="assertive"
-          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           {state.error}
         </p>

@@ -48,7 +48,7 @@ export function QuotaPoolMeter({
     exhausted || percent >= 95
       ? "[&_[data-slot=progress-indicator]]:bg-destructive"
       : percent >= 80
-        ? "[&_[data-slot=progress-indicator]]:bg-amber-500"
+        ? "[&_[data-slot=progress-indicator]]:bg-warning"
         : undefined;
 
   return (
@@ -110,7 +110,7 @@ export function QuotaMeter({
     exhausted || tokenPercent >= 95
       ? "[&_[data-slot=progress-indicator]]:bg-destructive"
       : tokenPercent >= 80
-        ? "[&_[data-slot=progress-indicator]]:bg-amber-500"
+        ? "[&_[data-slot=progress-indicator]]:bg-warning"
         : undefined;
 
   const label =

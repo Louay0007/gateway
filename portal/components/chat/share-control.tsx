@@ -224,7 +224,7 @@ export function ShareControl() {
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 </div>
-                <p className="text-[11px] leading-relaxed text-amber-600 dark:text-amber-500">
+                <p className="text-[11px] leading-relaxed text-warning text-warning">
                   Copy it now. This link is stored only as a hash, so it cannot be shown
                   again — if you lose it, revoke and make a new one.
                 </p>

@@ -41,7 +41,7 @@ export function AuthShell({
   titleId?: string;
 }) {
   return (
-    <main className="light-surface flex min-h-dvh items-center justify-center bg-white dark:bg-black px-4 py-12">
+    <main className="light-surface flex min-h-dvh items-center justify-center bg-background px-4 py-12">
       <div
         aria-labelledby={titleId}
         className={cn("animate-hero-rise w-full max-w-sm", className)}
@@ -55,14 +55,14 @@ export function AuthShell({
         </Link>
         <h1
           id={titleId}
-          className="text-center text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100"
+          className="text-center text-2xl font-semibold tracking-tight text-foreground"
         >
           {title}
         </h1>
-        <div className="mt-2 text-center text-sm text-gray-600 dark:text-gray-200">{subtitle}</div>
+        <div className="mt-2 text-center text-sm text-muted-foreground">{subtitle}</div>
         <div className="mt-8">{children}</div>
         {footer ? (
-          <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-100">{footer}</p>
+          <p className="mt-6 text-center text-sm text-muted-foreground">{footer}</p>
         ) : null}
       </div>
     </main>

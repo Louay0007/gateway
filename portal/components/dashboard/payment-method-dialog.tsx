@@ -189,11 +189,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                     role="radio"
                     aria-checked={selected}
                     onClick={() => setMethod(m.id)}
-                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${
-                      selected
-                        ? "border-emerald-600 bg-emerald-600/5 dark:bg-emerald-500/10"
-                        : "border-border hover:border-emerald-600/40 hover:bg-muted/50"
-                    }`}
+                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${ selected ? "border-success bg-success/5 bg-success/10" : "border-border hover:border-success/50 hover:bg-muted/50" }`}
                   >
                     {/* Room for the mark at its brand size; Dodo's is a
                         round badge, D17's a wide wordmark. */}
@@ -208,7 +204,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                       <span className="flex items-center gap-1.5 text-sm font-medium">
                         {m.title}
                         {selected ? (
-                          <Check className="size-4 text-emerald-600 dark:text-emerald-400" />
+                          <Check className="size-4 text-success" />
                         ) : null}
                       </span>
                       <span className="text-xs text-muted-foreground">{m.subtitle}</span>
@@ -264,7 +260,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                 Cancel
               </DialogClose>
               <Button
-                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                className="bg-success text-white hover:bg-success/90"
                 disabled={busy}
                 onClick={() => void confirm()}
               >

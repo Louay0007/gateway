@@ -66,8 +66,11 @@ export function ModelsSection() {
                 </Badge>
               </div>
 
+              {/* No engine disclosure: the alias is the product, and
+                  naming the model behind it would make an engine swap a
+                  customer-visible change instead of a config edit. */}
               <p className="mt-3 text-xs font-medium text-foreground/80">
-                Served on Zaino official infrastructure · {t.poweredBy}
+                Served on Zaino official infrastructure
               </p>
 
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">

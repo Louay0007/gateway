@@ -52,15 +52,15 @@ export default function ContactPage() {
     <>
       <SiteNav active="Contact" />
       <main className="pt-16">
-        <section className="bg-white py-16 sm:py-24 dark:bg-black">
+        <section className="bg-white py-16 sm:py-24">
           <div className="mx-auto max-w-3xl px-4 lg:px-8">
-            <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            <p className="text-sm font-medium text-muted-foreground">
               Contact
             </p>
-            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl dark:text-gray-100">
+            <h1 className="mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
               Talk to the person who runs it
             </h1>
-            <p className="mt-5 text-lg leading-relaxed text-gray-600 dark:text-gray-400">
+            <p className="mt-5 text-lg leading-relaxed text-muted-foreground">
               Zaino is small on purpose. There is no sales team, no ticket
               queue and no chatbot in front of this address — a message here
               reaches someone who can change the product.
@@ -70,22 +70,22 @@ export default function ContactPage() {
               {CHANNELS.map(({ icon: Icon, label, value, href, note }) => (
                 <li
                   key={label}
-                  className="flex flex-col gap-3 rounded-2xl border border-gray-200 p-6 sm:flex-row sm:items-start sm:gap-5 dark:border-gray-800"
+                  className="flex flex-col gap-3 rounded-2xl border border-border p-6 sm:flex-row sm:items-start sm:gap-5"
                 >
-                  <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-gray-100 dark:bg-gray-900">
-                    <Icon className="size-4 text-gray-700 dark:text-gray-300" aria-hidden />
+                  <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-muted">
+                    <Icon className="size-4 text-foreground" aria-hidden />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-medium tracking-widest text-gray-500 uppercase dark:text-gray-500">
+                    <p className="text-xs font-medium tracking-widest text-muted-foreground uppercase">
                       {label}
                     </p>
                     <a
                       href={href}
-                      className="mt-1 block font-mono text-base break-all font-medium text-gray-900 underline-offset-4 hover:underline dark:text-gray-100"
+                      className="mt-1 block font-mono text-base break-all font-medium text-foreground underline-offset-4 hover:underline"
                     >
                       {value}
                     </a>
-                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       {note}
                     </p>
                   </div>
@@ -93,20 +93,20 @@ export default function ContactPage() {
               ))}
             </ul>
 
-            <div className="mt-12 rounded-2xl border border-gray-200 p-6 dark:border-gray-800">
-              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            <div className="mt-12 rounded-2xl border border-border p-6">
+              <p className="text-sm font-medium text-foreground">
                 Before you write: two answers that save a round trip
               </p>
-              <ul className="mt-3 grid gap-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+              <ul className="mt-3 grid gap-2 text-sm leading-relaxed text-muted-foreground">
                 <li>
-                  <strong className="font-medium text-gray-900 dark:text-gray-200">
+                  <strong className="font-medium text-foreground">
                     Payment is D17 or card.
                   </strong>{" "}
                   Dinar transfers settle by hand, usually within hours. Card
                   checkout is instant.
                 </li>
                 <li>
-                  <strong className="font-medium text-gray-900 dark:text-gray-200">
+                  <strong className="font-medium text-foreground">
                     Keys and usage.
                   </strong>{" "}
                   If your key stopped working, check the{" "}

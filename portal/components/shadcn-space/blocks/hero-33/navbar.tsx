@@ -19,11 +19,14 @@ import { ChevronRight, Equal, X } from "lucide-react";
 // Pricing sits second, not last. It is the page a buyer looks for by name,
 // and it was reachable only from the footer — which itself linked a section
 // anchor on the landing page rather than /pricing.
+// Five destinations, in the order a buyer moves through them: try it,
+// see what it costs, see what it runs on, read how to wire it, then the
+// record. Everything else lives in the footer.
 const navLinks = [
-  { title: "Download", href: "/download" },
+  { title: "Playground", href: "/playground" },
   { title: "Pricing", href: "/pricing" },
+  { title: "Models", href: "/models" },
   { title: "Docs", href: "/docs" },
-  { title: "Changelog", href: "/changelog" },
   { title: "Sign in", href: "/sign-in" },
 ];
 
@@ -155,7 +158,7 @@ const Navbar = ({
         <div className="flex items-center gap-4 lg:gap-6">
           <a href="/" className="shrink-0">
             <span className="flex items-center gap-2.5">
-              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-900 dark:bg-gray-700 dark:ring-1 dark:ring-white/20">
+              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary dark:ring-1 dark:ring-white/20">
                 <img
                   src="/logo/zaino-curved-z-white.png"
                   alt="Zaino AI logo"
@@ -209,7 +212,7 @@ const Navbar = ({
               >
                 <Avatar className="size-9">
                   {image ? <AvatarImage src={image} alt={name ?? "Account"} /> : null}
-                  <AvatarFallback className="bg-gray-900/80 text-sm font-medium text-white dark:bg-white/15">
+                  <AvatarFallback className="bg-primary/80 text-sm font-medium text-white dark:bg-white/15">
                     {initials ?? "…"}
                   </AvatarFallback>
                 </Avatar>

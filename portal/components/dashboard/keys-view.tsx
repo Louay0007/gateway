@@ -221,10 +221,10 @@ export function KeysView() {
       </div>
 
       {plaintext ? (
-        <Card className="border-amber-500/40 bg-amber-500/5">
+        <Card className="border-warning/40 bg-warning/5">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <TriangleAlert className="size-4 text-amber-500" />
+              <TriangleAlert className="size-4 text-warning" />
               Copy your new key now
             </CardTitle>
             <CardDescription>

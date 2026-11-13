@@ -43,17 +43,11 @@ export function D17Instructions({
       <div className="flex items-center justify-between px-1" aria-hidden="true">
         {steps.map((_, i) => (
           <div key={i} className="flex items-center">
-            <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${
-              steps[i]?.highlight
-                ? "border-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400"
-                : "border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400"
-            }`}>
+            <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${ steps[i]?.highlight ? "border-success/50 bg-success/10 text-success " : "border-border bg-white text-muted-foreground" }`}>
               {i + 1}
             </div>
             {i < steps.length - 1 && (
-              <div className={`h-px w-5 sm:w-8 md:w-12 ${
-                steps[i]?.highlight ? "bg-emerald-300 dark:bg-emerald-700" : "bg-gray-200 dark:bg-gray-800"
-              }`} />
+              <div className={`h-px w-5 sm:w-8 md:w-12 ${ steps[i]?.highlight ? "bg-success/30 dark:bg-success/90" : "bg-muted " }`} />
             )}
           </div>
         ))}
@@ -62,16 +56,10 @@ export function D17Instructions({
       {/* Detailed steps */}
       <ol className="grid gap-3">
         {steps.map((step, i) => (
-          <li key={i} className={`flex gap-3.5 rounded-lg p-2.5 transition-colors ${
-            step.highlight ? "bg-emerald-50/30 dark:bg-emerald-950/20" : ""
-          }`}>
+          <li key={i} className={`flex gap-3.5 rounded-lg p-2.5 transition-colors ${ step.highlight ? "bg-success/10 bg-success/10" : "" }`}>
             <span
               aria-hidden
-              className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
-                step.highlight
-                  ? "bg-emerald-600 dark:bg-emerald-600 text-white"
-                  : "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400"
-              }`}
+              className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${ step.highlight ? "bg-success dark:bg-success text-white" : "bg-muted text-muted-foreground" }`}
             >
               {step.highlight ? (
                 <Check className="size-3.5" strokeWidth={3} />
@@ -80,17 +68,11 @@ export function D17Instructions({
               )}
             </span>
             <div className="min-w-0 flex-1">
-              <p className={`text-sm leading-relaxed ${
-                step.highlight ? "font-medium text-gray-900 dark:text-gray-100" : "text-gray-700 dark:text-gray-300"
-              }`}>{step.label}</p>
+              <p className={`text-sm leading-relaxed ${ step.highlight ? "font-medium text-foreground" : "text-foreground" }`}>{step.label}</p>
               {step.value ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <code
-                    className={`min-w-0 flex-1 select-all rounded-lg border px-3 py-2.5 font-mono text-sm tabular-nums tracking-tight ${
-                      step.highlight
-                        ? "border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-900 text-base font-semibold text-emerald-900 dark:text-emerald-300 shadow-sm"
-                        : "border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-900 text-gray-900 dark:text-gray-100"
-                    }`}
+                    className={`min-w-0 flex-1 select-all rounded-lg border px-3 py-2.5 font-mono text-sm tabular-nums tracking-tight ${ step.highlight ? "border-success/30 bg-white text-base font-semibold text-success-foreground text-success shadow-sm" : "border-border bg-muted/80 text-foreground" }`}
                   >
                     {step.value}
                   </code>

@@ -57,7 +57,7 @@ export function SignUpForm() {
         error={state.fieldErrors?.confirm}
       />
       {state.error ? (
-        <p role="alert" aria-live="assertive" className="text-sm text-red-600">
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive">
           {state.error}
         </p>
       ) : null}

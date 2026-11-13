@@ -23,6 +23,8 @@ const columns = [
     links: [
       { label: 'Overview', href: '/' },
       { label: 'Pricing', href: '/pricing' },
+      { label: 'Models', href: '/models' },
+      { label: 'Playground', href: '/playground' },
       { label: 'Docs', href: '/docs' },
       { label: 'Desktop app', href: '/download' },
       { label: 'Changelog', href: '/changelog' },
@@ -35,6 +37,7 @@ const columns = [
       { label: 'Documentation', href: '/docs' },
       { label: 'Connect your tool', href: '/connect' },
       { label: 'Support', href: 'mailto:contact.zaino.ai@gmail.com' },
+      { label: 'Status', href: '/status' },
       { label: 'WhatsApp', href: 'https://wa.me/21656794578' },
     ],
   },

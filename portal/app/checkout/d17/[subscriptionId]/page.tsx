@@ -85,9 +85,9 @@ export default async function D17CheckoutPage({
     return (
       <CheckoutShell lang={lang} dir={dir}>
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{t("d17.err_generic")}</p>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("d17.summary_reference")}: {subscriptionId}</p>
-          <Link href={returnTo} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black dark:text-white underline-offset-4 hover:underline">
+          <p className="text-lg font-medium text-foreground">{t("d17.err_generic")}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t("d17.summary_reference")}: {subscriptionId}</p>
+          <Link href={returnTo} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline">
             <ArrowLeft className="size-4" />
             {t("d17.back_dashboard")}
           </Link>
@@ -140,14 +140,14 @@ export default async function D17CheckoutPage({
       <CheckoutShell lang={lang} dir={dir}>
         <div className="mx-auto max-w-lg py-10 text-center">
           <D17StatusCard status="paid" lang={lang} className="mb-6" />
-          <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+          <p className="text-sm leading-relaxed text-muted-foreground">
             {t("d17.email_approved_body", {
               plan: plan?.name ?? "",
               amount: payment ? formatTndMillimes(payment.amountMillimes) : "",
             })}
           </p>
           {paidAt ? (
-            <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
+            <p className="mt-2 text-xs text-muted-foreground">
               {paidAt.toLocaleString(lang === "fr" ? "fr-TN" : "en-US", {
                 dateStyle: "medium",
                 timeStyle: "short",
@@ -163,7 +163,7 @@ export default async function D17CheckoutPage({
               a page that said nothing about their payment having worked. */}
           <Link
             href={paidReturnTo}
-            className="mt-8 inline-flex items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-700 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:hover:bg-gray-600"
+            className="mt-8 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary hover:bg-primary/80"
           >
             {t("d17.back_dashboard")}
           </Link>
@@ -177,9 +177,9 @@ export default async function D17CheckoutPage({
     return (
       <CheckoutShell lang={lang} dir={dir}>
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <p className="text-lg font-medium text-gray-900 dark:text-gray-100">{t("d17.err_generic")}</p>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{t("d17.summary_reference")}: {subscriptionId}</p>
-          <Link href={returnTo} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-black dark:text-white underline-offset-4 hover:underline">
+          <p className="text-lg font-medium text-foreground">{t("d17.err_generic")}</p>
+          <p className="mt-2 text-sm text-muted-foreground">{t("d17.summary_reference")}: {subscriptionId}</p>
+          <Link href={returnTo} className="mt-6 inline-flex items-center gap-2 text-sm font-medium text-foreground underline-offset-4 hover:underline">
             <ArrowLeft className="size-4" />
             {t("d17.back_dashboard")}
           </Link>
@@ -219,12 +219,12 @@ export default async function D17CheckoutPage({
       <div className="mx-auto w-full max-w-4xl">
         {/* ── Header ──────────────────────────────────────────────────── */}
         <header className="mb-8 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight text-black dark:text-white sm:text-3xl">
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             {plan?.name ?? "Subscription"}
           </h1>
-          <p className="mt-2 flex items-center justify-center gap-2 text-sm text-gray-500">
-            <span className="font-mono font-medium text-black dark:text-white">{formatTndMillimes(payment.amountMillimes)}</span>
-            <span aria-hidden className="text-gray-300 dark:text-gray-600">·</span>
+          <p className="mt-2 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+            <span className="font-mono font-medium text-foreground">{formatTndMillimes(payment.amountMillimes)}</span>
+            <span aria-hidden className="text-muted-foreground">·</span>
             <span>{t(statusKey[status] ?? "d17.status_pending")}</span>
           </p>
         </header>
@@ -246,7 +246,7 @@ export default async function D17CheckoutPage({
                   <div className="d17-stepper-circle" data-state={state} aria-current={state === "active" ? "step" : undefined}>
                     {state === "completed" ? "✓" : step + 1}
                   </div>
-                  <span className={`text-[11px] font-medium tracking-wide uppercase ${state === "active" ? "text-black dark:text-white" : "text-muted-foreground"}`}>
+                  <span className={`text-[11px] font-medium tracking-wide uppercase ${state === "active" ? "text-foreground" : "text-muted-foreground"}`}>
                     {t(key)}
                   </span>
                 </li>
@@ -273,9 +273,9 @@ export default async function D17CheckoutPage({
             {/* Left column: Instructions + Summary */}
             <div className="space-y-6">
               {/* Payment Summary Card */}
-              <section className="overflow-hidden rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 shadow-sm">
-                <div className="border-b border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 px-5 py-3">
-                  <h2 className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">{t("d17.summary_reference")}</h2>
+              <section className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+                <div className="border-b border-border bg-muted/50 px-5 py-3">
+                  <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("d17.summary_reference")}</h2>
                 </div>
                 <dl className="divide-y divide-gray-50 px-5">
                   <SummaryRow label={t("d17.summary_plan")} value={plan?.name ?? "—"} />
@@ -293,10 +293,10 @@ export default async function D17CheckoutPage({
 
               {/* Transfer Instructions */}
               {!rejected && (
-                <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
+                <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
                   <div className="mb-5">
-                    <h2 className="text-base font-semibold text-black dark:text-white">{t("d17.step_transfer")}</h2>
-                    <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{t("d17.method_hint")}</p>
+                    <h2 className="text-base font-semibold text-foreground">{t("d17.step_transfer")}</h2>
+                    <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("d17.method_hint")}</p>
                   </div>
                   <D17Instructions
                     lang={lang}
@@ -304,9 +304,9 @@ export default async function D17CheckoutPage({
                     receiverPhone={phone}
                     reference={`d17-${payment.id}`}
                   />
-                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/60 dark:bg-amber-950/30 px-4 py-3">
-                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-400" aria-hidden />
-                    <p className="text-sm leading-relaxed text-amber-900 dark:text-amber-300">
+                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 bg-warning/10 px-4 py-3">
+                    <ShieldCheck className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
+                    <p className="text-sm leading-relaxed text-warning text-warning">
                       {t("d17.notice", { hours: String(hours) })}
                     </p>
                   </div>
@@ -316,10 +316,10 @@ export default async function D17CheckoutPage({
 
             {/* Right column: Proof Form */}
             <aside className="lg:sticky lg:top-8 lg:self-start">
-              <section className="rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-6 shadow-sm">
+              <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
                 <div className="mb-5">
-                  <h2 className="text-base font-semibold text-black dark:text-white">{t("d17.proof_title")}</h2>
-                  <p className="mt-1 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{t("d17.proof_subtitle")}</p>
+                  <h2 className="text-base font-semibold text-foreground">{t("d17.proof_title")}</h2>
+                  <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("d17.proof_subtitle")}</p>
                 </div>
                 <D17ProofForm subscriptionId={subscriptionId} lang={lang} />
               </section>
@@ -329,9 +329,9 @@ export default async function D17CheckoutPage({
 
         {/* ── Waiting state (proof submitted) ─────────────────────────── */}
         {status === "proof_submitted" && (
-          <div className="mx-auto max-w-md rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-8 text-center">
-            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{t("d17.waiting_title")}</p>
-            <p className="mt-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{t("d17.waiting_subtitle")}</p>
+          <div className="mx-auto max-w-md rounded-xl border border-border bg-muted/50 p-8 text-center">
+            <p className="text-sm font-medium text-foreground">{t("d17.waiting_title")}</p>
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{t("d17.waiting_subtitle")}</p>
           </div>
         )}
 
@@ -340,7 +340,7 @@ export default async function D17CheckoutPage({
           <div className="flex justify-center pt-4">
             <Link
               href={returnTo}
-              className="inline-flex items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-700 px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-gray-800 dark:hover:bg-gray-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40 dark:focus-visible:ring-gray-400/40"
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-primary hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40 dark:focus-visible:ring-border"
             >
               {t("d17.continue")}
             </Link>
@@ -348,13 +348,13 @@ export default async function D17CheckoutPage({
         )}
 
         {/* ── Footer ──────────────────────────────────────────────────── */}
-        <footer className="mt-12 flex flex-col items-center gap-4 border-t border-gray-100 dark:border-gray-800 pt-8">
-          <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-500">
+        <footer className="mt-12 flex flex-col items-center gap-4 border-t border-border pt-8">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <ShieldCheck className="size-3.5" aria-hidden />
             <span>{t("d17.no_pin_notice")}</span>
           </div>
           <LangSwitch links={langLinks(base)} />
-          <Link href={returnTo} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 underline-offset-4 hover:text-black dark:hover:text-white hover:underline">
+          <Link href={returnTo} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-black dark:hover:text-white hover:underline">
             <ArrowLeft className="size-3" />
             {t("d17.back_dashboard")}
           </Link>
@@ -376,7 +376,7 @@ function CheckoutShell({
   dir: "ltr" | "rtl";
 }) {
   return (
-    <main className="light-surface min-h-dvh bg-white dark:bg-black" lang={lang} dir={dir}>
+    <main className="light-surface min-h-dvh bg-background" lang={lang} dir={dir}>
       <div className="animate-hero-rise px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
         <Link
           href="/"
@@ -406,15 +406,9 @@ function SummaryRow({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3.5">
-      <dt className="text-sm text-gray-500 dark:text-gray-400">{label}</dt>
+      <dt className="text-sm text-muted-foreground">{label}</dt>
       <dd
-        className={`text-right ${
-          highlight
-            ? "text-base font-semibold text-black dark:text-white"
-            : small
-              ? "text-xs text-gray-600 dark:text-gray-400"
-              : "text-sm font-medium text-black dark:text-white"
-        } ${mono ? "font-mono tabular-nums" : ""}`}
+        className={`text-right ${ highlight ? "text-base font-semibold text-foreground" : small ? "text-xs text-muted-foreground" : "text-sm font-medium text-foreground" } ${mono ? "font-mono tabular-nums" : ""}`}
       >
         {value}
       </dd>
@@ -435,11 +429,7 @@ function LangSwitch({
           href={l.href}
           hrefLang={l.lang}
           aria-current={l.current ? "true" : undefined}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-            l.current
-              ? "border border-gray-200 dark:border-gray-800 bg-gray-100 dark:bg-gray-800 text-black dark:text-white"
-              : "text-gray-500 dark:text-gray-400 hover:text-black dark:hover:text-white"
-          }`}
+          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${ l.current ? "border border-border bg-muted text-foreground" : "text-muted-foreground hover:text-black dark:hover:text-white" }`}
         >
           {l.lang.toUpperCase()}
         </Link>

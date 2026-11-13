@@ -218,7 +218,7 @@ export function ProfileCard() {
                   Verified
                 </Badge>
               ) : (
-                <Badge variant="outline" className="text-[11px] text-amber-600 border-amber-600/40">
+                <Badge variant="outline" className="text-[11px] text-warning border-warning/40">
                   Unverified
                 </Badge>
               )}

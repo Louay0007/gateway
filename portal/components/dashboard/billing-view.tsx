@@ -274,7 +274,7 @@ export function BillingView() {
       <RefreshingBar show={bundle.refreshing} />
 
       {promo ? (
-        <Card className="border-orange-500/40 bg-orange-500/5">
+        <Card className="border-warning/40 bg-warning/5">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
             <p className="text-sm">
               <span className="font-medium">
@@ -300,9 +300,9 @@ export function BillingView() {
       ) : null}
 
       {justPaid ? (
-        <Card className="border-emerald-500/40 bg-emerald-500/5">
+        <Card className="border-success/40 bg-success/10">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <BadgeCheck className="size-5 text-emerald-600" />
+            <BadgeCheck className="size-5 text-success" />
             <p className="text-sm">
               <span className="font-medium">Payment received.</span> Your gateway
               limits are live.
@@ -318,9 +318,9 @@ export function BillingView() {
           recently-paid D17 row confirms itself here too. `justPaid` wins so the
           banner still fires on a plan with no payment row (trial, dev). */}
       {showActiveConfirmation ? (
-        <Card className="border-emerald-500/40 bg-emerald-500/5">
+        <Card className="border-success/40 bg-success/10">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
-            <BadgeCheck className="size-5 text-emerald-600" />
+            <BadgeCheck className="size-5 text-success" />
             <p className="text-sm">
               <span className="font-medium">Your plan is active.</span> Gateway
               limits are live.
@@ -392,12 +392,12 @@ export function BillingView() {
           </div>
 
           {/* D17 Payment Method Hero Card */}
-          <Card className="overflow-hidden border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50 via-white to-gray-50 dark:from-emerald-950 dark:via-gray-900 dark:to-gray-950">
+          <Card className="overflow-hidden border-success/30 bg-gradient-to-br from-emerald-50 via-white to-muted from-success/10 dark:via-background dark:to-background">
             <CardContent className="p-0">
               <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr] md:items-center md:gap-8">
                 {/* D17 Logo */}
                 <div className="flex justify-center md:justify-start">
-                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-800 bg-white dark:bg-gray-800 shadow-sm md:size-28">
+                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-success/30 bg-white shadow-sm md:size-28">
                     <Image
                       src="/images/d17-logo.webp"
                       alt="D17 DigiPost Bank"
@@ -411,27 +411,27 @@ export function BillingView() {
                 {/* D17 Info */}
                 <div className="text-center md:text-left">
                   <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Pay with D17 or card</h3>
-                    <Badge className="bg-emerald-600 text-white hover:bg-emerald-700">
+                    <h3 className="text-lg font-semibold text-foreground">Pay with D17 or card</h3>
+                    <Badge className="bg-success text-white hover:bg-success/90">
                       La Poste Tunisia
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                  <p className="mt-2 text-sm text-muted-foreground">
                     Prefer dinars? Transfer via DigiPost Bank (D17) at any La Poste
                     counter or through the D17 mobile app — staff verify it by hand.
                     Elsewhere, pay by card through Dodo at checkout.
                   </p>
-                  <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-gray-500 dark:text-gray-400 md:justify-start">
+                  <div className="mt-4 flex flex-wrap items-center justify-center gap-4 text-xs text-muted-foreground md:justify-start">
                     <span className="flex items-center gap-1.5">
-                      <ShieldCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <ShieldCheck className="size-3.5 text-success" />
                       Secure manual verification
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <Clock className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <Clock className="size-3.5 text-success" />
                       Usually confirmed within hours
                     </span>
                     <span className="flex items-center gap-1.5">
-                      <BadgeCheck className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                      <BadgeCheck className="size-3.5 text-success" />
                       No credit card required
                     </span>
                   </div>
@@ -440,7 +440,7 @@ export function BillingView() {
                 {/* Action Button — two rails */}
                 <div className="flex flex-col items-stretch justify-center gap-2 md:items-end">
                   {trialActive ? (
-                    <span className="text-sm text-emerald-700 dark:text-emerald-400 font-medium px-4 py-3">
+                    <span className="text-sm text-success font-medium px-4 py-3">
                       Free trial active until{" "}
                       {b?.subscription?.currentPeriodEnd
                         ? new Date(b.subscription.currentPeriodEnd).toLocaleDateString("en-US", {
@@ -455,7 +455,7 @@ export function BillingView() {
                   ) : (
                     <>
                       <Button
-                        className="w-full bg-emerald-600 text-white hover:bg-emerald-700 md:w-auto md:px-8"
+                        className="w-full bg-success text-white hover:bg-success/90 md:w-auto md:px-8"
                         size="lg"
                         disabled={busy !== null || !isRenewableNow}
                         title={
@@ -481,27 +481,27 @@ export function BillingView() {
 
               {/* How it works strip — both rails, since the chooser may
                   land a customer on either. */}
-              <div className="border-t border-emerald-100 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/30 px-6 py-4">
+              <div className="border-t border-success/30 border-success/30 bg-success/10 bg-success/10 px-6 py-4">
                 <div className="grid gap-4 text-sm sm:grid-cols-3">
                   <div className="flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">1</span>
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">1</span>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">Choose how to pay</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Card worldwide, or D17 in Tunisia</p>
+                      <p className="font-medium text-foreground">Choose how to pay</p>
+                      <p className="text-xs text-muted-foreground">Card worldwide, or D17 in Tunisia</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">2</span>
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">2</span>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">Pay</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Card is instant; D17 by transfer via La Poste or the app</p>
+                      <p className="font-medium text-foreground">Pay</p>
+                      <p className="text-xs text-muted-foreground">Card is instant; D17 by transfer via La Poste or the app</p>
                     </div>
                   </div>
                   <div className="flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">3</span>
+                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">3</span>
                     <div>
-                      <p className="font-medium text-gray-900 dark:text-gray-100">Your plan activates</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">Cards immediately; D17 after staff confirmation, usually within hours</p>
+                      <p className="font-medium text-foreground">Your plan activates</p>
+                      <p className="text-xs text-muted-foreground">Cards immediately; D17 after staff confirmation, usually within hours</p>
                     </div>
                   </div>
                 </div>
@@ -521,7 +521,7 @@ export function BillingView() {
                         variant={
                           b.subscription?.cancelAtPeriodEnd ? "outline" : "secondary"
                         }
-                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/70"}
+                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-success/20 bg-success/10 text-success hover:bg-success/30 dark:hover:bg-success/20"}
                       >
                         {b.subscription?.cancelAtPeriodEnd
                           ? "Cancels at period end"
@@ -543,7 +543,7 @@ export function BillingView() {
                       </span>
                     </p>
                     {plan.promo ? (
-                      <p className="text-xs font-medium text-orange-600 dark:text-orange-400">
+                      <p className="text-xs font-medium text-warning text-warning">
                         {plan.promo.percentOff}% discount applied
                       </p>
                     ) : null}
@@ -676,13 +676,11 @@ export function BillingView() {
                 type="button"
                 disabled={busy !== null}
                 onClick={() => void changePlan(p.code)}
-                className={`grid gap-3 rounded-lg border p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 disabled:opacity-50 ${
-                  p.code === plan?.code ? "border-emerald-500 dark:border-emerald-700 ring-1 ring-emerald-200 dark:ring-emerald-800" : ""
-                }`}
+                className={`grid gap-3 rounded-lg border p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 disabled:opacity-50 ${ p.code === plan?.code ? "border-success/50 border-success/30 ring-1 ring-emerald-200 ring-success/30" : "" }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{p.name}</span>
-                  {p.code === plan?.code ? <Badge className="bg-emerald-600 text-white">Current</Badge> : null}
+                  {p.code === plan?.code ? <Badge className="bg-success text-white">Current</Badge> : null}
                 </div>
                 <p className="flex flex-wrap items-baseline gap-2 text-2xl font-semibold tabular-nums">
                   {formatPlanPrice(p.promo?.priceCents ?? p.priceCents, p.priceTndMillimes)}
@@ -801,9 +799,9 @@ function PlanComparisonTable({
 
   return (
     <Card className="overflow-hidden">
-      <CardHeader className="border-b bg-gray-50/50 dark:bg-gray-800/50">
+      <CardHeader className="border-b bg-muted/50">
         <CardTitle className="flex items-center gap-2">
-          <Landmark className="size-5 text-emerald-600 dark:text-emerald-400" />
+          <Landmark className="size-5 text-success" />
           Compare plans
         </CardTitle>
         <CardDescription>
@@ -814,23 +812,23 @@ function PlanComparisonTable({
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-gray-50/30 dark:bg-gray-800/50">
-                <th className="px-4 py-3 text-left font-medium text-gray-500 dark:text-gray-400">Feature</th>
+              <tr className="border-b bg-muted/40">
+                <th className="px-4 py-3 text-left font-medium text-muted-foreground">Feature</th>
                 {plans.map((p) => (
                   <th
                     key={p.code}
                     className={cn(
                       "px-4 py-3 text-center",
-                      p.code === featured && "bg-emerald-50/50 dark:bg-emerald-900/30",
+                      p.code === featured && "bg-success/10 bg-success/10",
                     )}
                   >
                     <div className="flex flex-col items-center gap-1">
-                      <span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>
+                      <span className="font-semibold text-foreground">{p.name}</span>
                       {p.code === currentPlanCode && (
-                        <Badge className="bg-emerald-600 text-white text-xs">Current</Badge>
+                        <Badge className="bg-success text-white text-xs">Current</Badge>
                       )}
                       {p.code === featured && p.code !== currentPlanCode && (
-                        <Badge className="bg-emerald-600 text-white text-xs">Popular</Badge>
+                        <Badge className="bg-success text-white text-xs">Popular</Badge>
                       )}
                     </div>
                   </th>
@@ -847,14 +845,14 @@ function PlanComparisonTable({
                   });
                 })
                 .map((feat, i) => (
-                <tr key={feat.key} className={i % 2 === 0 ? "bg-white dark:bg-gray-900" : "bg-gray-50/30 dark:bg-gray-800/50"}>
-                  <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-200">{feat.label}</td>
+                <tr key={feat.key} className={i % 2 === 0 ? "bg-white " : "bg-muted/40"}>
+                  <td className="px-4 py-3 font-medium text-foreground">{feat.label}</td>
                   {plans.map((p) => (
                     <td
                       key={p.code}
                       className={cn(
-                        "px-4 py-3 text-center tabular-nums text-gray-600 dark:text-gray-300",
-                        p.code === featured && "bg-emerald-50/30 dark:bg-emerald-900/30 font-medium text-gray-900 dark:text-gray-100",
+                        "px-4 py-3 text-center tabular-nums text-muted-foreground",
+                        p.code === featured && "bg-success/10 bg-success/10 font-medium text-foreground",
                       )}
                     >
                       {feat.getValue(p)}
@@ -863,8 +861,8 @@ function PlanComparisonTable({
                 </tr>
               ))}
               {/* Token pricing row */}
-              <tr className="border-t bg-white dark:bg-gray-900">
-                <td className="px-4 py-3 font-medium text-gray-700 dark:text-gray-200">Token pricing</td>
+              <tr className="border-t bg-white">
+                <td className="px-4 py-3 font-medium text-foreground">Token pricing</td>
                 {plans.map((p) => (
                   <td key={p.code} className="px-4 py-3">
                     <div className="grid gap-1 text-xs">
@@ -874,8 +872,8 @@ function PlanComparisonTable({
                           if (!price) return null;
                           return (
                             <div key={modelId} className="flex items-center justify-center gap-1">
-                              <span className="text-gray-500 dark:text-gray-400">{price.label}:</span>
-                              <span className="tabular-nums text-gray-600 dark:text-gray-300">
+                              <span className="text-muted-foreground">{price.label}:</span>
+                              <span className="tabular-nums text-muted-foreground">
                                 {usdPerMtok(price.input)} / {usdPerMtok(price.output)}
                               </span>
                             </div>
@@ -884,8 +882,8 @@ function PlanComparisonTable({
                       ) : (
                         Object.entries(MODEL_PRICES).map(([id, price]) => (
                           <div key={id} className="flex items-center justify-center gap-1">
-                            <span className="text-gray-500 dark:text-gray-400">{price.label}:</span>
-                            <span className="tabular-nums text-gray-600 dark:text-gray-300">
+                            <span className="text-muted-foreground">{price.label}:</span>
+                            <span className="tabular-nums text-muted-foreground">
                               {usdPerMtok(price.input)} / {usdPerMtok(price.output)}
                             </span>
                           </div>
@@ -896,7 +894,7 @@ function PlanComparisonTable({
                 ))}
               </tr>
               {/* CTA row */}
-              <tr className="border-t bg-gray-50/50 dark:bg-gray-800/50">
+              <tr className="border-t bg-muted/50">
                 <td className="px-4 py-4"></td>
                 {plans.map((p) => (
                   <td key={p.code} className="px-4 py-4 text-center">
@@ -907,7 +905,7 @@ function PlanComparisonTable({
                     ) : (
                       <Button
                         size="sm"
-                        className={p.code === featured ? "bg-emerald-600 text-white hover:bg-emerald-700 w-full" : "w-full"}
+                        className={p.code === featured ? "bg-success text-white hover:bg-success/90 w-full" : "w-full"}
                         variant={p.code === featured ? "default" : "outline"}
                         disabled={disabled}
                         onClick={() => onSelectPlan(p.code)}
@@ -922,8 +920,8 @@ function PlanComparisonTable({
           </table>
         </div>
       </CardContent>
-      <div className="border-t bg-gray-50/50 dark:bg-gray-800/50 px-4 py-3">
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+      <div className="border-t bg-muted/50 px-4 py-3">
+        <p className="text-xs text-muted-foreground">
           Token budgets reset each billing period; a model stops when its
           blended-token budget is spent. Token prices shown are Zaino official
           USD rates (input / output per million tokens). Your DT cost is
@@ -978,9 +976,9 @@ function PendingBanner({
       : `Complete the transfer on the checkout page to activate your ${planName} plan.`;
 
   return (
-    <Card className="border-amber-500/40 bg-amber-500/5">
+    <Card className="border-warning/40 bg-warning/5">
       <CardContent className="flex flex-wrap items-center gap-3 py-4">
-        <Clock className="size-5 text-amber-600" />
+        <Clock className="size-5 text-warning" />
         <div className="flex-1">
           <p className="text-sm">
             <span className="font-medium">{title}</span>{" "}
@@ -990,7 +988,7 @@ function PendingBanner({
         {checkoutHref && !awaitingVerification ? (
           <Link
             href={checkoutHref}
-            className="inline-flex items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-700 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-800 dark:hover:bg-gray-600"
+            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-primary hover:bg-primary/80"
           >
             {ended ? "Start new payment" : "Continue payment"}
           </Link>

@@ -108,7 +108,7 @@ export function QuotaHint({
                       ? tone === "critical"
                         ? "bg-destructive"
                         : tone === "warn"
-                          ? "bg-amber-500"
+                          ? "bg-warning"
                           : "bg-foreground/50"
                       : "bg-foreground/15",
                   )}
@@ -166,7 +166,7 @@ export function QuotaHint({
             <div
               className={cn(
                 "h-full rounded-full transition-[width] duration-500",
-                tone === "critical" ? "bg-destructive" : tone === "warn" ? "bg-amber-500" : "bg-foreground/50",
+                tone === "critical" ? "bg-destructive" : tone === "warn" ? "bg-warning" : "bg-foreground/50",
               )}
               style={{ width: `${percent}%` }}
             />

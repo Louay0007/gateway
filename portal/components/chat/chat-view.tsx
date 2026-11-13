@@ -1041,7 +1041,7 @@ function Turn({
             ) : null}
 
             {truncated && !streaming ? (
-              <p className="text-[11px] text-amber-600 dark:text-amber-500">
+              <p className="text-[11px] text-warning text-warning">
                 This answer hit the length limit and was cut off. Ask it to continue.
               </p>
             ) : null}

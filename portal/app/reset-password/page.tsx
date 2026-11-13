@@ -13,7 +13,7 @@ export default function ResetPasswordPage() {
       footer={
         <>
           Remembered it?{" "}
-          <Link href="/sign-in" className="text-black underline-offset-4 hover:underline dark:text-white">
+          <Link href="/sign-in" className="text-black underline-offset-4 hover:underline">
             Back to sign in
           </Link>
         </>

@@ -77,38 +77,38 @@ function InstallCommandsContent() {
         <div className="flex justify-center">
           <ClaudeLogo />
         </div>
-        <p className="mt-4 text-sm font-medium text-gray-500 dark:text-gray-400">
+        <p className="mt-4 text-sm font-medium text-muted-foreground">
           Installation Commands
         </p>
-        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+        <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
           Install Claude Code on your machine
         </h2>
-        <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
           Prefer the terminal? One command installs the Claude Code CLI.
           Point it at your Zaino key and you are coding against your own
           gateway.
         </p>
       </div>
 
-      <div className="mx-auto mt-8 max-w-3xl overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="mx-auto mt-8 max-w-3xl overflow-hidden rounded-2xl border border-border bg-white">
         {COMMANDS.map((cmd, i) => (
           <div
             key={cmd.id}
             className={cn(
               "p-5 sm:p-6",
               i > 0 &&
-                "border-t border-gray-100 dark:border-gray-800",
+                "border-t border-border",
             )}
           >
             <div className="flex items-center gap-3">
-              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-gray-100">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-foreground">
                 {cmd.icon}
               </span>
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                <p className="truncate text-sm font-semibold text-foreground">
                   {cmd.os}
                 </p>
-                <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                <p className="truncate text-xs text-muted-foreground">
                   {cmd.hint}
                 </p>
               </div>
@@ -119,7 +119,7 @@ function InstallCommandsContent() {
               filename={cmd.shell}
               code={cmd.command}
             />
-            <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
               <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
               Use code with caution.
             </p>
@@ -127,13 +127,13 @@ function InstallCommandsContent() {
         ))}
       </div>
 
-      <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+      <p className="mt-4 text-center text-xs text-muted-foreground">
         Full setup guide at{" "}
         <a
           href="https://code.claude.com/docs/en/setup"
           target="_blank"
           rel="noreferrer"
-          className="inline-flex items-center gap-1 font-medium text-gray-900 underline underline-offset-4 dark:text-gray-100"
+          className="inline-flex items-center gap-1 font-medium text-foreground underline underline-offset-4"
         >
           code.claude.com
           <ExternalLink className="size-3" aria-hidden />

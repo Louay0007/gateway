@@ -6,9 +6,12 @@
  *
  * INVARIANT: only the four aliases (fast / smart / frontier / fable) appear
  * here. No upstream model name is rendered, exported, or embedded in any
- * snippet — the alias IS the product (HANDOFF §1). The `poweredBy` field is
- * a display label that must stay an alias-family name ("Zaino Haiku 5.5"),
- * never a vendor's model id.
+ * snippet — the alias IS the product (HANDOFF §1). There is deliberately no
+ * `poweredBy` field any more: it carried upstream family names ("Zaino
+ * Haiku 5.5") that read as engine disclosure in a product whose whole
+ * promise is that the engine is swappable behind the alias. Capability is
+ * described by the alias and its measured volume on /models, not by a
+ * vendor's name wearing ours.
  *
  * EVERY NUMBER HERE IS MIRRORED FROM THE DATABASE. If a plan's models or a
  * rate changes, this file changes with it — `portal/tests/docs-truth.test.ts`
@@ -71,7 +74,6 @@ export const POOL_NOTE =
 
 export type Tier = {
   alias: string;
-  poweredBy: string;
   tagline: string;
   inputPerMtok: string;
   outputPerMtok: string;
@@ -84,7 +86,6 @@ export type Tier = {
 export const TIERS: Tier[] = [
   {
     alias: "fast",
-    poweredBy: "Zaino Haiku 5.5",
     tagline: "High-volume work — drafts, classification, bulk transforms.",
     inputPerMtok: "$1.00",
     outputPerMtok: "$5.00",
@@ -95,7 +96,6 @@ export const TIERS: Tier[] = [
   },
   {
     alias: "smart",
-    poweredBy: "Zaino Sonnet 5.5",
     tagline: "Everyday balanced tier — the default for most integrations.",
     inputPerMtok: "$3.00",
     outputPerMtok: "$15.00",
@@ -106,7 +106,6 @@ export const TIERS: Tier[] = [
   },
   {
     alias: "frontier",
-    poweredBy: "Zaino Opus 5.5",
     tagline: "Mythos-class reasoning for the hardest long-running workloads.",
     inputPerMtok: "$15.00",
     outputPerMtok: "$75.00",
@@ -117,7 +116,6 @@ export const TIERS: Tier[] = [
   },
   {
     alias: "fable",
-    poweredBy: "Zaino Fable 5.1",
     tagline: "Longest-horizon reasoning — whole-task runs that other tiers drop.",
     inputPerMtok: "$15.00",
     outputPerMtok: "$75.00",

@@ -15,7 +15,7 @@ export function RuixenGradientFooter({
 }: RuixenGradientFooterProps) {
   return (
     <footer
-      className={`relative bg-white dark:bg-black ${className ?? ""}`}
+      className={`relative bg-background ${className ?? ""}`}
       style={style}
     >
       {children}

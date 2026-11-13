@@ -49,14 +49,14 @@ export function PasswordChecklist({ password }: { password: string }) {
           key={check.label}
           className={cn(
             "flex items-center gap-2 text-xs transition-colors duration-150 motion-reduce:transition-none",
-            // Theme-aware: the fixed `text-emerald-700` / `text-gray-500`
+            // Theme-aware: the fixed `text-success` / `text-muted-foreground`
             // pair this started with was tuned for a white card only. On the
             // dark dashboard surface they measured 3.34:1 and 3.7:1 — the
             // color-contrast failures Lighthouse found on /dashboard/settings
             // in dark mode. emerald-400 on dark and the muted-foreground token
             // both clear 4.5:1 in either theme.
             check.ok
-              ? "text-emerald-700 dark:text-emerald-400"
+              ? "text-success "
               : "text-muted-foreground",
           )}
         >

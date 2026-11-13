@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Check, Copy } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
@@ -56,35 +57,40 @@ export function CodeBlock({
   return (
     <figure
       className={cn(
-        "group/code overflow-hidden rounded-xl border border-border bg-zinc-950",
+        "group/code overflow-hidden rounded-xl border border-border bg-background",
         className,
       )}
     >
       <figcaption className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2">
-        <span className="flex items-center gap-2 text-xs text-zinc-400">
+        <span className="flex items-center gap-2 text-xs text-muted-foreground">
           <span
             aria-hidden
             className="flex gap-1.5"
           >
-            <i className="size-2.5 rounded-full bg-zinc-700" />
-            <i className="size-2.5 rounded-full bg-zinc-700" />
-            <i className="size-2.5 rounded-full bg-zinc-700" />
+            <i className="size-2.5 rounded-full bg-muted" />
+            <i className="size-2.5 rounded-full bg-muted" />
+            <i className="size-2.5 rounded-full bg-muted" />
           </span>
           <span className="font-mono">
             {filename ?? language}
           </span>
         </span>
-        <button
+        {/* The code surface is always dark, so this is one of the few places
+            a ghost variant needs its own hover colour — the primitive carries
+            focus, disabled and sizing; only the hover tint is local. */}
+        <Button
           type="button"
+          variant="ghost"
+          size="xs"
           onClick={copy}
           aria-label={copied ? "Copied" : `Copy ${language} snippet`}
-          className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-300 transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-2 focus-visible:ring-white/40 focus-visible:outline-none"
+          className="text-muted-foreground hover:bg-white/10 hover:text-white"
         >
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copied ? "Copied" : "Copy"}
-        </button>
+        </Button>
       </figcaption>
-      <pre className="overflow-x-auto p-4 text-[13px] leading-relaxed text-zinc-100">
+      <pre className="overflow-x-auto p-4 text-[13px] leading-relaxed text-foreground">
         <code className="font-mono whitespace-pre">{code}</code>
       </pre>
     </figure>

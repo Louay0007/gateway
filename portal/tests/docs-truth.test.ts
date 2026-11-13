@@ -43,14 +43,18 @@ describe('docs alias catalog', () => {
     ]);
   });
 
-  it('never renders an upstream model id as a customer-visible alias', () => {
-    // `poweredBy` is a display label, but it must stay an alias-family
-    // name — not "haiku-5.5"/"sonnet-5.5"/"gpt-6-astra".
+  it('exposes no engine name at all — the alias is the whole surface', () => {
+    // `poweredBy` was removed on 2026-11-13. It carried upstream family
+    // names ("Zaino Haiku 5.5") in a product whose promise is that the
+    // engine is swappable behind the alias. Guard the removal, so the
+    // field cannot come back as a "helpful" addition.
     for (const t of TIERS) {
-      expect(t.poweredBy.toLowerCase()).not.toMatch(
-        /haiku-5\.5|sonnet-5\.5|opus-5\.5|gpt-6|anthropic|openai/,
-      );
+      expect(Object.keys(t)).not.toContain('poweredBy');
       expect(t.alias).toMatch(/^(fast|smart|frontier|fable)$/);
+      const blob = JSON.stringify(t).toLowerCase();
+      for (const vendor of ['haiku', 'sonnet', 'opus', 'gpt-', 'anthropic', 'openai']) {
+        expect(blob, `${t.alias} mentions ${vendor}`).not.toContain(vendor);
+      }
     }
   });
 });

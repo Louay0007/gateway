@@ -153,11 +153,11 @@ export function D17ProofForm({
           describedBy="d17-auth-hint"
           onChange={() => clearFieldError("authorizationNumber")}
         />
-        <p id="d17-auth-hint" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+        <p id="d17-auth-hint" className="text-xs leading-relaxed text-muted-foreground">
           {t("d17.field_auth_hint")}
         </p>
         {fieldErrors.authorizationNumber && (
-          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
             <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
             {fieldErrors.authorizationNumber}
           </p>
@@ -175,11 +175,11 @@ export function D17ProofForm({
           describedBy="d17-phone-hint"
           onChange={() => clearFieldError("senderPhone")}
         />
-        <p id="d17-phone-hint" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+        <p id="d17-phone-hint" className="text-xs leading-relaxed text-muted-foreground">
           {t("d17.field_phone_hint")}
         </p>
         {fieldErrors.senderPhone && (
-          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
             <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
             {fieldErrors.senderPhone}
           </p>
@@ -188,10 +188,10 @@ export function D17ProofForm({
 
       {/* Screenshot upload */}
       <div className="grid gap-2">
-        <Label htmlFor="d17-screenshot" className="text-sm font-medium text-gray-900 dark:text-gray-100">
+        <Label htmlFor="d17-screenshot" className="text-sm font-medium text-foreground">
           {t("d17.field_screenshot")}
         </Label>
-        <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-900/50 p-1 transition-colors hover:border-gray-400 dark:hover:border-gray-600 focus-within:border-black dark:focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-black/20 dark:focus-within:ring-gray-300/20">
+        <div className="rounded-lg border border-dashed border-border bg-muted/50 p-1 transition-colors hover:border-border dark:hover:border-border focus-within:border-black dark:focus-within:border-border focus-within:ring-1 focus-within:ring-black/20 dark:focus-within:ring-border/20">
           <Input
             id="d17-screenshot"
             name="screenshot"
@@ -199,14 +199,14 @@ export function D17ProofForm({
             accept="image/png,image/jpeg,image/webp"
             aria-describedby="d17-screenshot-hint"
             onChange={() => clearFieldError("screenshot")}
-            className="border-0 bg-transparent file:mr-3 file:rounded-md file:border-0 file:bg-white dark:file:bg-gray-800 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-gray-700 dark:file:text-gray-300 file:shadow-sm file:transition-colors hover:file:bg-gray-50 dark:hover:file:bg-gray-700"
+            className="border-0 bg-transparent file:mr-3 file:rounded-md file:border-0 file:bg-white dark:file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground dark:file:text-muted-foreground file:shadow-sm file:transition-colors hover:file:bg-muted dark:hover:file:bg-muted"
           />
         </div>
-        <p id="d17-screenshot-hint" className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+        <p id="d17-screenshot-hint" className="text-xs leading-relaxed text-muted-foreground">
           {t("d17.field_screenshot_hint")}
         </p>
         {fieldErrors.screenshot && (
-          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
             <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
             {fieldErrors.screenshot}
           </p>
@@ -215,7 +215,7 @@ export function D17ProofForm({
 
       {/* Confirmation checkbox */}
       <div className="grid gap-2 pt-1">
-        <div className="flex items-start gap-3 rounded-lg border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-3">
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/50 p-3">
           <input
             id="d17-confirm"
             name="confirm"
@@ -225,18 +225,18 @@ export function D17ProofForm({
               setConfirmed(e.target.checked);
               if (e.target.checked) clearFieldError("confirm");
             }}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-gray-300 accent-black"
+            className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-border accent-black"
             aria-invalid={!!fieldErrors.confirm}
           />
           <Label
             htmlFor="d17-confirm"
-            className="cursor-pointer text-sm font-normal leading-relaxed text-gray-700 dark:text-gray-300"
+            className="cursor-pointer text-sm font-normal leading-relaxed text-foreground"
           >
             {t("d17.field_confirm")}
           </Label>
         </div>
         {fieldErrors.confirm && (
-          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-red-600">
+          <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-destructive">
             <AlertCircle className="size-3.5 shrink-0" aria-hidden="true" />
             {fieldErrors.confirm}
           </p>
@@ -248,7 +248,7 @@ export function D17ProofForm({
         <div
           role="alert"
           aria-live="assertive"
-          className="flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <span>{error}</span>
@@ -260,7 +260,7 @@ export function D17ProofForm({
         <div
           role="status"
           aria-live="polite"
-          className="flex items-center gap-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-3 text-sm font-medium text-emerald-800 dark:text-emerald-300"
+          className="flex items-center gap-2.5 rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm font-medium text-success"
         >
           <CheckCircle2 className="size-4 shrink-0" aria-hidden="true" />
           {t("d17.state_submitted_explain")}

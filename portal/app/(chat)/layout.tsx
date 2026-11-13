@@ -76,15 +76,15 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
             {!verified ? (
               <div
                 role="status"
-                className="flex flex-col gap-3 border-b border-amber-300 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 border-b border-warning/30 bg-warning/10 px-4 py-3 bg-warning/10 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex items-start gap-3">
-                  <MailWarning className="mt-0.5 size-5 shrink-0 text-amber-700" aria-hidden />
+                  <MailWarning className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />
                   <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    <p className="text-sm font-medium text-foreground">
                       Confirm your email address
                     </p>
-                    <p className="mt-0.5 text-sm text-gray-700 dark:text-gray-300">
+                    <p className="mt-0.5 text-sm text-foreground">
                       You can chat, but creating an API key or starting a
                       subscription needs a confirmed address.
                     </p>

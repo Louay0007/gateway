@@ -40,6 +40,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${base}/models`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
+      url: `${base}/playground`,
+      lastModified: new Date(),
+      changeFrequency: "weekly",
+      priority: 0.9,
+    },
+    {
+      url: `${base}/status`,
+      lastModified: new Date(),
+      changeFrequency: "daily",
+      priority: 0.5,
+    },
+    {
       url: `${base}/faq`,
       lastModified: new Date(),
       changeFrequency: "monthly",

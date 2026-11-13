@@ -37,7 +37,7 @@ export function PricingPreview() {
 
   if (loading) {
     return (
-      <section className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
+      <section className="border-t border-border py-20 sm:py-28 bg-background">
         <div className="mx-auto max-w-4xl px-4">
           <PanelSkeleton rows={2} />
         </div>
@@ -46,7 +46,7 @@ export function PricingPreview() {
   }
   if (error) {
     return (
-      <section className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
+      <section className="border-t border-border py-20 sm:py-28 bg-background">
         <div className="mx-auto max-w-2xl px-4">
           <ErrorState error={error} onRetry={reload} />
         </div>
@@ -66,14 +66,14 @@ export function PricingPreview() {
   }
 
   return (
-    <section id="pricing" className="border-t border-gray-200/60 dark:border-gray-800 py-20 sm:py-28 bg-white dark:bg-black">
+    <section id="pricing" className="border-t border-border py-20 sm:py-28 bg-background">
       <div className="mx-auto max-w-7xl px-4 lg:px-8">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Pricing</p>
-          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-gray-900 dark:text-gray-100">
+          <p className="text-sm font-medium text-muted-foreground">Pricing</p>
+          <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl text-foreground">
             Token-budget plans. One shared pool per plan.
           </h2>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">
+          <p className="mt-4 text-muted-foreground">
             Prices in Tunisian Dinars (DT), billed monthly. Each plan gives you
             one pool of blended tokens per month, spendable on whichever of its
             models you like — 30M on one, 20M on another, or all of it on one.
@@ -81,7 +81,7 @@ export function PricingPreview() {
             proof of payment is verified by a person, usually within hours.
           </p>
           {promo ? (
-            <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-full border border-orange-500/40 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-700 dark:text-orange-300">
+            <div className="mt-5 inline-flex flex-wrap items-center gap-2 rounded-full border border-warning/40 bg-warning/10 px-4 py-2 text-sm font-medium text-warning">
               <span aria-hidden>🎃</span>
               {promo.label} — {promo.percentOff}% off every plan until 1 Nov,
               00:00 (Tunisia).
@@ -95,34 +95,34 @@ export function PricingPreview() {
               key={plan.code}
               className={
                 plan.code === "pro"
-                  ? "relative flex flex-col rounded-2xl border-2 border-gray-900 dark:border-gray-100 bg-white dark:bg-gray-900 p-8"
-                  : "flex flex-col rounded-2xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-8"
+                  ? "relative flex flex-col rounded-2xl border-2 border-foreground bg-white  p-8"
+                  : "flex flex-col rounded-2xl border border-border bg-white  p-8"
               }
             >
               {plan.code === "pro" ? (
-                <span className="absolute -top-3 left-8 rounded-full bg-gray-900 dark:bg-gray-700 px-3 py-1 text-xs font-medium text-white">
+                <span className="absolute -top-3 left-8 rounded-full bg-primary px-3 py-1 text-xs font-medium text-white">
                   Most popular
                 </span>
               ) : null}
 
               <div className="flex items-center justify-between gap-2">
-                <h3 className="font-medium text-gray-900 dark:text-gray-100">{plan.name}</h3>
+                <h3 className="font-medium text-foreground">{plan.name}</h3>
                 {plan.code === "pro" ? <Badge>Most popular</Badge> : null}
               </div>
-              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{plan.description}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
 
               <p className="mt-6 flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                <span className="text-4xl font-semibold tracking-tight tabular-nums text-gray-900 dark:text-gray-100">
+                <span className="text-4xl font-semibold tracking-tight tabular-nums text-foreground">
                   {formatPlanPrice(plan.promo?.priceCents ?? plan.priceCents, plan.priceTndMillimes)}
                 </span>
                 {plan.promo ? (
-                  <span className="text-sm tabular-nums text-gray-500 line-through dark:text-gray-400">
+                  <span className="text-sm tabular-nums text-muted-foreground line-through">
                     {formatPlanPrice(plan.promo.originalPriceCents, plan.priceTndMillimes)}
                   </span>
                 ) : null}
-                <span className="text-sm text-gray-600 dark:text-gray-400">/{plan.interval}</span>
+                <span className="text-sm text-muted-foreground">/{plan.interval}</span>
                 {plan.promo ? (
-                  <span className="rounded-full bg-orange-500/15 px-2 py-0.5 text-xs font-semibold text-orange-700 dark:text-orange-300">
+                  <span className="rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
                     −{plan.promo.percentOff}%
                   </span>
                 ) : null}
@@ -141,8 +141,8 @@ export function PricingPreview() {
                     there is nothing to add here. */}
               </ul>
 
-              <div className="mt-6 rounded-lg border border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900/50 p-4">
-                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <div className="mt-6 rounded-lg border border-border bg-muted/50 p-4">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   Token pricing per model
                 </p>
                 <div className="grid gap-2 text-xs">
@@ -151,8 +151,8 @@ export function PricingPreview() {
                     if (!price) return null;
                     return (
                       <div key={modelId} className="flex items-center justify-between">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{price.label}</span>
-                        <span className="tabular-nums text-gray-600 dark:text-gray-400">
+                        <span className="font-medium text-foreground">{price.label}</span>
+                        <span className="tabular-nums text-muted-foreground">
                           In: {usdPerMtok(price.input)} · Out: {usdPerMtok(price.output)}
                         </span>
                       </div>
@@ -161,8 +161,8 @@ export function PricingPreview() {
                   {(plan.models ?? []).length === 0 &&
                     Object.entries(MODEL_PRICES).map(([id, price]) => (
                       <div key={id} className="flex items-center justify-between">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">{price.label}</span>
-                        <span className="tabular-nums text-gray-600 dark:text-gray-400">
+                        <span className="font-medium text-foreground">{price.label}</span>
+                        <span className="tabular-nums text-muted-foreground">
                           In: {usdPerMtok(price.input)} · Out: {usdPerMtok(price.output)}
                         </span>
                       </div>
@@ -182,9 +182,9 @@ export function PricingPreview() {
         </div>
 
         {/* Enterprise CTA */}
-        <div className="mt-12 rounded-2xl border border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 p-8 text-center">
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Need Enterprise?</h3>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
+        <div className="mt-12 rounded-2xl border border-border bg-muted p-8 text-center">
+          <h3 className="text-xl font-semibold text-foreground">Need Enterprise?</h3>
+          <p className="mt-2 text-muted-foreground">
             Custom volume pricing, dedicated support, and SLA agreements for your organization.
           </p>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-4">
@@ -192,24 +192,24 @@ export function PricingPreview() {
               href={WHATSAPP_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-full bg-emerald-600 dark:bg-emerald-700 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-emerald-700 dark:hover:bg-emerald-600"
+              className="inline-flex items-center gap-2 rounded-full bg-success dark:bg-success/90 px-6 py-3 text-sm font-medium text-white transition-colors hover:bg-success/90 dark:hover:bg-success"
             >
               <MessageCircle className="size-4" />
               Chat on WhatsApp
             </a>
             <a
               href={`tel:+${WHATSAPP_NUMBER}`}
-              className="inline-flex items-center gap-2 rounded-full border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-6 py-3 text-sm font-medium text-gray-700 dark:text-gray-300 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
+              className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-6 py-3 text-sm font-medium text-foreground transition-colors hover:hover:bg-muted"
             >
               Call +216 56 794 578
             </a>
           </div>
         </div>
 
-        <p className="mt-8 text-sm text-gray-600 dark:text-gray-400">
+        <p className="mt-8 text-sm text-muted-foreground">
           Token prices shown are Zaino official USD rates. Your DT cost is calculated
           at the current D17 exchange rate. Questions?{" "}
-          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-900 dark:hover:text-gray-100">
+          <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground hover:text-foreground/80">
             Contact us on WhatsApp
           </a>{" "}
           or call +216 56 794 578.
@@ -228,8 +228,8 @@ function Feature({
 }) {
   return (
     <li className="flex items-start gap-2.5">
-      {icon ?? <Check className="mt-0.5 size-4 shrink-0 text-black dark:text-white" aria-hidden />}
-      <span className="text-gray-600 dark:text-gray-400">{children}</span>
+      {icon ?? <Check className="mt-0.5 size-4 shrink-0 text-foreground" aria-hidden />}
+      <span className="text-muted-foreground">{children}</span>
     </li>
   );
 }

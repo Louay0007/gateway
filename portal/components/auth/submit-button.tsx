@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 import { useFormStatus } from "react-dom";
 
 /**
@@ -25,14 +27,18 @@ export function AuthSubmitButton({
   pendingLabel: string;
 }) {
   const { pending } = useFormStatus();
+  // The one place a `Button` variant genuinely differs: this must be a full-
+  // width 44px target on a phone, which is taller than any button size in
+  // the system. Everything else — colour, focus ring, disabled state — now
+  // comes from the primitive instead of being restated here.
   return (
-    <button
+    <Button
       type="submit"
       disabled={pending}
       aria-busy={pending || undefined}
-      className="h-11 w-full rounded-lg bg-gray-900 text-sm font-medium text-white transition-all duration-150 hover:bg-gray-900/80 focus-visible:ring-2 focus-visible:ring-gray-900/40 focus-visible:outline-none active:scale-[0.99] disabled:opacity-50 motion-reduce:transition-none motion-reduce:active:scale-100 dark:bg-gray-700 dark:hover:bg-gray-600 dark:focus-visible:ring-gray-100/40"
+      className="h-11 w-full text-sm motion-reduce:transition-none motion-reduce:active:scale-100"
     >
       {pending ? pendingLabel : label}
-    </button>
+    </Button>
   );
 }

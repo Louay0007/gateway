@@ -67,7 +67,7 @@ export default async function DevCheckoutPage({
         subtitle="The test payment simulator is not enabled on this deployment."
         footer={<Link href="/dashboard/billing">Back to billing</Link>}
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Choose a payment method on the billing page instead.
         </p>
       </AuthShell>
@@ -81,7 +81,7 @@ export default async function DevCheckoutPage({
         subtitle="It may have been edited, or it was issued for a different subscription."
         footer={<Link href="/dashboard/billing">Back to billing</Link>}
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Start again from your billing page to get a fresh checkout link.
         </p>
       </AuthShell>
@@ -110,7 +110,7 @@ export default async function DevCheckoutPage({
         title="That subscription could not be found"
         footer={<Link href="/dashboard/billing">Back to billing</Link>}
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           If this keeps happening, the link may belong to another account.
         </p>
       </AuthShell>
@@ -124,7 +124,7 @@ export default async function DevCheckoutPage({
         title="The plan for this subscription is missing"
         footer={<Link href="/dashboard/billing">Back to billing</Link>}
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Nothing has been charged. Please contact support.
         </p>
       </AuthShell>
@@ -138,7 +138,7 @@ export default async function DevCheckoutPage({
         subtitle={`${plan.name} is live — your API keys are unlocked.`}
         footer={<Link href="/dashboard/billing">Go to billing</Link>}
       >
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Nothing further to pay. The simulation is idempotent, so paying
           twice cannot double-charge or double-activate.
         </p>
@@ -171,24 +171,24 @@ export default async function DevCheckoutPage({
       }
     >
       <div className="grid gap-5">
-        <dl className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm">
+        <dl className="grid gap-3 rounded-lg border border-border bg-muted px-4 py-3 text-sm">
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-gray-600">Plan</dt>
+            <dt className="text-muted-foreground">Plan</dt>
             <dd className="font-medium text-black">{plan.name}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-gray-600">Amount</dt>
+            <dt className="text-muted-foreground">Amount</dt>
             <dd className="font-medium text-black tabular-nums">{centsDt(plan.priceCents)}</dd>
           </div>
           <div className="flex items-center justify-between gap-3">
-            <dt className="text-gray-600">Reference</dt>
-            <dd className="truncate font-mono text-xs text-gray-600">dev-{sub.id}</dd>
+            <dt className="text-muted-foreground">Reference</dt>
+            <dd className="truncate font-mono text-xs text-muted-foreground">dev-{sub.id}</dd>
           </div>
         </dl>
 
-        <p className="text-sm text-gray-600">
+        <p className="text-sm text-muted-foreground">
           Confirming posts a signed activation to{" "}
-          <code className="rounded bg-gray-100 px-1 font-mono text-xs">/api/billing/callback</code>{" "}
+          <code className="rounded bg-muted px-1 font-mono text-xs">/api/billing/callback</code>{" "}
           — the same webhook route a real provider would call. Signature
           verification, event deduplication, and the entitlement push to
           the gateway all run for real; only the money is simulated.

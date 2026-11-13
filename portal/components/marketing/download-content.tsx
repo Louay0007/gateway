@@ -332,13 +332,13 @@ export default function DownloadContent() {
       {/* ── Hero ─────────────────────────────────────────── */}
       <div className="mx-auto max-w-3xl text-center">
         <Badge variant="secondary" className="mb-4">
-          <span className="size-1.5 rounded-full bg-emerald-600" />
+          <span className="size-1.5 rounded-full bg-success" />
           {releaseTag ? `${releaseTag} · now available` : "Latest release"}
         </Badge>
-        <h1 className="text-4xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 md:text-5xl">
+        <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
           Zaino AI Agent
         </h1>
-        <p className="mx-auto mt-4 max-w-xl text-base text-gray-600 dark:text-gray-400">
+        <p className="mx-auto mt-4 max-w-xl text-base text-muted-foreground">
           The official Zaino desktop client — Fast, Smart and Frontier,
           ready to sign in with your gateway account.
         </p>
@@ -385,13 +385,13 @@ export default function DownloadContent() {
           />
         </div>
         {primary?.direct ? (
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400">
+          <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-success">
             <Check className="size-3.5" />
             Direct download from our server — no account needed
           </p>
         ) : null}
         {releaseMissing ? (
-          <p className="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 text-sm text-amber-700">
+          <p className="mx-auto mt-4 flex max-w-md items-center justify-center gap-2 text-sm text-warning">
             <Info className="size-4 shrink-0" />
             Installers are being published right now — if a
             button misses, grab it from the release page.
@@ -409,15 +409,15 @@ export default function DownloadContent() {
               className={cn(
                 "relative flex flex-col overflow-hidden transition-all duration-200 hover:shadow-md",
                 isDetected
-                  ? "border-gray-900 dark:border-gray-100 ring-1 ring-gray-900 dark:ring-gray-100 shadow-sm"
-                  : "border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700",
+                  ? "border-foreground ring-1 ring-foreground dark:ring-border shadow-sm"
+                  : "border-border hover:border-border hover:border-foreground/30",
               )}
             >
               {isDetected ? (
-                <div className="absolute inset-x-0 top-0 h-1 bg-gray-900 dark:bg-gray-100" />
+                <div className="absolute inset-x-0 top-0 h-1 bg-primary" />
               ) : null}
               {isDetected ? (
-                <Badge className="absolute right-4 top-4 z-10 bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600">
+                <Badge className="absolute right-4 top-4 z-10 bg-primary text-white hover:bg-primary hover:bg-primary/80">
                   <Check className="mr-1 size-3" />
                   Detected
                 </Badge>
@@ -428,8 +428,8 @@ export default function DownloadContent() {
                     className={cn(
                       "flex size-12 items-center justify-center rounded-2xl transition-colors",
                       isDetected
-                        ? "bg-gray-900 dark:bg-gray-700 text-white"
-                        : "bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 group-hover:bg-gray-900 dark:group-hover:bg-gray-700 group-hover:text-white",
+                        ? "bg-primary text-white"
+                        : "bg-muted text-foreground group-hover:bg-primary dark:group-hover:bg-muted group-hover:text-white",
                     )}
                   >
                     {platform.icon}
@@ -451,18 +451,18 @@ export default function DownloadContent() {
                       className={cn(
                         "group/row flex items-center justify-between gap-3 rounded-xl border p-3 transition-colors",
                         isDetected
-                          ? "border-gray-200 dark:border-gray-800 bg-gray-900/[0.02] dark:bg-gray-100/[0.02]"
-                          : "border-gray-100 dark:border-gray-800 hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800",
+                          ? "border-border bg-primary/[0.02] dark:bg-muted/[0.02]"
+                          : "border-border hover:border-border dark:hover:border-border hover:hover:bg-muted",
                       )}
                     >
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-gray-100">
+                        <p className="truncate text-sm font-semibold text-foreground">
                           {row.label}
                         </p>
-                        <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
                           {row.hint}
                           {resolved.size ? (
-                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                            <span className="font-medium text-foreground">
                               {" "}
                               · {resolved.size}
                             </span>
@@ -476,8 +476,8 @@ export default function DownloadContent() {
                           className={cn(
                             "h-8 shrink-0 rounded-lg px-3 text-xs font-medium transition-all",
                             isDetected
-                              ? "bg-gray-900 dark:bg-gray-700 text-white hover:bg-gray-800 dark:hover:bg-gray-600"
-                              : "border-gray-200 dark:border-gray-800 text-gray-900 dark:text-gray-100 hover:border-gray-900 dark:hover:border-gray-100 hover:bg-gray-900 dark:hover:bg-gray-700 hover:text-white",
+                              ? "bg-primary text-white hover:bg-primary hover:bg-primary/80"
+                              : "border-border text-foreground hover:border-foreground dark:hover:border-border hover:bg-primary dark:hover:bg-muted hover:text-white",
                           )}
                           nativeButton={false}
                           render={
@@ -491,7 +491,7 @@ export default function DownloadContent() {
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-8 shrink-0 rounded-lg border-gray-200 dark:border-gray-800 px-3 text-xs font-medium text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-700 hover:text-gray-900 dark:hover:text-gray-100"
+                          className="h-8 shrink-0 rounded-lg border-border px-3 text-xs font-medium text-muted-foreground hover:border-border hover:border-foreground/30 hover:text-foreground hover:text-foreground/80"
                           nativeButton={false}
                           render={
                             <a
@@ -515,7 +515,7 @@ export default function DownloadContent() {
 
       {/* ── Setup steps ──────────────────────────────────── */}
       <div className="mt-16">
-        <h2 className="text-center text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+        <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground">
           Up and running in three steps
         </h2>
         <div className="mt-8 grid gap-5 md:grid-cols-3">
@@ -523,15 +523,15 @@ export default function DownloadContent() {
             <Card key={step.title}>
               <CardContent className="grid gap-3 pt-1">
                 <div className="flex items-center gap-3">
-                  <span className="flex size-8 items-center justify-center rounded-full bg-gray-900 dark:bg-gray-700 text-sm font-semibold text-white">
+                  <span className="flex size-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
                     {i + 1}
                   </span>
-                  <span className="flex size-8 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100">
+                  <span className="flex size-8 items-center justify-center rounded-lg bg-muted text-foreground">
                     {step.icon}
                   </span>
                 </div>
-                <p className="font-medium text-gray-900 dark:text-gray-100">{step.title}</p>
-                <p className="text-sm leading-relaxed text-gray-600 dark:text-gray-400">{step.body}</p>
+                <p className="font-medium text-foreground">{step.title}</p>
+                <p className="text-sm leading-relaxed text-muted-foreground">{step.body}</p>
               </CardContent>
             </Card>
           ))}
@@ -552,12 +552,12 @@ export default function DownloadContent() {
             {REQUIREMENTS.map((r) => (
               <div
                 key={r.os}
-                className="flex flex-col gap-0.5 rounded-lg bg-gray-100 dark:bg-gray-800 px-3 py-2.5 sm:flex-row sm:items-baseline sm:gap-3"
+                className="flex flex-col gap-0.5 rounded-lg bg-muted px-3 py-2.5 sm:flex-row sm:items-baseline sm:gap-3"
               >
-                <span className="shrink-0 text-sm font-medium text-gray-900 dark:text-gray-100">
+                <span className="shrink-0 text-sm font-medium text-foreground">
                   {r.os}
                 </span>
-                <span className="text-sm text-gray-600 dark:text-gray-400">{r.detail}</span>
+                <span className="text-sm text-muted-foreground">{r.detail}</span>
               </div>
             ))}
           </CardContent>
@@ -570,21 +570,21 @@ export default function DownloadContent() {
             </CardTitle>
             <CardDescription>Models, locked tiers, updates</CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-2 text-sm text-gray-700 dark:text-gray-300">
+          <CardContent className="grid gap-2 text-sm text-foreground">
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="mt-0.5 size-4 shrink-0 text-success" />
               Fast — Haiku 5.5, served on Zaino official infrastructure.
             </p>
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="mt-0.5 size-4 shrink-0 text-success" />
               Smart — Sonnet 5.5, served on Zaino official infrastructure.
             </p>
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="mt-0.5 size-4 shrink-0 text-success" />
               Frontier — Opus 5.5 on Zaino official infrastructure, Pro only.
             </p>
             <p className="flex items-start gap-2">
-              <Check className="mt-0.5 size-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+              <Check className="mt-0.5 size-4 shrink-0 text-success" />
               In-app updates from our official GitHub releases. Nothing to
               reinstall, ever.
             </p>
@@ -594,22 +594,22 @@ export default function DownloadContent() {
 
       {/* ── FAQ ──────────────────────────────────────────── */}
       <div className="mx-auto mt-16 max-w-3xl">
-        <h2 className="text-center text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-100">
+        <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground">
           Frequently asked
         </h2>
         <div className="mt-8 grid gap-3">
           {FAQS.map((f) => (
             <details
               key={f.q}
-              className="group rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 px-5 py-4 open:shadow-sm"
+              className="group rounded-xl border border-border bg-white px-5 py-4 open:shadow-sm"
             >
-              <summary className="cursor-pointer list-none text-sm font-medium text-gray-900 dark:text-gray-100 [&::-webkit-details-marker]:hidden">
+              <summary className="cursor-pointer list-none text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">
                 <span className="flex items-center justify-between gap-4">
                   {f.q}
-                  <ArrowUpRight className="size-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform group-open:rotate-90" />
+                  <ArrowUpRight className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-90" />
                 </span>
               </summary>
-              <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{f.a}</p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{f.a}</p>
             </details>
           ))}
         </div>

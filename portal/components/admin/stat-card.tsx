@@ -74,15 +74,15 @@ export function AdminEmptyState({
 
 const TONE_RING: Record<Tone, string> = {
   neutral: "",
-  positive: "border-emerald-500/40",
-  warning: "border-amber-500/40",
+  positive: "border-success/40",
+  warning: "border-warning/40",
   danger: "border-destructive/50",
 };
 
 const TONE_TEXT: Record<Tone, string> = {
   neutral: "",
-  positive: "text-emerald-600 dark:text-emerald-400",
-  warning: "text-amber-600 dark:text-amber-400",
+  positive: "text-success",
+  warning: "text-warning",
   danger: "text-destructive",
 };
 

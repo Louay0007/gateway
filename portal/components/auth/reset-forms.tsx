@@ -20,9 +20,9 @@ export function RequestResetForm() {
   const [state, action] = useActionState(requestResetAction, {} as ResetRequestState);
   if (state.done) {
     return (
-      <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 px-4 py-5 text-center">
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Check your inbox</p>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+      <div role="status" className="rounded-lg border border-border bg-muted px-4 py-5 text-center">
+        <p className="text-sm font-medium text-foreground">Check your inbox</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           If an account exists for that address, a reset link is on its way.
           It expires in 30 minutes.
         </p>
@@ -40,7 +40,7 @@ export function RequestResetForm() {
         error={state.fieldErrors?.email}
       />
       {state.error ? (
-        <p role="alert" aria-live="assertive" className="text-sm text-red-600">
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive">
           {state.error}
         </p>
       ) : null}
@@ -59,9 +59,9 @@ export function CompleteResetForm({ token }: { token: string }) {
   const [state, action] = useActionState(completeResetAction, {} as ResetConfirmState);
   if (state.done) {
     return (
-      <div role="status" className="rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900 px-4 py-5 text-center">
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-100">Password updated</p>
-        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+      <div role="status" className="rounded-lg border border-border bg-muted px-4 py-5 text-center">
+        <p className="text-sm font-medium text-foreground">Password updated</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           You can now sign in with the new password.
         </p>
       </div>
@@ -87,7 +87,7 @@ export function CompleteResetForm({ token }: { token: string }) {
         error={state.fieldErrors?.confirmPassword}
       />
       {state.error ? (
-        <p role="alert" aria-live="assertive" className="text-sm text-red-600">
+        <p role="alert" aria-live="assertive" className="text-sm text-destructive">
           {state.error}
         </p>
       ) : null}
