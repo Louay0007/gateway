@@ -4,8 +4,7 @@ import { Ambient } from '@/components/marketing/ambient';
 import Hero33 from '@/components/shadcn-space/blocks/hero-33/hero';
 import { LogoCloud } from '@/components/ui/logo-cloud-3';
 import AnimatedBeamSection from '@/components/marketing/animated-beam-section';
-import MacbookSection from '@/components/marketing/macbook-section';
-import MobileSection from '@/components/marketing/mobile-section';
+import DevicesSection from '@/components/marketing/devices-section';
 import PricingComponent from '@/components/ui/interactive-pricing-component';
 import FaqSection from '@/components/marketing/faq-section';
 import CTA from '@/components/shadcn-space/blocks/cta-01/cta';
@@ -98,8 +97,7 @@ export default function LandingPage() {
           </section>
 
           <AnimatedBeamSection />
-          <MacbookSection />
-          <MobileSection />
+          <DevicesSection />
           <PricingComponent />
           <FaqSection />
           <CTA />
