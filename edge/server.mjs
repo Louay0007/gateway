@@ -315,8 +315,13 @@ export function mapModelDeniedBody(status, rawText, requestedModel = null) {
   // 0038: budgets are MONTHLY since the window moved to the subscription
   // period. Telling a customer "resets at midnight" would be a lie that
   // invites them to wait for a reset that no longer happens.
+  //
+  // 0039: do NOT name the model. The allowance is one shared pool, so a
+  // customer told "out of fast tokens" switches to smart, gets a second
+  // 403, and concludes the product is broken. The plan is out of tokens as
+  // a whole, and that is what the message must say.
   const message = model
-    ? `Model '${model}' is not available for this API key — you may be out of ${model} tokens for this billing period or your plan does not include it. Check usage for remaining tokens.`
+    ? `Model '${model}' is not available for this API key — you may be out of tokens for this billing period or your plan does not include it. Check usage for remaining tokens.`
     : 'Model not available for this API key — you may be out of tokens for this billing period or your plan does not include it. Check usage for remaining tokens.';
   return { model, message };
 }

@@ -379,14 +379,19 @@ describe('end to end through the edge', () => {
     expect(r.status).not.toBe(200);
   });
 
-  it('maps a gateway model-denied 403 to a per-alias message', async () => {
+  it('maps a gateway model-denied 403 to a plan-wide message', async () => {
     // Unit-level: the pure mapper the proxy path uses.
+    //
+    // 0039: the allowance is ONE shared pool, so the copy names no model.
+    // Naming it sent the customer to another alias that was equally empty
+    // and told them the product was broken.
     const m = mapModelDeniedBody(
       403,
       `{"error":{"message":"Model 'frontier' is not available for this API key"}}`,
     );
     expect(m?.model).toBe('frontier');
-    expect(m?.message).toMatch(/out of frontier tokens/i);
+    expect(m?.message).toMatch(/out of tokens/i);
+    expect(m?.message).not.toMatch(/out of frontier tokens/i);
     expect(mapModelDeniedBody(403, 'overloaded, try again')).toBeNull();
     expect(mapModelDeniedBody(200, "Model 'frontier' is not available")).toBeNull();
   });
@@ -400,7 +405,7 @@ describe('end to end through the edge', () => {
       `{"error":{"message":"Model 'gpt-6-astra' is not available for this API key"}}`,
     );
     expect(byUpstream?.model).toBe('fable');
-    expect(byUpstream?.message).toMatch(/out of fable tokens/i);
+    expect(byUpstream?.message).toMatch(/out of tokens/i);
     expect(byUpstream?.message).not.toMatch(/gpt-6-astra/);
 
     // And the alias spelling itself still maps.
@@ -426,7 +431,7 @@ describe('end to end through the edge', () => {
     const raw = `{"error":{"message":"The requested model is not available for this API key"}}`;
     const m = mapModelDeniedBody(403, raw, 'smart');
     expect(m?.model).toBe('smart');
-    expect(m?.message).toMatch(/out of smart tokens/i);
+    expect(m?.message).toMatch(/out of tokens/i);
   });
 
   it('translates an upstream model name in the denial to the alias', async () => {
@@ -435,7 +440,7 @@ describe('end to end through the edge', () => {
       `{"error":{"message":"Model 'sonnet-5.5' is not available for this API key"}}`,
     );
     expect(m?.model).toBe('smart');
-    expect(m?.message).toMatch(/out of smart tokens/i);
+    expect(m?.message).toMatch(/out of tokens/i);
     expect(m?.message).not.toContain('sonnet');
   });
 
@@ -478,7 +483,9 @@ describe('end to end through the edge', () => {
         req.end('{}');
       });
       expect(r.status).toBe(403);
-      expect(r.text).toMatch(/out of frontier tokens/i);
+      // 0039: plan-wide copy — the pool is shared, so no alias is named.
+      expect(r.text).toMatch(/out of tokens/i);
+      expect(r.text).not.toMatch(/out of frontier tokens/i);
     } finally {
       edge.kill('SIGKILL');
       denied.close();
