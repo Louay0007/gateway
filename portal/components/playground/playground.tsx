@@ -221,34 +221,33 @@ export function Playground({ signedIn = false }: { signedIn?: boolean }) {
           </p>
           <div role="group" aria-label="Model tier" className="flex flex-wrap gap-1.5">
             {TIERS.map((t) => (
-              <button
+              <Button
                 key={t.alias}
                 type="button"
+                variant="toggle"
+                size="xs"
                 onClick={() => setTier(t.alias)}
                 aria-pressed={tier === t.alias}
                 title={t.note}
-                className={cn(
-                  "rounded-full border px-3 py-1.5 font-mono text-xs font-medium transition-colors",
-                  tier === t.alias
-                    ? "border-foreground bg-foreground text-background"
-                    : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                )}
+                className="rounded-full px-3 py-1.5 font-mono text-xs font-medium"
               >
                 {t.alias}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
 
         <div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             onClick={() => setShowAdvanced((v) => !v)}
-            className="mb-2 text-[11px] font-semibold tracking-widest text-muted-foreground uppercase hover:text-foreground"
             aria-expanded={showAdvanced}
+            className="mb-2 px-0 text-[11px] font-semibold tracking-widest text-muted-foreground uppercase"
           >
             {showAdvanced ? "− Hide" : "+ Show"} system prompt & temperature
-          </button>
+          </Button>
           {showAdvanced ? (
             <div className="grid gap-3">
               <label className="grid gap-1.5">
@@ -317,13 +316,15 @@ export function Playground({ signedIn = false }: { signedIn?: boolean }) {
               {image ? "Image attached" : "Attach image"}
             </Button>
             {image ? (
-              <button
+              <Button
                 type="button"
+                variant="link"
+                size="xs"
                 onClick={() => setImage(null)}
-                className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                className="text-xs text-muted-foreground"
               >
                 remove
-              </button>
+              </Button>
             ) : null}
           </div>
           <div className="flex items-center gap-2">

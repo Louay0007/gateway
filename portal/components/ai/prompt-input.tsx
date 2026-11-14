@@ -5,6 +5,7 @@ import { cn } from "cn"
 import { ArrowUp, Plus, Square } from "lucide-react"
 import { InputGroup, InputGroupTextarea } from "@/components/ui/input-group"
 import { ACCEPT_ATTRIBUTE, MAX_ATTACHMENTS } from "@/lib/chat/attachments"
+import { Button } from "@/components/ui/button";
 
 /**
  * Prompt Input — the composer.
@@ -257,35 +258,27 @@ export function PromptInput({
             ) : null}
 
             {streaming ? (
-              <button
+              <Button
                 type="button"
+                size="icon"
                 onClick={onStop}
                 aria-label="Stop generating"
-                className={cn(
-                  "inline-flex size-8 shrink-0 items-center justify-center rounded-full",
-                  "bg-foreground text-background transition-colors hover:opacity-90",
-                  "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-                )}
+                className="shrink-0 rounded-full"
               >
                 <Square className="size-3 fill-current" />
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="submit"
+                size="icon"
                 disabled={!canSend}
                 aria-label="Send message"
-                className={cn(
-                  "inline-flex size-8 shrink-0 items-center justify-center rounded-full",
-                  "bg-foreground text-background transition-all duration-150",
-                  "hover:opacity-90 active:scale-95",
-                  "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-                  // Empty field: the control recedes to a hint rather than
-                  // sitting there as a dead filled circle.
-                  "disabled:pointer-events-none disabled:bg-muted disabled:text-muted-foreground/50",
-                )}
+                // Empty field: the control recedes to a hint rather than
+                // sitting there as a dead filled circle.
+                className="shrink-0 rounded-full disabled:bg-muted disabled:text-muted-foreground/50"
               >
                 <ArrowUp className="size-4" strokeWidth={2.5} />
-              </button>
+              </Button>
             )}
           </div>
         </InputGroup>
@@ -354,21 +347,18 @@ export function AttachControl({
         }}
         aria-label="Attach files"
       />
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon-sm"
         disabled={disabled || remaining <= 0}
         onClick={() => inputRef.current?.click()}
         title={remaining <= 0 ? `Up to ${max} files per message` : "Attach files"}
         aria-label="Attach files"
-        className={cn(
-          "inline-flex size-7 items-center justify-center rounded-full text-muted-foreground",
-          "transition-colors hover:bg-accent hover:text-foreground",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-          "disabled:pointer-events-none disabled:opacity-40",
-        )}
+        className="rounded-full text-muted-foreground"
       >
         <Plus className="size-4" />
-      </button>
+      </Button>
     </div>
   )
 }

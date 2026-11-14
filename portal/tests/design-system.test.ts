@@ -100,28 +100,31 @@ describe('design system — shared primitives', () => {
     expect(() => readFileSync(join(PORTAL, 'components/marketing/zaino-footer.tsx'))).not.toThrow();
   });
 
-  it('keeps raw <button> to the cases where Button would be wrong', () => {
-    // A CEILING, not zero, and deliberately set at the measured count.
-    // The remaining uses are structural: a conversation row that owns its
-    // own flex layout, a suggestion chip, a tab-strip item. Wrapping those
-    // in Button means either a size override on every one or a new variant
-    // per shape — the abstraction would cost more than it saves.
+  it('has no raw <button> outside the three cases that require one', () => {
+    // THE PLAN'S TARGET WAS ZERO. It is three, and each is a native
+    // requirement rather than an oversight:
     //
-    // What this guards is the RATIO going up: a new component reaching for
-    // a bare <button> because it is quicker should fail here and force the
-    // author to say why.
-    const withButtons = source.filter((f) => f.text.includes('<button'));
-    expect(withButtons.length).toBeLessThanOrEqual(25);
-
-    // The ones that were genuinely misses — a copy control, an auth submit
-    // — are converted and must stay converted.
-    for (const converted of [
-      'components/docs/code-block.tsx',
-      'components/auth/submit-button.tsx',
-      'components/models/model-card.tsx',
-    ]) {
-      const f = source.find((x) => x.path.includes(converted));
-      if (f) expect(f.text).not.toContain('<button');
-    }
+    //   1. components/dashboard/app-sidebar.tsx — a DropdownMenuTrigger
+    //      `render` slot. Base UI composes its own props onto the element it
+    //      is handed, so it must be a real <button>.
+    //   2. components/chat/chat-sidebar.tsx — the same trigger slot.
+    //   3. app/admin/page.tsx — the access-code gate is static HTML with
+    //      inline CSS and a raw <script>; it never mounts React.
+    //
+    // Everything else was converted, including the five that looked
+    // structural (conversation rows, project rows, search hits, suggestion
+    // chips, tier pickers) — Button handles them with variant + size instead
+    // of a bespoke class string. A new bare <button> fails here and the
+    // author has to say why.
+    const names = source
+      .filter((f) => f.text.includes('<button'))
+      .map((f) => f.path.replace(PORTAL, ''))
+      .sort();
+    expect(names).toEqual([
+      'app/admin/page.tsx',
+      'components/chat/chat-sidebar.tsx',
+      'components/dashboard/app-sidebar.tsx',
+    ]);
   });
+;
 });

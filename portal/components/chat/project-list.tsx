@@ -109,14 +109,16 @@ export function ProjectList({
   if (!creating && !loading && projects.length === 0) {
     return (
       <div className="px-2 pt-1 group-data-[collapsible=icon]:hidden">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => setCreating(true)}
-          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-[13px] text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="w-full justify-start gap-2 text-[13px] text-sidebar-foreground/60"
         >
           <FolderPlus className="size-4 shrink-0" />
           New project
-        </button>
+        </Button>
       </div>
     );
   }
@@ -125,15 +127,17 @@ export function ProjectList({
     <div className="px-2 group-data-[collapsible=icon]:hidden">
       <div className="flex items-center justify-between px-2 pt-3 pb-1">
         <h3 className="text-[11px] font-medium text-muted-foreground/70">Projects</h3>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-xs"
           onClick={() => setCreating((v) => !v)}
-          className="rounded p-1.5 text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-0.5"
+          className="size-auto p-1.5 text-muted-foreground sm:p-0.5"
           aria-label="New project"
           title="New project"
         >
           <FolderPlus className="size-3.5" />
-        </button>
+        </Button>
       </div>
 
       {creating && (
@@ -188,22 +192,26 @@ export function ProjectList({
                     className="w-full resize-none rounded-md border border-border bg-background px-2 py-1 text-xs outline-none focus:border-ring/60"
                   />
                   <div className="flex justify-end gap-1">
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => setEditing(null)}
                       aria-label="Cancel"
-                      className="rounded p-1 text-muted-foreground hover:bg-accent"
+                      className="size-auto p-1 text-muted-foreground"
                     >
                       <X className="size-3.5" />
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
                       onClick={() => void saveInstructions(project.id)}
                       aria-label="Save instructions"
-                      className="rounded p-1 text-muted-foreground hover:bg-accent"
+                      className="size-auto p-1 text-muted-foreground"
                     >
                       <Check className="size-3.5" />
-                    </button>
+                    </Button>
                   </div>
                 </li>
               );
@@ -211,17 +219,16 @@ export function ProjectList({
 
             return (
               <li key={project.id} className="group/row relative">
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
                   onClick={() => onSelect(active ? null : project.id)}
                   aria-pressed={active}
                   className={cn(
-                    "flex h-8 w-full items-center gap-2 rounded-md px-2 pr-8 text-left text-[13px]",
-                    "transition-colors duration-100",
-                    "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                    "h-8 w-full justify-start gap-2 px-2 pr-8 text-left text-[13px]",
                     active
                       ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent/70 hover:text-sidebar-accent-foreground",
+                      : "text-sidebar-foreground/80",
                   )}
                 >
                   <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden />
@@ -231,7 +238,7 @@ export function ProjectList({
                       {project.conversationCount}
                     </span>
                   )}
-                </button>
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     className={cn(

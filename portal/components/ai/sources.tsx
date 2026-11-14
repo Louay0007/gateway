@@ -3,6 +3,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { ChevronDown, Globe } from "lucide-react"
+import { Button } from "@/components/ui/button";
 
 /**
  * Sources — the pages a turn actually consulted.
@@ -33,23 +34,20 @@ export function Sources({
 
   return (
     <div data-slot="sources" className={cn("mb-4", className)} {...props}>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="xs"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1",
-          "text-[11px] font-medium text-muted-foreground",
-          "transition-colors hover:bg-accent hover:text-foreground",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        )}
+        className="rounded-full px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
       >
         <Globe className="size-3" aria-hidden />
         <span>
           {sources.length} {sources.length === 1 ? "source" : "sources"}
         </span>
         <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} aria-hidden />
-      </button>
+      </Button>
 
       {open ? (
         <ul className="mt-2 space-y-1.5">

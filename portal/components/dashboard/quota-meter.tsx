@@ -115,11 +115,11 @@ export function QuotaMeter({
 
   const label =
     alias === 'fast'
-      ? 'Fast (Haiku 5.5)'
+      ? 'Fast'
       : alias === 'smart'
-        ? 'Smart (Sonnet 5.5)'
+        ? 'Smart'
         : alias === 'frontier'
-          ? 'Frontier (Opus 5.5)'
+          ? 'Frontier'
           : alias;
 
   return (

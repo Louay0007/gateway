@@ -4,6 +4,7 @@ import * as React from "react"
 import { cn } from "cn"
 import { FileText, Image as ImageIcon, Loader2, Table2, X } from "lucide-react"
 import { MAX_ATTACHMENTS } from "@/lib/chat/attachments"
+import { Button } from "@/components/ui/button";
 
 /**
  * Attachment — the chip row and the attach control.
@@ -83,14 +84,16 @@ export function AttachmentRow({
                 {chip.truncated ? " (cut)" : ""}
               </span>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
               onClick={() => onRemove(chip.localId)}
-              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-background hover:text-foreground sm:p-0.5"
               aria-label={`Remove ${chip.filename}`}
+              className="shrink-0 text-muted-foreground"
             >
-              <X className="size-3" />
-            </button>
+              <X />
+            </Button>
           </div>
         </li>
       ))}

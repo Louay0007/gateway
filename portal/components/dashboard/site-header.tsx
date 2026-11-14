@@ -240,12 +240,13 @@ function HeaderUserMenu({ onNavigate }: { onNavigate: () => void }) {
         <DropdownMenuItem onSelect={onNavigate}>Account settings</DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action={signOutAction}>
-          <button
+          <Button
             type="submit"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-none select-none hover:bg-destructive/10 focus-visible:ring-2"
+            variant="ghost"
+            className="w-full justify-start gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             Sign out
-          </button>
+          </Button>
         </form>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -310,20 +311,21 @@ function SearchDialog({
             </p>
           ) : (
             results.map((item) => (
-              <button
+              <Button
                 key={item.href}
                 type="button"
+                variant="ghost"
                 onClick={() => {
                   onOpenChange(false);
                   router.push(item.href);
                 }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground focus-visible:ring-2"
+                className="flex w-full items-center justify-start gap-3 rounded-md px-3 py-2 text-left text-sm"
               >
                 <span className="grid flex-1 leading-tight">
                   <span className="font-medium">{item.label}</span>
                   <span className="text-xs text-muted-foreground">{item.hint}</span>
                 </span>
-              </button>
+              </Button>
             ))
           )}
         </div>

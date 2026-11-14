@@ -36,6 +36,7 @@ import { ProjectList } from "@/components/chat/project-list";
 import { useProjects } from "@/components/chat/use-projects";
 import { chatNav } from "@/components/chat/nav";
 import { useShellIdentity } from "@/components/dashboard/shell-identity";
+import { Button } from "@/components/ui/button";
 
 /**
  * ChatSidebar — conversation list first, destinations second.
@@ -199,23 +200,21 @@ function ThemeToggle({ collapsed }: { collapsed: boolean }) {
   const dark = mounted && resolvedTheme === "dark";
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon-sm"
       onClick={() => setTheme(dark ? "light" : "dark")}
       title={dark ? "Light mode" : "Dark mode"}
       // The accessible name must contain the visible label, or a screen
       // reader hears a name sharing no word with what is on screen (the
       // label-content-name mismatch axe flags).
       aria-label={dark ? "Dark theme — switch to light mode" : "Light theme — switch to dark mode"}
-      className={cn(
-        "flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground",
-        "transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-      )}
+      className="shrink-0 rounded-full text-muted-foreground"
     >
       {mounted && dark ? <Moon className="size-4" /> : <Sun className="size-4" />}
       {collapsed ? null : <span className="sr-only">Theme</span>}
-    </button>
+    </Button>
   );
 }
 
@@ -286,13 +285,14 @@ function UserMenu({ collapsed, isStaff }: { collapsed: boolean; isStaff: boolean
         ))}
         <DropdownMenuSeparator />
         <form action={signOutAction}>
-          <button
+          <Button
             type="submit"
-            className="flex w-full items-center gap-2 rounded-sm px-1.5 py-1 text-sm text-destructive outline-none select-none hover:bg-destructive/10 focus-visible:ring-2"
+            variant="ghost"
+            className="w-full justify-start gap-2 px-1.5 py-1 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <LogOut className="size-4" />
             Sign out
-          </button>
+          </Button>
         </form>
       </DropdownMenuContent>
     </DropdownMenu>

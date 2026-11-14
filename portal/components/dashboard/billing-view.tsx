@@ -671,12 +671,17 @@ export function BillingView() {
           </DialogHeader>
           <div className="grid gap-4 py-2 sm:grid-cols-2">
             {plans.map((p) => (
-              <button
+              <Button
                 key={p.code}
                 type="button"
+                variant="outline"
                 disabled={busy !== null}
                 onClick={() => void changePlan(p.code)}
-                className={`grid gap-3 rounded-lg border p-4 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-2 disabled:opacity-50 ${ p.code === plan?.code ? "border-success/50 border-success/30 ring-1 ring-emerald-200 ring-success/30" : "" }`}
+                className={`grid h-auto justify-stretch gap-3 p-4 text-left ${
+                  p.code === plan?.code
+                    ? "border-success/50 ring-1 ring-success/30"
+                    : ""
+                }`}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">{p.name}</span>
@@ -708,7 +713,7 @@ export function BillingView() {
                   <li>{p.rpmLimit} req/min</li>
                   <li>{compact(p.tpmLimit ?? 0)} tok/min</li>
                 </ul>
-              </button>
+              </Button>
             ))}
           </div>
           <DialogFooter>

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import type { ProjectRow } from "@/components/chat/use-projects";
+import { Button } from "@/components/ui/button";
 
 export interface ConversationListItem {
   id: string;
@@ -187,13 +188,15 @@ export function ConversationList({
                               aria-label="Conversation title"
                               className="h-9 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-base outline-none focus-visible:border-ring sm:h-7 sm:text-[13px]"
                             />
-                            <button
+                            <Button
                               type="submit"
+                              variant="ghost"
+                              size="icon-xs"
                               aria-label="Save title"
-                              className="rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-1"
+                              className="size-auto p-1.5 text-muted-foreground sm:p-1"
                             >
-                              <Check className="size-3.5" />
-                            </button>
+                              <Check />
+                            </Button>
                           </form>
                         </li>
                       );

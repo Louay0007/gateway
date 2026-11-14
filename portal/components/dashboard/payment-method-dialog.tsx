@@ -183,13 +183,18 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
               {METHODS.map((m) => {
                 const selected = method === m.id;
                 return (
-                  <button
+                  <Button
                     key={m.id}
                     type="button"
+                    variant="outline"
                     role="radio"
                     aria-checked={selected}
                     onClick={() => setMethod(m.id)}
-                    className={`flex items-start gap-3 rounded-lg border p-3 text-left transition-colors ${ selected ? "border-success bg-success/5 bg-success/10" : "border-border hover:border-success/50 hover:bg-muted/50" }`}
+                    className={`h-auto items-start justify-start gap-3 p-3 text-left ${
+                      selected
+                        ? "border-success bg-success/10"
+                        : "hover:border-success/50"
+                    }`}
                   >
                     {/* Room for the mark at its brand size; Dodo's is a
                         round badge, D17's a wide wordmark. */}
@@ -209,7 +214,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                       </span>
                       <span className="text-xs text-muted-foreground">{m.subtitle}</span>
                     </span>
-                  </button>
+                  </Button>
                 );
               })}
             </div>

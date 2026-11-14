@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MessageSquare, Search, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 /**
  * Conversation search.
@@ -109,14 +110,16 @@ export function SidebarConversations({
           )}
         />
         {query ? (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon-xs"
             onClick={() => setQuery("")}
-            className="absolute top-1/2 right-3 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none sm:p-0.5"
+            className="absolute top-1/2 right-3 size-auto -translate-y-1/2 p-1.5 text-muted-foreground sm:p-0.5"
             aria-label="Clear search"
           >
             <X className="size-3.5" />
-          </button>
+          </Button>
         ) : (
           onSearchShortcut && (
             <kbd className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-[11px] font-medium text-muted-foreground/50">
@@ -216,15 +219,13 @@ export function SearchResults({
     >
       {hits.map((hit, i) => (
         <li key={`${hit.conversation_id}-${hit.created_at}-${i}`}>
-          <button
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => go(hit)}
             onMouseEnter={() => setActive(i)}
             aria-current={i === active ? "true" : undefined}
-            className={cn(
-              "flex w-full flex-col gap-0.5 rounded-lg px-2 py-1.5 text-left transition-colors",
-              i === active ? "bg-accent" : "hover:bg-accent/60",
-            )}
+            className="h-auto w-full flex-col items-stretch gap-0.5 rounded-lg px-2 py-1.5 text-left"
           >
             <span className="flex items-center gap-1.5 truncate text-[13px] font-medium">
               <MessageSquare className="size-3 shrink-0 text-muted-foreground" aria-hidden />
@@ -235,7 +236,7 @@ export function SearchResults({
             <span className="line-clamp-2 pl-[18px] text-[11px] leading-snug text-muted-foreground">
               {hit.snippet}
             </span>
-          </button>
+          </Button>
         </li>
       ))}
     </ul>

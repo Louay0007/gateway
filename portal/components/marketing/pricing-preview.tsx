@@ -19,9 +19,9 @@ const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent
  * Per-model token pricing from prices/models.yaml.
  */
 const MODEL_PRICES: Record<string, { input: number; output: number; label: string }> = {
-  fast: { input: 1.00, output: 5.00, label: "Fast (Haiku 5.5)" },
-  smart: { input: 3.00, output: 15.00, label: "Smart (Sonnet 5.5)" },
-  frontier: { input: 15.00, output: 75.00, label: "Frontier (Opus 5.5)" },
+  fast: { input: 1.00, output: 5.00, label: "Fast" },
+  smart: { input: 3.00, output: 15.00, label: "Smart" },
+  frontier: { input: 15.00, output: 75.00, label: "Frontier" },
 };
 
 function usdPerMtok(usd: number): string {

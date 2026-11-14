@@ -745,21 +745,25 @@ export function ChatView({
                 Reverted {undoOffer.hides} {undoOffer.hides === 1 ? "message" : "messages"}. Your
                 text is back in the composer — edit it and send again.
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => void undoRevert(undoOffer.batchId)}
-                className="shrink-0 rounded px-1.5 py-1 font-medium text-foreground transition-colors hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="shrink-0 px-1.5 py-1 font-medium"
               >
                 Undo
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => setUndoOffer(null)}
                 aria-label="Dismiss"
-                className="shrink-0 rounded p-1 transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="shrink-0 p-1"
               >
                 <X className="size-3.5" aria-hidden />
-              </button>
+              </Button>
             </div>
           ) : null}
 
@@ -799,30 +803,33 @@ export function ChatView({
             tools={
               <>
                 {searchAvailable && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setWebSearch((on) => !on)}
                     aria-pressed={webSearch}
                     title={
                       webSearch ? "Searching the web for this chat" : "Search the web for this chat"
                     }
                     className={cn(
-                      "inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium transition-colors sm:h-7 sm:px-2",
-                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      "shrink-0 gap-1 rounded-full px-2.5 text-[11px] font-medium sm:px-2",
                       webSearch
                         ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        : "text-muted-foreground",
                     )}
                   >
                     <Globe className="size-3" aria-hidden />
                     Search
-                  </button>
+                  </Button>
                 )}
                 {/* Only offered once search is on: a deep search with nothing
                     to search is a switch that does nothing. */}
                 {searchAvailable && webSearch && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="xs"
                     onClick={() => setDeepSearch((on) => !on)}
                     aria-pressed={deepSearch}
                     title={
@@ -831,16 +838,15 @@ export function ChatView({
                         : "Read the pages found, not just their summaries"
                     }
                     className={cn(
-                      "inline-flex h-8 shrink-0 items-center gap-1 rounded-full px-2.5 text-[11px] font-medium transition-colors sm:h-7 sm:px-2",
-                      "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+                      "shrink-0 gap-1 rounded-full px-2.5 text-[11px] font-medium sm:px-2",
                       deepSearch
                         ? "bg-accent text-accent-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                        : "text-muted-foreground",
                     )}
                   >
                     <BookOpen className="size-3" aria-hidden />
                     Deep
-                  </button>
+                  </Button>
                 )}
                 <ModelPicker
                   options={options}
@@ -980,14 +986,16 @@ function Turn({
               it says. */}
           {onRevert ? (
             <MessageActions className="justify-end">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={onRevert}
-                className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="gap-1 px-1.5"
               >
                 <Undo2 className="size-3" aria-hidden />
                 Revert to here
-              </button>
+              </Button>
             </MessageActions>
           ) : null}
         </MessageContent>
@@ -1067,14 +1075,16 @@ function Turn({
                   A disabled Regenerate on every message is a column of dead
                   buttons that says the feature is broken. */}
               {canRegenerate ? (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="xs"
                   onClick={onRegenerate}
-                  className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                  className="gap-1 px-1.5"
                 >
                   <RotateCcw className="size-3" aria-hidden />
                   Regenerate
-                </button>
+                </Button>
               ) : null}
             </>
           ) : null}
@@ -1093,16 +1103,18 @@ function CopyButton({ text }: { text: string }) {
   }, [copied]);
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="xs"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {});
       }}
-      className="inline-flex min-h-8 items-center gap-1 rounded px-1.5 transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="gap-1 px-1.5"
     >
       {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
       {copied ? "Copied" : "Copy"}
-    </button>
+    </Button>
   );
 }
 

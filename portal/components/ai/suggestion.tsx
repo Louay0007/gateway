@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { cn } from "cn"
+import { Button } from "@/components/ui/button";
 
 /**
  * Suggestion — the row of starter prompts above the composer.
@@ -47,21 +48,17 @@ export function Suggestion({
         className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-2"
       >
         {suggestions.map((s) => (
-          <button
+          <Button
             key={s}
             type="button"
+            variant="outline"
+            size="xs"
             onClick={() => onPick(s)}
             title={s}
-            className={cn(
-              "max-w-full shrink-0 cursor-pointer rounded-full border border-border bg-background px-3.5 py-1.5",
-              "text-left text-xs font-medium whitespace-normal transition-colors duration-150",
-              "hover:bg-accent hover:text-accent-foreground",
-              "focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-              " dark:bg-input/30 dark:hover:bg-input/50",
-            )}
+            className="max-w-full shrink-0 rounded-full px-3.5 py-1.5 text-left text-xs font-medium whitespace-normal"
           >
             {s}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

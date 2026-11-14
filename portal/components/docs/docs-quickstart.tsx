@@ -5,6 +5,7 @@ import { FlaskConical, Globe } from "lucide-react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CodeBlock } from "@/components/docs/code-block";
+import { Button } from "@/components/ui/button";
 import { Section } from "@/components/docs/docs-section";
 import {
   PUBLIC_BASE_URL,
@@ -55,19 +56,17 @@ export function Quickstart({
           </p>
           <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Model tier">
             {["fast", "smart", "frontier", "fable"].map((m) => (
-              <button
+              <Button
                 key={m}
                 type="button"
+                variant="toggle"
+                size="sm"
                 onClick={() => setModel(m)}
                 aria-pressed={model === m}
-                className={
-                  model === m
-                    ? "rounded-full bg-primary px-4 py-1.5 font-mono text-sm font-medium text-primary-foreground"
-                    : "rounded-full border border-border px-4 py-1.5 font-mono text-sm text-muted-foreground hover:text-foreground"
-                }
+                className="rounded-full px-4 py-1.5 font-mono text-sm"
               >
                 {m}
-              </button>
+              </Button>
             ))}
           </div>
           <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Base URL">
@@ -123,18 +122,16 @@ function BaseToggle({
   label: string;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="toggle"
+      size="xs"
       onClick={onClick}
       aria-pressed={active}
-      className={
-        active
-          ? "flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
-          : "flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-      }
+      className="rounded-full px-3 py-1.5 text-xs font-medium"
     >
       {icon}
       {label}
-    </button>
+    </Button>
   );
 }

@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import gsap from 'gsap';
 import { ChevronDown } from 'lucide-react';
 import { Ambient } from "@/components/marketing/ambient";
+import { Button } from "@/components/ui/button";
 
 interface FaqItem {
   question: string;
@@ -14,7 +15,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'What is Zaino AI?',
     answer:
-      'Zaino AI is a licensed cloud infrastructure provider with a direct commercial agreement with Anthropic. We provision dedicated Claude compute capacity for developers and teams in Tunisia and beyond, offering predictable pricing in local currency with D17 payment support.',
+      'Zaino AI is an LLM gateway for developers and teams in Tunisia and beyond. It gives you one API key and one shared token pool per plan, speaking the OpenAI and Anthropic wire formats natively so your existing tools work unchanged. Pricing is predictable, in local currency, with D17 payment support.',
   },
   {
     question: 'How does usage-based billing work?',
@@ -27,14 +28,15 @@ const faqItems: FaqItem[] = [
       'Your allowance is one shared pool, so it has no per-model limit: a heavy month on one model still leaves the rest spendable on another. When the whole pool is spent, every model on the plan returns a clear "out of tokens for this period" error until your plan renews — or you upgrade for more allowance immediately.',
   },
   {
-    question: 'Do you have an official agreement with Anthropic?',
+    question: 'Who provides the models behind Zaino?',
     answer:
-      'Yes. Zaino AI operates under a formal cloud provider agreement with Anthropic. We are not a reseller or proxy — we are a licensed infrastructure partner that provisions dedicated Claude API capacity. This means you get the same models, same safety standards, and same reliability as direct Anthropic customers, with localized billing and support.',
+      "Zaino is an independent gateway built on Anthropic- and OpenAI-compatible wire formats. Compatibility means your existing SDKs and tools work unchanged against us — it does not imply any partnership with, endorsement by, or affiliation with those vendors, and we do not claim one. What we are responsible for is the layer you actually touch: the key, the quota, the meter and the billing.",
   },
+
   {
     question: 'Which models are available?',
     answer:
-      'Availability depends on your plan. Starter includes Haiku 5.5 (Fast) and Sonnet 5.5 (Smart) with per-tier token budgets. Pro includes Sonnet 5.5 (Smart) and Opus 5.5 (Frontier) with larger budgets. Enterprise provides unlimited access to all current models plus early access to new model releases.',
+      'Availability depends on your plan. Starter includes fast and smart, sharing one 50M pool. Pro includes smart, frontier and fable, also 50M — the difference is which models you can call and how many keys and seats you get, not the size of the pool. Both plans include every model you are entitled to at full capability.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',
@@ -44,7 +46,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Is my data secure and private?',
     answer:
-      'All gateway calls are processed through Anthropic\'s enterprise-grade infrastructure with end-to-end encryption. We do not store, log, or train on your prompts or responses. Our platform complies with international data protection standards, and our full privacy policy is publicly available.',
+      'Every request is TLS-encrypted end to end, and we do not log prompt or response bodies: LiteLLM is configured with store_prompts_in_spend_logs off, so the spend ledger records token counts and cost, never content. We do not train on your data. The full policy is at /privacy.',
   },
   {
     question: 'Do you offer team or enterprise accounts?',
@@ -154,9 +156,11 @@ export default function FaqSection() {
               className="rounded-xl border border-white/10 bg-white/[0.04] overflow-hidden transition-colors hover:border-[#A558FB]/40"
             >
               {/* Question Button */}
-              <button
+              <Button
+                type="button"
+                variant="ghost"
                 onClick={() => toggleItem(index)}
-                className="w-full flex items-center justify-between px-6 py-5 text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 focus-visible:ring-offset-2 rounded-xl"
+                className="w-full justify-between rounded-xl px-6 py-5 text-left"
                 aria-expanded={openIndex === index}
                 aria-controls={`faq-answer-${index}`}
               >
@@ -169,7 +173,7 @@ export default function FaqSection() {
                 >
                   <ChevronDown className="h-5 w-5" />
                 </span>
-              </button>
+              </Button>
 
               {/* Answer — animated height + opacity */}
               <div

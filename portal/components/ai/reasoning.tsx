@@ -3,6 +3,7 @@
 import * as React from "react"
 import { cn } from "cn"
 import { Brain, ChevronDown } from "lucide-react"
+import { Button } from "@/components/ui/button";
 
 /**
  * Reasoning — the model's deliberation, collapsed and never merged into the
@@ -38,15 +39,13 @@ export function Reasoning({
 
   return (
     <div data-slot="reasoning" className={cn("mb-4 overflow-hidden", className)} {...props}>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="xs"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className={cn(
-          "flex w-full items-center gap-2 rounded px-1 py-1 text-left text-xs font-medium text-muted-foreground",
-          "transition-colors hover:text-foreground",
-          "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        )}
+        className="w-full justify-start px-1 py-1 text-left text-xs font-medium text-muted-foreground"
       >
         <Brain className={cn("size-3.5", live && "animate-pulse")} aria-hidden />
         <span className={cn(live && "thinking-shimmer")}>{live ? "Thinking…" : "Thought process"}</span>
@@ -57,7 +56,7 @@ export function Reasoning({
           className={cn("ml-auto size-3.5 transition-transform", open && "rotate-180")}
           aria-hidden
         />
-      </button>
+      </Button>
       {open ? (
         <div
           className={cn(

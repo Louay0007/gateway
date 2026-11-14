@@ -8,6 +8,19 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
+        /*
+         * A SEGMENTED PICKER ITEM. The one shape that genuinely differs from
+         * the six above: a control that reports state through `aria-pressed`
+         * rather than by being a link or a form action — a tier chooser, a
+         * tool chip, a filter toggle.
+         *
+         * It exists because three separate components had hand-rolled it
+         * with drifted colours, and converting them to `outline` would have
+         * lost the pressed state that makes the control usable. Everything
+         * else — focus ring, disabled, sizing — comes from the same base.
+         */
+        toggle:
+          "border border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground aria-pressed:border-foreground aria-pressed:bg-foreground aria-pressed:text-background",
         outline:
           "border-border bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground  dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

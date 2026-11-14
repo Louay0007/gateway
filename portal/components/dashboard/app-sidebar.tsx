@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/sidebar";
 import { navMain, navSecondary } from "@/components/dashboard/nav";
 import { useShellIdentity } from "@/components/dashboard/shell-identity";
+import { Button } from "@/components/ui/button";
 
 /**
  * AppSidebar — the product shell's navigation.
@@ -233,13 +234,14 @@ function UserMenu({ collapsed }: { collapsed: boolean }) {
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <form action={signOutAction}>
-          <button
+          <Button
             type="submit"
-            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-destructive outline-none select-none hover:bg-destructive/10 focus-visible:ring-2"
+            variant="ghost"
+            className="w-full justify-start gap-2 px-2 py-1.5 text-sm text-destructive hover:bg-destructive/10 hover:text-destructive"
           >
             <LogOut />
             Sign out
-          </button>
+          </Button>
         </form>
       </DropdownMenuContent>
     </DropdownMenu>

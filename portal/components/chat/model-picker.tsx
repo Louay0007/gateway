@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { aliasMeta } from "@/components/chat/aliases";
+import { Button } from "@/components/ui/button";
 
 export interface ModelOption {
   alias: string;
@@ -87,23 +88,18 @@ export function ModelPicker({
     <DropdownMenu>
       <DropdownMenuTrigger
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             disabled={disabled || options.length === 0}
-            className={cn(
-              "inline-flex h-8 items-center gap-1.5 rounded-md px-1.5 text-xs font-medium text-muted-foreground sm:h-7",
-              "transition-colors duration-150",
-              "hover:bg-accent hover:text-foreground",
-              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-              "disabled:pointer-events-none disabled:opacity-50",
-              "aria-expanded:bg-accent aria-expanded:text-foreground",
-            )}
+            className="px-1.5 text-xs font-medium text-muted-foreground"
             aria-label={meta ? `Model: ${meta.label}. Change model` : "Choose a model"}
           >
             {current ? <ZainoMark /> : null}
             <span className="text-foreground">{meta?.label ?? "No model"}</span>
             <ChevronDown className="size-3 opacity-60" aria-hidden />
-          </button>
+          </Button>
         }
       />
       <DropdownMenuContent align="start" side="top" className="w-72">

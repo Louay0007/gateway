@@ -8,6 +8,7 @@ import { aliasMeta } from "@/components/chat/aliases";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { quotaPercent } from "@/lib/chat/quota";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 /**
  * What THIS conversation has cost, summed over its assistant turns.
@@ -82,17 +83,17 @@ export function QuotaHint({
     <Dialog>
       <DialogTrigger
         render={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="xs"
             // A number that changes every turn must not interrupt a screen
             // reader mid-sentence, so the live region stays off and the
             // button's own name carries the reading on demand.
             aria-label={`Token usage. ${summary}`}
             title="Tokens used"
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-md px-1 py-0.5 text-[11px] whitespace-nowrap",
-              "text-muted-foreground/80 transition-colors hover:bg-accent hover:text-foreground",
-              "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
+              "shrink-0 gap-1.5 px-1 py-0.5 text-[11px] whitespace-nowrap text-muted-foreground/80",
               className,
             )}
           >
@@ -116,7 +117,7 @@ export function QuotaHint({
               ))}
             </span>
             <span className="tabular-nums">{exhausted ? "empty" : `${percent}%`}</span>
-          </button>
+          </Button>
         }
       />
 

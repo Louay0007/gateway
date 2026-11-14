@@ -74,20 +74,17 @@ export function ConnectPicker({
                     className="flex flex-wrap gap-1.5"
                   >
                     {items.map((t) => (
-                      <button
+                      <Button
                         key={t.id}
                         type="button"
+                        variant="toggle"
+                        size="xs"
                         onClick={() => setTool(t.id)}
                         aria-pressed={tool === t.id}
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
-                          tool === t.id
-                            ? "border-foreground bg-foreground text-background"
-                            : "border-border text-muted-foreground hover:border-foreground/30 hover:text-foreground",
-                        )}
+                        className="rounded-full px-3 py-1.5 text-xs font-medium"
                       >
                         {t.name}
-                      </button>
+                      </Button>
                     ))}
                   </div>
                 </div>
@@ -99,17 +96,13 @@ export function ConnectPicker({
         <Step n={2} label="Pick a tier">
           <div role="group" aria-label="Model tier" className="grid gap-2">
             {TIERS.map((t) => (
-              <button
+              <Button
                 key={t.alias}
                 type="button"
+                variant="toggle"
                 onClick={() => setTier(t.alias)}
                 aria-pressed={tier === t.alias}
-                className={cn(
-                  "flex items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors",
-                  tier === t.alias
-                    ? "border-foreground/40 bg-muted/60"
-                    : "border-border hover:border-foreground/20",
-                )}
+                className="h-auto items-start justify-start gap-3 rounded-lg px-3 py-2.5 text-left"
               >
                 <span
                   className={cn(
@@ -133,7 +126,7 @@ export function ConnectPicker({
                     {t.plans}
                   </span>
                 </span>
-              </button>
+              </Button>
             ))}
           </div>
         </Step>

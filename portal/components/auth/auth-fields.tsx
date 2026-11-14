@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 /**
  * AuthField — label + input + error, the only field shape in auth.
@@ -79,20 +80,23 @@ export function AuthField({
           )}
         />
         {isPassword ? (
-          <button
+          // An overlay INSIDE the field's rounded edge: full input height,
+          // no border, right radius matching the input.
+          <Button
             type="button"
+            variant="ghost"
             onClick={() => setRevealed((v) => !v)}
             onMouseDown={(e) => e.preventDefault()}
             aria-label={revealed ? "Hide password" : "Show password"}
             aria-pressed={revealed}
-            className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground transition-colors duration-150 hover:text-foreground dark:hover:text-foreground focus-visible:ring-2 focus-visible:ring-foreground/40 dark:focus-visible:ring-border/40 focus-visible:outline-none motion-reduce:transition-none"
+            className="absolute inset-y-0 right-0 h-auto w-11 rounded-l-none rounded-r-lg border-0 px-0 text-muted-foreground"
           >
             {revealed ? (
               <EyeOff className="size-4.5" aria-hidden />
             ) : (
               <Eye className="size-4.5" aria-hidden />
             )}
-          </button>
+          </Button>
         ) : null}
       </div>
       {error ? (

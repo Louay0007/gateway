@@ -156,28 +156,30 @@ export function MemoryPanel() {
                       </span>
                     )}
                   </span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => togglePin(memory)}
                     className={cn(
-                      "shrink-0 rounded p-1.5 transition-colors sm:p-1",
-                      memory.pinned
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
+                      "size-auto p-1.5 sm:p-1",
+                      memory.pinned ? "text-foreground" : "text-muted-foreground",
                     )}
                     aria-label={memory.pinned ? "Unpin this memory" : "Pin this memory"}
                     title={memory.pinned ? "Pinned — survives pruning" : "Pin"}
                   >
                     {memory.pinned ? <Pin className="size-3.5" /> : <PinOff className="size-3.5" />}
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon-xs"
                     onClick={() => remove(memory.id)}
-                    className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:text-destructive sm:p-1"
+                    className="size-auto p-1.5 text-muted-foreground hover:text-destructive sm:p-1"
                     aria-label="Delete this memory"
                   >
                     <Trash2 className="size-3.5" />
-                  </button>
+                  </Button>
                 </li>
               ))}
             </ul>

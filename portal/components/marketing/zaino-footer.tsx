@@ -3,6 +3,7 @@
 import { RuixenGradientFooter } from '@/components/ui/ruixen-gradient-footer';
 import { Ambient } from "@/components/marketing/ambient";
 import Logo from '@/assets/logo/logo';
+import { Button } from "@/components/ui/button";
 
 /**
  * THE ONE FOOTER. This replaces a second implementation
@@ -73,7 +74,7 @@ export default function ZainoFooter() {
               <Logo tone="auto" />
             </div>
             <p className="mt-4 max-w-xs text-sm text-white/60">
-              Your ultimate Claude subscription — forget the limits. Licensed cloud infrastructure with direct Anthropic agreement, request-based billing, and D17 payment for Tunisia.
+              One key, one shared token pool per plan, and a meter you can audit. Built for developers in Tunisia and the Maghreb, payable by D17.
             </p>
             <div className="mt-6 flex max-w-xs gap-2">
               <input
@@ -82,12 +83,13 @@ export default function ZainoFooter() {
                 placeholder="you@company.com"
                 className="h-9 w-full rounded-md border border-white/20 bg-white/5 px-3 text-sm text-white placeholder:text-white/40 focus:border-[#A558FB] focus:outline-none"
               />
-              <button
+              <Button
                 type="button"
-                className="h-9 shrink-0 rounded-md bg-white px-4 text-xs font-semibold text-black transition-opacity hover:opacity-90"
+                size="sm"
+                className="shrink-0 bg-white text-black hover:bg-white/90"
               >
                 Join
-              </button>
+              </Button>
             </div>
           </div>
 

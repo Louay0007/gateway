@@ -1,116 +1,109 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
-import { PricingPreview } from "@/components/marketing/pricing-preview";
-import SiteNav from '@/components/marketing/site-nav';
-import { listPlans } from "@/lib/billing/service";
-import type { PlanSummary } from "@/lib/billing/state";
-import { formatPlanPrice } from "@/lib/dashboard/format";
+import SiteNav from "@/components/marketing/site-nav";
+import ZainoFooter from "@/components/marketing/zaino-footer";
+import { PageHeader } from "@/components/ui/page-header";
+import { PricingPlans } from "@/components/marketing/pricing-plans";
+import { PricingFaq } from "@/components/marketing/pricing-faq";
+import { currentUser } from "@/lib/auth/authorize";
 
 export const metadata: Metadata = {
   title: "Pricing Plans",
   description:
-    "Two plans, priced in US dollars and payable monthly — by D17 transfer at La Poste from Tunisia.",
+    "Two plans, 50M shared tokens each, priced in US dollars or Tunisian dinars. No per-model ceiling, no markup on token rates, failed requests never billed.",
+  alternates: { canonical: "/pricing" },
 };
 
 /**
- * Rendered per request, not at build time.
+ * /pricing — the last screen before someone pays.
  *
- * This page is a server component that calls `listPlans()` — a database
- * query. Without this, Next tries to prerender it during `next build`, and
- * the build container has no database: it fails with
- * `connect ECONNREFUSED 127.0.0.1:5432` on the placeholder DSN the
- * Dockerfile sets. That took the whole image build down, not just this page.
+ * REBUILT to the pattern every competitor converged on, because the previous
+ * version was a correct price table with no structure: it never said who a
+ * plan was for, it grouped nothing, and it answered none of the questions an
+ * aggregator's buyer asks before trusting a gateway with money.
  *
- * The Dockerfile documents the invariant this restores — "every page that
- * touches the database is `force-dynamic`" — and this file was the only
- * one breaking it. It is also the correct behaviour regardless: prices come
- * from the `plans` table, so prerendering would freeze a stale snapshot
- * into the image.
+ * `force-dynamic`: `currentUser()` decides whether the CTA says "Start with
+ * Starter" or "Switch to Starter", and a prerendered variant would show the
+ * signed-out copy to a signed-in customer.
  */
 export const dynamic = "force-dynamic";
 
-/**
- * /pricing — the page three components already linked to.
- *
- * The navbar, the hero CTA, the footer and the old `PricingPreview` all
- * pointed here; the route did not exist, so every one of them was a dead
- * link that shipped. It carries the same hero + pricing treatment as the
- * landing page so the two read as one site.
- */
 export default async function PricingPage() {
-  // The badge reads the same catalog the cards below it render. It used to
-  // be a hardcoded string that had drifted a long way from the database —
-  // it advertised 59/307 DT while the plans actually cost 50/90 — so the
-  // page contradicted the pricing table two inches below it. One source,
-  // and no way for the two to disagree again.
-  const plans = await listPlans();
-  const promo = plans.find((p) => p.promo)?.promo ?? null;
+  const user = await currentUser();
 
   return (
     <>
-      <SiteNav />
+      <SiteNav active="Pricing" />
       <main className="pt-16">
-        <section className="bg-background py-16 sm:py-24">
-          <div className="mx-auto max-w-7xl px-4 lg:px-8">
-            <div className="max-w-2xl">
-              <Badge plans={plans} />
-              <h1 className="mt-3 text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-                Pay monthly, in dollars, or by D17
-              </h1>
-              <p className="mt-5 text-lg text-muted-foreground">
-                Every plan includes usage, enforces a hard spend ceiling at the
-                gateway, and hands you the key the moment payment clears.
+        <section className="border-b border-border bg-background py-14 sm:py-20">
+          <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+            <PageHeader
+              eyebrow="Pricing"
+              title="Pay monthly, in dollars or dinars"
+              lede={
+                <>
+                  Two plans, the same 50M pool each, no per-model ceiling and no
+                  markup on token rates. Pay by D17 transfer at La Poste from
+                  Tunisia, or by card anywhere — the key is issued the moment
+                  payment clears.
+                </>
+              }
+            />
+            <p className="mt-4 text-sm text-muted-foreground">
+              Not sure it works for you?{" "}
+              <Link
+                href="/playground"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
+                Try a prompt on your own key
+              </Link>{" "}
+              — the playground shows the real cost of the call.
+            </p>
+          </div>
+        </section>
+
+        <section className="bg-background py-12 sm:py-16">
+          <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+            <PricingPlans signedIn={Boolean(user)} />
+          </div>
+        </section>
+
+        <section className="border-t border-border bg-background py-12 sm:py-16">
+          <div className="mx-auto w-full max-w-5xl px-4 sm:px-6 lg:px-8">
+            <PricingFaq />
+          </div>
+        </section>
+
+        <section className="border-t border-border bg-background py-12">
+          <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <div>
+              <p className="text-base font-semibold tracking-tight text-foreground">
+                Still deciding?
               </p>
-              {promo ? (
-                <div className="mt-6 inline-flex flex-wrap items-center gap-2 rounded-full border border-warning/40 bg-warning/10 px-4 py-2 text-sm font-medium text-warning">
-                  <span aria-hidden>🎃</span>
-                  {promo.label} — {promo.percentOff}% off every plan until 1 Nov,
-                  00:00 (Tunisia). Applied automatically at checkout.
-                </div>
-              ) : null}
+              <p className="mt-1 text-sm text-muted-foreground">
+                The trial is three days and needs no card. It is the cheapest
+                way to find out.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-3 text-sm">
+              <Link
+                href="/sign-up"
+                className="inline-flex h-9 items-center rounded-lg bg-primary px-4 font-medium text-primary-foreground hover:bg-primary/80"
+              >
+                Start the trial
+              </Link>
+              <Link
+                href="/contact"
+                className="inline-flex h-9 items-center rounded-lg border border-border px-4 font-medium text-foreground hover:bg-muted"
+              >
+                Ask a question
+              </Link>
             </div>
           </div>
         </section>
-        <PricingPreview />
-        <div className="border-t border-border bg-background py-12">
-          <div className="mx-auto max-w-7xl px-4 lg:px-8">
-            <Link
-              href="/"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:text-foreground/80 hover:underline"
-            >
-              ← Back to the homepage
-            </Link>
-          </div>
-        </div>
       </main>
+      <ZainoFooter />
     </>
-  );
-}
-
-function Badge({ plans }: { plans: PlanSummary[] }) {
-  // `listPlans()` already returns the catalog in `sort_order`; sorting a
-  // copy by price would put the wrong plan first for any future tier whose
-  // price is not monotonic with its position.
-  const line = plans
-    .map((p) => {
-      const price = p.promo?.priceCents ?? p.priceCents;
-      // Both rails, from the catalog's own two numbers (0037) — a
-      // customer in Tunis pays TND, everyone else USD, and both are live.
-      const was = p.promo
-        ? ` (was ${formatPlanPrice(p.priceCents, p.priceTndMillimes)})`
-        : '';
-      return `${p.name} ${formatPlanPrice(price, p.priceTndMillimes)}${was} / ${p.interval}`;
-    })
-    .join(' · ');
-
-  // No catalog (cold DB, migration mid-flight) must not render an empty
-  // pill — better to show nothing than " · ".
-  if (!line) return null;
-
-  return (
-    <span className="inline-flex h-7 w-fit items-center rounded-full border border-foreground px-3 text-sm font-normal text-foreground">
-      {line}
-    </span>
   );
 }
