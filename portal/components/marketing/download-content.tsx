@@ -103,6 +103,17 @@ const PLATFORMS: Platform[] = [
   {
     id: "windows",
     name: "Windows",
+    // DO NOT claim SignPath until a SignPath-signed build is actually
+    // published. The programme requires this page to name them
+    // (signpath.org/terms), but the claim has to be TRUE first: the release
+    // pipeline only signs Windows when AZURE_TRUSTED_SIGNING_* secrets are
+    // present, and today they are not. A visitor who checks the signature,
+    // finds none, and sees "signed by SignPath Foundation" above the download
+    // button has been lied to about the one thing this page exists to
+    // establish.
+    //
+    // When the first SignPath-signed release ships, change this tagline to:
+    //   "NSIS installer, WebView2 included · signed by SignPath Foundation"
     tagline: "NSIS installer, WebView2 included",
     icon: <WindowsLogo className="size-5" />,
     rows: [
