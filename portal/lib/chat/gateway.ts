@@ -58,6 +58,19 @@ export interface GatewayStreamRequest {
    * forbids is the gateway's to reject, not ours to guess at.
    */
   reasoningEffort?: string;
+  /**
+   * Override where the request is sent, defaulting to the internal LiteLLM
+   * port.
+   *
+   * WHY THIS EXISTS. `gatewayKey` is normally an `sk-` credential minted by
+   * `lib/chat/key.ts`, so the internal port understands it. A route that
+   * forwards a CUSTOMER's `zn-` key cannot use that port: LiteLLM hashes
+   * only `sk-` values, so the key authenticates as nothing and comes back
+   * 401. Passing the credential edge's origin here routes the call through
+   * the one component that restores the prefix — the same path an SDK
+   * takes. Omitted everywhere else, so the chat route keeps its direct hop.
+   */
+  gatewayBase?: string;
   /** Aborted when the client disconnects, so a closed tab stops billing. */
   signal: AbortSignal;
 }
@@ -168,7 +181,7 @@ export async function streamChatCompletion(
 
   let res: Response;
   try {
-    res = await fetch(`${LITELLM_BASE}/v1/chat/completions`, {
+    res = await fetch(`${input.gatewayBase ?? LITELLM_BASE}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.gatewayKey}`,
@@ -240,7 +253,7 @@ async function streamAnthropic(
 ): Promise<GatewayStreamResult> {
   let res: Response;
   try {
-    res = await fetch(`${LITELLM_BASE}/v1/messages`, {
+    res = await fetch(`${input.gatewayBase ?? LITELLM_BASE}/v1/messages`, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${input.gatewayKey}`,

@@ -179,6 +179,13 @@ services:
 
       # Public gateway host, for the quickstart snippet on /dashboard/keys.
       API_DOMAIN: ${API_DOMAIN:?set in .env}
+      # Where a route forwarding a CUSTOMER's own zn- key must send it.
+      # LiteLLM hashes only sk- credentials, so a zn- value posted to the
+      # internal port authenticates as nothing; auth-edge restores the
+      # prefix. The edge is host-networked, which this bridge container
+      # cannot reach on 127.0.0.1, so the public origin is the address that
+      # works. /api/playground is the only current caller.
+      AGENT_API_ORIGIN: https://${API_DOMAIN:?set in .env}
       NEXT_PUBLIC_APP_URL: https://${PORTAL_DOMAIN:?set in .env}
       APP_URL: https://${PORTAL_DOMAIN:?set in .env}
 

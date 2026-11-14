@@ -48,6 +48,7 @@ import {
   GatewayError,
   type WireMessage,
 } from '@/lib/chat/gateway';
+import { CUSTOMER_KEY_BASE } from '@/lib/litellm/endpoint';
 import { log } from '@/lib/log';
 
 export const runtime = 'nodejs';
@@ -172,10 +173,17 @@ export async function POST(request: Request): Promise<Response> {
 
   let upstream;
   try {
+    // THROUGH THE EDGE, NOT DIRECTLY. `streamChatCompletion` posts to the
+    // internal LiteLLM port, which hashes only `sk-` keys — a customer's
+    // `zn-` value authenticates as nothing there and comes back 401, which
+    // reads like a bad key rather than a wrong door. `gatewayBase` routes
+    // this one call through the credential edge, which restores the prefix
+    // and changes nothing else: the same path a customer's own SDK takes.
     upstream = await streamChatCompletion({
       alias,
       messages,
       gatewayKey: key,
+      gatewayBase: CUSTOMER_KEY_BASE,
       ...(temperature !== undefined ? { temperature } : {}),
       ...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
       signal: request.signal,
