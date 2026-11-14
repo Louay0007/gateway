@@ -18,8 +18,8 @@ export type ChatNavItem = {
  * two mental models of the same screen.
  */
 export const chatNav: ChatNavItem[] = [
-  { title: "Settings", href: "/settings", icon: Settings },
-  { title: "API keys", href: "/settings?tab=keys", icon: KeyRound },
+  { title: "Settings", href: "/dashboard/settings", icon: Settings },
+  { title: "API keys", href: "/dashboard/keys", icon: KeyRound },
   { title: "Download", href: "/download", icon: Download },
   { title: "Operations", href: "/admin", icon: ShieldCheck, staffOnly: true },
 ];

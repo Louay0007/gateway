@@ -21,19 +21,35 @@ export type NavItem = {
 };
 
 /** The product surface — the customer's whole job list. */
+/**
+ * THE CONSOLE'S PRODUCT SURFACE, in the order a customer actually works.
+ *
+ * WHY THIS ORDER. The previous list was: Chat, Overview, Docs, Usage, Keys,
+ * Billing, Redeem, Download. That mixes three different kinds of thing into
+ * one flat column — the product (Chat), the console's own pages (Overview,
+ * Usage, Keys, Billing), an onboarding step (Redeem), and two marketing
+ * pages (Docs, Download). A nav is the map of a product, and a map that
+ * mixes a destination with an advertisement of one is not a map.
+ *
+ * Now it reads as the customer's job, in sequence:
+ *
+ *   Chat          what you came for
+ *   Overview      where am I, how much is left
+ *   Usage         what have I actually spent
+ *   API keys      what I hand to my code
+ *   Billing       what I pay
+ *   Docs          how to wire it (in-product, with the keys CTA)
+ *
+ * `/download` moved to the footer: it is a marketing page, not a console
+ * page, and it already has an entry in the public navigation.
+ */
 export const navMain: NavItem[] = [
-  // First, because chat is the product and this shell is the console
-  // around it. Without this entry the only route back to /chat was the
-  // landing page: a signed-in customer who opened /dashboard had no way
-  // in except typing the URL.
   { title: "Chat", href: "/chat", icon: MessageSquare },
   { title: "Overview", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Docs", href: "/dashboard/docs", icon: BookOpen },
   { title: "Usage", href: "/dashboard/usage", icon: BarChart3 },
   { title: "API keys", href: "/dashboard/keys", icon: KeyRound },
   { title: "Billing", href: "/dashboard/billing", icon: CreditCard },
-  { title: "Redeem", href: "/dashboard/redeem", icon: Gift },
-{ title: "Download", href: "/download", icon: Download },
+  { title: "Docs", href: "/dashboard/docs", icon: BookOpen },
 ];
 
 /**
@@ -45,11 +61,19 @@ export const navMain: NavItem[] = [
  * representation. Listing the queue separately would imply it lives
  * somewhere other than the console.
  */
+/**
+ * Account-level and staff destinations.
+ *
+ * Redeem sits here, not in navMain. It is a one-time onboarding action, not
+ * a page a customer returns to — putting it in the primary column gave it
+ * the same visual weight as Billing, which is where money actually moves.
+ */
 export const navSecondary: NavItem[] = [
   // `?tab=profile`, not bare: this entry sits under Overview / Usage /
   // Billing / API keys, so a console user clicking "Settings" means the
   // account, not the plan they were just looking at. The page renders all
   // six tabs either way — this only picks the landing one.
+  { title: "Redeem a code", href: "/dashboard/redeem", icon: Gift },
   { title: "Settings", href: "/dashboard/settings?tab=profile", icon: Settings },
   {
     title: "Operations",
