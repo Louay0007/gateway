@@ -6,8 +6,33 @@ import { cn } from '@/lib/utils';
 import { Ambient } from '@/components/marketing/ambient';
 import React, { useRef } from 'react';
 
-const ClaudeCodeIcon = () => (
-  <img src="/images/claude-ai-icon.svg" alt="Claude AI" className="w-10 h-10 object-contain" />
+/**
+ * The left node is "your editor", not a named vendor.
+ *
+ * TRADEMARK RULE (plans/linkedin-marketing-posts.md §1): a third-party logo
+ * in marketing material implies sponsorship or affiliation, which we do not
+ * have and cannot claim. This rendered the Claude mark on the homepage —
+ * the single most visible surface we own. Compatibility is stated in text
+ * on /connect and /docs, where naming a wire format is nominative use.
+ *
+ * A neutral terminal glyph says the same thing without the claim: the arrow
+ * goes from your tool to Zaino.
+ */
+const ToolIcon = () => (
+  <svg
+    width="28"
+    height="28"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden
+  >
+    <polyline points="4 17 10 11 4 5" />
+    <line x1="12" y1="19" x2="20" y2="19" />
+  </svg>
 );
 
 const ZainoLogo = () => (
@@ -23,7 +48,7 @@ const UserIcon = () => (
 
 export default function AnimatedBeamSection({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const claudeRef = useRef<HTMLDivElement>(null);
+  const toolRef = useRef<HTMLDivElement>(null);
   const zainoRef = useRef<HTMLDivElement>(null);
   const user1Ref = useRef<HTMLDivElement>(null);
   const user2Ref = useRef<HTMLDivElement>(null);
@@ -53,10 +78,10 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           ref={containerRef}
         >
           <div className='flex h-full w-full flex-row items-stretch justify-between gap-8'>
-            {/* Left: Claude Code solo */}
+            {/* Left: your tool — no vendor mark, see ToolIcon above. */}
             <div className='flex flex-col justify-center'>
-              <Circle ref={claudeRef} className="h-18 w-18 bg-[#0b0714] border-[#A558FB]/40 text-[#A558FB]">
-                <ClaudeCodeIcon />
+              <Circle ref={toolRef} className="h-18 w-18 bg-[#0b0714] border-[#A558FB]/40 text-[#A558FB]">
+                <ToolIcon />
               </Circle>
             </div>
             {/* Center: Zaino AI */}
@@ -91,11 +116,11 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           <AnimatedBeam containerRef={containerRef} fromRef={user3Ref} toRef={zainoRef} duration={3} />
           <AnimatedBeam containerRef={containerRef} fromRef={user4Ref} toRef={zainoRef} duration={3} />
           <AnimatedBeam containerRef={containerRef} fromRef={user5Ref} toRef={zainoRef} duration={3} />
-          {/* AnimatedBeam: Zaino → Claude Code */}
-          <AnimatedBeam containerRef={containerRef} fromRef={zainoRef} toRef={claudeRef} duration={3} reverse gradientStartColor="#4922E5" gradientStopColor="#A558FB" />
+          {/* AnimatedBeam: your tool → Zaino */}
+          <AnimatedBeam containerRef={containerRef} fromRef={zainoRef} toRef={toolRef} duration={3} reverse gradientStartColor="#4922E5" gradientStopColor="#A558FB" />
         </div>
 
-        {/* Right: TextReveal paragraph about Claude Code $20 limitations */}
+        {/* Right: the throttling contrast, stated without naming a vendor */}
         <div className="w-full lg:w-1/2 flex flex-col justify-center space-y-4">
           <TextReveal
             text="Other tools cap your usage and throttle you mid-flow. You hit limits, wait hours, and lose momentum."
@@ -109,7 +134,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
             className="text-base sm:text-lg text-white/60 leading-relaxed"
           />
           <TextReveal
-            text="Zaino gives you every model with no throttling, no surprises, and no waiting. Just code."
+            text="Zaino gives you a shared token pool and no per-minute throttling — so a heavy hour costs you an hour, not a day. Just code."
             mode="word"
             as="p"
             delay={0.8}

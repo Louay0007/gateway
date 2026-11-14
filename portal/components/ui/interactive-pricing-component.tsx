@@ -80,9 +80,11 @@ const zainoPlans: PricingPlan[] = [
     priceLabel: null,
     customPrice: "Let's Talk",
     features: [
-      { name: 'Unlimited Haiku 5.5 tokens', included: true },
-      { name: 'Unlimited Sonnet 5.5 tokens', included: true },
-      { name: 'Unlimited Opus 5.5 tokens', included: true },
+      // Alias-only, and true: no plan is unlimited, and naming the engine
+      // would leak the upstream vendor on a customer-facing pricing card.
+      { name: 'All four tiers — fast, smart, frontier, fable', included: true },
+      { name: 'High-volume shared token pool', included: true },
+      { name: 'Priority routing', included: true },
       { name: 'Opus 5.5 access', included: true },
       { name: 'Dedicated support & SLA', included: true },
     ],
