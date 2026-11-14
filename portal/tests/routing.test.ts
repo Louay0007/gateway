@@ -93,13 +93,21 @@ describe('route map', () => {
     expect(renderers).toEqual(['/dashboard/settings']);
   });
 
-  it('keeps the retired /settings as a redirect, not a 404', () => {
-    const src = readFileSync(join(PORTAL, 'app/settings/page.tsx'), 'utf8');
+  it('keeps the retired /settings as a real HTTP redirect, not a 404', () => {
     // The chat sidebar linked here for months; a bookmark must land on the
     // right tab rather than a dead end.
-    expect(src).toContain('/dashboard/settings');
-    expect(src).toContain('searchParams');
-    expect(src).toContain('redirect(');
+    //
+    // It lives in next.config, NOT in a page. A page-level redirect() in a
+    // streamed server component returns 200 with a client-side meta tag, so
+    // curl, a crawler and a fetch all see success and stop — which is what
+    // the first attempt did, verified against the live box.
+    const cfg = readFileSync(join(PORTAL, 'next.config.ts'), 'utf8');
+    expect(cfg).toContain("source: '/settings'");
+    expect(cfg).toContain("destination: '/dashboard/settings'");
+    expect(cfg).toContain('permanent: true');
+
+    // And the duplicate page must be gone, or both would serve.
+    expect(() => readFileSync(join(PORTAL, 'app/settings/page.tsx'))).toThrow();
   });
 
   it('has no route under two shells', () => {

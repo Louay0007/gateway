@@ -92,7 +92,7 @@ route. A reachability audit must whitelist them.
 
 | From | To | Why |
 |---|---|---|
-| `/settings` | `/dashboard/settings` (query preserved) | the chat shell's old settings URL. Kept so existing bookmarks land on the right tab instead of a 404. |
+| `/settings` | `/dashboard/settings` (query preserved) | the chat shell's old settings URL. Kept so existing bookmarks land on the right tab instead of a 404. **Lives in `next.config.ts redirects()`, not a page** — a page-level `redirect()` in a streamed server component answers 200 with a client-side meta tag, which a curl or crawler never follows. |
 
 One redirect only. A redirect table that grows is a sign the canonical route
 moved without the old one being retired.

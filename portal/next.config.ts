@@ -71,6 +71,34 @@ const CSP = [
 const nextConfig: NextConfig = {
   output: 'standalone',
 
+  /**
+   * Redirects that must happen BEFORE React renders.
+   *
+   * WHY HERE AND NOT `redirect()` IN A PAGE. A page-level `redirect()` in a
+   * streamed server component emits a client-side meta-tag redirect, so the
+   * HTTP response is a 200 and only a browser follows it — a curl, a crawler
+   * or a fetch sees success and stops. Next's own redirecting guide says to
+   * use this table for "redirect an incoming request based on a path", which
+   * is exactly what a retired URL is.
+   *
+   * The trailing-slash-free path keeps the query string automatically
+   * (`?tab=keys` survives), which matters: the chat sidebar linked
+   * `/settings?tab=keys` for months and a bookmark must land on the right
+   * tab rather than the default one.
+   */
+  async redirects() {
+    return [
+      {
+        source: '/settings',
+        destination: '/dashboard/settings',
+        // 308: the old URL is not coming back, and preserving the method
+        // means a POST to a retired path fails loudly instead of silently
+        // becoming a GET.
+        permanent: true,
+      },
+    ];
+  },
+
   reactStrictMode: true,
 
   // Next 16 blocks cross-origin dev requests by default, and the portal
