@@ -96,6 +96,35 @@ const nextConfig: NextConfig = {
         // becoming a GET.
         permanent: true,
       },
+      // Settings tabs that became pages. Declared HERE, not with
+      // `redirect()` in the settings page, for the same reason as the entry
+      // above: a redirect thrown during a streamed server render returns 200
+      // with a client-side meta tag, so curl, a crawler and a fetch never
+      // follow it. Measured on the live box twice.
+      {
+        source: '/dashboard/settings',
+        has: [{ type: 'query', key: 'tab', value: 'plan' }],
+        destination: '/dashboard/billing',
+        permanent: false,
+      },
+      {
+        source: '/dashboard/settings',
+        has: [{ type: 'query', key: 'tab', value: 'billing' }],
+        destination: '/dashboard/billing',
+        permanent: false,
+      },
+      {
+        source: '/dashboard/settings',
+        has: [{ type: 'query', key: 'tab', value: 'usage' }],
+        destination: '/dashboard/usage',
+        permanent: false,
+      },
+      {
+        source: '/dashboard/settings',
+        has: [{ type: 'query', key: 'tab', value: 'keys' }],
+        destination: '/dashboard/keys',
+        permanent: false,
+      },
     ];
   },
 

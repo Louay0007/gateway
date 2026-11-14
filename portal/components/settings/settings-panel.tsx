@@ -83,7 +83,15 @@ const MOVED_TO_PAGE: Record<string, string> = {
 };
 export type SettingsTab = (typeof TABS)[number];
 
-/** Where a retired settings tab now lives, or null when it is a real tab. */
+/**
+ * Where a retired settings tab now lives, or null when it is a real tab.
+ *
+ * INFORMATIONAL — the forwarding itself is `redirects()` in next.config.ts.
+ * A page-level redirect() in a streamed server render answers 200 with a
+ * client-side meta tag, which no crawler, curl or fetch follows, so the
+ * config is the only place it actually works. This map exists so the two
+ * lists can be compared by hand and by test.
+ */
 export function movedTab(value: string | undefined): string | null {
   if (!value) return null;
   return MOVED_TO_PAGE[value] ?? null;

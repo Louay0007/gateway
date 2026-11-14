@@ -1,11 +1,6 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 
-import {
-  SettingsPanel,
-  movedTab,
-  resolveSettingsTab,
-} from "@/components/settings/settings-panel";
+import { SettingsPanel, resolveSettingsTab } from "@/components/settings/settings-panel";
 
 export const metadata: Metadata = { title: "Account Settings" };
 export const dynamic = "force-dynamic";
@@ -32,12 +27,10 @@ export default async function DashboardSettingsPage({
 }) {
   const sp = await searchParams;
 
-  // A tab that now has its own page forwards there. Without this, an old
-  // bookmarked /dashboard/settings?tab=keys would fall through
-  // resolveSettingsTab and land on Profile — which looks like the link
-  // worked, so nobody would report it.
-  const moved = movedTab(Array.isArray(sp.tab) ? sp.tab[0] : sp.tab);
-  if (moved) redirect(moved);
+  // Retired tabs (`?tab=plan|usage|keys|billing`) are forwarded by
+  // `redirects()` in next.config BEFORE this renders. A redirect() here
+  // returns 200 with a client-side meta tag, so a curl or a crawler would
+  // see the old page as alive — measured on the live box.
 
   const tab = resolveSettingsTab(sp.tab);
 

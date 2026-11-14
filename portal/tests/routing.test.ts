@@ -129,11 +129,22 @@ describe('route map', () => {
       expect(code, `${view} has its own page and must not be a settings tab`).not.toContain(view);
     }
 
-    // The retired tabs must forward rather than fall back to Profile.
+    // The retired tabs must be forwarded, and the forwarding must live in
+    // next.config — a page-level redirect() returns 200 during a streamed
+    // render, so nothing but a browser follows it.
     expect(code).toContain('MOVED_TO_PAGE');
-    expect(code).toContain('/dashboard/billing');
-    expect(code).toContain('/dashboard/keys');
-    expect(code).toContain('/dashboard/usage');
+    const cfg = readFileSync(join(PORTAL, 'next.config.ts'), 'utf8');
+    for (const [tab, dest] of [
+      ['plan', '/dashboard/billing'],
+      ['billing', '/dashboard/billing'],
+      ['usage', '/dashboard/usage'],
+      ['keys', '/dashboard/keys'],
+    ] as const) {
+      expect(cfg, `?tab=${tab} must forward in next.config`).toContain(`value: '${tab}'`);
+      expect(cfg).toContain(dest);
+    }
+    // And the page must not re-implement it.
+    expect(code).not.toContain('redirect(moved)');
   });
 
   it('has no route under two shells', () => {
