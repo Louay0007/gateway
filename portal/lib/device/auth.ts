@@ -45,6 +45,19 @@ export async function orgIdForKey(key: string): Promise<string | null> {
  * Both device routes already resolve the key; a second query for one column
  * would be a second chance for the two to disagree. NULL means the row has
  * no expiry — a key minted before device TTLs existed, or an org key.
+ *
+ * EXPIRED KEYS ARE REJECTED HERE, not left for the gateway wall to catch.
+ *
+ * The device flow mints a 30-day key. Until this check existed, an expired
+ * key still resolved here: `/api/device/usage` answered 200, so the desktop
+ * looked signed in, and the failure surfaced only when a prompt reached
+ * LiteLLM and came back 401/403 — indistinguishable from a revoked key, a
+ * wrong alias or a spent pool. The app could not tell "your key expired,
+ * sign in again" from "something is broken", which is the one message a
+ * metered product must never fumble.
+ *
+ * Kept in SQL rather than as a JS comparison on `expiry` so the database and
+ * this function cannot disagree about what "now" means.
  */
 export async function keyInfoFor(
   key: string,
@@ -56,6 +69,7 @@ export async function keyInfoFor(
      WHERE ak.key_hash = ${keyDigest(key)}
        AND ak.revoked_at IS NULL
        AND o.status = 'active'
+       AND (ak.expires_at IS NULL OR ak.expires_at > now())
      LIMIT 1
   `)) as unknown as { organization_id: string; expires_at: Date | string | null }[];
   if (!row) return null;
