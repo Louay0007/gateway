@@ -276,7 +276,7 @@ function UserMenu({ collapsed, isStaff }: { collapsed: boolean; isStaff: boolean
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem render={<Link href="/settings?tab=plan" />}>Plan and usage</DropdownMenuItem>
+        <DropdownMenuItem render={<Link href="/dashboard/billing" />}>Plan and usage</DropdownMenuItem>
         {destinations.map((item) => (
           <DropdownMenuItem key={item.href} render={<Link href={item.href} />}>
             <item.icon />

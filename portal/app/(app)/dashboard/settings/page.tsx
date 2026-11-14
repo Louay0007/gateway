@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { SettingsPanel, resolveSettingsTab } from "@/components/settings/settings-panel";
+import {
+  SettingsPanel,
+  movedTab,
+  resolveSettingsTab,
+} from "@/components/settings/settings-panel";
 
 export const metadata: Metadata = { title: "Account Settings" };
 export const dynamic = "force-dynamic";
@@ -26,6 +31,14 @@ export default async function DashboardSettingsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
+
+  // A tab that now has its own page forwards there. Without this, an old
+  // bookmarked /dashboard/settings?tab=keys would fall through
+  // resolveSettingsTab and land on Profile — which looks like the link
+  // worked, so nobody would report it.
+  const moved = movedTab(Array.isArray(sp.tab) ? sp.tab[0] : sp.tab);
+  if (moved) redirect(moved);
+
   const tab = resolveSettingsTab(sp.tab);
 
   return (
@@ -41,7 +54,8 @@ export default async function DashboardSettingsPage({
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Your plan, usage, keys and account — in one place.
+          Your account: profile, how the model remembers you, and closing
+          the account. Plan, usage, keys and billing each have their own page.
         </p>
       </div>
       <SettingsPanel tab={tab} shell="console" />

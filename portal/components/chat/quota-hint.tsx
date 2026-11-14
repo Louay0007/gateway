@@ -193,7 +193,7 @@ export function QuotaHint({
         </p>
 
         <Link
-          href="/settings?tab=plan"
+          href="/dashboard/billing"
           className="text-[12px] text-foreground/80 underline underline-offset-3 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           Plan and full usage

@@ -16,18 +16,25 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
  *      back, and "copy this link" copied the wrong tab. `?tab=` is a
  *      documented entry point (the 402 in chat, the header key button), so
  *      the URL has to follow the click, not just lead it. `replace`, not
- *      `push`: seven tab clicks should not be seven Back presses.
+ *      `push`: tab clicks should not be Back presses.
  *
- *   2. Seven `flex-1` triggers in one `overflow-x-auto` strip. At 375px
+ *   2. The strip wraps rather than scrolling. With seven triggers at 375px
  *      each got ~46px and every label past "Plan" was clipped mid-word with
- *      no scrollbar to say so. Wrapping to two rows shows all seven at any
- *      width and needs no scroll affordance at all.
+ *      no scrollbar to say so. It is three tabs now, but the wrap rule stays
+ *      because the failure mode was invisible and the fix costs nothing.
+ */
+/**
+ * Three tabs, not seven.
+ *
+ * The retired four — Plan, Usage, API keys, Billing — each rendered a
+ * component that also has its own sidebar page, i.e. the same screen at two
+ * URLs. They are now links in the sidebar, and an old deep link to them is
+ * forwarded rather than rendered (see MOVED_TO_PAGE in settings-panel.tsx).
+ *
+ * Keeping them as disabled tabs would have been the worst option: a control
+ * that looks clickable and explains its own absence.
  */
 const TABS = [
-  ["plan", "Plan"],
-  ["usage", "Usage"],
-  ["keys", "API keys"],
-  ["billing", "Billing"],
   ["profile", "Profile"],
   ["ai", "AI"],
   ["danger", "Danger"],

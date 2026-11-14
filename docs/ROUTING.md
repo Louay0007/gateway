@@ -63,7 +63,7 @@ the retired `/settings`.
 | `/dashboard/usage` | ledger, chart, export |
 | `/dashboard/keys` | keys |
 | `/dashboard/billing` | plan, payment, comparison |
-| `/dashboard/settings` | 7 tabs: plan, usage, keys, billing, profile, AI, danger |
+| `/dashboard/settings` | **3 tabs: profile, AI, danger** — account-level only. `?tab=plan|usage|keys|billing` forwards to the page that owns it |
 | `/dashboard/redeem` | trial code — a one-time action, so it sits under Account in the sidebar |
 | `/dashboard/docs` | the integration guide inside the product, CTA → keys |
 
@@ -120,3 +120,6 @@ moved without the old one being retired.
    only by typing its URL.
 6. **Handoff routes are whitelisted in the audit**, not deleted, because the
    absence of an internal link is their design.
+7. **A page with a sidebar destination does not also get a settings tab.**
+   Settings owns account-level things only; if it has its own page, render it
+   there and forward any old tab link.

@@ -110,6 +110,32 @@ describe('route map', () => {
     expect(() => readFileSync(join(PORTAL, 'app/settings/page.tsx'))).toThrow();
   });
 
+  it('never renders a page component in a settings tab', () => {
+    // THE DUPLICATION THIS PREVENTS. /dashboard/settings used to carry Plan,
+    // Usage, API keys and Billing tabs that rendered the SAME components as
+    // the four sidebar pages — the same screen at two URLs, two back-button
+    // entries, and two places to fix a bug. Settings now owns account-level
+    // things only: profile, AI, danger.
+    const src = readFileSync(
+      join(PORTAL, 'components/settings/settings-panel.tsx'),
+      'utf8',
+    );
+    const code = src
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '');
+
+    // None of the page-level views may be rendered here any more.
+    for (const view of ['<BillingView', '<UsageView', '<KeysView', '<PaymentHistory']) {
+      expect(code, `${view} has its own page and must not be a settings tab`).not.toContain(view);
+    }
+
+    // The retired tabs must forward rather than fall back to Profile.
+    expect(code).toContain('MOVED_TO_PAGE');
+    expect(code).toContain('/dashboard/billing');
+    expect(code).toContain('/dashboard/keys');
+    expect(code).toContain('/dashboard/usage');
+  });
+
   it('has no route under two shells', () => {
     // /dashboard/docs is the ONE intentional repeat: same body, different
     // intent (in-product CTA points at keys). Everything else is unique.

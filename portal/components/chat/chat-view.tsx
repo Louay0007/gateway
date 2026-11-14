@@ -713,7 +713,7 @@ export function ChatView({
                         className="mt-3"
                         size="sm"
                         nativeButton={false}
-                        render={<Link href="/settings?tab=plan" />}
+                        render={<Link href="/dashboard/billing" />}
                       >
                         See plans
                       </Button>
