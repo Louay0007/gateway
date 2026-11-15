@@ -93,8 +93,7 @@ const fr: Dict = {
   'd17.email_approved_body':
     'Bonjour,\n\nFélicitations ! Votre paiement D17 de {amount} DT a été vérifié et votre abonnement {plan} est maintenant actif.\n\n' +
     'Votre plan Pro inclut :\n' +
-    '• 210M tokens Smart (Sonnet 5.5) par mois\n' +
-    '• 85M tokens Frontier (Opus 5.5) par mois\n' +
+    '• 50M jetons partagés entre Fast, Smart et Frontier, par mois\n' +
     '• 300 requêtes par minute\n' +
     '• 1,5M tokens par minute\n' +
     '• Jusqu\'à 15 clés API\n' +
@@ -135,8 +134,6 @@ const fr: Dict = {
   'd17.plan_current': 'Plan actuel',
   'd17.plan_choose': 'Choisir ce plan',
   'd17.plan_upgrade': 'Passer à ce plan',
-  'd17.feat_fast_model': 'Modèle rapide (Claude Sonnet)',
-  'd17.feat_smart_model': 'Modèle intelligent (Claude Opus)',
   'd17.feat_frontier_model': 'Modèle frontier (entreprise)',
   'd17.feat_keys': '{count} clés API',
   'd17.feat_rpm': '{count} appels/min',
@@ -218,8 +215,7 @@ const ar: Dict = {
   'd17.email_approved_body':
     'مرحباً،\n\nتهانينا! تم التحقق من دفعتك عبر D17 بمبلغ {amount} د.ت واشتراك {plan} نشط الآن.\n\n' +
     'يتضمن خطة Pro:\n' +
-    '• 1000 طلب Smart (Sonnet 5) شهرياً\n' +
-    '• 500 طلب Frontier (Opus 5.5) شهرياً\n' +
+    '• 50 مليون رمز مشترك بين Fast وSmart وFrontier شهرياً\n' +
     '• 300 طلب في الدقيقة\n' +
     '• 1.5 مليون رمز في الدقيقة\n' +
     '• حتى 15 مفتاح API\n' +
@@ -259,8 +255,6 @@ const ar: Dict = {
   'd17.plan_current': 'الخطة الحالية',
   'd17.plan_choose': 'اختر هذه الخطة',
   'd17.plan_upgrade': 'الترقية إلى هذه الخطة',
-  'd17.feat_fast_model': 'نموذج سريع (Claude Sonnet)',
-  'd17.feat_smart_model': 'نموذج ذكي (Claude Opus)',
   'd17.feat_frontier_model': 'نموذج frontier (مؤسسات)',
   'd17.feat_keys': '{count} مفاتيح API',
   'd17.feat_rpm': '{count} طلب/دقيقة',
@@ -342,8 +336,7 @@ const en: Dict = {
   'd17.email_approved_body':
     'Hello,\n\nCongratulations! Your D17 payment of {amount} DT has been verified and your {plan} subscription is now active.\n\n' +
     'Your Pro plan includes:\n' +
-    '• 210M Smart tokens (Sonnet 5.5) per month\n' +
-    '• 85M Frontier tokens (Opus 5.5) per month\n' +
+    '• 50M tokens shared across Fast, Smart and Frontier, per month\n' +
     '• 300 requests per minute\n' +
     '• 1.5M tokens per minute\n' +
     '• Up to 15 API keys\n' +
@@ -384,8 +377,6 @@ const en: Dict = {
   'd17.plan_current': 'Current plan',
   'd17.plan_choose': 'Choose this plan',
   'd17.plan_upgrade': 'Upgrade to this plan',
-  'd17.feat_fast_model': 'Fast model (Claude Sonnet)',
-  'd17.feat_smart_model': 'Smart model (Claude Opus)',
   'd17.feat_frontier_model': 'Frontier model (enterprise)',
   'd17.feat_keys': '{count} API keys',
   'd17.feat_rpm': '{count} calls/min (rate limit)',

@@ -55,7 +55,7 @@ const entries: ChangelogEntry[] = [
     date: 'Oct 22, 2026',
     title: 'Pro Refocus — 1,000 Smart + 500 Frontier',
     description:
-      'Pro is now the power plan: 1,000 Sonnet 5.5 (Smart) prompts and 500 Opus 5.5 (Frontier) prompts per period. Fast (Haiku 5.5) stays Starter-only, so each tier has a clear job.',
+      'Pro is now the power plan: 1,000 Smart prompts and 500 Frontier prompts per period. Fast stays Starter-only, so each tier has a clear job.',
     details: [
       {
         heading: 'What changed',
@@ -95,20 +95,20 @@ const entries: ChangelogEntry[] = [
   {
     version: 'v1.1.0',
     date: 'Oct 21, 2026',
-    title: 'New Fleet — Fast (Haiku 5.5), Smart (Sonnet 5.5), Frontier (Opus 5.5)',
+    title: 'New fleet — Fast, Smart and Frontier',
     description:
-      'Zaino is back live on brand-new official infrastructure. The gateway now serves three models behind our three aliases: Fast rides Haiku 5.5, Smart rides Sonnet 5.5, and Frontier — back in the Pro plan — rides Opus 5.5. The dashboard, docs, and pricing now reflect the real models and rates.',
+      'Zaino is back live on brand-new official infrastructure. The gateway serves three tiers behind our three aliases: Fast, Smart, and Frontier — back in the Pro plan. The dashboard, docs, and pricing now reflect the real rates.',
     details: [
       {
-        heading: 'Fast — Haiku 5.5',
+        heading: 'Fast',
         body: 'High-volume work at $1.00 / $5.00 per Mtok: drafts, classification, bulk transforms, chat and copilots. Available on Starter and Pro. Request it with "model": "fast".',
       },
       {
-        heading: 'Smart — Sonnet 5.5',
+        heading: 'Smart',
         body: 'Everyday balanced tier at $3.00 / $15.00 per Mtok: agents, tool calling, support bots. Available on Starter and Pro. Request it with "model": "smart".',
       },
       {
-        heading: 'Frontier returns — Opus 5.5',
+        heading: 'Frontier returns',
         body: 'Mythos-class reasoning at $15.00 / $75.00 per Mtok for the hardest long-running workloads: deep reasoning, multi-step agents, hard tasks. Pro only, with 250 prompts per period. Request it with "model": "frontier". Frontier was held back during the migration and is now fully metered and billed.',
       },
       {
