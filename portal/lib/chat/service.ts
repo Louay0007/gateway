@@ -17,6 +17,8 @@
 import { sql } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { buildHistoryMessages, type HistoryRow } from '@/lib/chat/history';
+import type { WireMessage } from '@/lib/chat/gateway';
 
 /**
  * A timestamp column as returned by RAW `db.execute`.
@@ -290,19 +292,64 @@ function parseSources(raw: unknown): MessageRow['sources'] {
  * stored rows the only truth, and drops the failed turns so a retry does
  * not re-send an error an empty assistant message.
  */
+/**
+ * The transcript the MODEL sees: text plus the pixels of any past image.
+ *
+ * WHY THIS IS NOT `SELECT role, content`. It used to be, and that is a real
+ * defect, not a simplification:
+ *
+ *   `messages.content` holds what the user TYPED. An image's bytes live in
+ *   `attachments.content_bytes`, linked through `message_attachments`, and
+ *   were never joined here. So the picture reached the model on the turn it
+ *   was attached (the route sends it inline) and then VANISHED from the
+ *   history on the very next follow-up — "what about the red one?" answered
+ *   by a model that could no longer see any image, with no error anywhere.
+ *
+ * The images are re-added from the same rows the upload wrote, so a replayed
+ * turn is byte-identical to the one that went out live. They are capped at
+ * the same inline ceiling `imageBlockFor` enforces, for the same reason:
+ * every past image is re-sent as base64 on every later turn, and base64
+ * inflates by a third.
+ *
+ * ONLY images. A document's extracted text is already inside `content` —
+ * `buildUserTurn` inlined it — so joining files here would send the same
+ * PDF twice.
+ */
 export async function historyForModel(
   conversationId: string,
   limit = 40,
-): Promise<{ role: 'user' | 'assistant'; content: string }[]> {
+): Promise<WireMessage[]> {
+  // The SHAPING lives in ./history.ts so its rule is testable without a
+  // database. This function only reads the rows it needs.
   const rows = (await db.execute(sql`
-    SELECT role, content
+    SELECT role, content,
+           -- Only sendable image bytes. A row with no pixels (every document,
+           -- any image refused at upload) contributes nothing here — its text
+           -- is already inside content (buildUserTurn inlined it), so
+           -- joining again would send the same PDF twice.
+           COALESCE((
+             SELECT jsonb_agg(jsonb_build_object(
+                      'filename', a.filename,
+                      'media_type', a.mime_type,
+                      'data', encode(a.content_bytes, 'base64'))
+                    ORDER BY ma.position)
+               FROM message_attachments ma
+               JOIN attachments a ON a.id = ma.attachment_id
+              WHERE ma.message_id = recent.id
+                AND a.kind = 'image'
+                AND a.content_bytes IS NOT NULL
+           ), '[]'::jsonb) AS images
       FROM (
-        SELECT role, content, created_at, id
+        SELECT id, role, content, created_at
           FROM messages
          WHERE conversation_id = ${conversationId}::uuid
            AND status IN ('complete', 'aborted')
            AND role IN ('user', 'assistant')
-           AND content <> ''
+           -- An EMPTY assistant row is normal (created streaming, then
+           -- finished by finishMessage). An empty USER row carrying an image
+           -- is exactly the case the image replay exists for, so the text
+           -- filter must not exclude it.
+           AND (content <> '' OR role = 'user')
            -- The retracted answer must not be context either: sending it
            -- would teach the model its own discarded reply was accepted.
            AND COALESCE(meta->>'superseded', 'false') <> 'true'
@@ -310,8 +357,9 @@ export async function historyForModel(
          LIMIT ${limit}
       ) recent
      ORDER BY created_at, id
-  `)) as unknown as { role: 'user' | 'assistant'; content: string }[];
-  return rows;
+  `)) as unknown as HistoryRow[];
+
+  return buildHistoryMessages(rows);
 }
 
 /**
