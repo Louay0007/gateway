@@ -82,6 +82,14 @@ export function QuotaPoolMeter({
           Shared across {entitled.join(", ")} — spend it on whichever you like.
         </p>
       ) : null}
+      {/* One ledger for every route. A chat turn, a raw /v1/messages call and
+          a Claude Desktop request all write the same usage_records row and
+          draw this same bar, so "27M used" is never chat-only or API-only.
+          Saying so here is what stops the two from looking like separate
+          meters that disagree. */}
+      <p className="text-xs text-muted-foreground">
+        Counts every request on your key — chat, API, and Claude Desktop alike.
+      </p>
     </div>
   );
 }
