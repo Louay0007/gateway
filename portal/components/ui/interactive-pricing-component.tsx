@@ -66,7 +66,6 @@ const zainoPlans: PricingPlan[] = [
       { name: '50M shared tokens/month', included: true },
       { name: 'Spendable on Smart, Frontier and Fable', included: true },
       { name: 'Advanced agent workflows', included: true },
-      { name: 'Priority support', included: true },
       { name: 'Priority queue', included: true },
       { name: 'Custom integrations', included: true },
     ],
@@ -84,7 +83,6 @@ const zainoPlans: PricingPlan[] = [
       // would leak the upstream vendor on a customer-facing pricing card.
       { name: 'All four tiers — fast, smart, frontier, fable', included: true },
       { name: 'High-volume shared token pool', included: true },
-      { name: 'Priority routing', included: true },
       { name: 'Dedicated support & SLA', included: true },
     ],
     buttonText: "Let's Talk",
@@ -92,12 +90,6 @@ const zainoPlans: PricingPlan[] = [
   },
 ];
 
-const MODEL_LABELS: Record<string, string> = {
-  fast: 'Fast',
-  smart: 'Smart',
-  frontier: 'Frontier',
-  fable: 'Fable',
-};
 
 /**
  * Map a backend plan onto the landing card.
