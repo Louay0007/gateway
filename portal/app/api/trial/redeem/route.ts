@@ -11,6 +11,7 @@
 import { z } from 'zod';
 import { currentUser, requireActiveOrg } from '@/lib/auth/authorize';
 import { jsonError } from '@/lib/api/errors';
+import { requireVerifiedEmail } from '@/lib/auth/verify-email';
 import { redeemTrialCode, type RedeemError } from '@/lib/trial/service';
 
 export const runtime = 'nodejs';
@@ -44,6 +45,18 @@ export async function POST(request: Request): Promise<Response> {
     ctx = await requireActiveOrg();
   } catch {
     return jsonError('forbidden', 'You must have an organization to redeem a trial code.');
+  }
+
+  // §6.3: an unverified address must not spend upstream tokens. Social
+  // sign-in made this reachable — a provider can hand us an address it has
+  // not verified, and a trial is real money spent on the other end of it.
+  try {
+    await requireVerifiedEmail(ctx.userId);
+  } catch {
+    return jsonError(
+      'forbidden',
+      'Confirm your email address first — check your inbox for the link, or resend it from your dashboard.',
+    );
   }
 
   let raw: unknown;

@@ -49,6 +49,7 @@
 import { z } from 'zod';
 
 import { requireActiveOrg } from '@/lib/auth/authorize';
+import { requireVerifiedEmail } from '@/lib/auth/verify-email';
 import { errorResponse, jsonError } from '@/lib/api/errors';
 import { MINUTE, rateLimit } from '@/lib/api/ratelimit';
 import { getAllowedModels } from '@/lib/entitlements/allowed-models';
@@ -198,6 +199,17 @@ export async function POST(request: Request): Promise<Response> {
   let ctx: Awaited<ReturnType<typeof requireActiveOrg>>;
   try {
     ctx = await requireActiveOrg();
+  } catch (e) {
+    return errorResponse(e);
+  }
+
+  // §6.3: chat spends real upstream tokens, so an unverified address must
+  // not reach it. Before social sign-in every account had been through our
+  // own emailed link or was grandfathered; a provider can now hand us an
+  // address IT has not verified, which is not proof the person can receive
+  // mail at it. Same 403 copy as keys and checkout.
+  try {
+    await requireVerifiedEmail(ctx.userId);
   } catch (e) {
     return errorResponse(e);
   }

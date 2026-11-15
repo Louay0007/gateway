@@ -532,6 +532,19 @@ export const authUsers = pgTable('auth_users', {
   email:         text('email').notNull().unique(),
   emailVerified: timestamp('email_verified', { withTimezone: true }),
   image:         text('image'),
+  /**
+   * Apple hands out `@privaterelay.appleid.com` addresses. They are real
+   * and verified, but they are not a corporate domain — flagged so support
+   * can explain delivery and so no future domain rule treats one as staff.
+   * Migration 0041.
+   */
+  emailIsPrivateRelay: boolean('email_is_private_relay').notNull().default(false),
+  /**
+   * The method that CREATED this identity. Linking a second provider does
+   * not change it, which is why it cannot be derived from the presence of
+   * auth_accounts rows. Migration 0041, CHECK-constrained there.
+   */
+  signupMethod:  text('signup_method').notNull().default('password'),
 });
 
 // The @auth/drizzle-adapter type-checks these tables against its own
@@ -550,6 +563,15 @@ export const authAccounts = pgTable('auth_accounts', {
   scope:             text('scope'),
   id_token:          text('id_token'),
   session_state:     text('session_state'),
+  /**
+   * What the provider claimed about this identity, kept for support and for
+   * the §6.2 linking rule that must NOT rewrite the account's canonical
+   * email. Display only — never read by an authorization path. Migration
+   * 0041.
+   */
+  provider_email:          text('provider_email'),
+  provider_email_verified: boolean('provider_email_verified'),
+  provider_login:          text('provider_login'),
 }, (t) => ({
   pk: primaryKey({ columns: [t.provider, t.providerAccountId] }),
 }));

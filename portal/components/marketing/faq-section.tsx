@@ -49,9 +49,14 @@ const faqItems: FaqItem[] = [
       'Every request is TLS-encrypted end to end, and we do not log prompt or response bodies: LiteLLM is configured with store_prompts_in_spend_logs off, so the spend ledger records token counts and cost, never content. We do not train on your data. The full policy is at /privacy.',
   },
   {
-    question: 'Do you offer team or enterprise accounts?',
+    question: 'Can I sign in with Google, GitHub, or Apple instead of a password?',
     answer:
-      'Yes. Our Enterprise plan supports multi-seat team accounts with centralized billing, usage analytics, SSO integration, and a dedicated account manager. Contact our sales team for custom volume pricing and SLA agreements tailored to your organization\'s needs.',
+      'Yes, when those providers are enabled on this deployment. Signing in with a provider you already use skips the password entirely, and if the address it returns has been verified by that provider it is matched to your existing account rather than creating a second one. Nothing is linked on an unverified address, and a provider email that differs from your account email never replaces it. You can keep using a password at any time — the two methods work side by side and neither is ever required.',
+  },
+  {
+    question: 'Why was I asked to confirm my email after signing in with a provider?',
+    answer:
+      'Because not every provider verifies the address it hands us. GitHub, for example, does not verify addresses it does not own, and Apple can return a private relay address. When the address was not verified by the provider, we create the account but require our own confirmation link before it can create keys, start a checkout, use chat, or redeem a trial. That is deliberate: those actions either cost real money or spend real tokens, and we will not spend them on an address nobody has proven they can receive mail at.',
   },
 ];
 

@@ -43,6 +43,15 @@ LiteLLM Proxy v1.103.1 (loopback `:4000`) → PostgreSQL 16 + Redis 7
 **Portal:** Next.js 16 + TypeScript + Drizzle + Auth.js (self-hosted) + D17
 manual transfer (La Poste Tunisienne) — there is no card path; Stripe was removed.
 
+Password sign-in and Google / GitHub / Apple sign-in run side by side; neither
+is ever required. Social providers are optional and each appears only when its
+env vars are set (`.env.example` documents all of them). The exchange is
+implemented here — state, PKCE S256, token exchange, provider adapters, account
+linking — in `portal/lib/auth/oauth/`, with the routes at `/api/oauth/<provider>/`
+rather than under Auth.js's `/api/auth/` catch-all. Everything that spends
+money or tokens still requires our own emailed confirmation, whatever a
+provider claims about an address.
+
 Docker Compose, single VPS. Gateway infra ~$5/mo, with portal ~$12/mo.
 
 ## Models served
@@ -290,8 +299,9 @@ Two hard rules the pipeline enforces, learned the painful way:
 2. **Migrations are forward-only, ledger-guarded, and run before the build.**
    `scripts/db-migrate.sh` applies each `portal/db/migrations/*.sql` exactly
    once (`schema_migrations` ledger); recovery is `make restore`, never a
-   down-migration. Currently through `0038_monthly_50m` (monthly 50M budgets +
-   `daily_quota` back to FALSE + guards).
+   down-migration. Currently through `0041_oauth_identity` (social sign-in:
+   provider metadata on `auth_accounts`, `signup_method`, and the
+   case-insensitive unique index the account-linking rule depends on).
 
 `make deploy HOST=gateway@<VPS_IP>` (rsync, never copies `.env`) remains as
 the manual fallback; it runs the same migrate → rebuild → health sequence.
@@ -389,7 +399,11 @@ npm run build                        # next build (standalone)
 make db-migrate                      # every pending *.sql once each, ledger-guarded
 ```
 
-Schema, newest-first: `0038_monthly_50m` (50M/month budgets per tier, split
+Schema, newest-first: `0041_oauth_identity` (social sign-in: provider metadata
+columns on `auth_accounts`, `auth_users.signup_method` and
+`email_is_private_relay`, and `auth_users_email_lower_idx` — the
+case-insensitive unique index the linking rule reads), `0038_monthly_50m`
+(50M/month budgets per tier, split
 across aliases; `daily_quota` FALSE plus the column default; trial-code budget;
 guards), `0025_daily_100m` (the superseded daily 100M shape),
 `0024_plan_base_prices`

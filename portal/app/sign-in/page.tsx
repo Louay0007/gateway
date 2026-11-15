@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { hasLiveSession } from "@/lib/auth/authorize";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignInForm } from "@/components/auth/sign-in-form";
+import { SocialButtons, SocialDivider, SocialNotice } from "@/components/auth/social-buttons";
+import { enabledProviders } from "@/lib/auth/oauth";
 
 export const metadata: Metadata = {
   title: "Sign In to Zaino AI",
@@ -27,21 +29,36 @@ export const metadata: Metadata = {
  * deleted domain row) must land here on the form, because the shell gate
  * rejects the same token and would otherwise bounce back forever. See
  * hasLiveSession.
+ *
+ * SOCIAL PROVIDERS ARE RESOLVED ON THE SERVER each render, so a provider
+ * whose env vars are missing has no button (components/auth/social-buttons).
  */
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; passwordChanged?: string }>;
+  searchParams: Promise<{
+    callbackUrl?: string;
+    passwordChanged?: string;
+    /** Set by the OAuth callback on a failure, or 'cancelled'. */
+    social?: string;
+    /** Set when a social signup landed with an unverified address. */
+    verify?: string;
+  }>;
 }) {
   if (await hasLiveSession()) redirect("/chat");
+
   const params = await searchParams;
   const raw = params.callbackUrl ?? "/chat";
   const callbackUrl = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/chat";
+
   // The password form signs you out of everything, including the tab you
   // changed it in, and lands here. Without this the redirect was
   // unexplained: you were told "sign in again" by a toast you had 0.2s to
   // read, then dropped on a bare form with no memory of why.
   const changed = params.passwordChanged === "1";
+
+  const providers = enabledProviders();
+
   return (
     <AuthShell
       title="Welcome back"
@@ -59,6 +76,11 @@ export default async function SignInPage({
         </>
       }
     >
+      <SocialNotice reason={params.social} />
+
+      <SocialButtons providers={providers} returnTo={callbackUrl} />
+      {providers.length > 0 ? <SocialDivider /> : null}
+
       <SignInForm callbackUrl={callbackUrl} />
     </AuthShell>
   );
