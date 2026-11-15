@@ -1,0 +1,134 @@
+ZAINO AI — LINKEDIN PASTE SHEET
+Account: contact.zaino.ai@gmail.com  (person: urn:li:person:LtTBloo_Ms)
+Paste each field one at a time. Blank line = end of field.
+Character counts are exact. Do not add or remove spaces.
+
+
+================================================================
+[ 1 ] HEADLINE  —  113 / 220 characters
+Where: Me → View profile → pencil on the banner → Headline
+================================================================
+
+Je construis Zaino — une clé, l'API Claude + OpenAI, 100M tokens par jour. Rust + Postgres. Facturé à la journée.
+
+
+================================================================
+[ 2 ] ABOUT  —  1,507 / 2,600 characters
+Where: profile → About → pencil → About
+================================================================
+
+On facture l'IA à la journée, pas au mois.
+
+La plupart des passerelles vous vendent un plafond mensuel. Vous payez pour des tokens que vous n'utilisez pas — et le jour où vous en avez besoin, il est déjà consommé.
+
+Zaino inverse la fenêtre : 100 millions de tokens par jour et par modèle, remis à zéro chaque minuit, heure de Tunis. Pas de limite par minute. Pas de plafond en dollars. Une seule règle : le budget du jour. Le lendemain, il revient.
+
+Une clé, deux formats natifs — l'API OpenAI et l'API Anthropic. Votre code existant fonctionne tel quel : Claude Code, Codex, Cursor, le SDK Python, curl. Il n'y a pas de SDK intermédiaire à installer, parce que les SDK que vous utilisez déjà parlent notre API.
+
+Ce qui nous occupe vraiment, c'est le compteur. Un token qui traverse la passerelle est compté une fois et une seule : entrée, sortie, écriture de cache, lecture de cache. Nous avons publié nos propres bugs de facturation, chiffres à l'appui, parce qu'une passerelle qui compte mal est pire qu'aucune passerelle.
+
+Concrètement :
+· Quatre niveaux — Fast, Smart, Frontier, Fable — du moins cher au raisonnement le plus profond
+· 1M de contexte, 64k de sortie
+· Configs Claude Code et Codex vérifiées, avec les pièges documentés
+· Extraction de documents et recherche de conversations servies par un moteur écrit en Rust, pas par du JavaScript qui bloque la boucle d'événements
+
+37 tables. 35 migrations. 591 tests. Tout est mesuré ou ça n'existe pas.
+
+Essai de 3 jours, sans carte.
+
+zaino.soon.it
+
+
+================================================================
+[ 3 ] LOCATION + URL
+================================================================
+
+Location:     Tunis, Tunisia
+Website:      zaino.soon.it   (label: Zaino AI)
+Public URL:   linkedin.com/in/zaino-ai-4a196a449
+              → change to /in/zaino-ai  if available
+
+
+================================================================
+[ 4 ] COVER IMAGE  —  1584 × 396 px
+Where: profile → pencil on banner → Background photo
+================================================================
+
+Dark ground (#0A0A0F). Left 2/3 in large white type:
+
+    Une clé.
+    100M tokens par jour.
+
+Right side: zaino.soon.it in violet (#7C5CFF), small.
+No robots. No brains. No handshakes. No gradient except one.
+
+
+================================================================
+[ 5 ] FEATURED  —  3 items, in this order
+Where: profile → Add section → Featured → Add a link
+================================================================
+
+1.  zaino.soon.it/pricing
+    Title:  Trois jours, sans carte
+    Desc:   Starter 50 DT · Pro 90 DT · 100M tokens/jour
+
+2.  zaino.soon.it/docs
+    Title:  Configs Claude Code et Codex qui marchent
+    Desc:   Deux formats natifs. Les pièges documentés.
+
+3.  The pitch deck PDF (plans/linkedin-growth.md §9)
+    Title:  Zaino — une clé, deux API, 100M tokens/jour
+
+Do NOT feature zaino.soon.it/changelog yet.
+It stops at 26 October. Feature it once it is current.
+
+
+================================================================
+[ 6 ] NOT YET — deliberately empty
+================================================================
+
+Experience:  leave empty until you can list 3 shipped things.
+Skills:      leave empty. They feed recruiter search, not developers.
+             If you must: TypeScript, Rust, PostgreSQL, Next.js (4 only).
+
+A half-filled profile is worse than an untouched one, because the
+blank sections are exactly what visitors check.
+
+
+================================================================
+[ 7 ] COMPANY PAGE — blocked, need admin access
+================================================================
+
+Cannot be edited from here: the connected token has no
+r_organization_admin / w_organization_social scope.
+
+Status when checked: 403 Forbidden.
+
+To unblock, you must either
+  (a) be an ADMINISTRATOR of the Zaino AI page with the connector
+      granted organization scopes, or
+  (b) re-authorise the LinkedIn connection asking for org admin rights.
+
+Until then, paste §3.6 of plans/linkedin-growth.md by hand:
+  Tagline (53/120):  Une clé, l'API Claude + OpenAI, 100M tokens par jour.
+  About:   1,981 / 2,000 characters — copy it from §3.6, do not retype.
+  Industry: Software Development   Size: 1–10
+  HQ: Tunis, Tunisia   Type: Privately Held
+  Website: zaino.soon.it   Button: Visiter le site → /pricing
+  Specialties: LLM gateway, API, Claude, OpenAI, developer tools,
+               metering, Rust
+  Language: French primary
+
+
+================================================================
+[ 8 ] ORDER OF WORK
+================================================================
+
+  1. Headline        (2 min)  ← highest leverage, do it first
+  2. About           (5 min, use copy-paste, never retype)
+  3. Cover image     (needs the file making)
+  4. Featured ×3     (5 min)
+  5. Location + URL  (1 min)
+
+Total: about 15 minutes.
