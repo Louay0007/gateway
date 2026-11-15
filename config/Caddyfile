@@ -223,7 +223,20 @@
 	#   900s read/write  a long answer is still one request;
 	#   flush_interval -1  without it every token arrives in one burst at
 	#                    the end. That is the reason this block exists.
-	route /api/chat* {
+	# `/api/share/*` matches the LIVE SHARE stream, which is SSE for the same
+	# reason /api/chat is: without this matcher it falls to the default proxy
+	# below, whose `read_timeout 120s` kills the connection two minutes in —
+	# so the endpoint's own ten-minute cap could never be reached, and a
+	# viewer would silently reconnect every two minutes instead.
+	#
+	# A NAMED matcher, not two arguments: `route` takes exactly one matcher
+	# expression, and `route /api/chat* /api/share/*` is a caddyfile parse
+	# error ("wrong argument count ... after '/api/share/*'") that neither
+	# the deploy pipeline nor any test would have caught — `make
+	# verify-caddy` is not part of the workflow. Verified by running the real
+	# binary: caddy validate --config config/Caddyfile --adapter caddyfile.
+	@streaming path /api/chat* /api/share/*
+	route @streaming {
 		reverse_proxy {$PORTAL_UPSTREAM:127.0.0.1:3000} {
 			flush_interval -1
 			transport http {
