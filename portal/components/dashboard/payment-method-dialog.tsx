@@ -42,22 +42,7 @@ import { toast } from "sonner";
 type Method = "d17" | "dodo";
 
 /** Every dialog open starts here until the customer changes it. */
-const DEFAULT_SEATS = 1;
 
-/**
- * Seat count from the number input, clamped to [1, max].
- *
- * A number input hands back "" the moment the field is cleared, and
- * `Number("")` is 0 — which would price the checkout at nothing. Empty
- * reads as 1; anything outside the plan's own range is pinned to it. The
- * server re-validates seats regardless; this only keeps the dialog's total
- * honest while typing.
- */
-function clampSeats(raw: string, max: number): number {
-  const n = Math.floor(Number(raw));
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(n, max);
-}
 
 const METHODS: {
   id: Method;
@@ -90,29 +75,23 @@ interface PaymentMethodDialogProps {
 
 export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProps) {
   const [method, setMethod] = React.useState<Method>("d17");
-  const [seats, setSeats] = React.useState(DEFAULT_SEATS);
   const [busy, setBusy] = React.useState(false);
   const [resetFor, setResetFor] = React.useState<string | null>(null);
 
-  // Pro (and any per-seat plan) always OPENS at exactly 1 seat. The reset
-  // is synchronous during render, not in an effect: an effect fires after
-  // paint, so a reopened dialog would flash the previous seat count
-  // before snapping back. One visible footgun this kills: pick 3 seats,
-  // close, reopen a minute later — you must see $30 / 90 DT for 1, never
-  // the stale 3. (A failed checkout keeps the dialog open and does NOT
-  // reset, since the same open means the same decision in progress.)
+  // The rail always OPENS on D17. Reset synchronously during render, not in
+  // an effect: an effect fires after paint, so a reopened dialog would flash
+  // the previous choice. (A failed checkout keeps the dialog open and does
+  // NOT reset, since the same open means the same decision in progress.)
   const planCode = plan?.code ?? null;
   if (planCode !== resetFor) {
     setResetFor(planCode);
-    setSeats(DEFAULT_SEATS);
     setMethod("d17");
   }
 
-  const maxSeats = plan?.maxSeats ?? 1;
   const listCents = plan?.promo?.priceCents ?? plan?.priceCents ?? 0;
   const originalCents = plan?.promo ? plan.promo.originalPriceCents : plan?.priceCents ?? 0;
-  /** Seats actually charged: 1 for a single-seat plan, whatever was picked otherwise. */
-  const billedSeats = maxSeats > 1 ? seats : 1;
+  /** One seat per subscription: a plan is sold to one organisation. */
+  const billedSeats = 1;
 
 
   /**
@@ -155,7 +134,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
         body: JSON.stringify({
           planCode: plan.code,
           method,
-          seats,
+          seats: 1,
           // See BillingView.beginCheckout: the returning customer must
           // land in the shell that asked.
           returnPath: window.location.pathname + window.location.search,
@@ -202,7 +181,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                 numbers — never a conversion between them. */}
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
               <span className="font-semibold">
-                {formatPlanPrice(listCents, plan.priceTndMillimes, maxSeats > 1 ? seats : 1)}
+                {formatPlanPrice(listCents, plan.priceTndMillimes, 1)}
               </span>
               <span className="text-muted-foreground">/month</span>
               {plan.promo ? (
@@ -212,38 +191,6 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
               ) : null}
             </div>
 
-            {maxSeats > 1 ? (
-              <div className="grid gap-1.5">
-                <Label htmlFor="checkout-seats" className="text-xs text-muted-foreground">
-                  Seats ({usdPrice(listCents)} /{" "}
-                  {plan.priceTndMillimes ? tndPrice(plan.priceTndMillimes) : usdPrice(listCents)} each)
-                </Label>
-                <Input
-                  id="checkout-seats"
-                  name="seats"
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={maxSeats}
-                  step={1}
-                  value={seats}
-                  onChange={(e) => setSeats(clampSeats(e.target.value, maxSeats))}
-                  className="w-24 tabular-nums"
-                />
-                {/* The total moves with the count, or the field reads as
-                    decoration. aria-live so the change is announced. */}
-                <p className="text-xs text-muted-foreground" aria-live="polite">
-                  {billedSeats} × {usdPrice(listCents)} ={" "}
-                  <strong className="font-medium text-foreground tabular-nums">
-                    {usdPrice(listCents * billedSeats)}
-                  </strong>{" "}
-                  / month
-                  {plan.priceTndMillimes
-                    ? ` · ${tndPrice(plan.priceTndMillimes * billedSeats)}`
-                    : ""}
-                </p>
-              </div>
-            ) : null}
 
             <div
               ref={tilesRef}
@@ -263,7 +210,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                     aria-checked={selected}
                     tabIndex={selected ? 0 : -1}
                     onClick={() => setMethod(m.id)}
-                    className={`h-auto items-start justify-start gap-3 p-3 text-left focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 ${
+                    className={`h-auto min-w-0 items-start justify-start gap-3 p-3 text-left whitespace-normal focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 ${
                       selected
                         ? "border-success bg-success/10"
                         : "hover:border-success/50"
@@ -278,7 +225,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                       height={28}
                       className={`shrink-0 ${m.id === "dodo" ? "rounded-full" : "object-contain"}`}
                     />
-                    <span className="grid gap-0.5">
+                    <span className="grid min-w-0 gap-0.5">
                       <span className="flex items-center gap-1.5 text-sm font-medium">
                         {m.title}
                         {/* Not colour alone: the check carries the selection
@@ -289,7 +236,10 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                           aria-hidden="true"
                         />
                       </span>
-                      <span className="text-xs text-muted-foreground">{m.subtitle}</span>
+                      {/* Wraps rather than overhangs: at sm:grid-cols-2 each
+                          tile is ~240px, and "La Poste Tunisienne · pay in TND"
+                          ran past the tile edge in production. */}
+                      <span className="text-xs leading-snug text-muted-foreground">{m.subtitle}</span>
                     </span>
                   </Button>
                 );
@@ -306,7 +256,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                   <CreditCard className="size-3.5 shrink-0" />
                   You will continue to Dodo&#39;s secure checkout and pay{" "}
                   <strong className="text-foreground">
-                    {formatPlanPrice(listCents, null, maxSeats > 1 ? seats : 1)}
+                    {formatPlanPrice(listCents, null, 1)}
                   </strong>
                   .
                 </span>
@@ -328,12 +278,6 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
               <p className="text-xs text-muted-foreground">
                 This plan currently lists a card price only; the D17 window will
                 show the exact dinars to transfer.
-              </p>
-            ) : null}
-            {method === "d17" && maxSeats > 1 ? (
-              <p className="text-xs text-muted-foreground">
-                D17 charges the listed plan price. For a per-seat Pro buy, pay by
-                card — the seat count is taken there.
               </p>
             ) : null}
 
