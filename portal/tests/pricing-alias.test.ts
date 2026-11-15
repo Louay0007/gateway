@@ -56,6 +56,16 @@ describe('toAlias', () => {
     }
   });
 
+  it('strips claude-* prefix and resolves to the tier', () => {
+    // Claude Desktop's model picker sends `claude-fast` etc., which must
+    // resolve to their tier names so the ledger stays on the four tiers,
+    // not a fifth name. Idempotent: stripping a non-claude name is a no-op.
+    expect(toAlias(MAP, 'claude-fast')).toBe('fast');
+    expect(toAlias(MAP, 'claude-smart')).toBe('smart');
+    expect(toAlias(MAP, 'fast')).toBe('fast');
+    expect(toAlias(MAP, 'smart')).toBe('smart');
+  });
+
   it('resolves longest key first, so a prefix cannot shadow a model', () => {
     // `mimo-v2.6-flash` starts with `mimo-v2.6`. A naive startsWith match
     // would route the flash model through the wrong row — and if the two

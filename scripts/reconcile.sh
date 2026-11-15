@@ -113,6 +113,13 @@ ALIAS = {
     "smart": "sonnet-5.5",
     "frontier": "opus-5.5",
     "fable": "gpt-6-astra",
+    # Claude Desktop names — same deployments, same rates. Listed because the
+    # pricing suite requires a mapping per served alias; leaving one out fails
+    # the build, not a runtime check.
+    "claude-fast": "haiku-5.5",
+    "claude-smart": "sonnet-5.5",
+    "claude-frontier": "opus-5.5",
+    "claude-fable": "gpt-6-astra",
 }
 
 def usage_of(r):

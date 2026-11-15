@@ -166,6 +166,96 @@ model_list:
       max_input_tokens: 1048576
       max_output_tokens: 65536
 
+  # Claude Desktop custom-model names. Same deployments as the four tiers
+  # above, under the name Claude Desktop's picker accepts. `claude-fast` and
+  # `fast` are separate model groups on purpose: one cooldown must not take
+  # down both names, and the tier aliases stay the only names in the plan
+  # tables. The ledger resolves `claude-*` back to its tier in
+  # portal/lib/pricing/alias.ts, so usage_records.model is never `claude-*`.
+  - model_name: claude-fast
+    litellm_params:
+      model: openai/haiku-5.5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 600
+      num_retries: 6
+      cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000001
+      output_cost_per_token: 0.000005
+      cache_creation_input_token_cost: 0.000002
+      cache_read_input_token_cost: 0.0000001
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
+
+  - model_name: claude-smart
+    litellm_params:
+      model: openai/sonnet-5.5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 600
+      num_retries: 6
+      cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000003
+      output_cost_per_token: 0.000015
+      cache_creation_input_token_cost: 0.000006
+      cache_read_input_token_cost: 0.0000003
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
+
+  - model_name: claude-frontier
+    litellm_params:
+      model: openai/opus-5.5
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 600
+      num_retries: 6
+      cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000015
+      output_cost_per_token: 0.000075
+      cache_creation_input_token_cost: 0.00003
+      cache_read_input_token_cost: 0.0000015
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
+
+  - model_name: claude-fable
+    litellm_params:
+      model: openai/gpt-6-astra
+      api_base: os.environ/UPSTREAM_BASE_URL
+      api_key: os.environ/UPSTREAM_API_KEY
+      timeout: 600
+      num_retries: 6
+      cooldown_time: 3
+      reasoning_effort: max
+      verbosity: high
+      temperature: 0.2
+      top_p: 0.9
+    model_info:
+      supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      input_cost_per_token: 0.000015
+      output_cost_per_token: 0.000075
+      cache_creation_input_token_cost: 0.00003
+      cache_read_input_token_cost: 0.0000015
+      max_input_tokens: 1048576
+      max_output_tokens: 65536
+
 # ═══════════════════════════════════════════════════════════════════════
 #  Routing
 # ═══════════════════════════════════════════════════════════════════════
