@@ -50,6 +50,8 @@ import { QuotaHint } from "@/components/chat/quota-hint";
 import { aliasMeta } from "@/components/chat/aliases";
 import { MAX_ATTACHMENTS } from "@/lib/chat/attachments";
 import { splitPayloads } from "@/lib/chat/sse";
+import { previewableBlocks } from "@/lib/chat/artifacts";
+import { PreviewPanel } from "@/components/chat/preview-panel";
 import { cn } from "@/lib/utils";
 
 export type ChatRole = "user" | "assistant";
@@ -613,7 +615,51 @@ export function ChatView({
   const lastAssistantId =
     [...messages].reverse().find((m) => m.role === "assistant")?.id ?? null;
 
+  /**
+   * PREVIEW. Derived from the LAST assistant turn only: an older turn's
+   * artifact was already looked at, and re-opening it because a new message
+   * arrived would be a panel that keeps reopening on its own.
+   *
+   * THROTTLED to 150ms (plan §3). Parsing the whole reply on every token
+   * would run the fence scanner thousands of times per answer and rebuild
+   * the iframe just as often, which destroys scroll position inside the
+   * preview. One parse per 150ms is ~7/sec while fast and nothing at all
+   * while slow.
+   */
+  const lastAssistant = React.useMemo(
+    () => [...messages].reverse().find((m) => m.role === "assistant") ?? null,
+    [messages],
+  );
+  const [previewText, setPreviewText] = React.useState<string>(lastAssistant?.content ?? "");
+  React.useEffect(() => {
+    const next = lastAssistant?.content ?? "";
+    // Settle immediately when not streaming, so a finished reply never waits
+    // out a timer to show its preview.
+    if (!streaming) {
+      setPreviewText(next);
+      return;
+    }
+    const t = setTimeout(() => setPreviewText(next), 150);
+    return () => clearTimeout(t);
+  }, [lastAssistant?.content, streaming]);
+
+  const previewBlocks = React.useMemo(() => previewableBlocks(previewText), [previewText]);
+
+  /**
+   * Closed by the user, but a NEW block reopens it: the model producing an
+   * artifact is the moment the panel is for, and staying shut after that
+   * would mean the feature is off by default for anyone who closed it once.
+   */
+  const [previewClosed, setPreviewClosed] = React.useState(false);
+  const firstBlockId = previewBlocks[0]?.id ?? null;
+  React.useEffect(() => {
+    if (firstBlockId) setPreviewClosed(false);
+  }, [firstBlockId]);
+
+  const showPreview = previewBlocks.length > 0 && !previewClosed;
+
   return (
+    <div className="flex min-h-0 min-w-0 flex-1">
     <MessageScrollerProvider
       // Following the stream is the expected behaviour on a live turn, and
       // it releases the moment the reader scrolls away.
@@ -911,6 +957,22 @@ export function ChatView({
         </Dialog>
       </div>
     </MessageScrollerProvider>
+      {showPreview ? (
+        <PreviewPanel
+          blocks={previewBlocks}
+          streaming={streaming}
+          onClose={() => setPreviewClosed(true)}
+          onFixWithClaude={(message) => {
+            // Plan §0: the error becomes the next message. "Fix this" with
+            // the actual error text is the difference between a report and
+            // a retry, and it is the one artifact-panel feature worth having
+            // on day one.
+            setDraft(`The preview failed with this error:\n\n${message}\n\nPlease fix it.`);
+          }}
+          className="hidden w-[min(46%,42rem)] shrink-0 lg:flex"
+        />
+      ) : null}
+    </div>
   );
 }
 
