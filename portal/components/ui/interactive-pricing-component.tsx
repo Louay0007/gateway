@@ -5,7 +5,7 @@ import { Ambient } from "@/components/marketing/ambient";
 import { useRouter } from 'next/navigation';
 import { useApi } from '@/lib/api/use-api';
 import type { PlanListResponse, ProfileView } from '@/lib/api/types';
-import { compact, formatPlanPrice } from '@/lib/dashboard/format';
+import { compact, tndPrice, usdPrice } from '@/lib/dashboard/format';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X } from 'lucide-react';
@@ -26,6 +26,8 @@ interface PricingPlan {
    * let this card invent a 20%-off annual price that nobody sells.
    */
   priceLabel: string | null;
+  /** Dinar ask, formatted ("90 DT"). Null when the plan has none. */
+  priceTndLabel?: string | null;
   customPrice?: string;
   features: Feature[];
   popular?: boolean;
@@ -45,7 +47,8 @@ const zainoPlans: PricingPlan[] = [
     id: 'starter',
     name: 'Starter',
     description: 'Perfect for individuals exploring AI coding',
-    priceLabel: '$15 / 50 DT',
+    priceLabel: '$15',
+    priceTndLabel: '50 DT',
     features: [
       // 0039: ONE shared pool — the split is the customer's to choose.
       { name: '50M shared tokens/month', included: true },
@@ -59,7 +62,8 @@ const zainoPlans: PricingPlan[] = [
     id: 'pro',
     name: 'Pro',
     description: 'For professionals who need full power',
-    priceLabel: '$30 / 90 DT',
+    priceLabel: '$30',
+    priceTndLabel: '90 DT',
     features: [
       // 0039: 50M shared. Pro differs by model class, keys and seats —
       // deliberately NOT by token volume — so it must not claim more here.
@@ -130,10 +134,8 @@ function fromCatalogPlan(p: PlanListResponse['plans'][number]): PricingPlan {
     id: p.code,
     name: p.name,
     description: template?.description ?? p.description ?? '',
-    priceLabel: formatPlanPrice(
-      p.promo?.priceCents ?? p.priceCents,
-      p.priceTndMillimes,
-    ),
+    priceLabel: usdPrice(p.promo?.priceCents ?? p.priceCents),
+    priceTndLabel: p.priceTndMillimes ? tndPrice(p.priceTndMillimes) : null,
     features: template?.features ?? generatedFeatures,
     popular: p.code === 'pro',
     buttonText: template?.buttonText ?? 'Get Started',
@@ -262,10 +264,18 @@ export default function PricingComponent({
                     {/* Card Content */}
                     <div className="px-6 pb-6 flex-1">
                       <div className="mb-6">
+                        {/* Two currencies, two weights, one interval: one
+                            string made "/month" hang off the dinars and the
+                            two amounts read as a single figure. */}
                         <div className="flex flex-wrap items-baseline gap-2">
                           <span className="text-4xl font-bold tracking-tight text-white">
                             {formatPrice(plan)}
                           </span>
+                          {!plan.customPrice && plan.priceTndLabel && (
+                            <span className="text-lg font-medium text-white/60 tabular-nums">
+                              {plan.priceTndLabel}
+                            </span>
+                          )}
                           {!plan.customPrice && (
                             <span className="text-white/50 text-sm">/month</span>
                           )}
@@ -328,6 +338,11 @@ export default function PricingComponent({
                         <div className="space-y-1">
                           <div className="font-bold text-white">{plan.name}</div>
                           <div className="text-2xl font-bold text-white">{formatPrice(plan)}</div>
+                          {!plan.customPrice && plan.priceTndLabel && (
+                            <div className="text-sm font-medium text-white/60 tabular-nums">
+                              {plan.priceTndLabel}
+                            </div>
+                          )}
                           {!plan.customPrice && (
                             <div className="text-xs text-white/50">/month</div>
                           )}
