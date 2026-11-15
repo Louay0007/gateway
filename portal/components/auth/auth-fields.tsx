@@ -72,8 +72,14 @@ export function AuthField({
           aria-invalid={error ? true : undefined}
           aria-describedby={[describedBy, errorId].filter(Boolean).join(" ") || undefined}
           className={cn(
-            "h-11 w-full rounded-lg border bg-white text-base text-foreground outline-none  ",
-            "placeholder:text-muted-foreground dark:placeholder:text-muted-foreground transition-colors duration-150",
+            // `bg-background`, NOT `bg-white`. This field is inside AuthShell,
+            // which pins a white canvas — but the same AuthField is reused on
+            // billing and checkout pages that follow the theme. A hardcoded
+            // `bg-white` there left a white box under near-white text in dark
+            // mode: the grey-on-grey this replaced. The token matches whatever
+            // surface the shell actually drew.
+            "h-11 w-full rounded-lg border bg-background text-base text-foreground outline-none  ",
+            "placeholder:text-muted-foreground transition-colors duration-150",
             "focus:border-foreground focus:ring-2 focus:ring-foreground/10 dark:focus:border-border dark:focus:ring-border/10",
             isPassword ? "pr-11 pl-3.5" : "px-3.5",
             error ? "border-destructive/50" : "border-border",

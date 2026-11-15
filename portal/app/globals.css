@@ -734,3 +734,42 @@ a:not([class]) {
     scroll-behavior: auto !important;
   }
 }
+
+/*
+ * Autofill — the grey boxes on the sign-in form.
+ *
+ * Chrome paints an autofilled field with its own blue-grey background and
+ * dark text, IGNORING the element's `background` and `color`. On the auth
+ * pages that showed as two grey fields on a white card while every other
+ * field was white: it reads as a disabled or broken input, on the first
+ * screen a customer ever sees.
+ *
+ * The standard fix is an inset box-shadow the same colour as the surface,
+ * plus a transition long enough that Chrome never replays its own colour
+ * animation. `-webkit-text-fill-color` is required separately because
+ * Chrome also overrides `color`.
+ *
+ * Scoped to the `.light-surface` auth wrapper and to the general input
+ * slot, NOT to `input` globally: a dark-themed dashboard must keep the
+ * browser's own dark autofill, and overriding it there would produce the
+ * same bug inverted.
+ */
+.light-surface input:-webkit-autofill,
+.light-surface input:-webkit-autofill:hover,
+.light-surface input:-webkit-autofill:focus,
+[data-slot="input"]:-webkit-autofill,
+[data-slot="input"]:-webkit-autofill:hover,
+[data-slot="input"]:-webkit-autofill:focus {
+  /* Match `--background` in the light token set (oklch(1 0 0) = white). */
+  -webkit-box-shadow: 0 0 0 1000px oklch(1 0 0) inset;
+  box-shadow: 0 0 0 1000px oklch(1 0 0) inset;
+  /* And the text colour, which Chrome overrides independently. */
+  -webkit-text-fill-color: oklch(0.145 0 0);
+  caret-color: oklch(0.145 0 0);
+  /*
+   * A ~24h transition stops Chrome replaying its yellow/blue flash on the
+   * next paint. Deliberately enormous — the value is a hack, not a design
+   * choice, and shortening it brings the flash back.
+   */
+  transition: background-color 600000s 0s, color 600000s 0s;
+}

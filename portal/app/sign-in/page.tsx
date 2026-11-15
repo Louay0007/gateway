@@ -70,7 +70,7 @@ export default async function SignInPage({
       footer={
         <>
           No account yet?{" "}
-          <Link href="/sign-up" className="text-black underline-offset-4 hover:underline">
+          <Link href="/sign-up" className="text-foreground underline underline-offset-4 hover:text-foreground/80">
             Create one
           </Link>
         </>

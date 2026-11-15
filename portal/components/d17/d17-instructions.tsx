@@ -43,7 +43,7 @@ export function D17Instructions({
       <div className="flex items-center justify-between px-1" aria-hidden="true">
         {steps.map((_, i) => (
           <div key={i} className="flex items-center">
-            <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${ steps[i]?.highlight ? "border-success/50 bg-success/10 text-success " : "border-border bg-white text-muted-foreground" }`}>
+            <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${ steps[i]?.highlight ? "border-success/50 bg-success/10 text-success " : "border-border bg-card text-muted-foreground" }`}>
               {i + 1}
             </div>
             {i < steps.length - 1 && (
@@ -72,7 +72,7 @@ export function D17Instructions({
               {step.value ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <code
-                    className={`min-w-0 flex-1 select-all rounded-lg border px-3 py-2.5 font-mono text-sm tabular-nums tracking-tight ${ step.highlight ? "border-success/30 bg-white text-base font-semibold text-success-foreground text-success shadow-sm" : "border-border bg-muted/80 text-foreground" }`}
+                    className={`min-w-0 flex-1 select-all rounded-lg border px-3 py-2.5 font-mono text-sm tabular-nums tracking-tight ${ step.highlight ? "border-success/30 bg-card text-base font-semibold text-success-foreground text-success shadow-sm" : "border-border bg-muted/80 text-foreground" }`}
                   >
                     {step.value}
                   </code>

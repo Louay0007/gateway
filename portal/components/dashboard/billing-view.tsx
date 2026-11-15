@@ -397,7 +397,7 @@ export function BillingView() {
               <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr] md:items-center md:gap-8">
                 {/* D17 Logo */}
                 <div className="flex justify-center md:justify-start">
-                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-success/30 bg-white shadow-sm md:size-28">
+                  <div className="relative size-24 overflow-hidden rounded-xl border-2 border-success/30 bg-card shadow-sm md:size-28">
                     <Image
                       src="/images/d17-logo.webp"
                       alt="D17 DigiPost Bank"
@@ -850,7 +850,7 @@ function PlanComparisonTable({
                   });
                 })
                 .map((feat, i) => (
-                <tr key={feat.key} className={i % 2 === 0 ? "bg-white " : "bg-muted/40"}>
+                <tr key={feat.key} className={i % 2 === 0 ? "bg-card" : "bg-muted/40"}>
                   <td className="px-4 py-3 font-medium text-foreground">{feat.label}</td>
                   {plans.map((p) => (
                     <td
@@ -866,7 +866,7 @@ function PlanComparisonTable({
                 </tr>
               ))}
               {/* Token pricing row */}
-              <tr className="border-t bg-white">
+              <tr className="border-t bg-card">
                 <td className="px-4 py-3 font-medium text-foreground">Token pricing</td>
                 {plans.map((p) => (
                   <td key={p.code} className="px-4 py-3">

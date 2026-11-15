@@ -273,7 +273,7 @@ export default async function D17CheckoutPage({
             {/* Left column: Instructions + Summary */}
             <div className="space-y-6">
               {/* Payment Summary Card */}
-              <section className="overflow-hidden rounded-xl border border-border bg-white shadow-sm">
+              <section className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
                 <div className="border-b border-border bg-muted/50 px-5 py-3">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("d17.summary_reference")}</h2>
                 </div>
@@ -293,7 +293,7 @@ export default async function D17CheckoutPage({
 
               {/* Transfer Instructions */}
               {!rejected && (
-                <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
+                <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
                   <div className="mb-5">
                     <h2 className="text-base font-semibold text-foreground">{t("d17.step_transfer")}</h2>
                     <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("d17.method_hint")}</p>
@@ -316,7 +316,7 @@ export default async function D17CheckoutPage({
 
             {/* Right column: Proof Form */}
             <aside className="lg:sticky lg:top-8 lg:self-start">
-              <section className="rounded-xl border border-border bg-white p-6 shadow-sm">
+              <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
                 <div className="mb-5">
                   <h2 className="text-base font-semibold text-foreground">{t("d17.proof_title")}</h2>
                   <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{t("d17.proof_subtitle")}</p>
