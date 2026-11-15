@@ -204,25 +204,27 @@ const call = (path, headers = {}, method = 'GET', body) =>
 
 describe('MODEL_ALIAS resolution (claude-* → tier aliases)', () => {
   it('claude-fast resolves to fast in one pass, no infinite recursion', async () => {
-    // MODEL_ALIAS maps both tier aliases to upstream names (fast → haiku-5.5)
-    // and claude-* names to tier aliases (claude-fast → fast). Resolution is
-    // single-pass: MODEL_ALIAS['claude-fast'] yields 'fast', then
-    // MODEL_ALIAS['fast'] yields 'haiku-5.5' (final upstream name).
-    // If it looped, step 2 would see 'fast' is also a key and recurse infinitely.
-
+    // CLAUDE_ALIAS is a separate map: CLAUDE_ALIAS['claude-fast'] is 'fast'
+    // and resolution STOPS there. MODEL_ALIAS (fast → haiku-5.5) is never
+    // consulted for a claude-* name.
+    //
+    // A two-pass walk would forward 'haiku-5.5', which no key is allowlisted
+    // for (keys carry tier aliases — portal/lib/litellm/client.ts:167), so
+    // every existing customer would 403. That regression is the point of this
+    // test: accepting a 403 would make it pass while the edge is broken.
     const r = await call(
       '/v1/messages',
       { authorization: 'Bearer zn-ABCdef0123456789XYZ', 'content-type': 'application/json' },
       'POST',
       JSON.stringify({ model: 'claude-fast', messages: [{ role: 'user', content: 'test' }] }),
     );
-    // 200/403/429/502 are all OK — they mean the model was recognized.
-    // 400 would mean "Unknown model 'claude-fast'", a failed edge resolution.
-    expect([200, 403, 429, 502, 504]).toContain(r.status);
-    expect(r.status).not.toBe(400);
+    // 400: the edge did not recognise claude-fast at all.
+    // 403: it resolved past 'fast' to a name no key is allowlisted for.
+    // Neither is acceptable.
+    expect(r.status, 'unrecognised (edge did not resolve claude-fast)').not.toBe(400);
+    expect(r.status, 'over-resolved (two-pass bug: forwarded an upstream name)').not.toBe(403);
   });
-
-  it('all four claude-* names are recognized', async () => {
+  it('all four claude-* names are recognized and not over-resolved', async () => {
     for (const name of ['claude-fast', 'claude-smart', 'claude-frontier', 'claude-fable']) {
       const r = await call(
         '/v1/messages',
@@ -230,8 +232,8 @@ describe('MODEL_ALIAS resolution (claude-* → tier aliases)', () => {
         'POST',
         JSON.stringify({ model: name, messages: [{ role: 'user', content: 'test' }] }),
       );
-      expect(r.status).not.toBe(400, `${name} should not 400`);
-      expect([200, 403, 429, 502, 504]).toContain(r.status);
+      expect(r.status, `${name} should not 400 (unrecognised)`).not.toBe(400);
+      expect(r.status, `${name} should not 403 (over-resolved)`).not.toBe(403);
     }
   });
 });
