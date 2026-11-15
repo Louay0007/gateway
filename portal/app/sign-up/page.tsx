@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { hasLiveSession } from "@/lib/auth/authorize";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignUpForm } from "@/components/auth/sign-up-form";
-import { SocialButtons, SocialDivider, SocialNotice } from "@/components/auth/social-buttons";
-import { enabledProviders } from "@/lib/auth/oauth";
+import { SocialBlock, SocialNotice } from "@/components/auth/social-buttons";
+import { offeredProviders } from "@/lib/auth/oauth";
 
 export const metadata: Metadata = {
   title: "Create Your Zaino AI Account",
@@ -33,7 +33,7 @@ export default async function SignUpPage({
   if (await hasLiveSession()) redirect("/chat");
 
   const params = await searchParams;
-  const providers = enabledProviders();
+  const providers = offeredProviders();
 
   return (
     <AuthShell
@@ -49,8 +49,7 @@ export default async function SignUpPage({
       }
     >
       <SocialNotice reason={params.social} />
-      <SocialButtons providers={providers} returnTo="/chat" />
-      {providers.length > 0 ? <SocialDivider /> : null}
+      <SocialBlock providers={providers} returnTo="/chat" />
       <SignUpForm />
     </AuthShell>
   );

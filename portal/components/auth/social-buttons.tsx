@@ -88,11 +88,36 @@ export function SocialButtons({
 }
 
 /**
+ * The complete social block: buttons + the divider that separates them from
+ * the email form.
+ *
+ * WHY THE DIVIDER LIVES HERE. It was the caller's job, gated on
+ * `providers.length > 0` — which became a lie once the row always renders.
+ * A divider is not independently meaningful: it says "there are buttons
+ * above you". Owning both in one component means the two can never
+ * disagree, and the pages stop carrying a condition that is always true.
+ */
+export function SocialBlock({
+  providers,
+  returnTo,
+}: {
+  providers: ProviderId[];
+  returnTo?: string;
+}) {
+  if (providers.length === 0) return null;
+  return (
+    <>
+      <SocialButtons providers={providers} returnTo={returnTo} />
+      <SocialDivider />
+    </>
+  );
+}
+
+/**
  * The divider between social and email. One, always the same words.
  *
- * Rendered by the caller only when `SocialButtons` rendered something — an
- * "or continue with email" divider above a form that IS the only option is
- * noise.
+ * Rendered only by `SocialBlock` — never directly — so it cannot appear
+ * above a form that is the only option.
  *
  * `aria-hidden`: it is purely visual. A screen reader hears the buttons then
  * the form; "or continue with email" read aloud between them adds nothing a
@@ -129,7 +154,12 @@ const NOTICES: Readonly<Record<string, string>> = Object.freeze(
     cancelled: "Sign-in was cancelled. You can try again or use your password.",
     expired: "That sign-in link expired. Please start again.",
     failed: "We could not complete that sign-in. Please try again.",
-    unavailable: "That sign-in method is not available right now.",
+    // The unconfigured-provider case. The buttons are always shown; a click
+    // on one whose credentials are not set yet lands here. "Not available
+    // right now" was accurate but read as an outage — this says what is
+    // actually true and offers the path that works today.
+    unavailable:
+      "Google, GitHub and Apple sign-in are not enabled on this deployment yet. Use your email and password below.",
     unknown_provider: "That sign-in method is not available right now.",
   } satisfies Record<string, string>),
 );

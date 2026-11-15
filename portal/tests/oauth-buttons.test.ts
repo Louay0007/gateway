@@ -15,7 +15,12 @@
  */
 import { describe, it, expect } from 'vitest';
 import { socialNotice, SocialNotice } from '@/components/auth/social-buttons';
-import { enabledProviders, enabledProviderLabels, providerConfig } from '@/lib/auth/oauth';
+import {
+  enabledProviders,
+  enabledProviderLabels,
+  offeredProviders,
+  providerConfig,
+} from '@/lib/auth/oauth';
 import { GoogleIcon, GitHubIcon, AppleIcon } from '@/assets/brand/provider-icons';
 
 describe('socialNotice — fixed copy, never reflected text', () => {
@@ -28,7 +33,10 @@ describe('socialNotice — fixed copy, never reflected text', () => {
     expect(socialNotice('cancelled')).toMatch(/cancelled/i);
     expect(socialNotice('expired')).toMatch(/expired/i);
     expect(socialNotice('failed')).toMatch(/could not/i);
-    expect(socialNotice('unavailable')).toMatch(/not available/i);
+    // The unconfigured-provider case. The copy names the situation and
+    // points at the method that works, rather than reporting an outage.
+    expect(socialNotice('unavailable')).toMatch(/not enabled/i);
+    expect(socialNotice('unavailable')).toMatch(/email and password/i);
     expect(socialNotice('unknown_provider')).toMatch(/not available/i);
   });
 
@@ -65,17 +73,45 @@ describe('SocialNotice', () => {
   });
 });
 
-describe('enabledProviders — a button only for a fully-configured provider', () => {
+describe('offeredProviders — the buttons RENDER regardless of configuration', () => {
+  // Reversal of the earlier rule, made deliberately. The row is shown so the
+  // product looks complete while credentials are being issued; a click on an
+  // unconfigured provider is refused by the start route BEFORE any redirect,
+  // with a readable sentence. The old hazard (a button that dies after the
+  // user commits) is gone because the refusal moved earlier, and the empty
+  // row was the worse outcome.
+  it('always offers all three, configured or not', () => {
+    expect(offeredProviders()).toEqual(['google', 'github', 'apple']);
+  });
+
+  it('is independent of the environment', () => {
+    // No argument and no env read: this is a product decision, not a
+    // deployment fact.
+    expect(offeredProviders()).toHaveLength(3);
+  });
+
+  it('labels every offered provider, even with nothing configured', () => {
+    expect(enabledProviderLabels()).toEqual([
+      { id: 'google', name: 'Google' },
+      { id: 'github', name: 'GitHub' },
+      { id: 'apple', name: 'Apple' },
+    ]);
+  });
+});
+
+describe('enabledProviders — what can actually COMPLETE a sign-in', () => {
+  // The second, separate question. The UI never calls this; the start route
+  // and the callback do. Keeping the two apart is what lets the buttons show
+  // while an unconfigured click is refused cleanly.
   const empty = {};
 
   it('returns nothing when no provider is configured', () => {
     expect(enabledProviders(empty)).toEqual([]);
-    expect(enabledProviderLabels(empty)).toEqual([]);
   });
 
   it('omits a provider whose SECRET is missing (half-configured)', () => {
-    // The classic broken deploy: id set, secret forgotten. A button here
-    // redirects to Google and dies at the exchange.
+    // The classic broken deploy: id set, secret forgotten. Sending the user
+    // to Google with an empty secret dies at the exchange, after consent.
     expect(enabledProviders({ GOOGLE_CLIENT_ID: 'id' })).toEqual([]);
     expect(enabledProviders({ GITHUB_CLIENT_SECRET: 'secret' })).toEqual([]);
   });
@@ -89,20 +125,9 @@ describe('enabledProviders — a button only for a fully-configured provider', (
     ).toEqual(['github']);
   });
 
-  it('orders them Google, GitHub, Apple regardless of env order', () => {
-    const labels = enabledProviderLabels({
-      GITHUB_CLIENT_ID: 'i',
-      GITHUB_CLIENT_SECRET: 's',
-      GOOGLE_CLIENT_ID: 'i',
-      GOOGLE_CLIENT_SECRET: 's',
-    });
-    expect(labels.map((l) => l.id)).toEqual(['google', 'github']);
-    expect(labels.map((l) => l.name)).toEqual(['Google', 'GitHub']);
-  });
-
   it('treats a blank env value as absent', () => {
     // `GOOGLE_CLIENT_ID=` in a .env file is a defined, empty string — which
-    // would otherwise render a button with an empty client id.
+    // must not count as configured.
     expect(enabledProviders({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '' })).toEqual([]);
     expect(enabledProviders({ GOOGLE_CLIENT_ID: '   ', GOOGLE_CLIENT_SECRET: 's' })).toEqual([]);
   });

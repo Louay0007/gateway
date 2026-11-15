@@ -4,8 +4,8 @@ import { redirect } from "next/navigation";
 import { hasLiveSession } from "@/lib/auth/authorize";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignInForm } from "@/components/auth/sign-in-form";
-import { SocialButtons, SocialDivider, SocialNotice } from "@/components/auth/social-buttons";
-import { enabledProviders } from "@/lib/auth/oauth";
+import { SocialBlock, SocialNotice } from "@/components/auth/social-buttons";
+import { offeredProviders } from "@/lib/auth/oauth";
 
 export const metadata: Metadata = {
   title: "Sign In to Zaino AI",
@@ -57,7 +57,7 @@ export default async function SignInPage({
   // read, then dropped on a bare form with no memory of why.
   const changed = params.passwordChanged === "1";
 
-  const providers = enabledProviders();
+  const providers = offeredProviders();
 
   return (
     <AuthShell
@@ -78,8 +78,7 @@ export default async function SignInPage({
     >
       <SocialNotice reason={params.social} />
 
-      <SocialButtons providers={providers} returnTo={callbackUrl} />
-      {providers.length > 0 ? <SocialDivider /> : null}
+      <SocialBlock providers={providers} returnTo={callbackUrl} />
 
       <SignInForm callbackUrl={callbackUrl} />
     </AuthShell>

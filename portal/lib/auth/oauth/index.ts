@@ -29,6 +29,13 @@ export interface ProviderConfig {
 
 const ORDER: ProviderId[] = ['google', 'github', 'apple'];
 
+/** Display names, keyed by the id type so a new provider is a type error. */
+const PROVIDER_NAMES: Record<ProviderId, string> = {
+  google: 'Google',
+  github: 'GitHub',
+  apple: 'Apple',
+};
+
 export function isProviderId(value: string): value is ProviderId {
   return (ORDER as string[]).includes(value);
 }
@@ -84,7 +91,34 @@ export async function clientSecretFor(id: ProviderId, config: ProviderConfig): P
   return mintAppleClientSecret(creds);
 }
 
-/** Every provider that is fully configured, in display order. */
+/**
+ * Every provider the UI offers, in display order.
+ *
+ * ALWAYS ALL THREE, regardless of configuration. The buttons are shown so
+ * the product looks complete while credentials are still being issued; a
+ * click on an unconfigured one redirects to /sign-in?social=unavailable
+ * with a readable sentence rather than a dead provider page.
+ *
+ * This is a deliberate reversal of the earlier "hide when unconfigured"
+ * rule. That rule protected against a button that 500s AFTER the user
+ * commits — a real hazard — but the start route now refuses before any
+ * redirect, so the hazard is gone and the empty row was worse.
+ *
+ * `providerConfig()` remains the authority on whether a flow can actually
+ * COMPLETE. The two questions are separate: what to render, and what to
+ * exchange.
+ */
+export function offeredProviders(): ProviderId[] {
+  return [...ORDER];
+}
+
+/**
+ * Every provider that is fully configured, in display order.
+ *
+ * NOT what the sign-in page renders — see `offeredProviders`. This answers
+ * "can this provider finish a sign-in", which the start route and the
+ * callback both need and the UI does not.
+ */
 export function enabledProviders(
   env: Record<string, string | undefined> = process.env,
 ): ProviderId[] {
@@ -92,11 +126,12 @@ export function enabledProviders(
 }
 
 /** Display metadata for the sign-in UI. Never includes a secret. */
-export function enabledProviderLabels(
-  env: Record<string, string | undefined> = process.env,
-): Array<{ id: ProviderId; name: string }> {
-  return enabledProviders(env).map((id) => {
-    const cfg = providerConfig(id, env);
-    return { id, name: cfg ? cfg.adapter.name : id };
-  });
+export function enabledProviderLabels(): Array<{ id: ProviderId; name: string }> {
+  return offeredProviders().map((id) => ({
+    id,
+    // A static map, not the config: an unconfigured provider still has a
+    // name to render. The `Record` makes a new ProviderId a type error
+    // rather than a silently missing label.
+    name: PROVIDER_NAMES[id],
+  }));
 }
