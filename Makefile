@@ -332,6 +332,12 @@ docker-mirror: ## Pull base images from AWS's Docker Hub mirror (use when auth.d
 	done
 
 verify-caddy: ## Validate the Caddyfile against the real caddy binary
+	@# A missing .env is not a Caddyfile problem, and caddy's own error for it
+	@# is the useless "server block without any key is global configuration"
+	@# pointing at line 1. This ran as a DEPLOY GATE, so an absent .env would
+	@# have blocked every deploy with a message about the wrong file. Fail on
+	@# the real cause instead.
+	@test -f .env || { echo "verify-caddy: no .env (needs the domain values)"; exit 1; }
 	@# EVERY domain the Caddyfile interpolates has to be passed. A missing
 	@# one expands to an empty string, leaving a bare `{` where a site
 	@# address belongs, and caddy reports the useless error

@@ -82,6 +82,29 @@ jobs:
           make db-init
           make db-migrate
 
+      # VALIDATE THE CADDYFILE BEFORE ANYTHING RESTARTS.
+      #
+      # This step exists because its absence shipped two bugs that `make
+      # verify-caddy` would both have caught:
+      #
+      #   1. the live-share stream was not in the streaming matcher, so SSE
+      #      fell to the default proxy's 120s read_timeout and every viewer
+      #      reconnected silently two minutes in;
+      #   2. adding it as a second argument to `route` is a caddyfile PARSE
+      #      error — `route` takes exactly one matcher expression.
+      #
+      # A parse error does not fail the build. The stack starts, Caddy fails
+      # to load its config, and the site goes down at reload — after a green
+      # `docker compose up`. Catching it here means the deploy stops before
+      # it replaces a working stack with a broken one.
+      #
+      # `--strict` is NOT used: the Caddyfile carries intentional warnings
+      # (automatic HTTPS on the sslip test hosts). `verify-caddy` already
+      # passes every interpolated domain, which is the failure mode that
+      # produced the useless "server block without any key" error.
+      - name: Validate the Caddyfile
+        run: make verify-caddy
+
       # The engine's Rust compile is the only slow part of this deploy and it
       # is cached across runs by the cache mounts in engine/Dockerfile and
       # portal/Dockerfile, not by compose's layer cache. Layers are keyed on
