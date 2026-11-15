@@ -47,7 +47,21 @@ const Logo = ({
   return (
     <span className={`flex items-center gap-2.5 ${className ?? ""}`}>
       <span
-        className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-[linear-gradient(160deg,#2a2a2e_0%,#131315_58%,#0a0a0b_100%)] ring-1 ring-black/40 ring-inset dark:ring-white/15 ${s.tile}`}
+        /*
+         * BLACK, not the grey-topped gradient this used to be.
+         *
+         * The old ground was `linear-gradient(160deg, #2a2a2e, #131315,
+         * #0a0a0b)` — a "material" rather than a flat swatch, which is what
+         * it was designed to look like. On the chat rail it read as a GREY
+         * tile: #2a2a2e is 17% lightness sitting directly beside a near-black
+         * sidebar, so the top edge is the only part the eye registers.
+         *
+         * A white glyph on a black ground is the mark's own contrast, and it
+         * needs no gradient to look intentional. The specular hairline below
+         * stays — that is the detail that separates a tile from a swatch, and
+         * it still reads on pure black.
+         */
+        className={`relative flex shrink-0 items-center justify-center overflow-hidden bg-black ring-1 ring-black/40 ring-inset dark:ring-white/12 ${s.tile}`}
         aria-hidden={wordmark ? true : undefined}
       >
         {/* A single specular line along the top edge. One authored detail

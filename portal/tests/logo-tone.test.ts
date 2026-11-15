@@ -52,3 +52,27 @@ describe('Logo wordmark on tone="light"', () => {
     expect(code).toContain('text-foreground');
   });
 });
+
+describe('Logo mark ground', () => {
+  const code = stripComments(LOGO);
+
+  it('is BLACK, not a grey-topped gradient', () => {
+    // The old ground was `linear-gradient(160deg, #2a2a2e, #131315, #0a0a0b)`.
+    // #2a2a2e is 17% lightness, and on the near-black chat rail the tile read
+    // as GREY — the top edge is the only part the eye registers. A white
+    // glyph needs no gradient to look intentional.
+    expect(code).not.toContain('2a2a2e');
+    expect(code).toMatch(/bg-black/);
+  });
+
+  it('keeps the specular hairline, which is what makes it a tile', () => {
+    expect(code).toContain('bg-white/22');
+  });
+
+  it('stays dark in both themes — the glyph is white', () => {
+    // A theme-following ground would invert to white in dark mode and make a
+    // white-on-white mark. bg-background would do exactly that.
+    expect(code).not.toMatch(/bg-background/);
+    expect(code).not.toMatch(/bg-card/);
+  });
+});
