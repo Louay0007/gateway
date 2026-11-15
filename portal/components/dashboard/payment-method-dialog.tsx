@@ -35,7 +35,6 @@ import {
 } from "@/components/ui/dialog";
 import type { PlanSummary } from "@/lib/billing/state";
 import { formatPlanPrice, tndPrice, usdPrice } from "@/lib/dashboard/format";
-import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -115,11 +114,17 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
   /** Seats actually charged: 1 for a single-seat plan, whatever was picked otherwise. */
   const billedSeats = maxSeats > 1 ? seats : 1;
 
-  // WAI-ARIA radio group, hand-rolled because only two rails exist and the
-  // Base UI set is not installed. One tab stop for the group; arrows move
-  // and select, Space/Enter select.
-  const tileRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
-  function onTileKeyDown(e: React.KeyboardEvent, index: number) {
+
+  /**
+   * WAI-ARIA radio group, hand-rolled because only two rails exist and the
+   * Base UI set is not installed. The group is ONE tab stop: the selected
+   * tile is tabbable and the other is `tabIndex={-1}`. Arrows move and
+   * select, Home/End jump to the ends, Space/Enter select via the native
+   * button. `preventDefault` fires only for a key this handler consumes, so
+   * focusable content added inside the group later keeps its own keys.
+   */
+  const tilesRef = React.useRef<HTMLDivElement | null>(null);
+  function onGroupKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     const last = METHODS.length - 1;
     const step =
       e.key === "ArrowRight" || e.key === "ArrowDown"
@@ -127,23 +132,17 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
         : e.key === "ArrowLeft" || e.key === "ArrowUp"
           ? -1
           : 0;
+    let next: number;
     if (step !== 0) {
-      e.preventDefault();
-      const next = (index + step + METHODS.length) % METHODS.length;
-      const target = METHODS[next];
-      if (!target) return;
-      setMethod(target.id);
-      tileRefs.current[next]?.focus();
-      return;
-    }
-    if (e.key === "Home" || e.key === "End") {
-      e.preventDefault();
-      const next = e.key === "Home" ? 0 : last;
-      const target = METHODS[next];
-      if (!target) return;
-      setMethod(target.id);
-      tileRefs.current[next]?.focus();
-    }
+      next = (METHODS.findIndex((m) => m.id === method) + step + METHODS.length) % METHODS.length;
+    } else if (e.key === "Home") next = 0;
+    else if (e.key === "End") next = last;
+    else return;
+    e.preventDefault();
+    const target = METHODS[next];
+    if (!target) return;
+    setMethod(target.id);
+    tilesRef.current?.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
   }
 
   async function confirm() {
@@ -247,24 +246,11 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
             ) : null}
 
             <div
+              ref={tilesRef}
               role="radiogroup"
               aria-label="Payment method"
               className="grid gap-2 sm:grid-cols-2"
-              onKeyDown={(e) => {
-                // A radiogroup is one tab stop; ArrowLeft/Right moves the
-                // selection. Without this the two tiles are reachable but
-                // not operable from the keyboard, which is why the arrow
-                // keys are handled here rather than per-tile.
-                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" &&
-                    e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-                e.preventDefault();
-                const i = METHODS.findIndex((m) => m.id === method);
-                const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
-                const next = METHODS[(i + step + METHODS.length) % METHODS.length];
-                if (!next) return;
-                setMethod(next.id);
-                (e.currentTarget.querySelectorAll('[role="radio"]')[METHODS.indexOf(next)] as HTMLElement | undefined)?.focus();
-              }}
+              onKeyDown={onGroupKeyDown}
             >
               {METHODS.map((m) => {
                 const selected = method === m.id;
@@ -275,6 +261,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                     variant="outline"
                     role="radio"
                     aria-checked={selected}
+                    tabIndex={selected ? 0 : -1}
                     onClick={() => setMethod(m.id)}
                     className={`h-auto items-start justify-start gap-3 p-3 text-left focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 ${
                       selected
