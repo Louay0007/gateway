@@ -134,6 +134,25 @@ const MODEL_ALIAS = {
   fable: 'gpt-6-astra',
 };
 
+/** Claude Desktop's custom-model picker names → the tier alias they mean.
+ *
+ * Deliberately NOT merged into MODEL_ALIAS: that map resolves onward to an
+ * upstream name, and forwarding `haiku-5.5` would 403 every key, because
+ * keys are allowlisted per tier alias (portal/lib/litellm/client.ts:167).
+ * The value here is the tier alias and the rewrite stops there — LiteLLM's
+ * own model_list turns `fast` into the upstream model.
+ *
+ * Only used on /v1/messages. On /v1/chat/completions a `claude-*` name is
+ * absent from MODEL_ALIAS and so falls through to modelRejection like any
+ * other unknown name, which is the pre-existing behaviour.
+ */
+const CLAUDE_ALIAS = {
+  'claude-fast': 'fast',
+  'claude-smart': 'smart',
+  'claude-frontier': 'frontier',
+  'claude-fable': 'fable',
+};
+
 /** Concrete upstream model names the edge is allowed to forward.
  * Anything not in this set (and not a known alias) is rejected at the
  * edge with a clear 400, instead of being forwarded to LiteLLM where it
@@ -167,10 +186,16 @@ function resolveModelAlias(bodyBuf) {
     return { model: null, body: bodyBuf };
   }
   const model = typeof parsed?.model === 'string' ? parsed.model : null;
-  if (RESOLVE_ALIASES && model && MODEL_ALIAS[model]) {
-    return { model, body: Buffer.from(JSON.stringify(parsed), 'utf8') };
+  if (!RESOLVE_ALIASES || !model || !MODEL_ALIAS[model]) {
+    return { model, body: bodyBuf };
   }
-  return { model, body: bodyBuf };
+  // Exactly one step: `claude-fast` → `fast` stops at the tier alias (keys are
+  // allowlisted per tier, so the /v1/messages rewrite above must stop there
+  // too), and `fast` → `haiku-5.5` stops at the upstream name. Never look the
+  // result up again — a second hop would walk claude-fast onto haiku-5.5.
+  const resolved = MODEL_ALIAS[model];
+  parsed.model = resolved;
+  return { model: resolved, body: Buffer.from(JSON.stringify(parsed), 'utf8') };
 }
 
 /** Validate the model the edge is about to forward. Returns null if OK, or a
@@ -435,8 +460,20 @@ const server = http.createServer((req, res) => {
     const parsed = tryParseJson(raw);
     bodyBuf = raw;
     if (parsed) {
-      const { body, changed } = sanitizeRequest(parsed);
+      const { body, changed: guarded } = sanitizeRequest(parsed);
       requestedModel = typeof body.model === 'string' ? body.model : null;
+      // `claude-fast` → `fast`, exactly one step, and NOT onward to the
+      // upstream name. Keys are allowlisted per tier alias, so forwarding
+      // `haiku-5.5` here would 403 every existing key — the whole reason
+      // this rewrite exists. LiteLLM's model_list resolves `fast` itself.
+      // Only claude-* is rewritten: the four tier aliases already work
+      // untouched on this path.
+      let changed = guarded;
+      if (requestedModel && CLAUDE_ALIAS[requestedModel]) {
+        body.model = CLAUDE_ALIAS[requestedModel];
+        requestedModel = body.model;
+        changed = true;
+      }
       if (changed) {
         bodyBuf = Buffer.from(JSON.stringify(body), 'utf8');
         log(req, started, 200, rewritten, null, 'messages:guarded', displayAlias(requestedModel), keyPrefix);
