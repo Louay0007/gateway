@@ -82,6 +82,15 @@ export function toAlias(map: AliasMap, model: string | null | undefined): string
   const trimmed = model.trim();
   if (TIER_ALIASES.includes(trimmed as TierAlias)) return trimmed;
 
+  // Claude Desktop's model picker sends `claude-fast`, `claude-smart`, …
+  // Those are gateway routing names (config/litellm.yaml), not product tiers:
+  // they must never reach usage_records.model or the DB CHECK. Strip the
+  // prefix so the ledger still records the tier the customer actually used.
+  // ponytail: the prefix is client-only forever — if `claude-*` ever becomes a
+  // real fifth tier, this strip is the line to delete.
+  const tier = bareModelName(trimmed).replace(/^claude-/, '');
+  if (TIER_ALIASES.includes(tier as TierAlias)) return tier;
+
   const bare = bareModelName(trimmed);
   const exact = map[bare];
   if (exact) return exact;
