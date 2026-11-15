@@ -27,6 +27,7 @@ const navLinks = [
   { title: "Pricing", href: "/pricing" },
   { title: "Models", href: "/models" },
   { title: "Docs", href: "/docs" },
+  { title: "Download", href: "/download" },
   { title: "Sign in", href: "/sign-in" },
 ];
 
