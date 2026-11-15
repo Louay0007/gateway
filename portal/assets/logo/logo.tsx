@@ -65,10 +65,24 @@ const Logo = ({
       {wordmark ? (
         <span
           className={`font-semibold tracking-[-0.02em] ${
-            tone === "light" ? "text-black dark:text-white" : "text-foreground"
+            /*
+             * `tone="light"` means "this surface is white in BOTH themes"
+             * (AuthShell, checkout, the marketing hero). Forcing `dark:`
+             * there is contradictory, and it shipped a real bug: the auth
+             * pages sit on `.light-surface`, which re-declares the LIGHT
+             * token set but cannot touch a `dark:` UTILITY — so
+             * `dark:text-white` won whenever <html> carried class="dark",
+             * painting white "Zaino" on a white card. Only the grey "AI"
+             * (text-muted-foreground, a token, correctly overridden)
+             * remained visible.
+             *
+             * A fixed-black surface gets a fixed-black wordmark. No `dark:`.
+             */
+            tone === "light" ? "text-black" : "text-foreground"
           } ${s.text}`}
         >
-          Zaino<span className="text-muted-foreground"> AI</span>
+          Zaino
+          <span className={tone === "light" ? "text-black/55" : "text-muted-foreground"}> AI</span>
         </span>
       ) : null}
     </span>
