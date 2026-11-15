@@ -93,3 +93,13 @@ drip_send.py
 send_all.py
 send-email.py
 __pycache__/
+
+# ── Marketing render output (not product, not redistributable) ───────
+# plans/linkedin-assets/ holds 60+ generated PNGs, a 2MB motion clip, and
+# Apple's SF Pro Display .OTF files. The fonts are the blocker: Apple's
+# licence does not permit redistribution, and a public repo is
+# redistribution. Keeping the whole tree out also keeps the clone small.
+plans/linkedin-assets/
+plans/deck/*.pptx
+plans/deck/*.pdf
+plans/deck/.no-motion.py.bak
