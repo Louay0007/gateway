@@ -153,6 +153,26 @@ export const CLAUDE_ALIAS = {
   'claude-fable': 'fable',
 };
 
+/** Add a `claude-*` entry to a /v1/models payload for every tier already
+ * in it. Pure, so the rule is testable without an HTTP server.
+ *
+ * A tier absent from the list is absent because the key is not allowed it —
+ * adding its claude-* twin would advertise access the key does not have, and
+ * the request would then 403. So the list only ever grows by a second
+ * spelling of an entry that is already there.
+ */
+export function advertiseClaudeAliases(payload) {
+  const data = Array.isArray(payload && payload.data) ? payload.data : null;
+  if (!data) return payload;
+  const present = new Set(data.map((m) => m && m.id).filter(Boolean));
+  for (const [claudeName, tier] of Object.entries(CLAUDE_ALIAS)) {
+    if (!present.has(tier)) continue;
+    const twin = data.find((m) => m && m.id === tier);
+    data.push({ ...twin, id: claudeName });
+  }
+  return payload;
+}
+
 /** Concrete upstream model names the edge is allowed to forward.
  * Anything not in this set (and not a known alias) is rejected at the
  * edge with a clear 400, instead of being forwarded to LiteLLM where it
@@ -535,6 +555,35 @@ const server = http.createServer((req, res) => {
         // Pass framing through untouched: chunked in, chunked out. Setting
         // our own content-length here would break SSE.
         outHeaders[name] = value;
+      }
+      // ── Model discovery: advertise the claude-* names ──────────────
+      // Claude Desktop's custom-endpoint picker reads this list, so without
+      // this it offers `fast`/`smart`/… and never the `claude-*` names the
+      // user was told to enter. Buffered (it is a small JSON array, never a
+      // stream) and rewritten; every other route still streams untouched.
+      //
+      // Each claude-* name is added ONLY for a tier LiteLLM already returned,
+      // so the list stays exactly as wide as the key's allowlist — this adds
+      // no capability, it adds a second spelling of one the key already has.
+      if (req.method === 'GET' && pathname === '/v1/models' && status === 200) {
+        const chunks = [];
+        upstreamRes.on('data', (c) => chunks.push(c));
+        upstreamRes.on('end', () => {
+          const raw = Buffer.concat(chunks);
+          let body = raw;
+          try {
+            body = Buffer.from(JSON.stringify(advertiseClaudeAliases(JSON.parse(raw.toString('utf8')))), 'utf8');
+            outHeaders['content-length'] = body.length;
+          } catch {
+            // Not JSON (a proxy error page, say). Forward it byte-for-byte
+            // rather than turning a readable upstream error into a 502.
+          }
+          res.writeHead(status, outHeaders);
+          res.end(body);
+          log(req, started, status, rewritten, null, 'models:advertised', null, keyPrefix);
+        });
+        upstreamRes.on('error', () => { res.writeHead(502); res.end(); });
+        return;
       }
       // A model-access denial is a small JSON error, never a stream — buffer
       // it so the customer gets `out of <alias> tokens` instead of the

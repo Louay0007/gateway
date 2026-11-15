@@ -10,7 +10,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { CLAUDE_ALIAS, resolveModelAlias } from './server.mjs';
+import { CLAUDE_ALIAS, resolveModelAlias, advertiseClaudeAliases } from './server.mjs';
 
 const body = (model) => Buffer.from(JSON.stringify({ model, max_tokens: 8 }), 'utf8');
 const model = (buf) => JSON.parse(buf.toString('utf8')).model;
@@ -62,4 +62,36 @@ test('claude-* resolves with alias rewriting off, one step, no chaining', () => 
   assert.equal(claudeFast.model, 'fast');
   // Rewriting the tier alias again is a no-op without EDGE_RESOLVE_ALIASES.
   assert.equal(model(resolveModelAlias(claudeFast.body).body), 'fast');
+});
+test('/v1/models gains a claude-* twin only for tiers already present', () => {
+  const one = advertiseClaudeAliases({ data: [{ id: 'fable', object: 'model' }] });
+  const ids = one.data.map((m) => m.id);
+  assert.deepEqual(ids, ['fable', 'claude-fable']);
+  // A tier the key cannot use must NOT be advertised: its claude-* twin
+  // would say "available" and then 403 on use.
+  assert.equal(ids.includes('claude-fast'), false);
+  assert.equal(ids.includes('fast'), false);
+});
+
+test('/v1/models twin keeps the tier entry fields', () => {
+  const out = advertiseClaudeAliases({
+    data: [{ id: 'smart', object: 'model', owned_by: 'zaino', created: 7 }],
+  });
+  const twin = out.data.find((m) => m.id === 'claude-smart');
+  assert.equal(twin.owned_by, 'zaino');
+  assert.equal(twin.created, 7);
+  assert.equal(twin.object, 'model');
+});
+
+test('/v1/models all four present gains exactly four twins', () => {
+  const out = advertiseClaudeAliases({
+    data: ['fast', 'smart', 'frontier', 'fable'].map((id) => ({ id })),
+  });
+  assert.equal(out.data.length, 8);
+  assert.equal(out.data.filter((m) => m.id.startsWith('claude-')).length, 4);
+});
+
+test('/v1/models non-list payload is returned untouched', () => {
+  assert.deepEqual(advertiseClaudeAliases({ error: 'nope' }), { error: 'nope' });
+  assert.deepEqual(advertiseClaudeAliases({}), {});
 });
