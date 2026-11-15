@@ -844,6 +844,15 @@ export const conversationShares = pgTable('conversation_shares', {
   tokenHash:        text('token_hash').notNull(),
   /** Partial share: only messages up to this one are visible. */
   throughMessageId: uuid('through_message_id').references(() => messages.id, { onDelete: 'set null' }),
+  /**
+   * True = follow the conversation until revoked; `throughMessageId` is
+   * ignored. False (the default, and every row before 0042) = snapshot.
+   *
+   * The default is false on purpose: the two modes have opposite failure
+   * modes, and a forgotten SNAPSHOT link exposes one stale conversation
+   * while a forgotten LIVE link broadcasts everything the owner says next.
+   */
+  isLive:           boolean('is_live').notNull().default(false),
   expiresAt:        timestamp('expires_at', { withTimezone: true }),
   revokedAt:        timestamp('revoked_at', { withTimezone: true }),
   viewCount:        integer('view_count').notNull().default(0),

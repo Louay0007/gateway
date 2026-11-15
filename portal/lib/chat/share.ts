@@ -30,6 +30,8 @@ import { db } from '@/db';
 export interface ShareRow {
   id: string;
   conversationId: string;
+  /** Follows the conversation rather than freezing it. */
+  isLive: boolean;
   expiresAt: string | null;
   revokedAt: string | null;
   viewCount: number;
@@ -39,6 +41,7 @@ export interface ShareRow {
 interface RawShare {
   id: string;
   conversation_id: string;
+  is_live: boolean;
   expires_at: string | Date | null;
   revoked_at: string | Date | null;
   view_count: number;
@@ -54,6 +57,7 @@ function map(r: RawShare): ShareRow {
   return {
     id: r.id,
     conversationId: r.conversation_id,
+    isLive: r.is_live === true,
     expiresAt: toIso(r.expires_at),
     revokedAt: toIso(r.revoked_at),
     viewCount: r.view_count,
@@ -96,6 +100,12 @@ export async function createShare(input: {
   conversationId: string;
   throughMessageId?: string | null;
   expiresInDays?: number;
+  /**
+   * Follow the conversation instead of freezing it. Defaults to FALSE and
+   * must be asked for: a forgotten snapshot link exposes one stale
+   * conversation, a forgotten live link broadcasts everything said next.
+   */
+  isLive?: boolean;
 }): Promise<{ token: string; share: ShareRow } | null> {
   const days = clampShareDays(input.expiresInDays);
 
@@ -105,7 +115,13 @@ export async function createShare(input: {
   // conversation — a foreign one would compare against another row's
   // timestamp, and a missing one compares NULL, which matches nothing and
   // yields an empty page.
-  const boundary = await resolveBoundary(input.conversationId, input.throughMessageId ?? null);
+  const isLive = input.isLive === true;
+  // A live share has no boundary — that is what makes it live. Skipping the
+  // resolve also avoids writing a `through_message_id` that 0042's guard
+  // would then refuse.
+  const boundary = isLive
+    ? { ok: true as const, id: null }
+    : await resolveBoundary(input.conversationId, input.throughMessageId ?? null);
   if (!boundary.ok) return null;
 
   const token = randomBytes(32).toString('base64url');
@@ -121,12 +137,12 @@ export async function createShare(input: {
   const rows = (await db.execute(sql`
     INSERT INTO conversation_shares
       (conversation_id, organization_id, created_by, token_hash,
-       through_message_id, expires_at)
+       through_message_id, is_live, expires_at)
     VALUES (${input.conversationId}::uuid, ${input.organizationId}::uuid,
             ${input.userId}::uuid, ${hashToken(token)},
-            ${boundary.id}::uuid,
+            ${boundary.id}::uuid, ${isLive},
             now() + ${`${days} days`}::interval)
-    RETURNING id, conversation_id, expires_at, revoked_at, view_count, created_at
+    RETURNING id, conversation_id, is_live, expires_at, revoked_at, view_count, created_at
   `)) as unknown as RawShare[];
 
   const row = rows[0];
@@ -176,7 +192,7 @@ export async function listShares(input: {
   conversationId: string;
 }): Promise<ShareRow[]> {
   const rows = (await db.execute(sql`
-    SELECT id, conversation_id, expires_at, revoked_at, view_count, created_at
+    SELECT id, conversation_id, is_live, expires_at, revoked_at, view_count, created_at
       FROM conversation_shares
      WHERE conversation_id = ${input.conversationId}::uuid
        AND organization_id = ${input.organizationId}::uuid
@@ -223,12 +239,14 @@ export async function resolveShare(token: string): Promise<{
   conversationId: string;
   title: string;
   throughMessageId: string | null;
+  /** The link follows the conversation; the boundary above is ignored. */
+  isLive: boolean;
   createdAt: string;
 } | null> {
   if (!token || token.length > 200) return null;
 
   const rows = (await db.execute(sql`
-    SELECT s.conversation_id, s.through_message_id, s.created_at,
+    SELECT s.conversation_id, s.through_message_id, s.is_live, s.created_at,
            c.title, c.temporary, c.archived_at
       FROM conversation_shares s
       JOIN conversations c ON c.id = s.conversation_id
@@ -238,6 +256,7 @@ export async function resolveShare(token: string): Promise<{
   `)) as unknown as {
     conversation_id: string;
     through_message_id: string | null;
+    is_live: boolean;
     created_at: string | Date;
     title: string;
     temporary: boolean;
@@ -265,6 +284,10 @@ export async function resolveShare(token: string): Promise<{
     conversationId: row.conversation_id,
     title: row.title,
     throughMessageId: row.through_message_id,
+    // Read, not inferred from `throughMessageId === null`: a live share may
+    // still carry a boundary from before it was switched, and the read path
+    // must follow the FLAG rather than a coincidence of nulls.
+    isLive: row.is_live === true,
     createdAt: toIso(row.created_at) ?? new Date().toISOString(),
   };
 }

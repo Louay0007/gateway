@@ -29,6 +29,15 @@ export const dynamic = 'force-dynamic';
 const Create = z.object({
   throughMessageId: z.string().uuid().nullish(),
   expiresInDays: z.number().int().min(1).max(MAX_SHARE_DAYS).optional(),
+  /**
+   * Follow the conversation instead of freezing it at the newest message.
+   *
+   * OPTIONAL AND DEFAULT FALSE. The two modes fail in opposite directions:
+   * a forgotten snapshot link exposes one stale conversation, a forgotten
+   * live link broadcasts everything the owner says next. So live has to be
+   * asked for explicitly, and the UI names it when the link is created.
+   */
+  isLive: z.boolean().optional(),
 });
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -95,6 +104,7 @@ export async function POST(
       conversationId: id,
       throughMessageId: body.throughMessageId ?? null,
       expiresInDays: days,
+      isLive: body.isLive === true,
     });
     if (!created) {
       return jsonError('validation', 'That message is not part of this conversation.');

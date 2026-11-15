@@ -18,6 +18,8 @@ import { cn } from "@/lib/utils";
 
 interface ShareRow {
   id: string;
+  /** Follows the conversation instead of freezing at creation. */
+  isLive: boolean;
   expiresAt: string | null;
   createdAt: string;
 }
@@ -87,6 +89,14 @@ export function ShareControl() {
 
   const [open, setOpen] = React.useState(false);
   const [url, setUrl] = React.useState<string | null>(null);
+  /**
+   * Live is OFF by default and is chosen BEFORE the link is made, because it
+   * cannot be changed afterwards — the token is shown once and never stored,
+   * so there is no way to re-open this dialog and flip a mode on a link whose
+   * URL the user has already sent to someone.
+   */
+  const [wantLive, setWantLive] = React.useState(false);
+  const [createdLive, setCreatedLive] = React.useState(false);
   const [shareId, setShareId] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
@@ -128,9 +138,12 @@ export function ShareControl() {
   async function share() {
     if (busy || !conversationId) return;
     setBusy(true);
-    const res = await apiSend<{ url: string; share: { id: string } }>(
+    const res = await apiSend<{ url: string; share: { id: string; isLive: boolean } }>(
       `/api/chat/conversations/${conversationId}/share`,
-      { method: "POST", body: {} },
+      // `isLive` is sent explicitly rather than omitted: the server defaults
+      // it to false, and a body that says nothing is indistinguishable from a
+      // client that did not know the option exists.
+      { method: "POST", body: { isLive: wantLive } },
     );
     setBusy(false);
     if ("error" in res) {
@@ -140,6 +153,7 @@ export function ShareControl() {
     // Absolute, because this is going into a chat with someone else.
     setUrl(`${window.location.origin}${res.data.url}`);
     setShareId(res.data.share.id);
+    setCreatedLive(res.data.share.isLive === true);
     setCopied(false);
     live.reload();
   }
@@ -224,7 +238,17 @@ export function ShareControl() {
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 </div>
-                <p className="text-[11px] leading-relaxed text-warning text-warning">
+                {createdLive ? (
+                  <p className="rounded-md border border-success/30 bg-success/10 px-2.5 py-2 text-[11px] leading-relaxed text-success">
+                    Live. New messages in this chat appear to whoever opens the link, until
+                    you stop sharing or it expires.
+                  </p>
+                ) : (
+                  <p className="text-[11px] leading-relaxed text-warning">
+                    Snapshot. Replies you send from now on are NOT included.
+                  </p>
+                )}
+                <p className="text-[11px] leading-relaxed text-warning">
                   Copy it now. This link is stored only as a hash, so it cannot be shown
                   again — if you lose it, revoke and make a new one.
                 </p>
@@ -263,16 +287,52 @@ export function ShareControl() {
                 </p>
               </div>
             ) : (
-              <div className="flex justify-end gap-2">
-                <Button
-                  size="sm"
-                  onClick={share}
-                  disabled={busy || live.loading}
-                  className={cn("gap-1.5", busy && "opacity-70")}
-                >
-                  <Link2 className="size-3.5" />
-                  {busy ? "Creating…" : "Create link"}
-                </Button>
+              <div className="space-y-3">
+                {/*
+                  THE CHOICE IS MADE BEFORE THE LINK EXISTS, because it cannot
+                  be changed after: the token is shown once and stored only as
+                  a hash, so there is no dialog to re-open and no row to flip.
+                  Choosing afterwards would mean revoking a link someone has
+                  already been sent.
+                */}
+                <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border/60 p-2.5">
+                  <input
+                    type="checkbox"
+                    checked={wantLive}
+                    onChange={(e) => setWantLive(e.target.checked)}
+                    className="mt-0.5 size-3.5 shrink-0"
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-medium text-foreground">
+                      Follow the conversation live
+                    </span>
+                    <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                      {wantLive
+                        ? "Every message you send while this link is active appears to whoever holds it. Stop sharing to end it."
+                        : "Freezes at the newest message. Replies you send after creating it stay private."}
+                    </span>
+                  </span>
+                </label>
+
+                {wantLive ? (
+                  <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-[11px] leading-relaxed text-warning">
+                    A live link keeps publishing until you stop it. If you forget it,
+                    everything you say in this chat is readable by anyone holding the URL
+                    until it expires.
+                  </p>
+                ) : null}
+
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    onClick={share}
+                    disabled={busy || live.loading}
+                    className={cn("gap-1.5", busy && "opacity-70")}
+                  >
+                    <Link2 className="size-3.5" />
+                    {busy ? "Creating…" : wantLive ? "Create live link" : "Create link"}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
