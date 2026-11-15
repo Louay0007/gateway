@@ -1,0 +1,84 @@
+EMERGENT VENTURES — PASTE-READY
+Louay Rjili | ceo-louayrjili@sohabi.app | +216 24 267 363
+947 words
+
+
+==========================================================
+FIELD: How do you describe your idea in a tweet?  (113 characters)
+==========================================================
+
+Tunisian developers can't legally buy frontier AI. I built the gateway, metering and dinar billing that fixes it.
+
+==========================================================
+
+
+==========================================================
+FIELD: Tell us about your proposal  (947 / 1000 words)
+==========================================================
+
+I am a final-year computer engineering student in Tunisia who has started three companies instead of waiting to graduate.
+
+The third one exists because of a wall I hit while building the second. As CTO of Chabaqa, a creator-economy platform, I needed to put AI features into production: recommendations, automated marketing, an assistant. I could get free credits and trials, and they always ran out at the worst moment. Paying properly meant a card that works abroad, which I did not have, and an invoice in dinars, which nobody issues. So I built a wrapper around a free endpoint, watched it break under load, and rebuilt it twice. I lost about six weeks to work that had nothing to do with the product.
+
+What made me angry was not my own inconvenience. It was realising that every developer here hits the same wall, and that the workaround most of them choose is buying access from a reseller in a chat group: prepaying a stranger who may disappear next month, with no receipt and no recourse. That is the actual state of AI access in a country of thirty thousand developers.
+
+So instead of working around it a fourth time, I built the thing that removes it.
+
+
+THE CONSENSUS QUESTION
+
+What is one mainstream or "consensus" view that you absolutely agree with?
+
+That regulation and compliance, which almost everyone in startups treats as friction, are what make a market possible in the first place.
+
+It is unfashionable to say this. The consensus in founder circles is that rules are obstacles to route around, and that the winners are the ones who move before the regulators notice. I think that is backwards. Money moves because people trust the rails, and they trust the rails because someone wrote rules and enforces them. The Startup Act matters because it is law, not a grant programme.
+
+I built Zaino around this belief. My metering is stricter than it needs to be and my quota fails closed rather than open. That is a deliberate cost. I would rather lose a customer to a hard limit than run an unlicensed resale operation that collapses the first time it is examined.
+
+
+THE IDEA
+
+The problem. Tunisia has roughly 30,000 developers. Almost none can legally buy a frontier AI subscription: no internationally accepted card, no invoice in dinars, no licensed local reseller. The gap filled with informal ones. The alternative is borrowing a colleague's login. Either way, a developer here works with a toolset years behind a developer in Paris, and the gap compounds every quarter.
+
+The solution. Zaino is a metered subscription gateway. A developer pays in dinars through D17, the La Poste wallet almost everyone already has, and gets the same models their peers abroad use, with a monthly token allowance, a dashboard, and an API key that works with existing tooling. The models are not mine. The way in is.
+
+What is actually new. Not inference. The hard part is the layer around it: metering precisely enough that a customer cannot consume more than they paid for, enforcing that quota on every request and failing closed, billing in a currency with no card rail, and doing all of it inside the rules. I enforce one rule over one shared window helper, applied identically by three independent jobs, so the number a customer sees and the number that blocks them cannot disagree. The compliance wrapper is the product, not a constraint on it.
+
+Timing. Two windows opened at once. Frontier providers now offer reseller and partner arrangements that did not exist two years ago. And Tunisia's Startup Act gives labelled companies a corporate tax exemption, a foreign-currency account, and a founder's allowance, a legal foundation that did not exist before 2018.
+
+How long, and what exists. Zaino has been running in production since 2026. It is not a proposal. A quota engine with hard monthly limits and fail-closed enforcement; two payment rails, one live and one built and in test mode; a trilingual dashboard in French, Arabic and English; a desktop client with browser device login so users never handle a raw key; a Rust service for document extraction and tenant-filtered search; 641 automated tests passing, a clean type-check, and 40 forward-only migrations applied before code serves traffic.
+
+I have done this before. As CTO of Chabaqa.io I took a Tunisian SaaS platform through the Startup Act labelling process and secured the label. I know the dossier, the committee, and the timeline.
+
+Budget outline. I am asking for $1,000.
+
+- Incorporating the company, SUARL, filing it myself: 1,885 DT, about $608
+- Apple Developer Program, so the desktop client can ship: $99
+- Startup Label application fee: 100 DT, about $32
+- Bank, notary and courier costs: 573 DT, about $185
+
+That totals $924. The remaining $76 covers exchange and bank charges on receiving the grant.
+
+Implementation plan. Incorporate within four weeks. Apply for the Startup Label immediately after: 100 DT, decided within 30 days, and a process I have completed once already. Then open paid subscriptions on the D17 rail and take the first paying customer. The label also opens a founder's allowance of 1,000 DT net per month for twelve months, subject to eligibility, which is why $1,000 here is not a subsidy: it is the key that unlocks ten times its value in non-dilutive public funding.
+
+Expected impact. Directly: a legal way for Tunisian developers to buy the tools of their trade, priced in the currency they earn. Indirectly: revenue that stays here instead of leaving through informal channels, and a template other developers in the region can copy, because the same obstacle exists in Algeria, Morocco and Egypt.
+
+Cofounders. None. I am the sole founder and point of contact.
+
+==========================================================
+
+
+BEFORE YOU SUBMIT
+
+1. Fix the CV. It says the quota is "100M blended tokens per tier per
+   Tunis calendar day." That is the old model. It is now 50M shared
+   per month (migration 0039). A mismatch between CV and application
+   is the kind of thing that ends an application.
+
+2. Fix the contact details. The CV has louay.rjilii@gmail.com and
+   +216 51 803 706. You gave me ceo-louayrjili@sohabi.app and
+   +216 24 267 363. Pick one pair and make the CV, the form and the
+   PDF footer identical.
+
+3. Do not submit from a VPN. One application only. Tick all three
+   consent boxes. Attach Zaino-One-Page.pdf.
