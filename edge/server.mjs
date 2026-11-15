@@ -48,6 +48,7 @@ import {
   ResponsesStreamTranslator,
   encodeSse,
 } from './responses-shim.mjs';
+import { sanitizeRequest } from './upstream-guard.mjs';
 
 const CUSTOM_PREFIX = 'zn-';
 const GATEWAY_PREFIX = 'sk-';
@@ -418,10 +419,33 @@ const server = http.createServer((req, res) => {
     return handleResponses(req, res, headers, started, rewritten, keyPrefix);
   }
 
-  // Buffer + handle model alias for chat/completions so LiteLLM receives a
-  // name it can serve. All other routes stay a pure pipe.
+  // ── Buffer the body when the edge must inspect it ───────────────────
+  // Everything else is a pure pipe: no buffering, no content-length.
   let bodyBuf;
   let requestedModel = null;
+
+  // /v1/messages: drop blocks the upstream refuses. An Anthropic-shaped body
+  // is forwarded verbatim, which is what makes images reach the model — and
+  // also what makes a PDF block reach the upstream and 400. A PDF stays in
+  // the history for the rest of the conversation, so one attachment would
+  // wedge the session permanently. Rewrite those blocks to a text note;
+  // everything else is forwarded byte-for-byte. See upstream-guard.mjs.
+  if (req.method === 'POST' && pathname === '/v1/messages') {
+    const raw = await readBody(req);
+    const parsed = tryParseJson(raw);
+    bodyBuf = raw;
+    if (parsed) {
+      const { body, changed } = sanitizeRequest(parsed);
+      requestedModel = typeof body.model === 'string' ? body.model : null;
+      if (changed) {
+        bodyBuf = Buffer.from(JSON.stringify(body), 'utf8');
+        log(req, started, 200, rewritten, null, 'messages:guarded', displayAlias(requestedModel), keyPrefix);
+      }
+    }
+    headers['content-length'] = bodyBuf.length;
+  }
+
+  // chat/completions: alias handling so LiteLLM receives a name it can serve.
   if (req.method === 'POST' && pathname === '/v1/chat/completions') {
     const resolved = resolveModelAlias(await readBody(req));
     bodyBuf = resolved.body;
@@ -590,6 +614,17 @@ function readBody(req) {
   });
 }
 
+/** Parse a body for inspection. Returns null rather than throwing: a body
+ *  that is not JSON is forwarded untouched for the upstream to judge. */
+function tryParseJson(buf) {
+  try {
+    const parsed = JSON.parse(buf.toString('utf8'));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 function failResponses(res, status, message) {
   if (res.headersSent) {
     res.destroy();
@@ -649,7 +684,14 @@ async function handleResponses(req, res, headers, started, rewritten, keyPrefix 
     return failResponses(res, 400, reject);
   }
 
-  const chatBody = Buffer.from(JSON.stringify(translated.body), 'utf8');
+  // Same capability guard as /v1/messages: a document or URL image the
+  // upstream refuses would fail this turn and every later turn that
+  // replays it. See upstream-guard.mjs.
+  const { body: guarded, changed } = sanitizeRequest(translated.body);
+  if (changed) {
+    log(req, started, 200, rewritten, null, 'responses:guarded', displayAlias(parsed.model), keyPrefix);
+  }
+  const chatBody = Buffer.from(JSON.stringify(guarded), 'utf8');
 
   const outHeaders = { ...headers };
   delete outHeaders['content-length'];

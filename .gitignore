@@ -84,3 +84,12 @@ data/
 portal/public/images/halloween/hero-banner-src.pdf
 portal/public/images/halloween/hero-banner-3200.png
 portal/public/images/halloween/hero-banner-3840.png
+
+# ── Personal outreach tooling (holds real third-party addresses) ─────
+# queue.json carries 22 live recipient addresses and a fundraise pitch;
+# the senders are one-off scripts, not gateway code. Never commit either.
+queue.json
+drip_send.py
+send_all.py
+send-email.py
+__pycache__/
