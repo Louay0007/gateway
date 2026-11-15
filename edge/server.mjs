@@ -178,6 +178,14 @@ const VALID_UPSTREAM_MODELS = new Set([
  */
 const RESOLVE_ALIASES = process.env.EDGE_RESOLVE_ALIASES === '1';
 
+/** `claude-fast` → `fast`, or undefined. One lookup, never chained: the result
+ * is never fed back into MODEL_ALIAS, because a tier alias is what keys are
+ * allowlisted on (portal/lib/litellm/client.ts:167) and what LiteLLM's
+ * model_list resolves to an upstream model. */
+export function requestAlias(model) {
+  return typeof model === 'string' ? CLAUDE_ALIAS[model] : undefined;
+}
+
 export function resolveModelAlias(bodyBuf) {
   let parsed;
   try {
@@ -190,9 +198,10 @@ export function resolveModelAlias(bodyBuf) {
   // claude-* → tier alias, always, and never onward through MODEL_ALIAS below:
   // keys are allowlisted per tier, so forwarding haiku-5.5 would 403 every
   // existing key. That is one step and the result is not looked up again.
-  if (CLAUDE_ALIAS[model]) {
-    parsed.model = CLAUDE_ALIAS[model];
-    return { model: parsed.model, body: Buffer.from(JSON.stringify(parsed), 'utf8') };
+  const alias = requestAlias(model);
+  if (alias) {
+    parsed.model = alias;
+    return { model: alias, body: Buffer.from(JSON.stringify(parsed), 'utf8') };
   }
   if (!RESOLVE_ALIASES || !MODEL_ALIAS[model]) {
     return { model, body: bodyBuf };
@@ -475,9 +484,10 @@ const server = http.createServer((req, res) => {
       // Only claude-* is rewritten: the four tier aliases already work
       // untouched on this path.
       let changed = guarded;
-      if (requestedModel && CLAUDE_ALIAS[requestedModel]) {
-        body.model = CLAUDE_ALIAS[requestedModel];
-        requestedModel = body.model;
+      const alias = requestAlias(requestedModel);
+      if (alias) {
+        body.model = alias;
+        requestedModel = alias;
         changed = true;
       }
       if (changed) {
@@ -493,17 +503,6 @@ const server = http.createServer((req, res) => {
     const resolved = resolveModelAlias(await readBody(req));
     bodyBuf = resolved.body;
     requestedModel = resolved.model;
-
-    // `claude-fast` → `fast`, one step, and NOT onward to `haiku-5.5` — keys
-    // are allowlisted per tier alias. Runs whether or not RESOLVE_ALIASES is
-    // set: without it a `claude-*` name is not in MODEL_ALIAS and would be a
-    // 400 at modelRejection below.
-    if (requestedModel && CLAUDE_ALIAS[requestedModel]) {
-      const parsed = JSON.parse(bodyBuf.toString('utf8'));
-      parsed.model = CLAUDE_ALIAS[requestedModel];
-      bodyBuf = Buffer.from(JSON.stringify(parsed), 'utf8');
-      requestedModel = parsed.model;
-    }
     headers['content-length'] = bodyBuf.length;
 
     // Reject unknown models at the edge with a clear 400 instead of
@@ -730,9 +729,8 @@ async function handleResponses(req, res, headers, started, rewritten, keyPrefix 
   }
   // Claude Desktop names, one step to the tier alias — otherwise the
   // modelRejection below 400s a `claude-*` name.
-  if (CLAUDE_ALIAS[translated.body.model]) {
-    translated.body.model = CLAUDE_ALIAS[translated.body.model];
-  }
+  const claudeAlias = requestAlias(translated.body.model);
+  if (claudeAlias) translated.body.model = claudeAlias;
 
   // Reject unknown models at the edge with a clear 400 instead of
   // forwarding to LiteLLM where they surface as "Model 'x' is not
