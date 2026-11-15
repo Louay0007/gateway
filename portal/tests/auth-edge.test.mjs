@@ -202,6 +202,40 @@ const call = (path, headers = {}, method = 'GET', body) =>
     req.end(body);
   });
 
+describe('MODEL_ALIAS resolution (claude-* → tier aliases)', () => {
+  it('claude-fast resolves to fast in one pass, no infinite recursion', async () => {
+    // MODEL_ALIAS maps both tier aliases to upstream names (fast → haiku-5.5)
+    // and claude-* names to tier aliases (claude-fast → fast). Resolution is
+    // single-pass: MODEL_ALIAS['claude-fast'] yields 'fast', then
+    // MODEL_ALIAS['fast'] yields 'haiku-5.5' (final upstream name).
+    // If it looped, step 2 would see 'fast' is also a key and recurse infinitely.
+
+    const r = await call(
+      '/v1/messages',
+      { authorization: 'Bearer zn-ABCdef0123456789XYZ', 'content-type': 'application/json' },
+      'POST',
+      JSON.stringify({ model: 'claude-fast', messages: [{ role: 'user', content: 'test' }] }),
+    );
+    // 200/403/429/502 are all OK — they mean the model was recognized.
+    // 400 would mean "Unknown model 'claude-fast'", a failed edge resolution.
+    expect([200, 403, 429, 502, 504]).toContain(r.status);
+    expect(r.status).not.toBe(400);
+  });
+
+  it('all four claude-* names are recognized', async () => {
+    for (const name of ['claude-fast', 'claude-smart', 'claude-frontier', 'claude-fable']) {
+      const r = await call(
+        '/v1/messages',
+        { authorization: 'Bearer zn-ABCdef0123456789XYZ', 'content-type': 'application/json' },
+        'POST',
+        JSON.stringify({ model: name, messages: [{ role: 'user', content: 'test' }] }),
+      );
+      expect(r.status).not.toBe(400, `${name} should not 400`);
+      expect([200, 403, 429, 502, 504]).toContain(r.status);
+    }
+  });
+});
+
 describe('rewriteCredential', () => {
   it('substitutes only the leading prefix', () => {
     expect(rewriteCredential('zn-abcdefghijklmnopqrst')).toEqual({
