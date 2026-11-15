@@ -27,7 +27,7 @@ import { evaluateCallback, rejectDestination } from '@/lib/auth/oauth/callback-p
 import { resolveIdentity } from '@/lib/auth/oauth/resolve';
 import { mintSession, passwordChangedAtFor } from '@/lib/auth/oauth/session';
 import { OAuthProviderError } from '@/lib/auth/oauth/types';
-import { callbackUrlFor } from '@/lib/auth/oauth/urls';
+import { callbackUrlFor, canonicalOrigin } from '@/lib/auth/oauth/urls';
 import { log } from '@/lib/log';
 import { safeReturnPath } from '@/lib/billing/state';
 
@@ -37,8 +37,15 @@ export const dynamic = 'force-dynamic';
 /** Where a first-time social signup lands. /chat is the product (see app/sign-in/page.tsx). */
 const DEFAULT_LANDING = '/chat';
 
+/**
+ * Redirect on the CANONICAL origin.
+ *
+ * NOT `new URL(path, request.url)`: behind Caddy that origin is the
+ * container's bind address (`0.0.0.0:3000`), which a browser cannot reach.
+ * Verified live against production, not theorised.
+ */
 function redirect(request: NextRequest, path: string, params?: Record<string, string>): NextResponse {
-  const url = new URL(path, request.url);
+  const url = new URL(path, canonicalOrigin(request.url));
   for (const [k, v] of Object.entries(params ?? {})) url.searchParams.set(k, v);
   return NextResponse.redirect(url);
 }

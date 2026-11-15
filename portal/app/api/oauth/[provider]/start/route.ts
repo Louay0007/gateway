@@ -13,12 +13,28 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { clientSecretFor, providerConfig } from '@/lib/auth/oauth';
 import { codeChallengeFor, createPendingFlow, setPendingCookie } from '@/lib/auth/oauth/state';
-import { callbackUrlFor } from '@/lib/auth/oauth/urls';
+import { callbackUrlFor, canonicalOrigin } from '@/lib/auth/oauth/urls';
 import { log } from '@/lib/log';
 import { safeReturnPath } from '@/lib/billing/state';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/**
+ * Redirect to /sign-in on the CANONICAL origin.
+ *
+ * NOT `new URL(path, request.url)`. Behind Caddy the portal is reached over
+ * the docker bridge, so `request.url` carries the container's own bind
+ * address — in production this produced
+ * `https://0.0.0.0:3000/sign-in?social=unavailable`, a URL no browser can
+ * follow. Observed live, not hypothesised. `canonicalOrigin` prefers
+ * AUTH_URL, which docker-compose sets from PORTAL_DOMAIN.
+ */
+function signInRedirect(request: NextRequest, reason: string): NextResponse {
+  return NextResponse.redirect(
+    new URL(`/sign-in?social=${encodeURIComponent(reason)}`, canonicalOrigin(request.url)),
+  );
+}
 
 export async function GET(
   request: NextRequest,
@@ -34,7 +50,7 @@ export async function GET(
 
   if (!config) {
     log.warn('oauth start: provider not configured', { provider });
-    return NextResponse.redirect(new URL('/sign-in?social=unavailable', request.url));
+    return signInRedirect(request, 'unavailable');
   }
 
   const returnTo = safeReturnPath(request.nextUrl.searchParams.get('returnTo'));
@@ -49,7 +65,7 @@ export async function GET(
       await clientSecretFor('apple', config);
     } catch {
       log.error('oauth start: apple secret could not be minted', { provider });
-      return NextResponse.redirect(new URL('/sign-in?social=unavailable', request.url));
+      return signInRedirect(request, 'unavailable');
     }
   }
 

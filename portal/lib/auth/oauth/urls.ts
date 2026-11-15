@@ -13,11 +13,26 @@
  * exactly this reason. Falling back to the request origin keeps localhost
  * working with no configuration.
  */
+/**
+ * The first configured value that is actually usable.
+ *
+ * `??` is WRONG here and was a real bug: `AUTH_URL=` (present but empty, the
+ * shape a commented-out .env line leaves behind) is nullish only in the
+ * `undefined` sense — `'' ?? x` yields `''`, so an empty AUTH_URL would
+ * shadow a valid NEXT_PUBLIC_APP_URL and drop the origin to the container's
+ * bind address. Empty and whitespace-only must count as absent.
+ */
+function firstNonEmpty(...values: Array<string | undefined>): string | null {
+  for (const v of values) {
+    const trimmed = v?.trim();
+    if (trimmed) return trimmed;
+  }
+  return null;
+}
+
 export function canonicalOrigin(requestUrl: string): string {
-  const configured = (process.env.AUTH_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '')
-    .trim()
-    .replace(/\/+$/, '');
-  if (configured) return configured;
+  const configured = firstNonEmpty(process.env.AUTH_URL, process.env.NEXT_PUBLIC_APP_URL);
+  if (configured) return configured.replace(/\/+$/, '');
   return new URL(requestUrl).origin;
 }
 
