@@ -6,7 +6,7 @@ import { ArrowRight, Check, Minus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatPlanPrice } from "@/lib/dashboard/format";
+import { tndPrice, usdPrice } from "@/lib/dashboard/format";
 import { COMPARISON, PLAN_FACTS, RATES } from "@/lib/pricing/facts";
 
 /**
@@ -60,9 +60,16 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
                 {plan.forWhom}
               </p>
 
+              {/* Two prices, two weights: the USD ask carries the display
+                  size, the dinar ask sits smaller and muted beside it, and
+                  the interval is its own unit. One string would read as a
+                  single "$15 / 50 DT/mo" figure. */}
               <p className="mt-6 flex flex-wrap items-baseline gap-2">
                 <span className="text-4xl font-semibold tracking-tight tabular-nums text-foreground">
-                  {formatPlanPrice(plan.priceUsdCents, plan.priceTndMillimes)}
+                  {usdPrice(plan.priceUsdCents)}
+                </span>
+                <span className="text-lg font-medium tabular-nums text-muted-foreground">
+                  {tndPrice(plan.priceTndMillimes)}
                 </span>
                 <span className="text-sm font-normal text-muted-foreground">/mo</span>
               </p>

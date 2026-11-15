@@ -34,13 +34,31 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import type { PlanSummary } from "@/lib/billing/state";
-import { formatPlanPrice, tndPrice } from "@/lib/dashboard/format";
+import { formatPlanPrice, tndPrice, usdPrice } from "@/lib/dashboard/format";
+import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 type Method = "d17" | "dodo";
 
 /** Every dialog open starts here until the customer changes it. */
 const DEFAULT_SEATS = 1;
+
+/**
+ * Seat count from the number input, clamped to [1, max].
+ *
+ * A number input hands back "" the moment the field is cleared, and
+ * `Number("")` is 0 — which would price the checkout at nothing. Empty
+ * reads as 1; anything outside the plan's own range is pinned to it. The
+ * server re-validates seats regardless; this only keeps the dialog's total
+ * honest while typing.
+ */
+function clampSeats(raw: string, max: number): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n < 1) return 1;
+  return Math.min(n, max);
+}
 
 const METHODS: {
   id: Method;
@@ -94,6 +112,39 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
   const maxSeats = plan?.maxSeats ?? 1;
   const listCents = plan?.promo?.priceCents ?? plan?.priceCents ?? 0;
   const originalCents = plan?.promo ? plan.promo.originalPriceCents : plan?.priceCents ?? 0;
+  /** Seats actually charged: 1 for a single-seat plan, whatever was picked otherwise. */
+  const billedSeats = maxSeats > 1 ? seats : 1;
+
+  // WAI-ARIA radio group, hand-rolled because only two rails exist and the
+  // Base UI set is not installed. One tab stop for the group; arrows move
+  // and select, Space/Enter select.
+  const tileRefs = React.useRef<(HTMLButtonElement | null)[]>([]);
+  function onTileKeyDown(e: React.KeyboardEvent, index: number) {
+    const last = METHODS.length - 1;
+    const step =
+      e.key === "ArrowRight" || e.key === "ArrowDown"
+        ? 1
+        : e.key === "ArrowLeft" || e.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (step !== 0) {
+      e.preventDefault();
+      const next = (index + step + METHODS.length) % METHODS.length;
+      const target = METHODS[next];
+      if (!target) return;
+      setMethod(target.id);
+      tileRefs.current[next]?.focus();
+      return;
+    }
+    if (e.key === "Home" || e.key === "End") {
+      e.preventDefault();
+      const next = e.key === "Home" ? 0 : last;
+      const target = METHODS[next];
+      if (!target) return;
+      setMethod(target.id);
+      tileRefs.current[next]?.focus();
+    }
+  }
 
   async function confirm() {
     if (!plan) return;
@@ -132,14 +183,18 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
 
   return (
     <Dialog open={plan !== null} onOpenChange={(open) => !open && onDismiss()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Choose how to pay</DialogTitle>
           <DialogDescription>
-            {plan
-              ? `${plan.name} — charged monthly. Cards or a D17 transfer; the price is fixed for each.`
-              : ""}
+            {plan ? `${plan.name}, charged monthly.` : ""}
           </DialogDescription>
+          {/* The rail distinction, on its own line. It used to run on from
+              the sentence above, which made one dense paragraph in a narrow
+              dialog — and this distinction is the whole point of the dialog. */}
+          <p className="text-sm text-muted-foreground">
+            A D17 transfer is fixed in dinars; a card is charged in USD.
+          </p>
         </DialogHeader>
 
         {plan ? (
@@ -159,26 +214,57 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
             </div>
 
             {maxSeats > 1 ? (
-              <label className="grid gap-1.5 text-xs text-muted-foreground">
-                Seats ({formatPlanPrice(listCents, plan.priceTndMillimes, 1)} each)
-                <select
-                  className="rounded-md border bg-transparent px-2 py-2 text-sm"
+              <div className="grid gap-1.5">
+                <Label htmlFor="checkout-seats" className="text-xs text-muted-foreground">
+                  Seats ({usdPrice(listCents)} /{" "}
+                  {plan.priceTndMillimes ? tndPrice(plan.priceTndMillimes) : usdPrice(listCents)} each)
+                </Label>
+                <Input
+                  id="checkout-seats"
+                  name="seats"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={maxSeats}
+                  step={1}
                   value={seats}
-                  onChange={(e) => setSeats(Number(e.target.value))}
-                >
-                  {Array.from({ length: maxSeats }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  onChange={(e) => setSeats(clampSeats(e.target.value, maxSeats))}
+                  className="w-24 tabular-nums"
+                />
+                {/* The total moves with the count, or the field reads as
+                    decoration. aria-live so the change is announced. */}
+                <p className="text-xs text-muted-foreground" aria-live="polite">
+                  {billedSeats} × {usdPrice(listCents)} ={" "}
+                  <strong className="font-medium text-foreground tabular-nums">
+                    {usdPrice(listCents * billedSeats)}
+                  </strong>{" "}
+                  / month
+                  {plan.priceTndMillimes
+                    ? ` · ${tndPrice(plan.priceTndMillimes * billedSeats)}`
+                    : ""}
+                </p>
+              </div>
             ) : null}
 
             <div
               role="radiogroup"
               aria-label="Payment method"
               className="grid gap-2 sm:grid-cols-2"
+              onKeyDown={(e) => {
+                // A radiogroup is one tab stop; ArrowLeft/Right moves the
+                // selection. Without this the two tiles are reachable but
+                // not operable from the keyboard, which is why the arrow
+                // keys are handled here rather than per-tile.
+                if (e.key !== "ArrowRight" && e.key !== "ArrowLeft" &&
+                    e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                e.preventDefault();
+                const i = METHODS.findIndex((m) => m.id === method);
+                const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+                const next = METHODS[(i + step + METHODS.length) % METHODS.length];
+                if (!next) return;
+                setMethod(next.id);
+                (e.currentTarget.querySelectorAll('[role="radio"]')[METHODS.indexOf(next)] as HTMLElement | undefined)?.focus();
+              }}
             >
               {METHODS.map((m) => {
                 const selected = method === m.id;
@@ -190,7 +276,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                     role="radio"
                     aria-checked={selected}
                     onClick={() => setMethod(m.id)}
-                    className={`h-auto items-start justify-start gap-3 p-3 text-left ${
+                    className={`h-auto items-start justify-start gap-3 p-3 text-left focus-visible:ring-2 focus-visible:ring-success focus-visible:ring-offset-2 ${
                       selected
                         ? "border-success bg-success/10"
                         : "hover:border-success/50"
@@ -208,9 +294,13 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                     <span className="grid gap-0.5">
                       <span className="flex items-center gap-1.5 text-sm font-medium">
                         {m.title}
-                        {selected ? (
-                          <Check className="size-4 text-success" />
-                        ) : null}
+                        {/* Not colour alone: the check carries the selection
+                            and its slot is reserved, so the title never
+                            shifts when the choice changes. */}
+                        <Check
+                          className={`size-4 shrink-0 text-success ${selected ? "" : "opacity-0"}`}
+                          aria-hidden="true"
+                        />
                       </span>
                       <span className="text-xs text-muted-foreground">{m.subtitle}</span>
                     </span>
