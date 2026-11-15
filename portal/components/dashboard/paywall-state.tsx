@@ -14,7 +14,7 @@ import { PlanCard } from './plan-card';
 import type { PlanSummary } from '@/lib/billing/state';
 import type { D17Lang } from '@/lib/i18n/d17';
 import { t17 } from '@/lib/i18n/d17';
-import { compact, formatPlanPrice } from '@/lib/dashboard/format';
+import { usdPrice, tndPrice, compact } from '@/lib/dashboard/format';
 
 interface PaywallStateProps {
   plans: PlanSummary[];
@@ -115,7 +115,10 @@ export function PaywallState({
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* `items-stretch` is the default, but it is the whole reason the two
+          CTAs share a baseline: PlanCard is h-full, so the shorter feature
+          list does not lift its footer. */}
+      <div className="grid items-stretch gap-4 pt-4 sm:grid-cols-2">
         {plans.map((plan) => {
           const isPro = plan.code === 'pro';
           const featureKeys = PLAN_FEATURES[plan.code] ?? [];
@@ -125,14 +128,24 @@ export function PaywallState({
             const val = live[key] || defaults[key];
             return val ? t(key, { count: val, amount: val }) : t(key);
           });
+          // Two currencies stay separate pieces of text (0037: neither
+          // derives from the other), and the interval is its own unit — the
+          // one-run "$15 / 50 DT/mo" read as a single figure with a stray
+          // suffix on the dinars.
+          const priceUsd = usdPrice(plan.promo?.priceCents ?? plan.priceCents);
+          const priceTnd = plan.priceTndMillimes
+            ? tndPrice(plan.priceTndMillimes)
+            : null;
 
           return (
             <PlanCard
               key={plan.code}
               name={t(isPro ? 'd17.plan_pro_name' : 'd17.plan_starter_name')}
-              priceLabel={`${formatPlanPrice(plan.promo?.priceCents ?? plan.priceCents, plan.priceTndMillimes)}/mo`}
+              priceLabel={priceUsd}
+              priceTndLabel={priceTnd}
+              intervalLabel="mo"
               originalPriceLabel={
-                plan.promo ? `${formatPlanPrice(plan.promo.originalPriceCents, plan.priceTndMillimes)}/mo` : undefined
+                plan.promo ? usdPrice(plan.promo.originalPriceCents) : undefined
               }
               promoLabel={plan.promo ? `${plan.promo.percentOff}% off — Halloween` : undefined}
               features={features}

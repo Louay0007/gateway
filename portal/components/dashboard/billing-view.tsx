@@ -47,7 +47,7 @@ import type {
   SubscriptionBundle,
   PaymentHistoryItem,
 } from "@/lib/api/types";
-import { compact, formatPlanPrice, usd } from "@/lib/dashboard/format";
+import { compact, formatPlanPrice, tndPrice, usd, usdPrice } from "@/lib/dashboard/format";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -392,7 +392,7 @@ export function BillingView() {
           </div>
 
           {/* D17 Payment Method Hero Card */}
-          <Card className="overflow-hidden border-success/30 bg-gradient-to-br from-emerald-50 via-white to-muted from-success/10 dark:via-background dark:to-background">
+          <Card className="overflow-hidden border-success/30 bg-gradient-to-br from-success/10 via-white to-muted dark:via-background dark:to-background">
             <CardContent className="p-0">
               <div className="grid gap-6 p-6 md:grid-cols-[auto_1fr] md:items-center md:gap-8">
                 {/* D17 Logo */}
@@ -481,7 +481,7 @@ export function BillingView() {
 
               {/* How it works strip — both rails, since the chooser may
                   land a customer on either. */}
-              <div className="border-t border-success/30 border-success/30 bg-success/10 bg-success/10 px-6 py-4">
+              <div className="border-t border-success/30 bg-success/10 px-6 py-4">
                 <div className="grid gap-4 text-sm sm:grid-cols-3">
                   <div className="flex items-start gap-3">
                     <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">1</span>
@@ -521,7 +521,7 @@ export function BillingView() {
                         variant={
                           b.subscription?.cancelAtPeriodEnd ? "outline" : "secondary"
                         }
-                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-success/20 bg-success/10 text-success hover:bg-success/30 dark:hover:bg-success/20"}
+                        className={b.subscription?.cancelAtPeriodEnd ? "" : "bg-success/10 text-success hover:bg-success/20"}
                       >
                         {b.subscription?.cancelAtPeriodEnd
                           ? "Cancels at period end"
@@ -531,19 +531,29 @@ export function BillingView() {
                     <CardDescription>{plan.description}</CardDescription>
                   </div>
                   <div className="text-right">
-                    <p className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1 text-2xl font-semibold tabular-nums">
-                      {formatPlanPrice(plan.promo?.priceCents ?? plan.priceCents, plan.priceTndMillimes)}
-                      {plan.promo ? (
-                        <span className="text-sm font-normal text-muted-foreground line-through">
-                          {formatPlanPrice(plan.promo.originalPriceCents, plan.priceTndMillimes)}
+                    {/* USD at display size, dinars muted beside it, interval
+                        as its own unit — "$15 / 50 DT/mo" ran together as one
+                        number. */}
+                    <p className="flex flex-wrap items-baseline justify-end gap-x-2 gap-y-1">
+                      <span className="text-2xl font-semibold tabular-nums text-foreground">
+                        {usdPrice(plan.promo?.priceCents ?? plan.priceCents)}
+                      </span>
+                      {plan.priceTndMillimes ? (
+                        <span className="text-base font-medium tabular-nums text-muted-foreground">
+                          {tndPrice(plan.priceTndMillimes)}
                         </span>
                       ) : null}
                       <span className="text-sm font-normal text-muted-foreground">
                         /{plan.interval}
                       </span>
+                      {plan.promo ? (
+                        <span className="text-sm font-normal text-muted-foreground line-through tabular-nums">
+                          {usdPrice(plan.promo.originalPriceCents)}
+                        </span>
+                      ) : null}
                     </p>
                     {plan.promo ? (
-                      <p className="text-xs font-medium text-warning text-warning">
+                      <p className="text-xs font-medium text-warning">
                         {plan.promo.percentOff}% discount applied
                       </p>
                     ) : null}
@@ -687,14 +697,21 @@ export function BillingView() {
                   <span className="font-semibold">{p.name}</span>
                   {p.code === plan?.code ? <Badge className="bg-success text-white">Current</Badge> : null}
                 </div>
-                <p className="flex flex-wrap items-baseline gap-2 text-2xl font-semibold tabular-nums">
-                  {formatPlanPrice(p.promo?.priceCents ?? p.priceCents, p.priceTndMillimes)}
-                  {p.promo ? (
-                    <span className="text-sm font-normal text-muted-foreground line-through">
-                      {formatPlanPrice(p.promo.originalPriceCents, p.priceTndMillimes)}
+                <p className="flex flex-wrap items-baseline gap-2">
+                  <span className="text-2xl font-semibold tabular-nums text-foreground">
+                    {usdPrice(p.promo?.priceCents ?? p.priceCents)}
+                  </span>
+                  {p.priceTndMillimes ? (
+                    <span className="text-sm font-medium tabular-nums text-muted-foreground">
+                      {tndPrice(p.priceTndMillimes)}
                     </span>
                   ) : null}
                   <span className="text-sm font-normal text-muted-foreground">/mo</span>
+                  {p.promo ? (
+                    <span className="text-sm font-normal text-muted-foreground line-through tabular-nums">
+                      {usdPrice(p.promo.originalPriceCents)}
+                    </span>
+                  ) : null}
                 </p>
                 <ul className="grid gap-1 text-sm text-muted-foreground">
                   {/* 0039: one shared pool, so this states the TOTAL once
@@ -824,7 +841,7 @@ function PlanComparisonTable({
                     key={p.code}
                     className={cn(
                       "px-4 py-3 text-center",
-                      p.code === featured && "bg-success/10 bg-success/10",
+                      p.code === featured && "bg-success/10",
                     )}
                   >
                     <div className="flex flex-col items-center gap-1">
@@ -857,7 +874,7 @@ function PlanComparisonTable({
                       key={p.code}
                       className={cn(
                         "px-4 py-3 text-center tabular-nums text-muted-foreground",
-                        p.code === featured && "bg-success/10 bg-success/10 font-medium text-foreground",
+                        p.code === featured && "bg-success/10 font-medium text-foreground",
                       )}
                     >
                       {feat.getValue(p)}
@@ -993,7 +1010,7 @@ function PendingBanner({
         {checkoutHref && !awaitingVerification ? (
           <Link
             href={checkoutHref}
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-primary hover:bg-primary/80"
+            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-primary/80"
           >
             {ended ? "Start new payment" : "Continue payment"}
           </Link>
