@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import type { Metadata } from 'next';
 import SiteNav from '@/components/marketing/site-nav';
 import ZainoFooter from '@/components/marketing/zaino-footer';
@@ -82,11 +83,21 @@ export default function DownloadPage() {
             it — the gateway is working, the key is not.
           </p>
 
-          <h3 className="mt-8 text-sm font-medium">Add the endpoint</h3>
+          <h3 className="mt-8 flex items-center gap-2 text-sm font-medium">
+            <Image
+              src="/logos/claude.svg"
+              alt=""
+              width={18}
+              height={18}
+              className="shrink-0"
+              aria-hidden="true"
+            />
+            Add the endpoint
+          </h3>
           <ol className="mt-3 grid gap-5">
             <Step n={1} title="Open Settings">
               In Claude Desktop, go to <strong>Settings</strong>, then{' '}
-              <strong>Developer</strong>, then <strong>Edit Config</strong>.
+              <strong>Developer</strong>.
             </Step>
             <Step n={2} title="Add a custom inference endpoint">
               Under <strong>Developer</strong>, add an Anthropic-compatible
