@@ -85,7 +85,6 @@ const zainoPlans: PricingPlan[] = [
       { name: 'All four tiers — fast, smart, frontier, fable', included: true },
       { name: 'High-volume shared token pool', included: true },
       { name: 'Priority routing', included: true },
-      { name: 'Opus 5.5 access', included: true },
       { name: 'Dedicated support & SLA', included: true },
     ],
     buttonText: "Let's Talk",
@@ -94,10 +93,10 @@ const zainoPlans: PricingPlan[] = [
 ];
 
 const MODEL_LABELS: Record<string, string> = {
-  fast: 'Zaino Haiku 5.5',
-  smart: 'Zaino Sonnet 5.5',
-  frontier: 'Zaino Opus 5.5',
-  fable: 'Zaino Fable 5.1',
+  fast: 'Fast',
+  smart: 'Smart',
+  frontier: 'Frontier',
+  fable: 'Fable',
 };
 
 /**
