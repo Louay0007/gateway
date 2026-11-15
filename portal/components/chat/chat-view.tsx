@@ -49,6 +49,7 @@ import { ModelPicker, type ModelOption } from "@/components/chat/model-picker";
 import { QuotaHint } from "@/components/chat/quota-hint";
 import { aliasMeta } from "@/components/chat/aliases";
 import { MAX_ATTACHMENTS } from "@/lib/chat/attachments";
+import { splitPayloads } from "@/lib/chat/sse";
 import { cn } from "@/lib/utils";
 
 export type ChatRole = "user" | "assistant";
@@ -506,18 +507,17 @@ export function ChatView({
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
 
-        // Frames are separated by a blank line; anything after the last
-        // blank line is a partial frame and must survive to the next read.
-        // CRLF is normalized first: a `\r\n\r\n` separator contains no
-        // `\n\n`, and splitting only on "\n\n" would read nothing.
-        buffer = buffer.replace(/\r\n/g, "\n");
-        const frames = buffer.split("\n\n");
-        buffer = frames.pop() ?? "";
-        for (const frame of frames) {
-          const line = frame.split("\n").find((l) => l.startsWith("data:"));
-          if (!line) continue;
-          const payload = line.slice(5).trim();
-          if (!payload || payload === "[DONE]") continue;
+        // ONE implementation of the framing rule, imported rather than
+        // re-derived. This used to be an inline copy — CRLF normalisation,
+        // split on a blank line, keep the tail — which made a third place
+        // for the chunk-boundary bug that lib/chat/sse.ts exists to hold in
+        // one. `remainder` is the partial frame at the end of a read and
+        // MUST survive to the next one, or a token is dropped whenever the
+        // network cuts mid-frame.
+        const { payloads, remainder } = splitPayloads(buffer);
+        buffer = remainder;
+
+        for (const payload of payloads) {
           try {
             const event = JSON.parse(payload) as {
               conversationId?: string;

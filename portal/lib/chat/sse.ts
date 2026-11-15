@@ -62,8 +62,14 @@ export function splitFrames(buffer: string): ParsedFrames {
  * Shared by both wire formats because the framing is identical — only the
  * body of a frame differs — and a second copy of this is a second place
  * for the chunk-boundary bug to reappear.
+ *
+ * EXPORTED because the BROWSER parser needs it too. chat-view.tsx reads our
+ * own SSE frames, and it used to do this split inline: a third copy of the
+ * rule this file exists to hold in one place. The client cannot import a
+ * server module that pulls `@/db`, but this function is pure string work,
+ * so it is safe on both sides and there is now exactly one definition.
  */
-function splitPayloads(buffer: string): { payloads: string[]; remainder: string } {
+export function splitPayloads(buffer: string): { payloads: string[]; remainder: string } {
   // SSE permits CRLF as the line terminator, and a `\r\n\r\n` separator
   // contains no `\n\n` — so without this the frames never split, nothing is
   // parsed, and the user sees a blank answer with no error anywhere. Raw
