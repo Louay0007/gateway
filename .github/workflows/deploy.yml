@@ -121,6 +121,47 @@ jobs:
       - name: Build and restart the stack
         run: docker compose up -d --build
 
+      # `docker compose up --build` only recreates a container whose IMAGE
+      # changed. config/litellm.yaml is a bind mount, so editing it does not
+      # touch the image: compose leaves the running process alone and it keeps
+      # serving whatever model_list it loaded at boot.
+      #
+      # That is not theoretical. On 2026-11-16 production answered 400
+      # "Invalid model name" to every request for over an hour: the file on
+      # disk was current, /model/info returned an empty list, and the YAML
+      # plainly listed eight aliases. Nothing had reloaded it.
+      #
+      # A restart is seconds, and the alternative is a gateway whose config
+      # silently disagrees with the repo.
+      - name: Reload the gateway config
+        run: docker compose restart litellm
+
+      - name: Assert the gateway loaded its models
+        run: |
+          # The restart is only useful if the config actually parsed. An empty
+          # model_list is the failure mode -- on 2026-11-16 production spent
+          # an hour answering 400 "Invalid model name" while the YAML listed
+          # eight aliases -- so fail the deploy here instead.
+          #
+          # Auth comes from .env on the host, the same source every script in
+          # this repo reads. The litellm image has neither curl nor wget, so
+          # the probe runs from the host against the published port.
+          set -a; . ./.env; set +a
+          for i in $(seq 1 12); do
+            count=$(curl -s -m 10 \
+              -H "Authorization: Bearer $LITELLM_MASTER_KEY" \
+              http://127.0.0.1:4000/model/info 2>/dev/null \
+              | grep -o '"model_name"' | wc -l || true)
+            if [ "${count:-0}" -ge 8 ]; then
+              echo "gateway loaded $count model groups"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "gateway has fewer than 8 model groups -- config/litellm.yaml did not load"
+          docker compose logs --tail=40 litellm
+          exit 1
+
       - name: Wait for health
         run: |
           sleep 8
