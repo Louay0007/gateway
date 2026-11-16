@@ -25,7 +25,9 @@
  * how it shipped.
  */
 import { describe, it, expect } from 'vitest';
-import { BILLABLE_TOKEN_COLUMNS, usageWindowForSubscription } from '@/lib/entitlements/quota';
+import { readFileSync } from 'node:fs';
+import { PRICE_FILE } from '@/lib/pricing/path';
+import { BILLABLE_TOKEN_COLUMNS, CACHE_READ_WEIGHT, usageWindowForSubscription } from '@/lib/entitlements/quota';
 import { billableTokens, priceUsage, type TokenCounts, type ModelPrice } from '@/lib/pricing';
 import { extractUsage, type SpendLogRow } from '@/lib/litellm/client';
 
@@ -205,6 +207,26 @@ describe('BILLABLE_TOKEN_COLUMNS — the wall sums the normalised column', () =>
     expect(BILLABLE_TOKEN_COLUMNS).toContain('cache_write_5m_tokens');
     expect(BILLABLE_TOKEN_COLUMNS).toContain('cache_write_1h_tokens');
     expect(BILLABLE_TOKEN_COLUMNS).toContain('cache_read_tokens');
+  });
+  it('CACHE_READ_WEIGHT matches every model in prices/models.yaml', () => {
+    // The pool and the invoice must move together. If a future price edit
+    // makes a cache read cost something other than 1/10 of fresh input, the
+    // weight has to be revisited — this fails rather than drifting silently.
+    //
+    // Parsed per model block, not by document order: an input line and the
+    // cache line it divides must belong to the same model, or the check
+    // passes vacuously when only the first model is edited.
+    const yaml = readFileSync(PRICE_FILE, 'utf8');
+    const ratios: string[] = [];
+    let input: number | null = null;
+    for (const line of yaml.split('\n')) {
+      const i = line.match(/^\s{4}input_per_mtok:\s*([\d.]+)/);
+      if (i) { input = Number(i[1]); continue; }
+      const c = line.match(/^\s{4}cache_read_per_mtok:\s*([\d.]+)/);
+      if (c && input !== null) { ratios.push(String(input / Number(c[1]))); input = null; }
+    }
+    expect(ratios.length).toBeGreaterThanOrEqual(4);
+    expect(new Set(ratios)).toEqual(new Set([String(CACHE_READ_WEIGHT)]));
   });
   it('charges a cache read at one tenth, matching the price table', () => {
     // cache_read_input_token_cost is a tenth of input_cost_per_token in

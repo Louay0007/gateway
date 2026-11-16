@@ -58,7 +58,12 @@ export type UsageTokensByModel = Record<string, number>;
  * The four buckets below are disjoint, and their sum equals the provider's
  * `prompt_tokens + completion_tokens` — the identity the tests assert.
  *
- * CACHE READS COUNT AT ONE TENTH. They are billed at one tenth in money —
+ * CACHE READS COUNT AT CACHE_READ_WEIGHT. The weight is the price table's
+ * own ratio (`input_per_mtok / cache_read_per_mtok`), uniform 10x across
+ * every model in prices/models.yaml — a test enforces that uniformity, so
+ * this constant cannot silently disagree with the invoice.
+ *
+ * The original wording follows.
  * `cache_read_input_token_cost` in config/litellm.yaml is a tenth of
  * `input_cost_per_token`, mirrored in prices/models.yaml — so counting them
  * at full weight made the quota disagree with the invoice by up to 10x.
@@ -79,11 +84,22 @@ export type UsageTokensByModel = Record<string, number>;
  * a phantom zero, and it degrades to the OLD behaviour rather than
  * silently under-counting.
  */
+/**
+ * Tokens of quota one cached token costs.
+ *
+ * Derived, not guessed: prices/models.yaml prices a cache read at
+ * `input_per_mtok / cache_read_per_mtok` — 10 for haiku, sonnet, opus and
+ * gpt-6-astra alike. `tests/cache-accounting.test.ts` asserts that ratio is
+ * still 10 for every model, so a price-table change fails the suite here
+ * instead of quietly making the pool disagree with the bill.
+ */
+export const CACHE_READ_WEIGHT = 10;
+
 export const BILLABLE_TOKEN_COLUMNS =
   'COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ' +
   '+ COALESCE(u.output_tokens,0) ' +
   '+ COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0) ' +
-  '+ COALESCE(u.cache_read_tokens,0) / 10';
+  `+ COALESCE(u.cache_read_tokens,0) / ${CACHE_READ_WEIGHT}`;
 
 /**
  * The plan's shared token pool: the SUM of its per-alias allocations.
