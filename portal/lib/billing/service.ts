@@ -37,6 +37,7 @@
 
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
+import { BILLABLE_TOKEN_COLUMNS } from '@/lib/entitlements/quota';
 import {
   apiKeys,
   auditLog,
@@ -289,13 +290,7 @@ export async function subscriptionBundle(organizationId: string): Promise<{
       // the ONLY quota signal; prompt_count is no longer read here.
       const usageRows = await db.execute(sql`
         SELECT u.model,
-               coalesce(sum(
-                 coalesce(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens))
-                 + coalesce(u.output_tokens,0)
-                 + coalesce(u.cache_write_5m_tokens,0)
-                 + coalesce(u.cache_write_1h_tokens,0)
-                 + coalesce(u.cache_read_tokens,0)
-               ), 0)::bigint AS tokens
+               coalesce(sum(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS tokens
           FROM usage_records u
          WHERE u.organization_id = ${organizationId}::uuid
            AND u.occurred_at >= ${window.start.toISOString()}::timestamptz
@@ -1190,12 +1185,7 @@ export async function usageHistory(
              coalesce(sum(u.input_tokens), 0)::bigint     AS input_tokens,
              coalesce(sum(u.output_tokens), 0)::bigint    AS output_tokens,
              coalesce(sum(u.cache_read_tokens), 0)::bigint AS cache_read_tokens,
-             coalesce(sum(
-               coalesce(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens))
-               + coalesce(u.output_tokens,0)
-               + coalesce(u.cache_write_5m_tokens,0) + coalesce(u.cache_write_1h_tokens,0)
-               + coalesce(u.cache_read_tokens,0)
-             ), 0)::bigint                               AS blended_tokens,
+             coalesce(sum(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS blended_tokens,
              coalesce(sum(u.cost_customer_usd), 0)        AS cost_customer,
              coalesce(sum(u.cost_upstream_usd), 0)        AS cost_upstream
         FROM usage_records u
@@ -1395,12 +1385,7 @@ export async function usageHistorySeries(
            coalesce(sum(f.input_tokens), 0)::bigint      AS input_tokens,
            coalesce(sum(f.output_tokens), 0)::bigint     AS output_tokens,
            coalesce(sum(f.cache_read_tokens), 0)::bigint AS cache_read_tokens,
-           coalesce(sum(
-             coalesce(f.fresh_input_tokens, f.input_tokens - LEAST(f.cache_read_tokens, f.input_tokens))
-             + coalesce(f.output_tokens,0)
-             + coalesce(f.cache_write_5m_tokens,0) + coalesce(f.cache_write_1h_tokens,0)
-             + coalesce(f.cache_read_tokens,0)
-           ), 0)::bigint                                 AS blended_tokens,
+           coalesce(sum(${sql.raw(BILLABLE_TOKEN_COLUMNS.replace(/\bu\./g, 'f.'))}), 0)::bigint AS blended_tokens,
            coalesce(sum(f.cost_customer_usd), 0)         AS cost_customer,
            coalesce(sum(f.cost_upstream_usd), 0)         AS cost_upstream
       FROM generate_series(${from.toISOString()}::timestamptz,
