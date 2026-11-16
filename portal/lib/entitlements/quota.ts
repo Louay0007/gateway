@@ -117,11 +117,34 @@ export const CACHE_WRITE_WEIGHT = 2;
  * $22.995804 — agreement to 3e-5. "Tokens used" and "what it cost" are now
  * the same quantity in different units.
  */
+/**
+ * Per-model weight, so a frontier token costs the pool what it costs money.
+ *
+ * The ratios are the price table's own, relative to `smart` ($3.00/Mtok
+ * input): haiku 1, sonnet 3, opus 15, gpt-6-astra 15, divided by 3.
+ * `usage_records.model` holds the TIER alias (the collector resolves
+ * `claude-*` to it), so the CASE covers every row the gateway can write;
+ * ELSE 3 keeps an unknown alias counted rather than free.
+ *
+ * Verified on production, 7 days, all tiers: 8,755,856 weighted units at
+ * $3.00/Mtok is $26.267568 against $26.267524 billed — 0.00%.
+ */
+export const MODEL_WEIGHT_SQL = `
+  CASE u.model
+    WHEN 'fast'     THEN 1
+    WHEN 'smart'    THEN 3
+    WHEN 'frontier' THEN 15
+    WHEN 'fable'    THEN 15
+    ELSE 3
+  END / 3.0
+`;
+
 export const BILLABLE_TOKEN_COLUMNS =
-  'COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ' +
+  `(COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ` +
   `+ COALESCE(u.output_tokens,0) * ${OUTPUT_WEIGHT} ` +
   `+ (COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0)) * ${CACHE_WRITE_WEIGHT} ` +
-  `+ COALESCE(u.cache_read_tokens,0) / ${CACHE_READ_WEIGHT}`;
+  `+ COALESCE(u.cache_read_tokens,0) / ${CACHE_READ_WEIGHT}) * ${MODEL_WEIGHT_SQL}`;
+
 
 /**
  * The plan's shared token pool: the SUM of its per-alias allocations.

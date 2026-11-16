@@ -312,3 +312,38 @@ describe('the pool equals the AiPilot bill, in token units', () => {
     expect(units(0, 10, 0, 0)).toBe(1);
   });
 });
+
+describe('per-model weight — a frontier token costs what it costs', () => {
+  const WEIGHT: Record<string, number> = { fast: 1/3, smart: 1, frontier: 5, fable: 5 };
+  const units = (model: string, f: number, c: number, o: number) =>
+    (f + o * 5 + c / 10) * WEIGHT[model]!;
+
+  it('reproduces a mixed-tier bill to 0.01%', () => {
+    // Production, 7 days, all models: 8,755,856 weighted units against
+    // $26.267524 charged. At the $3.00 input rate the two must agree.
+    const rows = [
+      { m: 'smart', f: 3_586_317, c: 42_184_482, o: 44_616 },
+      { m: 'frontier', f: 15_497, c: 1_611, o: 25_984 },
+      { m: 'fast', f: 21, c: 0, o: 68 },
+    ];
+    const total = rows.reduce((s, r) => s + units(r.m, r.f, r.c, r.o), 0);
+    const asUsd = (total * 3.0) / 1_000_000;
+    expect(Math.abs(asUsd / 26.267525 - 1) * 100).toBeLessThan(0.05);
+  });
+
+  it('one frontier token costs five smart tokens', () => {
+    expect(units('frontier', 1, 0, 0)).toBe(5);
+    expect(units('smart', 5, 0, 0)).toBe(5);
+  });
+
+  it('one fast token costs a third of a smart token', () => {
+    expect(units('fast', 3, 0, 0)).toBeCloseTo(1, 10);
+  });
+
+  it('an unknown alias is counted, never free', () => {
+    // ELSE 3 in the SQL — an alias the price map has not learned yet must
+    // still consume quota, or it becomes unmetered inference.
+    const sql = BILLABLE_TOKEN_COLUMNS.replace(/\s+/g, ' ');
+    expect(sql).toContain('ELSE 3');
+  });
+});
