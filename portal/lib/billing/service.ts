@@ -1053,6 +1053,12 @@ export interface UsageRowView {
   costCustomerUsd: number;
   /** 1 for a counted prompt (200 inference), 0 otherwise. Migration 0020. */
   promptCount: number;
+  /**
+   * This row's quota cost, computed by the server with the same weighting the
+   * wall enforces. The UI used to add the five raw columns itself, which
+   * reproduced the OLD formula and made a page disagree with its own header.
+   */
+  blendedTokens: number;
 }
 
 export interface UsageHistoryQuery {
@@ -1157,7 +1163,8 @@ export async function usageHistory(
              u.status_code,
              u.cost_upstream_usd,
              u.cost_customer_usd,
-             u.prompt_count
+             u.prompt_count,
+             (${sql.raw(BILLABLE_TOKEN_COLUMNS)})::bigint AS blended_tokens
         FROM usage_records u
         LEFT JOIN api_keys k ON k.id = u.api_key_id
        WHERE ${where}
@@ -1183,6 +1190,7 @@ export async function usageHistory(
         status_code: number | null;
         cost_upstream_usd: string | null;
         cost_customer_usd: string | null;
+        blended_tokens: string | number | null;
         prompt_count: number | null;
       }[]
     >,
@@ -1251,6 +1259,7 @@ export async function usageHistory(
     costUpstreamUsd: Number(r.cost_upstream_usd ?? 0),
     costCustomerUsd: Number(r.cost_customer_usd ?? 0),
     promptCount: Number(r.prompt_count ?? 0),
+    blendedTokens: Number(r.blended_tokens ?? 0),
   }));
 
   return {

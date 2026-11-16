@@ -137,6 +137,14 @@ export function QuotaHint({
                 {formatTokens(usage.inputTokens)} in · {formatTokens(usage.outputTokens)} out ·{" "}
                 {formatUsd(usage.costUsd)}
               </p>
+              {/* This is the raw wire count for THIS conversation, not the
+                  quota: the message row stores input/output only, and the
+                  pool additionally weights cache reads, cache writes and the
+                  model. Labelled so the two are not read as the same number. */}
+              <p className="text-[11px] text-muted-foreground/70">
+                Raw tokens for this chat. Your plan meter on Billing weights
+                cache and model, so it will differ.
+              </p>
             </>
           ) : (
             <p className="text-[12px] leading-relaxed text-muted-foreground">

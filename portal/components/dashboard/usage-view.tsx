@@ -400,13 +400,10 @@ export function UsageView() {
                           {row.keyName ?? <span className="text-xs">deleted key</span>}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {compact(
-                            row.inputTokens +
-                              row.outputTokens +
-                              row.cacheWrite5mTokens +
-                              row.cacheWrite1hTokens +
-                              row.cacheReadTokens,
-                          )}
+                          {/* Server-computed. Adding the five raw columns here
+                              reproduced the OLD weighting and made one row
+                              disagree with the total above it. */}
+                          {compact(row.blendedTokens)}
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {row.cacheReadTokens ? compact(row.cacheReadTokens) : "—"}
@@ -511,12 +508,9 @@ function ModelBreakdown({
       cache: 0,
     };
     entry.requests += 1;
-    entry.tokens +=
-      row.inputTokens +
-      row.outputTokens +
-      row.cacheWrite5mTokens +
-      row.cacheWrite1hTokens +
-      row.cacheReadTokens;
+    // Same number the row table and the header show: the server's weighted
+    // total, not a browser-side re-addition of the raw columns.
+    entry.tokens += row.blendedTokens;
     entry.cache += row.cacheReadTokens;
     byModel.set(row.model, entry);
   }
