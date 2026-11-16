@@ -27,7 +27,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { PRICE_FILE } from '@/lib/pricing/path';
-import { BILLABLE_TOKEN_COLUMNS, CACHE_READ_WEIGHT, usageWindowForSubscription } from '@/lib/entitlements/quota';
+import { BILLABLE_TOKEN_COLUMNS, CACHE_READ_CEILING, CACHE_READ_WEIGHT, usageWindowForSubscription } from '@/lib/entitlements/quota';
 import { billableTokens, priceUsage, type TokenCounts, type ModelPrice } from '@/lib/pricing';
 import { extractUsage, type SpendLogRow } from '@/lib/litellm/client';
 
@@ -234,7 +234,13 @@ describe('BILLABLE_TOKEN_COLUMNS — the wall sums the normalised column', () =>
     // prefix at full weight made the pool disagree with the invoice by up to
     // 10x: on production 91% of billed tokens were cache reads, so a Claude
     // Desktop conversation read 22M where the same prompts in chat read 13k.
-    expect(BILLABLE_TOKEN_COLUMNS).toMatch(/cache_read_tokens\s*,?\s*0\s*\)\s*\/\s*10/);
+    // A cache read is divided by ten AND capped at 64k, so one runaway
+    // Desktop turn cannot bill a customer for their own history.
+    // A cache read is divided by ten AND capped, so one runaway Desktop turn
+    // cannot bill a customer for their own accumulated history.
+    expect(BILLABLE_TOKEN_COLUMNS).toMatch(
+      new RegExp(`LEAST\\(COALESCE\\(u\\.cache_read_tokens,0\\), ${CACHE_READ_CEILING}\\) / ${CACHE_READ_WEIGHT}`),
+    );
   });
   it('does not divide output or fresh input — only the cached read', () => {
     // Guard against "fix the ratio everywhere": that would under-charge real
@@ -345,5 +351,40 @@ describe('per-model weight — a frontier token costs what it costs', () => {
     // still consume quota, or it becomes unmetered inference.
     const sql = BILLABLE_TOKEN_COLUMNS.replace(/\s+/g, ' ');
     expect(sql).toContain('ELSE 3');
+  });
+});
+
+describe('cache-read ceiling — two clients, one price', () => {
+  const CACHE_READ_CEILING = 64_000;
+  /** Mirror of the SQL: cached input cannot exceed the ceiling. */
+  const units = (fresh: number, cached: number, out: number) =>
+    fresh + out * 5 + Math.min(cached, CACHE_READ_CEILING) / 10;
+
+  it('a Desktop turn no longer bills its whole history', () => {
+    // Measured production average for /v1/messages before the cap:
+    // fresh 55,836 + cached 602,080 + out 195 -> 117,016 units.
+    const before = 55_836 + 195 * 5 + 602_080 / 10;
+    const after = units(55_836, 602_080, 195);
+    expect(before).toBeGreaterThan(117_000);
+    expect(after).toBe(63_211);
+    // The cap removes the history cost, not the real work.
+    expect(after).toBeGreaterThan(55_836);
+  });
+
+  it('leaves an ordinary chat turn untouched', () => {
+    // Measured: fresh 3,258 + cached 70 + out 2,480 -> 15,664 units.
+    expect(units(3_258, 70, 2_480)).toBe(15_665);
+  });
+
+  it('the two routes converge instead of differing by 13x', () => {
+    const desktop = units(55_836, 602_080, 195); // 62,305
+    const chat = units(3_258, 70, 2_480);        // 15,665
+    expect(desktop / chat).toBeLessThan(4.5);
+  });
+
+  it('a cache MISS still bills full fresh input', () => {
+    // The cap is on the cached reuse, not on new tokens. A miss sends its
+    // prompt as fresh, and that is what the provider actually charges for.
+    expect(units(714_262, 0, 214)).toBeGreaterThan(715_000);
   });
 });

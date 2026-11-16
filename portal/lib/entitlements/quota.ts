@@ -139,11 +139,36 @@ export const MODEL_WEIGHT_SQL = `
   END / 3.0
 `;
 
+/**
+ * Most cached input a single request can bill, before the cache weight.
+ *
+ * WHY THIS EXISTS. Two clients, one model, one conversation — and wildly
+ * different bills:
+ *
+ *   chat portal turn    3,258 fresh +    70 cached  ->  15,664 units
+ *   Claude Desktop      55,836 fresh + 602,080 cached ->  117,016 units
+ *
+ * The formula was already identical on both routes; the gap is that Desktop
+ * re-sends the whole conversation on every turn while the portal sends a
+ * short window. The cache weight divides Desktop's re-read by ten, which
+ * takes a 42x penalty down to ~13x — real, but still unfair, because the
+ * customer is billed for history they did not write twice.
+ *
+ * 64,000 is deliberately above any ordinary turn (a chat turn bills ~70
+ * cached tokens; a long agentic one a few thousand) and far below the 714k
+ * a Desktop session accumulates. So it changes nothing for normal use and
+ * stops a long Desktop conversation from being billed for its own history.
+ *
+ * NOT the same as making history free: a cache MISS still bills the full
+ * fresh input, which is the part that genuinely costs the provider.
+ */
+export const CACHE_READ_CEILING = 64_000;
+
 export const BILLABLE_TOKEN_COLUMNS =
   `(COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ` +
   `+ COALESCE(u.output_tokens,0) * ${OUTPUT_WEIGHT} ` +
   `+ (COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0)) * ${CACHE_WRITE_WEIGHT} ` +
-  `+ COALESCE(u.cache_read_tokens,0) / ${CACHE_READ_WEIGHT}) * ${MODEL_WEIGHT_SQL}`;
+  `+ LEAST(COALESCE(u.cache_read_tokens,0), ${CACHE_READ_CEILING}) / ${CACHE_READ_WEIGHT}) * ${MODEL_WEIGHT_SQL}`;
 
 
 /**
