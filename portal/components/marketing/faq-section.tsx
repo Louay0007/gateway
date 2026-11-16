@@ -20,12 +20,12 @@ const faqItems: FaqItem[] = [
   {
     question: 'How does usage-based billing work?',
     answer:
-      'Each plan includes one pool of 50M blended tokens per month. Spend it on whichever of the plan\'s models you like — 30M on one and 20M on another, 10M and 40M, or all 50M on a single model. There is no per-model cap. Blended tokens count every token that passes through the gateway — input, output, cache writes and cache reads — so long conversations consume proportionally more of the budget. Only successful inference calls are metered; failures never consume quota. There are no per-minute rate limits and no dollar caps on top — the monthly token pool is the only limit.',
+      'Each plan includes one pool of blended tokens per month, spendable on any model the plan covers — there is no per-model cap. A blended token is not a raw token: a cached re-read costs a tenth of one, an output token costs five, and the tier you use scales it (smart is the unit, frontier five times it). So a long conversation costs far less than its raw prompt size suggests, and a frontier call costs more than a smart one. Only successful inference calls are metered; failures never consume quota. Per-minute request limits apply and are listed on each plan.'
   },
   {
     question: 'What happens when I reach my monthly token budget?',
     answer:
-      'Your allowance is one shared pool, so it has no per-model limit: a heavy month on one model still leaves the rest spendable on another. When the whole pool is spent, every model on the plan returns a clear "out of tokens for this period" error until your plan renews — or you upgrade for more allowance immediately.',
+      'Your allowance is one shared pool with no per-model limit: a heavy month on one model still leaves the rest spendable on another. When the pool is spent, every model on the plan returns a clear "out of tokens for this period" error until the plan renews — or you upgrade for more allowance immediately.',
   },
   {
     question: 'Who provides the models behind Zaino?',
@@ -36,7 +36,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Which models are available?',
     answer:
-      'Availability depends on your plan. Starter includes fast and smart, sharing one 50M pool. Pro includes smart, frontier and fable, also 50M — the difference is which models you can call and how many keys and seats you get, not the size of the pool. Both plans include every model you are entitled to at full capability.',
+      'Availability depends on your plan. Starter covers fast and smart. Pro adds frontier and fable, plus more keys and seats. Every model you are entitled to is served at full capability — no throttled variant, no smaller context window.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',

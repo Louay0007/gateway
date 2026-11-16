@@ -129,7 +129,7 @@ export function PricingPreview() {
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
-                <Feature icon={<Infinity className="size-4" />}>50M blended tokens per month, shared across the models on this plan. Failures never count</Feature>
+                <Feature icon={<Infinity className="size-4" />}>One shared blended-token pool per month, across the models on this plan. Failures never count</Feature>
                 <Feature>{plan.maxKeys} API keys</Feature>
                 {(plan.models ?? []).length > 0 && (
                   <Feature>Models: {(plan.models ?? []).join(", ")}</Feature>

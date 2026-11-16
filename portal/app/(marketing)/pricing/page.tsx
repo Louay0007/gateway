@@ -11,7 +11,7 @@ import { currentUser } from "@/lib/auth/authorize";
 export const metadata: Metadata = {
   title: "Pricing Plans",
   description:
-    "Two plans, 50M shared tokens each, priced in US dollars or Tunisian dinars. No per-model ceiling, no markup on token rates, failed requests never billed.",
+    "Monthly plans with one shared token pool, priced in US dollars or Tunisian dinars. No per-model ceiling, failed requests never billed.",
   alternates: { canonical: "/pricing" },
 };
 
@@ -43,10 +43,11 @@ export default async function PricingPage() {
               title="Pay monthly, in dollars or dinars"
               lede={
                 <>
-                  Two plans, the same 50M pool each, no per-model ceiling and no
-                  markup on token rates. Pay by D17 transfer at La Poste from
-                  Tunisia, or by card anywhere — the key is issued the moment
-                  payment clears.
+                  One shared token pool per plan, no per-model ceiling. A
+                  cached re-read costs a tenth of a token, so long sessions are
+                  cheaper than their raw size suggests. Pay by D17 transfer at
+                  La Poste from Tunisia, or by card anywhere — the key is
+                  issued the moment payment clears.
                 </>
               }
             />

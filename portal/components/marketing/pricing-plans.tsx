@@ -118,7 +118,7 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
           Compare the two plans
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Both plans include the same 50M pool. What changes is which models
+          Both plans include one shared pool. What changes is which models
           it can be spent on, and how many people can use it.
         </p>
 
