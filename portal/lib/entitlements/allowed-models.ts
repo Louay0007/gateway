@@ -15,6 +15,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   computeTokenAllowedModels,
+  tunisDayWindow,
   usageWindowForSubscription,
   BILLABLE_TOKEN_COLUMNS,
 } from '@/lib/entitlements/quota';
@@ -38,7 +39,7 @@ export async function getAllowedModels(
   const rows = (await db.execute(sql`
     SELECT s.status, s.current_period_start, s.current_period_end,
            s.daily_quota,
-           p.code AS plan_code, p.models,
+           p.code AS plan_code, p.models, p.daily_token_cap,
            COALESCE(p.token_limits, '{}'::jsonb) AS token_limits
       FROM subscriptions s
       JOIN plans p ON p.id = s.plan_id
@@ -54,6 +55,7 @@ export async function getAllowedModels(
     plan_code: string;
     models: string[];
     token_limits: Record<string, number>;
+    daily_token_cap: string | number | null;
   }[];
 
   const row = rows[0];
@@ -116,5 +118,31 @@ export async function getAllowedModels(
 
   // Token-only wall (0023): the only usage signal is blended tokens.
   const allowed = computeTokenAllowedModels(entitled, tokenLimits, usedTokensBy);
-  return { effect, entitled, allowed, tokenLimits, usedTokensBy, period: window, planCode: row.plan_code };
+  // ── Daily cap (0043). ────────────────────────────────────────────────
+  // The pool is monthly, so without this one good day can spend the whole
+  // allowance and the customer sits cut off until the period ends. The cap
+  // bounds the operator's worst case (one day of margin, not one month) and
+  // the customer's blast radius at the same time.
+  //
+  // A second query, not a UNION: the windows differ and a row can count in
+  // both. NULL/0 cap = no daily limit, so a plan that never sets one
+  // behaves exactly as before.
+  const dailyCap = Number(row.daily_token_cap ?? 0);
+  let dailyExhausted = false;
+  if (dailyCap > 0) {
+    const today = tunisDayWindow();
+    const dayRows = (await db.execute(sql`
+      SELECT COALESCE(SUM(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS tokens
+        FROM usage_records u
+       WHERE u.organization_id = ${organizationId}::uuid
+         AND u.occurred_at >= ${today.start.toISOString()}::timestamptz
+         AND u.occurred_at < ${today.end.toISOString()}::timestamptz
+    `)) as unknown as { tokens: string | number }[];
+    dailyExhausted = Number(dayRows[0]?.tokens ?? 0) >= dailyCap;
+  }
+  return {
+    effect, entitled,
+    allowed: dailyExhausted ? [] : allowed,
+    tokenLimits, usedTokensBy, period: window, planCode: row.plan_code,
+  };
 }

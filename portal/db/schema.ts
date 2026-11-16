@@ -190,6 +190,14 @@ export const plans = pgTable('plans', {
    * the shape 0025 shipped. What the pool may be spent on is `models`.
    */
   tokenLimits:           jsonb('token_limits').notNull().default({}),
+  /**
+   * Blended tokens per Tunis day (0043). NULL or 0 = no daily cap.
+   *
+   * The monthly pool remains the ceiling; this bounds how fast it can be
+   * spent, so a runaway loop costs one day of margin instead of one month
+   * and the customer is not cut off for the rest of the period.
+   */
+  dailyTokenCap:         bigint('daily_token_cap', { mode: 'number' }),
   /** Display/documentation marker: 'monthly' since 0038. Enforcement reads subscriptions.daily_quota. */
   quotaCadence:          text('quota_cadence').notNull().default('monthly'),
   createdAt:             timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
