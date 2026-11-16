@@ -77,6 +77,8 @@ export interface PlanSummary {
   models: string[];
   /** Raw blended tokens; the values SUM to the plan's shared pool (0039). */
   tokenLimits: Record<string, number>;
+  /** Blended tokens per Tunis day (0043). Null = no daily limit. */
+  dailyTokenCap: number | null;
 }
 
 /** Project a plan row onto the customer-safe shape. */
@@ -97,6 +99,7 @@ export function summarizePlan(row: {
   rateMultiplierBps: number;
   models: string[];
   tokenLimits?: Record<string, number> | unknown;
+  dailyTokenCap?: number | null;
 }, now: Date = new Date()): PlanSummary {
   // JSONB columns arrive as `unknown` from Drizzle. Cast safely — a
   // malformed token value defaults to empty = UNLIMITED for that alias
@@ -129,6 +132,7 @@ export function summarizePlan(row: {
     rateMultiplierBps: row.rateMultiplierBps,
     models: row.models,
     tokenLimits,
+    dailyTokenCap: row.dailyTokenCap ?? null,
   };
 }
 

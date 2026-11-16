@@ -34,5 +34,7 @@ UPDATE plans SET daily_token_cap = 3000000
  WHERE code = 'starter' AND daily_token_cap IS NULL;
 UPDATE plans SET daily_token_cap = 8000000
  WHERE code = 'pro' AND daily_token_cap IS NULL;
-UPDATE plans SET daily_token_cap = 1000000
+-- Trial: a QUARTER of its 1M pool. Setting the cap equal to the pool would
+-- just be a renamed monthly limit — the point is that a day is a fraction.
+UPDATE plans SET daily_token_cap = 250000
  WHERE code = 'trial' AND daily_token_cap IS NULL;

@@ -37,7 +37,7 @@
 
 import { and, desc, eq, sql, type SQL } from 'drizzle-orm';
 import { db } from '@/db';
-import { BILLABLE_TOKEN_COLUMNS } from '@/lib/entitlements/quota';
+import { BILLABLE_TOKEN_COLUMNS, tunisDayWindow } from '@/lib/entitlements/quota';
 import {
   apiKeys,
   auditLog,
@@ -236,6 +236,10 @@ export async function subscriptionBundle(organizationId: string): Promise<{
    */
   poolTokens: number | null;
   poolUsedTokens: number;
+  /** Daily blended-token cap (0043). Null = no daily limit. */
+  dailyTokenCap: number | null;
+  /** Blended tokens used since Tunis midnight. */
+  dailyUsedTokens: number;
   /** Which aliases are exhausted on tokens. Uniform under one pool. */
   exhaustedByModel: Record<string, 'tokens' | null>;
   limits: PlanSummary | null;
@@ -341,6 +345,22 @@ export async function subscriptionBundle(organizationId: string): Promise<{
   const tokenPool = tokenPoolFromLimits(plan?.tokenLimits ?? {});
   const poolUsed = tokensUsedInWindow(usage.tokensByModel);
   const poolExhausted = tokenPool !== null && poolUsed >= tokenPool;
+  // Today's spend, in the same unit as the pool. Loaded only when a cap is
+  // set: a plan with no daily limit should not pay for the query, and the
+  // UI shows nothing for it either.
+  const dailyCap = plan?.dailyTokenCap ?? null;
+  let dailyUsed = 0;
+  if (dailyCap !== null && dailyCap > 0) {
+    const today = tunisDayWindow();
+    const [dayRow] = (await db.execute(sql`
+      SELECT COALESCE(SUM(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS tokens
+        FROM usage_records u
+       WHERE u.organization_id = ${organizationId}::uuid
+         AND u.occurred_at >= ${today.start.toISOString()}::timestamptz
+         AND u.occurred_at < ${today.end.toISOString()}::timestamptz
+    `)) as unknown as { tokens: string | number }[];
+    dailyUsed = Number(dayRow?.tokens ?? 0);
+  }
 
   return {
     state,
@@ -385,6 +405,8 @@ export async function subscriptionBundle(organizationId: string): Promise<{
     // pre-check and gateway wall all read it, and they must agree.
     poolTokens: tokenPool,
     poolUsedTokens: poolUsed,
+    dailyTokenCap: plan?.dailyTokenCap ?? null,
+    dailyUsedTokens: dailyUsed,
     exhaustedByModel: Object.fromEntries(
       (plan?.models ?? []).map((alias) => [
         alias,

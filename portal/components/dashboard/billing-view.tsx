@@ -576,6 +576,8 @@ export function BillingView() {
                   poolTokens={b.poolTokens}
                   poolUsedTokens={b.poolUsedTokens}
                   entitled={plan.models ?? []}
+                  dailyCap={b.dailyTokenCap ?? null}
+                  dailyUsed={b.dailyUsedTokens ?? 0}
                 />
 
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

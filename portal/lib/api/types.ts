@@ -70,6 +70,10 @@ export interface SubscriptionBundle {
    */
   poolTokens: number | null;
   poolUsedTokens: number;
+  /** Daily blended-token cap (0043). Null = no daily limit. */
+  dailyTokenCap: number | null;
+  /** Blended tokens used since Tunis midnight. */
+  dailyUsedTokens: number;
   /** Which aliases are out of tokens. Uniform under one pool. */
   exhaustedByModel: Record<string, 'tokens' | null>;
   limits: PlanSummary | null;

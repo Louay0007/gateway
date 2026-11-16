@@ -28,6 +28,8 @@ export function QuotaPoolMeter({
   poolTokens,
   poolUsedTokens,
   entitled,
+  dailyCap,
+  dailyUsed,
   className,
 }: {
   /** Total shared allowance, raw tokens. Null = unlimited. */
@@ -35,6 +37,9 @@ export function QuotaPoolMeter({
   poolUsedTokens: number;
   /** Shown as text so the customer knows what the pool may be spent on. */
   entitled?: string[];
+  /** Daily cap and today's spend (0043). Null cap = no daily limit. */
+  dailyCap?: number | null;
+  dailyUsed?: number;
   className?: string;
 }) {
   const unlimited = typeof poolTokens !== 'number' || !Number.isFinite(poolTokens) || poolTokens <= 0;
@@ -77,6 +82,16 @@ export function QuotaPoolMeter({
           className={cn("[&_[data-slot=progress-track]]:h-1.5", tone)}
         />
       )}
+      {/* The daily cap is invisible until it stops you, which reads as a
+          broken product. State the number up front, and how much of today
+          is already gone. */}
+      {dailyCap && dailyCap > 0 ? (
+        <p className="text-xs text-muted-foreground" aria-live="polite">
+          {tokensCompact(Math.max(0, dailyCap - (dailyUsed ?? 0)))} of{" "}
+          {tokensCompact(dailyCap)} left today — the monthly pool refills this
+          daily limit at midnight.
+        </p>
+      ) : null}
       {entitled && entitled.length > 0 ? (
         <p className="text-xs text-muted-foreground">
           Shared across {entitled.join(", ")} — spend it on whichever you like.
