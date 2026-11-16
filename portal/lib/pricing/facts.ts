@@ -25,7 +25,6 @@ export interface PlanFacts {
   poolLabel: string;
   models: string[];
   maxKeys: number;
-  maxSeats: number;
   /** What actually differs between the plans, in the buyer's words. */
   headline: string;
 }
@@ -41,7 +40,6 @@ export const PLAN_FACTS: PlanFacts[] = [
     poolLabel: "50M",
     models: ["fast", "smart"],
     maxKeys: 3,
-    maxSeats: 1,
     headline: "Everything you need to start",
   },
   {
@@ -54,7 +52,6 @@ export const PLAN_FACTS: PlanFacts[] = [
     poolLabel: "50M",
     models: ["smart", "frontier", "fable"],
     maxKeys: 15,
-    maxSeats: 25,
     headline: "The strongest models, and a team",
   },
 ];
@@ -109,7 +106,6 @@ export const COMPARISON: {
     group: "Team",
     rows: [
       { label: "API keys", starter: "3", pro: "15" },
-      { label: "Seats", starter: "1", pro: "25" },
       { label: "Priority support", starter: "—", pro: "Yes" },
     ],
   },
@@ -147,7 +143,7 @@ export const PRICING_FAQ: { q: string; a: string }[] = [
   },
   {
     q: "Why do Starter and Pro cost different prices for the same pool?",
-    a: "Because the pool is the same but the models are not. Pro unlocks frontier and fable, which are the most expensive engines, and adds 15 keys and 25 seats. Volume is not the difference and we would rather say so than invent a number.",
+    a: "Because the pool is the same but the models are not. Pro unlocks frontier and fable, which are the most expensive engines, and adds 15 API keys. Volume is not the difference and we would rather say so than invent a number.",
   },
   {
     q: "Which plan should I pick?",

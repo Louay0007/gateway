@@ -445,23 +445,6 @@ function isRenewable(sub: typeof subscriptions.$inferSelect): boolean {
   return now >= windowStart;
 }
 
-/**
- * Clamp a requested seat count to what the plan actually sells.
- *
- * `maxSeats` is 1 on Starter and on every flat plan, so a body that asks
- * for 5 seats on Starter silently gets 1 rather than a 400 — the seat
- * picker is the ONLY caller that sets it, and it is rendered from
- * `maxSeats`, so a mismatch means a stale page, not an attack. Refusing
- * would fail a payment the customer cannot fix without reloading.
- * Zero, negative and non-integers collapse to 1 for the same reason.
- */
-function coerceSeats(requested: number | null | undefined, maxSeats: number): number {
-  const ceiling = Math.max(1, Math.trunc(maxSeats || 1));
-  const n = Math.trunc(Number(requested ?? 1));
-  if (!Number.isFinite(n) || n < 1) return 1;
-  return Math.min(n, ceiling);
-}
-
 async function planByCode(planCode: string) {
   const plan = await db.query.plans.findFirst({ where: eq(plans.code, planCode) });
   if (!plan || !plan.public) {
@@ -501,17 +484,9 @@ export async function beginCheckout(
    * default rather than failing a payment over a bad query string.
    */
   returnPath?: string | null,
-  /**
-   * Seats bought. Pro is priced per seat; every flat plan is one seat.
-   * Validated against `plans.max_seats` BEFORE the provider is called, so
-   * a merchant of record never creates a session for an illegal quantity.
-   */
-  seats?: number | null,
 ): Promise<{ intent: Awaited<ReturnType<typeof billingProvider.begin>>; changed: boolean }> {
   const provider = resolveBillingProvider(providerName);
   const plan = await planByCode(planCode);
-
-  const seatCount = coerceSeats(seats, plan.maxSeats);
 
   // A suspended account must not be able to re-enter the money path. The
   // entitlement sync already cuts a suspended org's keys; this stops the
@@ -595,7 +570,6 @@ export async function beginCheckout(
             // not necessarily the one that sold this subscription, and
             // the audit log used to record exactly that wrong value.
             provider: provider.name,
-            seats: seatCount,
             updatedAt: now,
           })
           .returning()
@@ -609,7 +583,6 @@ export async function beginCheckout(
               planId: plan.id,
               status: 'incomplete',
               provider: provider.name,
-              seats: seatCount,
               providerCustomerId: existing.providerCustomerId,
               providerSubscriptionId: null,
               currentPeriodStart: null,
@@ -627,7 +600,6 @@ export async function beginCheckout(
     organizationId,
     planCode,
     subscriptionId: sub.id,
-    seats: seatCount,
     // Not hardcoded to /dashboard/billing any more: a customer who pays
     // from `/settings?tab=plan` used to be dropped into the other shell,
     // which reads as "where did my account go" right after handing over

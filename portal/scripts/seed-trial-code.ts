@@ -48,7 +48,6 @@ async function main() {
       tpmLimit: 50000,
       maxConcurrentRequests: 2,
       maxKeys: 1,
-      maxSeats: 1,
       rateMultiplierBps: 10000,
       models: ['fast', 'smart'],
       trialDays: 3,

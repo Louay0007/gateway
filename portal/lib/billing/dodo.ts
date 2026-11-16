@@ -218,8 +218,6 @@ export const dodoBillingProvider: BillingProvider = {
       ? await db.query.users.findFirst({ where: eq(users.id, owner.userId) })
       : null;
 
-    const seats = Math.max(1, Math.trunc(input.seats || 1));
-
     // Checkout sessions expect an absolute return_url for the hosted
     // redirect back to us. safeReturnPath deliberately yields a
     // same-site relative path for our own pages, so resolve it against
@@ -236,10 +234,14 @@ export const dodoBillingProvider: BillingProvider = {
     // billing_currency=USD locks the subscription currency at creation.
     // Dodo's docs warn adaptive currency is otherwise detected from the
     // customer's IP and then fixed for the life of the subscription.
+    //
+    // quantity is 1: a plan is sold to an organisation, not per person.
+    // 0044 retired the per-seat quantity this used to carry, because no
+    // code path could ever spend a second seat.
     const res = await dodoFetch('/checkouts', {
       method: 'POST',
       body: JSON.stringify({
-        product_cart: [{ product_id: plan.providerPriceId, quantity: seats }],
+        product_cart: [{ product_id: plan.providerPriceId, quantity: 1 }],
         ...(customer?.email ? { customer: { email: customer.email } } : {}),
         billing_currency: 'USD',
         return_url: returnUrl,

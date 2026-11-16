@@ -57,8 +57,6 @@ export interface PlanSummary {
    * the other either.
    */
   priceTndMillimes: number | null;
-  /** Seats the plan sells. 1 = flat price. */
-  maxSeats: number;
   /**
    * Live seasonal discount, or null when no promotion is running. The
    * catalog `priceCents` above stays the list price; `promo.priceCents` is
@@ -88,7 +86,6 @@ export function summarizePlan(row: {
   description: string | null;
   priceCents: number;
   priceTndMillimes?: number | null;
-  maxSeats?: number;
   interval: string;
   includedSpendCents: number;
   hardCapCents: number | null;
@@ -120,7 +117,6 @@ export function summarizePlan(row: {
     description: row.description,
     priceCents: row.priceCents,
     priceTndMillimes: row.priceTndMillimes ?? null,
-    maxSeats: row.maxSeats ?? 1,
     promo: promoView(row.priceCents, now),
     interval: row.interval,
     includedSpendCents: row.includedSpendCents,

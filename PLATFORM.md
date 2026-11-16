@@ -284,7 +284,11 @@ plans ──1:1── entitlements_template
 
 ### 3.2 Why `organizations`, not just `users`
 
-A plan is bought by a **company**, not a person. Seats are org members. API keys
+A plan is bought by a **company**, not a person. Seats would be org members —
+but the shipped product has no team feature yet (`organization_members` has one
+writer, signup provisioning; 0044 removed the seat columns that priced a
+capability nothing enforced). The org model is still the right shape: it is what
+makes a team feature addable without a schema rewrite. API keys
 belong to an org and share its subscription and budget. Modelling a
 `plan_id` directly on `users` forces you to rewrite the schema the first time
 someone invites a colleague — which is week two.
@@ -387,7 +391,6 @@ CREATE TABLE plans (
   tpm_limit                INT,
   max_concurrent_requests  INT,
   max_keys                 INT NOT NULL DEFAULT 1,
-  max_seats                INT NOT NULL DEFAULT 1,
   rate_multiplier_bps      INT NOT NULL DEFAULT 10000, -- customer-facing rate
   models                   TEXT[] NOT NULL DEFAULT '{}',
   trial_days               INT NOT NULL DEFAULT 0,
@@ -604,6 +607,11 @@ conclusion:
 
 **Seats gate seats. Tokens are metered.** Never price purely per seat — your
 worst customer's inference bill is unbounded and your revenue is not.
+
+This section is why 0044 was safe: per-seat pricing went live (0037) before a
+team feature existed, and the guide it cites argues against exactly that ordering.
+The tier table below is illustrative and lists seats as a proposed axis, not a
+shipped one.
 
 ### 4.2 The tier table
 

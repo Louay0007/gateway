@@ -51,9 +51,9 @@ const PLAN_FEATURES: Record<string, string[]> = {
  *
  * THE MODEL IS ONE SHARED POOL PER PLAN (migration 0039): 50M per month,
  * spendable on whichever of the plan's models the customer likes. Pro is
- * the same 50M as Starter — it differs by model class, 15 keys and 25
- * seats — so both must state the same number here or the paywall invents a
- * volume difference that does not exist.
+ * the same 50M as Starter — it differs by model class and 15 keys — so
+ * both must state the same number here or the paywall invents a volume
+ * difference that does not exist.
  *
  * `planFeatureValues()` below reads the live `plans.token_limits` row and
  * wins whenever it has a value; this table is only the fallback for a plan

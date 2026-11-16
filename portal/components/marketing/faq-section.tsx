@@ -36,7 +36,7 @@ const faqItems: FaqItem[] = [
   {
     question: 'Which models are available?',
     answer:
-      'Availability depends on your plan. Starter covers fast and smart. Pro adds frontier and fable, plus more keys and seats. Every model you are entitled to is served at full capability — no throttled variant, no smaller context window.',
+      'Availability depends on your plan. Starter covers fast and smart. Pro adds frontier and fable, plus more API keys. Every model you are entitled to is served at full capability — no throttled variant, no smaller context window.',
   },
   {
     question: 'Can I switch plans or cancel anytime?',

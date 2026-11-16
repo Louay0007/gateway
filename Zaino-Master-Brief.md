@@ -14,6 +14,16 @@ sheets), `Zaino-Funding-Brief.md`, `Zaino-Applications.md`,
 Where a document disagrees with the database or the price table, this brief
 takes the database/price table as true and says so.
 
+> **POSTSCRIPT (0044).** Per-seat pricing has been **removed**, so every seat
+> figure below is history. 0044 drops `plans.max_seats` and
+> `subscriptions.seats` and sends `product_cart.quantity: 1` on both plans. The
+> reason is in this brief's own analysis: seats were sold but never delivered —
+> `organization_members` has exactly one writer, so there was no invite flow,
+> member UI or seat enforcement on any request path, and D17 never had a seat
+> field. The "fix D17 seat billing" item is therefore closed by deletion; the
+> real prerequisite for per-seat revenue is a team product that does not exist
+> yet.
+
 ---
 
 ## 1. The business in one paragraph
@@ -23,7 +33,7 @@ Maghreb, priced in dinars and paid through D17 (La Poste Tunisienne's wallet),
 with a card rail (Dodo) built but still in test mode. The product is not the
 models — it is the metering, quota enforcement, two payment rails, trilingual
 dashboard and admin console wrapped around them. Two plans: Starter 50 DT ($15)
-unlocking fast + smart, Pro 90 DT ($30/seat) unlocking smart + frontier + fable.
+unlocking fast + smart, Pro 90 DT ($30) unlocking smart + frontier + fable.
 Both get **one shared 50M-token pool per month** (migration 0039). Trial is 1M
 shared over 3 days. Live state: 641 tests passing, tsc clean, 40 migrations,
 single VPS, deploy is a push to `main`.
@@ -34,17 +44,19 @@ single VPS, deploy is a push to `main`.
 
 | | Starter | Pro |
 |---|---|---|
-| D17 | 50 DT | 90 DT flat, **no seat multiplication** |
-| Dodo | $15 flat | $30 × seats (1–25) |
+| D17 | 50 DT | 90 DT |
+| Dodo | $15 | $30 |
 | Pool | 50M/month, one pool | 50M/month, one pool |
 | Models | fast + smart | smart + frontier + fable |
-| Keys / seats | 3 / 1 | 15 / 25 |
+| API keys | 3 | 15 |
 | Cost at 100% burn (claimed) | 10 DT | 10 DT |
 | Margin at 100% burn (claimed) | 80.0% | 88.9% |
 
-The D17 rail ignoring seats is confirmed in `lib/billing/d17.ts`: the amount is
-`plan.priceTndMillimes` and nothing else. A 25-seat team pays 90 DT on D17 and
-$750 on Dodo. The UI admits it in copy; the economics do not.
+~~The D17 rail ignored seats.~~ The two rails used to disagree — Dodo charged
+`$30 × seats`, D17 charged `plan.priceTndMillimes` flat — so a 25-seat team paid
+90 DT on D17 and $750 on Dodo. 0044 removed the asymmetry by removing seats: both
+rails now charge one flat price per plan, which is also all the product can
+deliver.
 
 ---
 
@@ -189,7 +201,7 @@ with test-mode product IDs in migration 0040 — a checkout today moves no money
 
 Genuine open items, in the order the documents themselves rank them: prove the
 cost basis; get the resale approval in writing (or commit to private/team-use
-positioning); fix D17 seat billing; take the card rail live; resolve the
+positioning); build a team product before re-pricing for seats; take the card rail live; resolve the
 Pro/Starter pool inversion if it still exists; refresh the README.
 
 The known engineering risks are documented rather than hidden: up to 20 minutes

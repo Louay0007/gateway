@@ -14,10 +14,11 @@
  *
  * What each section proves:
  *   T1  configuration and catalog wiring (keys, product ids live)
- *   T2  starter checkout — flat plan coerces any seat ask to 1, the
- *       checkout session is created on the REAL Dodo test API, the row
- *       records provider='dodo' (not the configured default)
- *   T3  pro checkout — seats persist 3, an illegal 99 clamps to 25
+ *   T2  starter checkout — the checkout session is created on the REAL
+ *       Dodo test API, the row records provider='dodo' (not the
+ *       configured default)
+ *   T3  pro checkout — the same path on the higher plan (0044 removed
+ *       the per-seat quantity, so quantity is one for both)
  *   T4  the live webhook route: a real signed subscription.active
  *       activates the row and rolls the period to next_billing_date
  *   T5  a replayed webhook-id is a duplicate no-op, not a second month
@@ -82,7 +83,7 @@ function section(title: string): void {
 }
 
 /** Create an account + org and start a Dodo checkout. */
-async function startCheckout(planCode: string, seats?: number) {
+async function startCheckout(planCode: string) {
   const runTag = randomBytes(4).toString('hex');
   const email = `dodo-${runTag}@verify.invalid`;
   const password = randomBytes(18).toString('base64url');
@@ -94,7 +95,6 @@ async function startCheckout(planCode: string, seats?: number) {
     domainUserId,
     'dodo',
     null,
-    seats,
   );
   return {
     email,
@@ -195,7 +195,6 @@ async function main(): Promise<void> {
     .select({
       code: plans.code,
       priceId: plans.providerPriceId,
-      maxSeats: plans.maxSeats,
     })
     .from(plans)
     .where(eq(plans.code, 'starter'));
@@ -231,9 +230,9 @@ async function main(): Promise<void> {
     );
   }
 
-  // ── T2: starter checkout — flat, seats coerced to 1 ──────────────────
-  section('T2 starter checkout (real Dodo test API, seats coerced)');
-  const buyerA = await startCheckout('starter', 5);
+  // ── T2: starter checkout on the real Dodo test API ──────────────────
+  section('T2 starter checkout (real Dodo test API)');
+  const buyerA = await startCheckout('starter');
   check(
     'the checkout url comes from dodopayments.com',
     buyerA.checkoutUrl.includes('dodopayments.com'),
@@ -246,27 +245,26 @@ async function main(): Promise<void> {
     rowA0?.provider ?? 'null',
   );
   check(
-    'a seat ask of 5 on a flat plan is stored as 1',
-    rowA0?.seats === 1,
-    String(rowA0?.seats),
-  );
-  check(
     'no payment is taken before activation (status incomplete)',
     rowA0?.status === 'incomplete',
     rowA0?.status,
   );
 
-  // ── T3: pro checkout — seats persist and clamp ───────────────────────
-  section('T3 pro checkout (3 seats persist; 99 clamps to max_seats)');
-  const buyerB = await startCheckout('pro', 3);
+  // ── T3: the same checkout path on the higher plan ────────────────────
+  section('T3 pro checkout (same single-unit path)');
+  const buyerB = await startCheckout('pro');
   const rowB = await loadSubscriptionById(buyerB.subscriptionId);
-  check('3 requested seats are stored', rowB?.seats === 3, String(rowB?.seats));
-  const buyerC = await startCheckout('pro', 99);
+  check(
+    'a pro checkout records provider=dodo too',
+    rowB?.provider === 'dodo',
+    rowB?.provider ?? 'null',
+  );
+  const buyerC = await startCheckout('pro');
   const rowC = await loadSubscriptionById(buyerC.subscriptionId);
   check(
-    '99 requested seats clamp to plans.max_seats (25)',
-    rowC?.seats === 25,
-    String(rowC?.seats),
+    'the second pro row is independent of the first',
+    Boolean(rowC?.id) && rowC?.id !== rowB?.id,
+    String(rowC?.id),
   );
 
   // ── T3b: abandoned-checkout display (incomplete ≠ payment pending) ──
@@ -489,11 +487,6 @@ async function main(): Promise<void> {
     'the audit trail stamps the row rail (dodo), not the default',
     (cancelAudit?.after as { provider?: string } | null)?.provider === 'dodo',
     JSON.stringify(cancelAudit?.after),
-  );
-  check(
-    'the canceled row keeps its seats',
-    rowB2?.seats === 3,
-    String(rowB2?.seats),
   );
 
   reportAndExit();

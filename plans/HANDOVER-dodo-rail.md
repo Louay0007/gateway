@@ -4,6 +4,21 @@
 **Branch:** `main` (NOT branched yet — branch before committing)
 **State:** mid-implementation, does not typecheck yet. 12 modified files, 2 new.
 
+> **SUPERSEDED IN PART BY 0044 — read this before acting on anything below.**
+> The per-seat pricing this plan introduced was **removed entirely**. It billed
+> a capability no code path could deliver: `organization_members` had exactly
+> one writer (signup provisioning), so there was no invite flow, no member UI
+> and no seat enforcement, and the D17 rail never had a seat field at all.
+>
+> Gone as of 0044: `plans.max_seats`, `subscriptions.seats` (+ its CHECK),
+> `BeginCheckoutInput.seats`, `coerceSeats()`, the `seats` field on
+> `POST /api/checkout`, `PlanSummary.maxSeats`, and the marketing "Seats" row.
+> `product_cart.quantity` is now the literal `1` on both plans.
+>
+> Everything marked "seat" in this file is **history**. Do not restore it.
+> The rest of the document (the Dodo rail itself, signature handling, event
+> mapping, the 20-year period gotcha) is still accurate.
+
 ---
 
 ## The goal (locked, do not re-litigate)
@@ -120,7 +135,8 @@ Then: **`npm test`** — `tests/d17.test.ts` and `tests/promo.test.ts` pin `1613
 
 1. Create two products in the Dodo dashboard:
    - Starter: $15/mo, **flat** (quantity 1)
-   - Pro: $30/mo, **seat-based** (quantity = seats)
+   - Pro: $30/mo, **flat** (quantity 1) — 0044 removed per-seat pricing;
+     a seat-based product would now take a quantity we never send
    - Both: `subscription_period` = **20 years** (Dodo's max). Anything equal to the billing frequency means the subscription dies after one charge.
 2. Paste both product ids into `plans.provider_price_id` (starter row, pro row).
 3. Register webhook endpoint `https://<host>/api/billing/callback`, subscribe to the 6 events above, copy the `whsec_…` secret into `DODO_PAYMENTS_WEBHOOK_KEY`.
@@ -134,4 +150,4 @@ Then: **`npm test`** — `tests/d17.test.ts` and `tests/promo.test.ts` pin `1613
 - Dodo's MSA says 5% + 50¢ while the pricing page says 4% + $0.40. Their fee numbers disagree with each other; budget for the higher one.
 - 120-day fund holds on closed accounts are common in reviews.
 - The callback route discriminates rails by `webhook-id` header presence. If that ever changes, both rails' webhooks break silently with 400s and the customer stays on `incomplete`.
-- `coerceSeats()` **clamps** rather than throws — a body asking for 5 seats on Starter gets 1. Deliberate: the picker renders from `maxSeats`, so a mismatch means a stale page, not an attack, and a 400 would fail a payment the customer can't fix.
+- ~~`coerceSeats()` clamps rather than throws~~ — **removed by 0044**, along with the `seats` request field it defended. Kept here only so a reader who remembers it knows it was deliberate then and is gone now.

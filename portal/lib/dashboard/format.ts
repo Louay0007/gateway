@@ -170,17 +170,16 @@ export function tndPrice(millimes: number): string {
 
 /**
  * Both prices, for a surface a customer may pay from either rail:
- * "$15 / 50 DT". Per seat when the plan sells more than one.
+ * "$15 / 50 DT". One price per plan — 0044 retired the per-seat
+ * multiplier, so there is no `seats` argument to forget to pass.
  */
 export function formatPlanPrice(
   usdCents: number,
   tndMillimes: number | null | undefined,
-  seats = 1,
 ): string {
-  const usd = usdPrice(usdCents * seats);
-  const tnd = tndMillimes ? tndPrice(tndMillimes * seats) : null;
-  const suffix = seats > 1 ? " each" : "";
-  return tnd ? `${usd} / ${tnd}${suffix}` : usd;
+  const usd = usdPrice(usdCents);
+  const tnd = tndMillimes ? tndPrice(tndMillimes) : null;
+  return tnd ? `${usd} / ${tnd}` : usd;
 }
 
 const tndFormatter = new Intl.NumberFormat("fr-TN", {

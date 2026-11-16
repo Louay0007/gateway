@@ -85,10 +85,7 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
                     {plan.models.join(", ")}
                   </strong>
                 </Li>
-                <Li>
-                  {plan.maxKeys} API keys
-                  {plan.maxSeats > 1 ? ` · ${plan.maxSeats} seats` : " · 1 seat"}
-                </Li>
+                <Li>{plan.maxKeys} API keys</Li>
                 <Li>1M context · 64k output</Li>
               </ul>
 

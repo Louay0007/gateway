@@ -63,8 +63,6 @@ export interface BeginCheckoutInput {
   subscriptionId: string;
   /** Where the provider returns the user after payment. */
   returnUrl: string;
-  /** Seats bought. Flat plans are always 1; Pro is priced per seat. */
-  seats: number;
 }
 
 export interface BillingProvider {

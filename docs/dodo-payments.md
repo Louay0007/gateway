@@ -7,16 +7,19 @@ webhooks. There is no SDK — `portal/lib/billing/dodo.ts` is fetch +
 `node:crypto` HMAC.
 
 Pricing: we absorb Dodo's fee (6% + $0.40 on international
-subscriptions), so the customer pays exactly `$15` (Starter, flat)
-or `$30 × seats` (Pro). D17 (Tunisia, 50/90 DT) is unchanged —
+subscriptions), so the customer pays exactly `$15` (Starter) or `$30`
+(Pro), one subscription per organisation. D17 (Tunisia, 50/90 DT) is
+unchanged —
 `plans.price_cents` is the USD list price, `plans.price_tnd_millimes`
 the exact dinar ask; neither is derived from the other (0037).
 
 ## Dashboard setup (once)
 
 1. **Products**: create two subscription products.
-   - `Starter`: $15/mo flat, quantity ignored.
-   - `Pro`: $30/mo per seat (customer chooses quantity 1..25).
+   - `Starter`: $15/mo, quantity always 1.
+   - `Pro`: $30/mo, quantity always 1. (0044 removed per-seat
+     pricing: seats were never delivered, so `product_cart.quantity`
+     is now the literal 1 on both plans.)
    - **Subscription period: 20 years.** Dodo warns that a period equal
      to the payment frequency expires after one charge. 20-year period
      + monthly frequency = ongoing monthly plan.
@@ -46,10 +49,10 @@ default rail — a customer's `method` choice overrides it per checkout.
 
 ## How it works
 
-- `POST /api/checkout {planCode, method:"dodo", seats}` →
-  `beginCheckout` validates seats against `plans.max_seats` →
+- `POST /api/checkout {planCode, method:"dodo"}` →
+  `beginCheckout` resolves the plan by code →
   `dodo.begin()` posts `/checkouts` with
-  `product_cart:[{product_id, quantity:seats}]`,
+  `product_cart:[{product_id, quantity:1}]`,
   `billing_currency:"USD"` (locks currency at creation),
   `return_url` (absolute, resolved against `APP_URL`),
   `metadata:{organization_id, subscription_id}` → redirects to
@@ -71,9 +74,9 @@ default rail — a customer's `method` choice overrides it per checkout.
 
 ## Manual QA checklist (test mode)
 
-- [ ] `POST /api/checkout {"planCode":"pro","method":"dodo","seats":3}`
+- [ ] `POST /api/checkout {"planCode":"pro","method":"dodo"}`
       returns a `checkoutUrl` on `test.checkout.dodopayments.com`;
-      the subscription row has `provider='dodo'`, `seats=3`.
+      the subscription row has `provider='dodo'`.
 - [ ] Pay with a Dodo test card → `subscription.active` arrives,
       `applyCallback` activates, `providerSubscriptionId` set, gateway
       key works.
@@ -82,7 +85,7 @@ default rail — a customer's `method` choice overrides it per checkout.
       `cancel_at_next_billing_date`.
 - [ ] `subscription.renewed` with a later `next_billing_date` moves
       `currentPeriodEnd` forward.
-- [ ] `/pricing` shows `$15 / 50 DT` and `$30 per seat / 90 DT`, and the
+- [ ] `/pricing` shows `$15 / 50 DT` and `$30 / 90 DT`, and the
       checkout page reads the same numbers.
 
 Out of scope: Dodo discount codes (add when there is a real sale),

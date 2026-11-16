@@ -10,7 +10,7 @@
  * instruction page — both read as bugs. So EVERY "buy/renew this plan"
  * click in BillingView opens this dialog first, showing both rails with
  * their logos and the plan's own two prices (they never derive from one
- * another), and the seat count for per-seat plans.
+ * another).
  *
  * Confirm lands on POST /api/checkout with the chosen `method`, and the
  * response URL REPLACES this dialog: for Dodo it is Dodo's hosted
@@ -90,9 +90,6 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
 
   const listCents = plan?.promo?.priceCents ?? plan?.priceCents ?? 0;
   const originalCents = plan?.promo ? plan.promo.originalPriceCents : plan?.priceCents ?? 0;
-  /** One seat per subscription: a plan is sold to one organisation. */
-  const billedSeats = 1;
-
 
   /**
    * WAI-ARIA radio group, hand-rolled because only two rails exist and the
@@ -134,7 +131,6 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
         body: JSON.stringify({
           planCode: plan.code,
           method,
-          seats: 1,
           // See BillingView.beginCheckout: the returning customer must
           // land in the shell that asked.
           returnPath: window.location.pathname + window.location.search,
@@ -181,7 +177,7 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
                 numbers — never a conversion between them. */}
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
               <span className="font-semibold">
-                {formatPlanPrice(listCents, plan.priceTndMillimes, 1)}
+                {formatPlanPrice(listCents, plan.priceTndMillimes)}
               </span>
               <span className="text-muted-foreground">/month</span>
               {plan.promo ? (
@@ -249,14 +245,14 @@ export function PaymentMethodDialog({ plan, onDismiss }: PaymentMethodDialogProp
             {/* What each rail asks, spelled out in its own currency so
                 nobody confirms against a number they did not expect.
                 D17 charges the plan's exact dinar ask (per-row, 0037);
-                Dodo charges the USD list price once per seat. */}
+                Dodo charges the USD list price for the organisation. */}
             <div className="rounded-md border bg-muted/40 p-2.5 text-xs text-muted-foreground">
               {method === "dodo" ? (
                 <span className="flex items-center gap-1.5">
                   <CreditCard className="size-3.5 shrink-0" />
                   You will continue to Dodo&#39;s secure checkout and pay{" "}
                   <strong className="text-foreground">
-                    {formatPlanPrice(listCents, null, 1)}
+                    {formatPlanPrice(listCents, null)}
                   </strong>
                   .
                 </span>

@@ -69,7 +69,7 @@ async function resolveSubscription(orgId: string) {
     SELECT s.id, s.status, p.id AS plan_id, p.code AS plan_code,
            p.included_spend_cents, p.hard_cap_cents, p.rpm_limit,
            p.tpm_limit, p.max_concurrent_requests, p.models,
-           p.max_keys, p.max_seats, p.rate_multiplier_bps, p.trial_days,
+           p.max_keys, p.rate_multiplier_bps, p.trial_days,
            p.token_limits
       FROM subscriptions s
       JOIN plans p ON p.id = s.plan_id
@@ -82,7 +82,7 @@ async function resolveSubscription(orgId: string) {
     included_spend_cents: number; hard_cap_cents: number | null;
     rpm_limit: number | null; tpm_limit: number | null;
     max_concurrent_requests: number | null; models: string[];
-    max_keys: number; max_seats: number; rate_multiplier_bps: number;
+    max_keys: number; rate_multiplier_bps: number;
     trial_days: number; token_limits: unknown;
   }[];
   return rows[0] ?? null;
@@ -96,7 +96,6 @@ export interface EntitlementSpec {
   concurrency: number | null;
   models: string[];
   maxKeys: number;
-  maxSeats: number;
   maxBudgetUsd: number;
   budgetDuration: string;
   /** Raw blended tokens; the values SUM to the plan's shared pool (0039). */
@@ -190,7 +189,6 @@ export async function syncOrganizationEntitlements(
     concurrency: null,
     models: allowedModels,
     maxKeys: live.max_keys,
-    maxSeats: live.max_seats,
     maxBudgetUsd: budgetUsd,
     budgetDuration: '30d',
     tokenLimits,

@@ -176,7 +176,6 @@ export const plans = pgTable('plans', {
   tpmLimit:              integer('tpm_limit'),
   maxConcurrentRequests: integer('max_concurrent_requests'),
   maxKeys:               integer('max_keys').notNull().default(1),
-  maxSeats:              integer('max_seats').notNull().default(1),
   rateMultiplierBps:     integer('rate_multiplier_bps').notNull().default(10000),
   models:                text('models').array().notNull().default([]),
   trialDays:             integer('trial_days').notNull().default(0),
@@ -211,8 +210,6 @@ export const subscriptions = pgTable('subscriptions', {
   status:               subStatus('status').notNull(),
   /** Which rail sold this row: 'dodo' | 'd17' | NULL (legacy/dev). 0037. */
   provider:             text('provider'),
-  /** Seats bought; Dodo's product_cart quantity. 0037. */
-  seats:                integer('seats').notNull().default(1),
   providerCustomerId:   text('provider_customer_id'),
   providerSubscriptionId: text('provider_subscription_id').unique(),
   currentPeriodStart:   timestamp('current_period_start', { withTimezone: true }),

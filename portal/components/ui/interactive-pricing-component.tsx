@@ -65,7 +65,7 @@ const zainoPlans: PricingPlan[] = [
     priceLabel: '$30',
     priceTndLabel: '90 DT',
     features: [
-      // 0039: 50M shared. Pro differs by model class, keys and seats —
+      // 0039: 50M shared. Pro differs by model class and key count —
       // deliberately NOT by token volume — so it must not claim more here.
       { name: '50M shared tokens/month', included: true },
       { name: 'Spendable on Smart, Frontier and Fable', included: true },

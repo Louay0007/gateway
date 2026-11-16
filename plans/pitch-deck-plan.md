@@ -101,14 +101,22 @@ surprised by it reads as naivety.
 
 These are product/pricing changes, not slide edits. Each is already identified in the repo.
 
-### 3a. D17 ignores `seats` — the ARPU ceiling is a billing bug
+### 3a. ~~D17 ignores `seats` — the ARPU ceiling is a billing bug~~ — CLOSED BY DELETION (0044)
 
-`0037_dodo_and_seat_prices.sql` sets Pro `max_seats 25`, and Dodo bills
-**$30 × seats**. But the D17 path charges **90 DT flat regardless of seats**. A 25-seat
-Pro team pays 90 DT on the local rail and $750 on the card rail. That is the ARPU ceiling,
-and it is a bug, not a strategy.
+> **This section is superseded.** The seat fix it proposes was never built,
+> because building it would have meant building the team feature first: no invite
+> flow, no member UI, no seat enforcement existed, and `organization_members` had
+> exactly one writer (signup provisioning). Migration 0044 therefore removes
+> `plans.max_seats` and `subscriptions.seats`, and both rails charge one flat
+> price. **Deck B's per-seat ARPU story is not available** until a team product
+> ships. The arithmetic below is kept as the reason to build one, not as a plan.
 
-Fix it and the picture changes:
+The original framing: `0037_dodo_and_seat_prices.sql` set Pro `max_seats 25`, and Dodo billed
+**$30 × seats**, while the D17 path charged **90 DT flat regardless of seats**. A 25-seat
+Pro team paid 90 DT on the local rail and $750 on the card rail. That was the ARPU ceiling,
+and it was a bug, not a strategy.
+
+Had the seat quantity actually bought something, the picture would have been:
 
 | Seats | Card rail ($30/seat) | ARR per account |
 |---|---|---|
@@ -223,7 +231,9 @@ realistic use, for a month. This is the working-capital advantage: you are prepa
 
 1. **Pick Deck A or B** (§0). Everything downstream depends on it.
 2. **Send the ToS resale request today.** It has the longest lead time and gates fundraising.
-3. **Fix D17 seat billing** (§3a) — 1–2 days of work, and it is what makes Deck B possible at all.
+3. ~~Fix D17 seat billing (§3a)~~ — **not a billing fix.** 0044 removed per-seat
+   pricing; the blocker for Deck B is a team product (invites, members, seat
+   enforcement), which is weeks not days, and must ship before any per-seat price.
 4. **Fix the Pro inversion** (§3c) before any per-model number appears anywhere public.
 5. Collect the 3 real metrics the deck is missing: paying customers, monthly churn, average
    tokens/user. Without these, slide 8 is a feature list, not traction.

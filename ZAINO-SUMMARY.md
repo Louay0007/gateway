@@ -66,7 +66,6 @@ Migration 0039 is the current truth, not the README (which still describes
 | Card price (USD) | $15.00 | $30.00 |
 | Token pool | 50M / month, **one shared pool** | 50M / month, **one shared pool** |
 | Models unlocked | fast + smart | smart + frontier + fable |
-| Seats | 1 | 25 |
 | API keys | 3 | 15 |
 | Cost at 100% burn (claimed) | 10.00 DT | 10.00 DT |
 | Gross margin (claimed) | 80.0% | 88.9% |
@@ -107,14 +106,18 @@ separate migration with live product IDs plus the environment flipped, and
 0040 explicitly declines to do that inside a bug fix. Geography is therefore
 capped at Tunisia until it happens.
 
-One real billing gap sits between the rails. Dodo charges `$30 × seats`
-(`product_cart` quantity). D17 charges `plan.priceTndMillimes` with **no seat
-multiplication** — verified in `lib/billing/d17.ts`, where the amount is the
-catalog price and nothing else. So a 25-seat team paying by D17 pays 90 DT,
-exactly what one person pays. The UI is honest about it ("D17 charges the
-listed plan price. For a per-seat Pro buy, pay by card"), but the economics
-are not: fixing it would make a 5-seat account worth 450 DT/month instead of
-90.
+~~One real billing gap sits between the rails~~ — **closed by removal, not by a
+fix (0044).** Dodo used to charge `$30 × seats` while D17 charged
+`plan.priceTndMillimes` with no seat multiplication, so a 25-seat team paying by
+D17 paid 90 DT. The asymmetry was real, but the underlying feature was not:
+`organization_members` had exactly one writer (signup provisioning), so there
+was no invite flow, no member list, no member UI and no seat enforcement on any
+request path. Seats were a billed entitlement with no delivery path on either
+rail. 0044 drops `plans.max_seats` and `subscriptions.seats` and sends
+`product_cart.quantity: 1`, which removes the asymmetry by removing the feature.
+The revenue ceiling this used to imply is real and is now unfixable by billing
+alone: raising ARPU needs a team product (invites + members + enforcement)
+before it needs a per-seat price.
 
 ---
 
@@ -245,8 +248,11 @@ documented in detail rather than quietly fixed). That is an asset in diligence.
    `grossMarginPct` from the admin screen. Everything else waits on this.
 2. **Get the resale approval in writing** — or commit publicly to the
    private/team-use positioning. This is the only genuinely existential risk.
-3. **Fix seat billing on the D17 rail.** Currently a 25-seat team pays 90 DT.
-   Highest-leverage revenue change available; already on the Q1 2027 roadmap.
+3. ~~**Fix seat billing on the D17 rail.**~~ **Resolved by deletion (0044).**
+   Seats are gone: the columns are dropped and both rails charge one flat price.
+   What remains is the real opportunity — a *team product* (invites, member list,
+   seat enforcement) is the prerequisite for any per-seat revenue, and it does
+   not exist yet. Do not re-price before it does.
 4. **Take the card rail live.** Separate migration with live product IDs,
    environment flipped, one real payment processed end to end.
 5. **Rebuild slide 10** with 641 tests / 40 migrations and the 0039 pool shape.
@@ -269,7 +275,7 @@ rests on an asserted upstream cost of 0.20 DT per million tokens that the
 repository's own rate table contradicts by one to two orders of magnitude and
 that no invoice in the tree substantiates. The market ceiling is ~$3.8M ARR in
 the current shape, which is why the raise is a 150,000 DT angel extension
-aimed at unlocking seats and cards rather than a venture round. The single
+aimed at unlocking a team product and cards rather than a venture round. The single
 most valuable thing the founder can do next is not build anything — it is to
 find the invoice that proves the cost basis, because every number in the deck
 is downstream of it.
