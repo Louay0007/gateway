@@ -5,7 +5,7 @@ import {
   computeTokenAllowedModels,
   tokenPoolFromLimits,
   usageWindowFor,
-} from './lib/entitlements/quota';
+} from '@/lib/entitlements/quota';
 
 /** The production blended-token expression, evaluated in JS. */
 function blended(r: Record<string, number | null | undefined>): number {

@@ -58,6 +58,21 @@ export type UsageTokensByModel = Record<string, number>;
  * The four buckets below are disjoint, and their sum equals the provider's
  * `prompt_tokens + completion_tokens` — the identity the tests assert.
  *
+ * CACHE READS COUNT AT ONE TENTH. They are billed at one tenth in money —
+ * `cache_read_input_token_cost` in config/litellm.yaml is a tenth of
+ * `input_cost_per_token`, mirrored in prices/models.yaml — so counting them
+ * at full weight made the quota disagree with the invoice by up to 10x.
+ *
+ * Measured on production: a Claude Desktop conversation re-sends its whole
+ * history every turn, and 91% of the billed tokens were cache reads. Two
+ * prompts read 22M against the pool while the same two prompts in the chat
+ * read 13k. Same work, two different meters, because the chat sends a short
+ * history and Desktop sends a long one.
+ *
+ * Re-reading a cached prefix costs the provider a fraction of a fresh
+ * token — that is the entire point of the cache — so the pool now charges
+ * it the same fraction the price table does.
+ *
  * `COALESCE(fresh_input_tokens, ...)`: 0028 backfills every row and the
  * collector writes it on every insert, so NULL should be unreachable. The
  * fallback keeps a pre-0028 row (a restored older dump) from contributing
@@ -68,7 +83,7 @@ export const BILLABLE_TOKEN_COLUMNS =
   'COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ' +
   '+ COALESCE(u.output_tokens,0) ' +
   '+ COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0) ' +
-  '+ COALESCE(u.cache_read_tokens,0)';
+  '+ COALESCE(u.cache_read_tokens,0) / 10';
 
 /**
  * The plan's shared token pool: the SUM of its per-alias allocations.

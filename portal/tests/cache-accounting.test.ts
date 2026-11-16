@@ -206,6 +206,20 @@ describe('BILLABLE_TOKEN_COLUMNS — the wall sums the normalised column', () =>
     expect(BILLABLE_TOKEN_COLUMNS).toContain('cache_write_1h_tokens');
     expect(BILLABLE_TOKEN_COLUMNS).toContain('cache_read_tokens');
   });
+  it('charges a cache read at one tenth, matching the price table', () => {
+    // cache_read_input_token_cost is a tenth of input_cost_per_token in
+    // config/litellm.yaml, mirrored in prices/models.yaml. Counting a cached
+    // prefix at full weight made the pool disagree with the invoice by up to
+    // 10x: on production 91% of billed tokens were cache reads, so a Claude
+    // Desktop conversation read 22M where the same prompts in chat read 13k.
+    expect(BILLABLE_TOKEN_COLUMNS).toMatch(/cache_read_tokens\s*,?\s*0\s*\)\s*\/\s*10/);
+  });
+  it('does not divide output or fresh input — only the cached read', () => {
+    // Guard against "fix the ratio everywhere": that would under-charge real
+    // work by 10x instead of over-charging the cache by 10x.
+    expect(BILLABLE_TOKEN_COLUMNS).not.toMatch(/output_tokens\s*,?\s*0\s*\)\s*\//);
+    expect(BILLABLE_TOKEN_COLUMNS).not.toMatch(/fresh_input_tokens[^+]*\/\s*10/);
+  });
 });
 
 describe('quota window — the period is live since 0038, the day is the escape hatch', () => {
