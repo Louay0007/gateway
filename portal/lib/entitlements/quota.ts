@@ -95,10 +95,32 @@ export type UsageTokensByModel = Record<string, number>;
  */
 export const CACHE_READ_WEIGHT = 10;
 
+
+/**
+ * Tokens of quota one output token costs: `output_per_mtok / input_per_mtok`,
+ * 5 for every model in prices/models.yaml.
+ *
+ * Without it the pool under-counted the most expensive thing a request can
+ * do — output costs five times a fresh input token and was counted once.
+ */
+export const OUTPUT_WEIGHT = 5;
+
+/** Cache WRITE weight: the price table charges 2x input, so a write costs
+ *  double quota. The one place the pool must count more than one per token. */
+export const CACHE_WRITE_WEIGHT = 2;
+
+/**
+ * The pool's token count, weighted exactly as AiPilot bills.
+ *
+ * Checked against a live ledger: 3,583,923 fresh + 38,615,600 cached +
+ * 43,957 output was billed $22.995771 upstream, and these weights predict
+ * $22.995804 — agreement to 3e-5. "Tokens used" and "what it cost" are now
+ * the same quantity in different units.
+ */
 export const BILLABLE_TOKEN_COLUMNS =
   'COALESCE(u.fresh_input_tokens, u.input_tokens - LEAST(u.cache_read_tokens, u.input_tokens)) ' +
-  '+ COALESCE(u.output_tokens,0) ' +
-  '+ COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0) ' +
+  `+ COALESCE(u.output_tokens,0) * ${OUTPUT_WEIGHT} ` +
+  `+ (COALESCE(u.cache_write_5m_tokens,0) + COALESCE(u.cache_write_1h_tokens,0)) * ${CACHE_WRITE_WEIGHT} ` +
   `+ COALESCE(u.cache_read_tokens,0) / ${CACHE_READ_WEIGHT}`;
 
 /**

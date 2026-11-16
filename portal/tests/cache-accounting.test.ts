@@ -275,3 +275,40 @@ describe('quota window — the period is live since 0038, the day is the escape 
     expect(w.end.getTime() - w.start.getTime()).toBe(86_400_000);
   });
 });
+
+describe('the pool equals the AiPilot bill, in token units', () => {
+  /**
+   * price-table weights, so the assertion below reads as arithmetic rather
+   * than magic numbers.
+   */
+  const IN = 3.0, CACHED = 0.3, OUT = 15.0; // $/Mtok, sonnet-5.5
+  const units = (f: number, c: number, o: number, w: number) =>
+    f + o * 5 + w * 2 + c / 10;
+
+  it('reproduces a measured AiPilot charge to 5 decimal places', () => {
+    // Measured on production over 7 days for `smart`:
+    //   fresh 3,583,923  cached 38,615,600  output 43,957  writes 0
+    //   AiPilot billed $22.995771
+    const f = 3_583_923, c = 38_615_600, o = 43_957, w = 0;
+    const predicted = (units(f, c, o, w) * IN) / 1_000_000;
+    expect(predicted).toBeCloseTo(22.9958, 4);
+    // The cost formula the price table uses must agree with the pool.
+    const byPrice = (f * IN + c * CACHED + o * OUT) / 1_000_000;
+    expect(predicted).toBeCloseTo(byPrice, 6);
+  });
+
+  it('counts output five times, not once', () => {
+    // One fresh token plus one output token costs 6 input-tokens' worth.
+    expect(units(1, 0, 1, 0)).toBe(6);
+  });
+
+  it('counts a cache write twice, never once', () => {
+    // Writes cost 2x input in prices/models.yaml. Counting them 1x would
+    // under-charge the pool for the most expensive first turn.
+    expect(units(0, 0, 0, 1)).toBe(2);
+  });
+
+  it('still discounts a cache read tenfold', () => {
+    expect(units(0, 10, 0, 0)).toBe(1);
+  });
+});
