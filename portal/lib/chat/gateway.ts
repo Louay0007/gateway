@@ -108,6 +108,29 @@ export class GatewayError extends Error {
  * resolved. The others stay as cheap fallbacks for a gateway behind a
  * proxy that renames headers.
  */
+/**
+ * Reasoning headroom on top of the customer's cap.
+ *
+ * Reasoning tokens are drawn from `max_tokens` BEFORE any answer is
+ * written. Measured on this upstream (2026-11-16): a design question with
+ * `max_tokens: 2000` spent all 2000 on reasoning, returned
+ * `finish_reason: length` and an EMPTY answer — billed in full. At 8000 the
+ * same prompt returned 5,754 characters and `finish_reason: stop`.
+ *
+ * So a small client cap is not a short answer, it is no answer. 4000 is the
+ * measured floor that restores one: cap 1000 and cap 2000 both went from
+ * truncated to complete.
+ *
+ * Capped at 65536 — the deployment's max_output_tokens, above which the
+ * upstream rejects the request.
+ */
+const REASONING_HEADROOM = 4000;
+function withHeadroom(cap: number | undefined): number | undefined {
+  if (cap === undefined) return undefined;
+  return Math.min(cap + REASONING_HEADROOM, 65536);
+}
+
+
 const CALL_ID_HEADERS = ['x-litellm-call-id', 'x-request-id'];
 
 /** Documented cost headers. Absent when the deployment does not price calls. */
@@ -158,7 +181,7 @@ function anthropicBody(input: GatewayStreamRequest): Record<string, unknown> {
     model: input.alias,
     messages,
     ...(system.length > 0 ? { system } : {}),
-    max_tokens: input.maxOutputTokens ?? 8192,
+    max_tokens: withHeadroom(input.maxOutputTokens) ?? 8192,
     stream: true,
     ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
   };
@@ -197,7 +220,7 @@ export async function streamChatCompletion(
         // is exactly that block.
         stream_options: { include_usage: true },
         ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-        ...(input.maxOutputTokens !== undefined ? { max_tokens: input.maxOutputTokens } : {}),
+        ...(input.maxOutputTokens !== undefined ? { max_tokens: withHeadroom(input.maxOutputTokens) } : {}),
         ...(input.reasoningEffort !== undefined
           ? { reasoning_effort: input.reasoningEffort }
           : {}),
@@ -418,7 +441,7 @@ export async function completeOnce(input: {
         messages: input.messages,
         stream: false,
         ...(input.temperature !== undefined ? { temperature: input.temperature } : {}),
-        ...(input.maxOutputTokens !== undefined ? { max_tokens: input.maxOutputTokens } : {}),
+        ...(input.maxOutputTokens !== undefined ? { max_tokens: withHeadroom(input.maxOutputTokens) } : {}),
         ...(input.reasoningEffort ? { reasoning_effort: input.reasoningEffort } : {}),
       }),
       signal: AbortSignal.timeout(input.timeoutMs ?? 60_000),

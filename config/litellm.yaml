@@ -67,7 +67,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -94,7 +94,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -121,7 +121,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -153,7 +153,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -180,7 +180,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -201,7 +201,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -222,7 +222,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
@@ -243,7 +243,7 @@ model_list:
       timeout: 600
       num_retries: 6
       cooldown_time: 3
-      reasoning_effort: max
+      reasoning_effort: medium
       verbosity: high
       temperature: 0.2
       top_p: 0.9
