@@ -447,7 +447,7 @@ verify-d17: ## Prove the manual D17 payment path (duplicate, expiry, double-appr
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-d17.ts
 
-verify-dodo: ## Prove the Dodo payment path (checkout, seats, signed webhook, replay, grace, cancel)
+verify-dodo: ## Prove the Dodo payment path (checkout, signed webhook, replay, grace, cancel)
 	@$(COMPOSE) build jobs
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-dodo.ts
