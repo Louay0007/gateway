@@ -51,7 +51,7 @@ export function RedeemForm() {
         <Input
           id="trial-code"
           type="text"
-          placeholder="e.g. ZAINO-FREE-NOV26"
+          placeholder="e.g. ZAINO-LAUNCH-3M"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
           disabled={status === "loading" || status === "success"}

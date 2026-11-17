@@ -70,8 +70,10 @@ Migration 0039 is the current truth, not the README (which still describes
 | Cost at 100% burn (claimed) | 10.00 DT | 10.00 DT |
 | Gross margin (claimed) | 80.0% | 88.9% |
 
-The trial is **1M shared tokens over 3 days** (code `ZAINO-FREE-NOV26`, valid
-to 30 November 2026). It was cut from 50M by 0039 for a good reason: a free
+The trial is **1M shared tokens over 3 days**, gated by the one launch code
+`ZAINO-LAUNCH-3M`, redeemable from 20 October 2026 to 20 January 2027 (0045).
+The campaign window is three months; each individual trial is still 3 days,
+and a late redemption gets only the days the campaign has left. It was cut from 50M by 0039 for a good reason: a free
 3-day trial was handing out a full paid month's volume — roughly 10 DT of
 upstream cost per redemption — and could be farmed.
 

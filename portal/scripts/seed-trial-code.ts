@@ -1,10 +1,14 @@
 /**
- * Seed the ZAINO-FREE-OCT26 trial code and hidden trial plan.
+ * Seed the ZAINO-LAUNCH-3M trial code and hidden trial plan.
  *
- * Idempotent — safe to run multiple times. The migration 0017 already
- * seeds these rows; this script exists for re-seeding on environments
- * where migrations ran before 0017 was added, or for creating additional
- * codes without a new migration.
+ * Idempotent — safe to run multiple times. Migrations 0017 and 0045 already
+ * seed these rows; this script exists for re-seeding on environments where
+ * migrations ran before those files were added, or for creating the launch
+ * code without a new migration.
+ *
+ * 0045 retired the per-campaign codes (ZAINO-FREE-OCT26, ZAINO-FREE-NOV26).
+ * This script seeds the launch code only and retires anything else, so a
+ * re-seed cannot resurrect a code the product no longer offers.
  *
  * Usage:  cd portal && npx tsx scripts/seed-trial-code.ts
  */
@@ -34,7 +38,7 @@ async function main() {
     await db.insert(plans).values({
       code: 'trial',
       name: 'Free Trial',
-      description: '3-day trial with 10M Fast + 10M Smart tokens.',
+      description: '3-day free trial, 1M shared tokens on fast and smart.',
       public: false,
       sortOrder: -1,
       priceCents: 0,
@@ -75,31 +79,45 @@ async function main() {
   `);
   console.log('✓ Token pools backfilled (starter/pro/trial)');
 
-  // 2. Ensure the ZAINO-FREE-OCT26 code exists
+  // 2. Ensure the ONE launch code exists (migration 0045)
+  const LAUNCH_CODE = 'ZAINO-LAUNCH-3M';
   const [existingCode] = await db
     .select({ id: trialCodes.id })
     .from(trialCodes)
-    .where(eq(trialCodes.code, 'ZAINO-FREE-OCT26'))
+    .where(eq(trialCodes.code, LAUNCH_CODE))
     .limit(1);
 
   if (!existingCode) {
     await db.insert(trialCodes).values({
-      code: 'ZAINO-FREE-OCT26',
+      code: LAUNCH_CODE,
       createdBy: 'system',
       maxRedemptions: 0, // unlimited
       models: ['fast', 'smart'],
       // 0039: 1M shared pooled tokens — the only trial quota.
       tokenLimits: { fast: 1_000_000 },
       trialDays: 3,
+      // The CAMPAIGN is three months; an individual trial is still 3 days.
+      // redeemTrialCode takes min(now + trial_days, expires_at), so a late
+      // redemption gets only the days the campaign has left.
       validFrom: new Date('2026-10-20T00:00:00+01:00'),
-      // Campaign extended to end 1 Nov 00:00 Tunis (migration 0021).
-      validUntil: new Date('2026-10-31T23:59:59+01:00'),
-      expiresAt: new Date('2026-10-31T23:59:59+01:00'),
+      validUntil: new Date('2027-01-20T23:59:59+01:00'),
+      expiresAt: new Date('2027-01-20T23:59:59+01:00'),
       active: true,
     });
-    console.log('✓ Created ZAINO-FREE-OCT26 trial code');
+    console.log(`✓ Created ${LAUNCH_CODE} trial code`);
   } else {
-    console.log('✓ ZAINO-FREE-OCT26 already exists');
+    console.log(`✓ ${LAUNCH_CODE} already exists`);
+  }
+
+  // Retire any other campaign code, so exactly one is redeemable. Deactivate
+  // rather than delete: trial_redemptions cascades on this table's rows.
+  const retired = await db
+    .update(trialCodes)
+    .set({ active: false })
+    .where(sql`code <> ${LAUNCH_CODE} AND active IS TRUE`)
+    .returning({ code: trialCodes.code });
+  if (retired.length > 0) {
+    console.log(`✓ Retired ${retired.map((r) => r.code).join(', ')}`);
   }
 
   await pool.end();

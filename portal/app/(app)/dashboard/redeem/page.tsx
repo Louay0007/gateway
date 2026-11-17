@@ -41,10 +41,10 @@ export default async function RedeemPage() {
           below if you have it.
           {/*
             The notice is driven by hasRedeemableTrialCode(), never a date
-            constant. ZAINO-FREE-OCT26 expired on 31 October; 0036 added
-            ZAINO-FREE-NOV26, so this is quiet today — but on 1 December it
-            says the campaign ended instead of telling people to hurry and
-            redeem a code the API will answer 410 for.
+            constant. 0045 retired the per-campaign codes in favour of one
+            launch code (ZAINO-LAUNCH-3M), open to 20 January 2027 — but on
+            21 January this says the campaign ended instead of telling
+            people to hurry and redeem a code the API will answer 410 for.
           */}
           {campaignEnded && (
             <> The free trial campaign has now ended.</>

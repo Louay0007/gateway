@@ -65,7 +65,7 @@ export const POOL_PLANS: {
   },
 ];
 
-/** Trial is code-gated, 3 days, and 1M total — see ZAINO-FREE-NOV26. */
+/** Trial is code-gated, 3 days, and 1M total — see ZAINO-LAUNCH-3M. */
 export const TRIAL = { days: 3, tokens: 1_000_000, tokensLabel: "1M", models: ["fast", "smart"] };
 
 /** What the ceiling looks like, stated once so every section can reuse it. */

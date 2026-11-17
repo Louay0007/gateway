@@ -492,3 +492,58 @@ describe('0040 Dodo product mapping', () => {
     expect(sql).toMatch(/mapped to more than one plan/i);
   });
 });
+
+/**
+ * 0045 — one trial code for the whole launch.
+ *
+ * Two campaign codes had accumulated (ZAINO-FREE-OCT26, ZAINO-FREE-NOV26),
+ * each with its own window, so "redeem the trial" meant three different
+ * things depending on the date. The operator asked for a single code tied
+ * to the launch and running three months.
+ *
+ * The distinction this guards: THREE MONTHS is the campaign window, not the
+ * trial. A `trial_days` of 90 would hand every redeemer a paid quarter, and
+ * `redeemTrialCode` takes `min(now + trial_days, expires_at)`, so it would
+ * also outlive `expires_at` — the migration must keep 3.
+ */
+describe('0045 single launch trial code', () => {
+  const sql = readFileSync(
+    new URL('portal/db/migrations/0045_launch_trial_code.sql', REPO_ROOT),
+    'utf8',
+  );
+
+  it('seeds exactly one code, named for the launch', () => {
+    expect(sql).toMatch(/'ZAINO-LAUNCH-3M'/);
+    // Only one INSERT of a code row; no second campaign in the same file.
+    expect(sql.match(/INSERT INTO trial_codes/gi)).toHaveLength(1);
+  });
+
+  it('opens on the launch date and runs three months', () => {
+    expect(sql).toMatch(/'2026-10-20T00:00:00\+01:00'/);
+    expect(sql).toMatch(/'2027-01-20T23:59:59\+01:00'/);
+  });
+
+  it('keeps the trial itself at 3 days, not the 3-month campaign', () => {
+    // `3,` on the trial_days position of the VALUES list.
+    expect(sql).toMatch(/\n  3,/);
+    expect(sql, 'a 90-day trial would hand out a paid quarter').not.toMatch(
+      /\n\s*(90|9[0-9]),\s*\n\s*'20/,
+    );
+  });
+
+  it('grants the 1M shared pool from 0039, not a per-alias split', () => {
+    expect(sql).toMatch(/'{"fast": 1000000}'::jsonb/);
+  });
+
+  it('retires every other code instead of deleting history', () => {
+    // trial_redemptions cascades on this table, so a DELETE would erase it.
+    expect(sql).toMatch(/UPDATE trial_codes\s+SET active = FALSE/i);
+    expect(sql).not.toMatch(/DELETE FROM trial_codes/i);
+  });
+
+  it('guards the single-code invariant and a usable budget', () => {
+    expect(sql).toMatch(/expected at most 1 live trial code/);
+    expect(sql).toMatch(/empty token pool/);
+    expect(sql).toMatch(/RAISE EXCEPTION/);
+  });
+});

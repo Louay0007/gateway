@@ -10,8 +10,9 @@
  * answers 402 "Choose a plan to start chatting." With a fresh database
  * that is EVERY account, so a local stack looks broken when it is
  * behaving exactly as designed. The two paths that normally grant access
- * are a D17 payment and the ZAINO-FREE-OCT26 trial — and the trial code
- * expired on 31 Oct 2026, so redeeming it now correctly fails.
+ * are a D17 payment and a trial code — and the launch code
+ * (ZAINO-LAUNCH-3M, 0045) closes on 20 January 2027, so once it has, a
+ * redemption correctly fails.
  *
  * This calls `grantPlan()`, the SAME function behind the console's "grant
  * plan" button (app/admin/orgs). It is not a hand-written INSERT, because
