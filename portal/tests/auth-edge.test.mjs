@@ -102,7 +102,10 @@ beforeAll(async () => {
     seen.authorization = req.headers.authorization;
     seen.xApiKey = req.headers['x-api-key'];
 
-    if (req.url?.startsWith('/sse')) {
+    // SSE is served on the model path itself. `/sse` and `/echo-body` were
+    // stand-ins, but the edge now forwards ONLY the model surface — a helper
+    // path is a 404 before it reaches here, which is the allowlist working.
+    if (req.url?.startsWith('/v1/messages') && req.method === 'GET') {
       res.writeHead(200, {
         'content-type': 'text/event-stream',
         'cache-control': 'no-cache',
@@ -116,7 +119,7 @@ beforeAll(async () => {
       return;
     }
 
-    if (req.url?.startsWith('/echo-body')) {
+    if (req.url?.startsWith('/v1/messages') && req.method === 'POST') {
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
@@ -336,7 +339,7 @@ describe('end to end through the edge', () => {
         {
           host: '127.0.0.1',
           port: edgePort,
-          path: '/sse',
+          path: '/v1/messages',
           headers: { authorization: 'Bearer zn-ABCdef0123456789XYZ' },
         },
         (res) => {
@@ -359,7 +362,7 @@ describe('end to end through the edge', () => {
   it('forwards the request body untouched', async () => {
     const payload = JSON.stringify({ model: 'fast', messages: [{ role: 'user', content: 'hi' }] });
     const r = await call(
-      '/echo-body',
+      '/v1/messages',
       {
         authorization: 'Bearer zn-ABCdef0123456789XYZ',
         'content-type': 'application/json',
@@ -374,11 +377,38 @@ describe('end to end through the edge', () => {
     expect(r.json.auth).toBe('Bearer sk-ABCdef0123456789XYZ');
   });
 
-  it('denies the management surface (defence in depth)', async () => {
-    for (const p of ['/key/generate', '/user/info', '/spend/logs', '/config/yaml']) {
+  it('denies everything outside the model surface (ALLOWLIST, not a denylist)', async () => {
+    // The list is deliberately wider than "the management prefixes": these
+    // are the paths a denylist of /key, /spend, /config… would have let
+    // through, and each one is real LiteLLM surface. If any of them answers
+    // anything but 404, the edge has stopped being default-deny.
+    for (const p of [
+      '/key/generate', '/user/info', '/spend/logs', '/config/yaml',
+      '/health/liveliness', '/health/readiness', '/metrics',
+      '/sso/key/generate', '/v1/files', '/v1/batches', '/v1/embeddings',
+      '/v1/fine_tuning/jobs', '/model_group/info', '/model/info',
+      '/cache/ping', '/', '/v1', '/v1/',
+    ]) {
       const r = await call(p, { authorization: 'Bearer zn-ABCdef0123456789XYZ' });
       expect(r.status, `${p} must be denied — got ${r.status} ${r.text.slice(0, 120)}`).toBe(404);
     }
+  });
+
+  it('allows exactly the model surface, including model discovery by id', async () => {
+    for (const p of [
+      '/v1/models',
+      '/v1/models/fast',
+      '/v1/models/some-alias',
+    ]) {
+      const r = await call(p, { authorization: 'Bearer zn-ABCdef0123456789XYZ' });
+      expect(r.status, `${p} must be forwarded — got ${r.status}`).not.toBe(404);
+    }
+    // Two segments under /v1/models is not a gateway route; the allowlist
+    // must not turn into a prefix match that swallows one.
+    const deep = await call('/v1/models/fast/extra', {
+      authorization: 'Bearer zn-ABCdef0123456789XYZ',
+    });
+    expect(deep.status).toBe(404);
   });
 
   it('has its own health endpoint and does not shadow the gateway', async () => {

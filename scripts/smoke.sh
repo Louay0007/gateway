@@ -239,22 +239,37 @@ case "$c" in
 esac
 
 # ════════════════════════════════════════════════════════════════
-hr; printf '  A-14  Management routes not served on the public host\n'; hr
-# This is a CADDY-EDGE property (row 5): the public API host must
-# not expose /key/generate. On loopback (local smoke, no Caddy) the route is
-# intentionally reachable — that is how make key and the portal use it. Only
-# assert when smoke runs through the public edge (SMOKE_BASE is https://);
-# otherwise report as informational skip.
+hr; printf '  A-14  Non-model routes are absent on the public host\n'; hr
+# A CADDY-EDGE property: the public API host exists to run model calls, and
+# every other path is 404. NOT a denylist of the management prefixes any
+# more — /health/liveliness, /metrics and /sso/key/generate were public under
+# that policy, so the interesting cases are the ones a denylist misses.
+#
+# On loopback (local smoke, no Caddy) these routes are intentionally
+# reachable: that is how `make key` and the portal use LiteLLM. Assert only
+# through the public edge (SMOKE_BASE is https://), and report the skip.
 if printf '%s' "$BASE" | grep -q '^https://'; then
-  c=$(code "$BASE/key/generate" -X POST -H "Content-Type: application/json" -d '{}')
+  for p in /key/generate /spend/logs /config/yaml /health/liveliness \
+           /metrics /sso/key/generate /v1/files /v1/batches /model_group/info; do
+    c=$(code "$BASE$p" -X POST -H "Content-Type: application/json" -d '{}')
+    case "$c" in
+      404|405) ok "A-14  $p absent on public host ($c)" ;;
+      *)      bad "A-14  $p reachable on public host" "got $c — the Caddy @modelApi allowlist is not in effect" ;;
+    esac
+  done
+  # …and the model surface must still WORK, or the lock is a lockout. An
+  # unauthenticated GET /v1/models is 401 from the gateway, which proves the
+  # request reached it; 404 would mean the edge swallowed a route customers
+  # depend on.
+  c=$(code "$BASE/v1/models")
   case "$c" in
-    404|405) ok "A-14  /key/generate absent on public host ($c)" ;;
-    *)      bad "A-14  management route reachable on public host" "got $c — check the Caddy @mgmt block" ;;
+    401|403) ok "A-14  /v1/models reaches the gateway, key required ($c)" ;;
+    *)       bad "A-14  /v1/models did not reach the gateway" "got $c — the allowlist must not block model routes" ;;
   esac
 else
   c=$(code "$BASE/key/generate" -X POST -H "Content-Type: application/json" -d '{}')
   echo "  ⏭  A-14  skipped locally (loopback): /key/generate is reachable by design here (got $c)."
-  echo "     Denied on the PUBLIC host by the Caddy @mgmt block — verified via SMOKE_BASE=https://…"
+  echo "     Denied on the PUBLIC host by the Caddy @modelApi allowlist — verified via SMOKE_BASE=https://…"
   SKIP=$((SKIP+1))
 fi
 

@@ -94,14 +94,35 @@ const RESPONSES_SHIM = (process.env.RESPONSES_SHIM ?? 'on') !== 'off';
 const RESPONSES_PATH = '/v1/responses';
 
 /**
- * Management routes. Mirrors the @mgmt matcher in config/Caddyfile. Kept in
- * step with it deliberately: this is a second lock, not a second policy.
+ * The ONLY paths this edge forwards. Mirrors the `@modelApi` matcher in
+ * config/Caddyfile — kept in step deliberately: this is a second lock, not a
+ * second policy.
+ *
+ * AN ALLOWLIST, and the reason is in the name. LiteLLM's own surface is far
+ * wider than inference (/key/*, /spend/*, /config/*, /team/*, /health/*,
+ * /metrics, /sso/*, /v1/files, /v1/batches, /model_group/*) and it grows with
+ * every upstream release. A denylist of the management prefixes it happened
+ * to know therefore failed OPEN: anything not on the list was public. Here
+ * an unrecognised path is answered 404 by this process, so a route nobody
+ * anticipated stays private.
+ *
+ * Caddy is authoritative. This exists because the edge binds loopback and is
+ * one misconfigured `ports:` away from being reachable directly.
  */
-const MGMT_PREFIXES = [
-  '/key/', '/user/', '/team/', '/organization/',
-  '/model/', '/spend/', '/config/', '/global/',
-  '/customer/', '/budget/',
-];
+const ALLOWED_EXACT = new Set([
+  '/v1/chat/completions',
+  '/v1/messages',
+  '/v1/messages/count_tokens',
+  '/v1/responses',
+  '/v1/models',
+]);
+
+function isModelPath(pathname) {
+  if (ALLOWED_EXACT.has(pathname)) return true;
+  // Model discovery by id: `/v1/models/<id>`, one trailing segment only —
+  // `/v1/models/x/y` is not a route LiteLLM serves.
+  return /^\/v1\/models\/[^/]+$/.test(pathname);
+}
 
 /** Hop-by-hop headers must not be forwarded (RFC 9110 §7.6.1). */
 const HOP_BY_HOP = new Set([
@@ -247,12 +268,10 @@ function modelRejection(model) {
   return `Unknown model '${model}'. Use ${aliases} (or the upstream names ${upstream}).`;
 }
 
-function isMgmtPath(pathname) {
-  return (
-    MGMT_PREFIXES.some((p) => pathname.startsWith(p)) ||
-    ['/key', '/user', '/team', '/organization', '/model', '/spend', '/config',
-     '/global', '/customer', '/budget'].includes(pathname)
-  );
+/** True when the path is outside the model surface. Every such request is
+ * answered 404 without touching the upstream. */
+function isDeniedPath(pathname) {
+  return !isModelPath(pathname);
 }
 
 /**
@@ -432,7 +451,7 @@ const server = http.createServer((req, res) => {
     return res.end(body);
   }
 
-  if (isMgmtPath(pathname)) {
+  if (isDeniedPath(pathname)) {
     return failClosed(res, 404, 'Not found');
   }
 

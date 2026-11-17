@@ -29,7 +29,7 @@ which are the authoritative record for each decision.
 |---|---|
 | This file | Architecture, plans and quota, enforcement, deploy, commands |
 | `config/litellm.yaml` | Model aliases, rates, routing and retry policy (comments are the rationale) |
-| `config/Caddyfile` | Public surface, `@mgmt` denial, IP gates, TLS |
+| `config/Caddyfile` | Public surface: `@modelApi` allowlist (everything else 404), IP gates, TLS |
 | `edge/server.mjs` | The `zn-` → `sk-` boundary and its fail-closed rules |
 | `edge/responses-shim.mjs` | Responses → Chat translation, and why it sits before LiteLLM |
 | `portal/lib/entitlements/quota.ts` | The token wall — the one window and the one rule |

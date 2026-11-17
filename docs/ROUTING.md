@@ -21,6 +21,22 @@ A route may not belong to two surfaces. That was the bug: `/settings` and
 `/dashboard/settings` both rendered the same panel, and the `shell` prop
 existed only to change one footer link.
 
+### API access is a policy file, not a per-route habit
+
+`lib/security/route-policy.ts` is the whole answer for `/api`: a closed list
+of paths that answer without a session (sign-in itself, a signature-verified
+webhook, liveness, the plan catalogue, the installer list, a token-scoped
+share stream, the caller-keyed playground) and the pages that render publicly.
+Everything else is private — `proxy.ts` refuses an `/api` request with no
+session, and redirects a private page to `/sign-in`. A new handler is private
+until someone adds it to the public list, and `tests/route-auth.test.ts` fails
+CI for a route in neither bucket, so publishing one is a decision rather than
+an omission.
+
+The gateway edge is the same shape, one layer out: the API vhost and
+`edge/server.mjs` both carry a `@modelApi` / `ALLOWED_EXACT` allowlist, so
+every path outside the model surface is a 404 and never reaches LiteLLM.
+
 ---
 
 ## Public

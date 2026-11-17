@@ -38,20 +38,24 @@
 {$CADDY_SCHEME:}{$API_DOMAIN} {
 	encode zstd gzip
 
-	# ── Public-surface enforcement (DESIGN.md §4.1, smoke A-14/A-15) ──
-	# Default-deny management routes on the PUBLIC host. This is the edge
-	# boundary that keeps /key/generate, /spend, /config, /team, etc. off the
-	# internet while leaving them reachable on loopback and the portal's
-	# internal URL (where `make key`, smoke A-8, and the portal actually use
-	# them). LiteLLM publishes only on 127.0.0.1:4000, so a management route
-	# can only become public by coming through THIS vhost — deny it here.
-	# Ordered before the reverse_proxy so blocked paths never reach LiteLLM.
-	@mgmt path /key/* /key /user/* /user /team/* /team /organization/* \
- /organization /model/* /model /spend/* /spend /config/* /config \
- /global/* /global /customer/* /customer /budget/* /budget
-	respond @mgmt "Not found" 404
+	# ── Public-surface enforcement: MODEL PATHS ONLY (DESIGN.md §6.2 #5) ─
+	# This host exists for exactly one job — authenticate a customer key and
+	# run a model call. Everything else LiteLLM serves (/key/generate,
+	# /spend, /config, /team, /health, /metrics, /sso, /v1/files, /v1/batches,
+	# /model_group/*, and any route a future LiteLLM adds) is management or
+	# data surface and must not be reachable from the internet. LiteLLM
+	# publishes only on 127.0.0.1:4000, so a path can become public only
+	# through THIS vhost.
+	#
+	# AN ALLOWLIST, DELIBERATELY. The previous policy was a denylist of the
+	# management prefixes it knew about, which fails OPEN: a route nobody
+	# listed (/health/liveliness, /metrics, /sso/key/generate) is public by
+	# default. Here the default is 404, and a new upstream route stays
+	# private until someone adds it below on purpose.
+	@modelApi path /v1/chat/completions /v1/messages \
+ /v1/messages/count_tokens /v1/responses /v1/models /v1/models/*
 
-	request_body {
+	request_body @modelApi {
 		max_size 10MB
 	}
 
@@ -76,33 +80,46 @@
 	# The ADMIN vhost below still goes straight to 4000: it speaks the master
 	# key, not a customer key, and keeping it off the edge means the ops
 	# console has one less hop to reason about.
-	reverse_proxy {$AUTH_EDGE_UPSTREAM:127.0.0.1:4001} {
-		# SSE. Low-latency mode: flush after every write.
-		# Caddy also auto-detects text/event-stream and unknown
-		# Content-Length, but this is set explicitly rather than
-		# inferred — buffering is the single most common gateway bug.
-		flush_interval -1
+	# Only @modelApi reaches the edge. `handle` is mutually exclusive and
+	# first-match-wins, so the bare `handle` at the end of the vhost is a
+	# real catch-all — a management path is answered 404 HERE and never
+	# reaches a reverse_proxy.
+	handle @modelApi {
+		reverse_proxy {$AUTH_EDGE_UPSTREAM:127.0.0.1:4001} {
+			# SSE. Low-latency mode: flush after every write.
+			# Caddy also auto-detects text/event-stream and unknown
+			# Content-Length, but this is set explicitly rather than
+			# inferred — buffering is the single most common gateway bug.
+			flush_interval -1
 
-		# Long generations must not be cut off mid-stream.
-		transport http {
-			dial_timeout 10s
+			# Long generations must not be cut off mid-stream.
+			transport http {
+				dial_timeout 10s
 
-			# First-byte ceiling. 300s, not 120s: reasoning models
-			# legitimately take 12–150s to first token (LATENCY.md §3.2).
-			# A lower value converts slow thinking into a client-side
-			# 502 and a wasted full-price upstream call.
-			response_header_timeout 300s
-			read_timeout 900s
-			write_timeout 900s
+				# First-byte ceiling. 300s, not 120s: reasoning models
+				# legitimately take 12–150s to first token (LATENCY.md §3.2).
+				# A lower value converts slow thinking into a client-side
+				# 502 and a wasted full-price upstream call.
+				response_header_timeout 300s
+				read_timeout 900s
+				write_timeout 900s
 
-			# Connection reuse. New TLS+TCP handshakes cost more than
-			# the entire gateway overhead (LATENCY.md §10.2). Caddy
-			# keep-alives to the upstream by default; these raise the
-			# per-host idle pool for sustained concurrent streams.
-			# (Client-facing keep-alive needs no config — it is on.)
-			keepalive_interval 30s
-			keepalive_idle_conns_per_host 64
+				# Connection reuse. New TLS+TCP handshakes cost more than
+				# the entire gateway overhead (LATENCY.md §10.2). Caddy
+				# keep-alives to the upstream by default; these raise the
+				# per-host idle pool for sustained concurrent streams.
+				# (Client-facing keep-alive needs no config — it is on.)
+				keepalive_interval 30s
+				keepalive_idle_conns_per_host 64
+			}
 		}
+	}
+
+	# Everything else on the public API host: not found. Same body and status
+	# as the management denial this replaces, so a prober learns nothing from
+	# the difference between "route exists and is denied" and "no such route".
+	handle {
+		respond "Not found" 404
 	}
 
 	log {

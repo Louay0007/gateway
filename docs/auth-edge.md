@@ -72,8 +72,14 @@ From `edge/server.mjs`, in priority order:
 - **Refuse a bodiless `zn-` key.** `zn-short` becomes a 401 from the edge
   (`auth_edge_error`), never `sk-short` — which would be a syntactically
   valid credential containing no secret.
-- **Deny the management surface**, mirroring the `@mgmt` matcher in
-  `config/Caddyfile`. Caddy is authoritative; this is defence in depth.
+- **Deny everything outside the model surface.** Not a denylist of the
+  management prefixes — that failed open, and `/health/liveliness`,
+  `/metrics` and `/sso/key/generate` were public under it. The edge forwards
+  only `/v1/chat/completions`, `/v1/messages`,
+  `/v1/messages/count_tokens`, `/v1/responses`, `/v1/models` and
+  `/v1/models/<id>`; anything else is a 404 before the upstream is touched.
+  Mirrors the `@modelApi` allowlist in `config/Caddyfile`, which is
+  authoritative — Caddy answers 404 itself and the request never arrives.
 
 ## Backwards compatibility
 
@@ -98,16 +104,21 @@ curl -H "Authorization: Bearer zn-…" https://api.zaino.soon.it/v1/models
 
 It binds `127.0.0.1` only and is reachable exclusively from Caddy on the same
 host. If you ever find it bound to a routable interface, that is a bug — it
-would bypass the edge's management-surface denials.
+would bypass the edge's allowlist (the 404 on every non-model path).
 
 ## Testing
 
 - `portal/tests/key-format.test.ts` — minting, prefix substitution,
   round-trip, and the "one body, two prefixes" invariant.
 - `portal/tests/auth-edge.test.mjs` — the real entry point against a stand-in
-  gateway: substitution, SSE not buffered, request body forwarded, management
-  denied, legacy `sk-` keys unaffected, and **fail-closed** against a dead
-  upstream.
+  gateway: substitution, SSE not buffered, request body forwarded, the
+  allowlist (management, `/health/*`, `/metrics`, `/sso/*`, `/v1/files`,
+  `/v1/batches` all 404; the model surface and `/v1/models/<id>` forwarded),
+  legacy `sk-` keys unaffected, and **fail-closed** against a dead upstream.
+- `portal/tests/route-auth.test.ts` — the portal half: every `/api` handler
+  on disk is in exactly one bucket of `lib/security/route-policy.ts`, the
+  Caddy vhost and the edge both carry the same allowlist, and `proxy.ts`
+  cannot be narrowed off `/api`.
 
 Both run under `npm test` in `portal/`.
 
