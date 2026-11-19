@@ -84,6 +84,17 @@ like any other).
 `ops/n8n/d17-verify.json` → n8n → Import from File. It ships **inactive**.
 Run it once manually against a single payment before turning the schedule on.
 
+Two environment details the workflow depends on, both supplied by
+`docker-compose.n8n.yml`:
+
+- **`N8N_BLOCK_ENV_ACCESS_IN_NODE=false`.** Both tokens reach the HTTP
+  nodes through `$env`, and n8n blocks that by default. Without it the
+  headers render as `Bearer undefined` and the run shows three 401s, which
+  reads like a wrong token rather than blocked configuration.
+- **Publishing, on n8n 2.x.** Importing no longer switches a workflow on:
+  `"active": false` arrives as a draft and `active` is not an activation
+  switch any more. Publish it explicitly after the manual run.
+
 ### 4. What the workflow costs
 
 One `smart` vision call per new proof, roughly 1,200 input tokens for a
