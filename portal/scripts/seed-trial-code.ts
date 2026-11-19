@@ -7,24 +7,19 @@
  * code without a new migration.
  *
  * 0045 retired the per-campaign codes (ZAINO-FREE-OCT26, ZAINO-FREE-NOV26).
- * This script seeds the launch code only and retires anything else, so a
- * re-seed cannot resurrect a code the product no longer offers.
+ * This script seeds the launch code and retires the codes the product no
+ * longer offers. 0047 added a second live code for outreach, so "retire
+ * everything except the launch code" is no longer the current set — the
+ * keep-list is explicit, or a re-seed silently kills a code that is in
+ * circulation.
  *
  * Usage:  cd portal && npx tsx scripts/seed-trial-code.ts
  */
-import { drizzle } from 'drizzle-orm/node-postgres';
-import pg from 'pg';
-import { sql, eq } from 'drizzle-orm';
-import { trialCodes, plans } from '../db/schema';
+import './env.mjs';
 
-const dsn = process.env.DATABASE_URL;
-if (!dsn) {
-  console.error('DATABASE_URL is not set');
-  process.exit(1);
-}
-
-const pool = new pg.Pool({ connectionString: dsn });
-const db = drizzle(pool);
+import { sql, eq, and, notInArray } from 'drizzle-orm';
+import { db, sql as pg } from '@/db';
+import { trialCodes, plans } from '@/db/schema';
 
 async function main() {
   // 1. Ensure the hidden trial plan exists
@@ -38,7 +33,7 @@ async function main() {
     await db.insert(plans).values({
       code: 'trial',
       name: 'Free Trial',
-      description: '3-day free trial, 1M shared tokens on fast and smart.',
+      description: '3-day free trial, unlimited tokens on smart, frontier and fable.',
       public: false,
       sortOrder: -1,
       priceCents: 0,
@@ -51,13 +46,16 @@ async function main() {
       rpmLimit: 10,
       tpmLimit: 50000,
       maxConcurrentRequests: 2,
-      maxKeys: 1,
+      maxKeys: 15,
+      // The only spend brake once token_limits is empty (0049).
+      dailyTokenCap: 15_000_000,
       rateMultiplierBps: 10000,
-      models: ['fast', 'smart'],
+      models: ['smart', 'frontier', 'fable'],
       trialDays: 3,
-      // 0039: ONE shared 1M pool over the 3-day window (~0.20 DT per
-      // redemption). A free trial must not equal a paid Starter month.
-      tokenLimits: { fast: 1_000_000 },
+      // 0049: no pool at all. The empty map is how one UNLIMITED allowance is
+      // expressed — tokenPoolFromLimits() returns null for it. The daily cap
+      // set above is then the only spend brake, so it must stay non-zero.
+      tokenLimits: {},
       features: {},
     });
     console.log('✓ Created trial plan');
@@ -69,15 +67,16 @@ async function main() {
   // SUM to the allowance and the keys are not caps. These must match
   // 0039_pool_totals.sql, or a freshly seeded DB gets different budgets from
   // a migrated one.
+  // `trial` is NOT in this list. Its pool is now the EMPTY map (0049 =
+  // unlimited), and this clause keys off a missing entry — re-running it
+  // would have written 4M back onto an unlimited plan without a word.
   await db.execute(sql`
     UPDATE plans SET token_limits = '{"fast": 50000000}'::jsonb
      WHERE code = 'starter' AND COALESCE((token_limits ->> 'fast')::bigint, 0) = 0;
     UPDATE plans SET token_limits = '{"smart": 50000000}'::jsonb
      WHERE code = 'pro' AND COALESCE((token_limits ->> 'smart')::bigint, 0) = 0;
-    UPDATE plans SET token_limits = '{"fast": 1000000}'::jsonb
-     WHERE code = 'trial' AND COALESCE((token_limits ->> 'fast')::bigint, 0) = 0;
   `);
-  console.log('✓ Token pools backfilled (starter/pro/trial)');
+  console.log('✓ Token pools backfilled (starter/pro)');
 
   // 2. Ensure the ONE launch code exists (migration 0045)
   const LAUNCH_CODE = 'ZAINO-LAUNCH-3M';
@@ -92,9 +91,9 @@ async function main() {
       code: LAUNCH_CODE,
       createdBy: 'system',
       maxRedemptions: 0, // unlimited
-      models: ['fast', 'smart'],
-      // 0039: 1M shared pooled tokens — the only trial quota.
-      tokenLimits: { fast: 1_000_000 },
+      models: ['smart', 'frontier', 'fable'],
+      // 0049: unlimited, like the plan it redeems onto.
+      tokenLimits: {},
       trialDays: 3,
       // The CAMPAIGN is three months; an individual trial is still 3 days.
       // redeemTrialCode takes min(now + trial_days, expires_at), so a late
@@ -109,22 +108,30 @@ async function main() {
     console.log(`✓ ${LAUNCH_CODE} already exists`);
   }
 
-  // Retire any other campaign code, so exactly one is redeemable. Deactivate
-  // rather than delete: trial_redemptions cascades on this table's rows.
+  // Retire any campaign code the product no longer offers. Deactivate rather
+  // than delete: trial_redemptions cascades on this table's rows.
+  //
+  // Keeping ZAINO-PARTNER-3D (0047) is the point of the explicit list. This
+  // clause used to read `code <> ZAINO-LAUNCH-3M`, which was correct while the
+  // launch code was the only live one; re-seeding after the partner code went
+  // out would have deactivated it silently — the migration's guard does not
+  // watch `active`, so nothing would have caught it.
+  const LIVE_CODES = [LAUNCH_CODE, 'ZAINO-PARTNER-3D'];
   const retired = await db
     .update(trialCodes)
     .set({ active: false })
-    .where(sql`code <> ${LAUNCH_CODE} AND active IS TRUE`)
+    .where(and(notInArray(trialCodes.code, LIVE_CODES), eq(trialCodes.active, true)))
     .returning({ code: trialCodes.code });
   if (retired.length > 0) {
     console.log(`✓ Retired ${retired.map((r) => r.code).join(', ')}`);
   }
 
-  await pool.end();
+  await pg.end();
   console.log('Done.');
 }
 
-main().catch((err) => {
+main().catch(async (err) => {
   console.error(err);
+  await pg.end();
   process.exit(1);
 });

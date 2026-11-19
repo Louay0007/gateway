@@ -37,8 +37,8 @@ export default async function RedeemPage() {
           Redeem a Free Trial
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Promo codes unlock temporary access to fast and smart. Enter one
-          below if you have it.
+          Promo codes unlock temporary access to every paid tier — smart,
+          frontier and fable. Enter one below if you have it.
           {/*
             The notice is driven by hasRedeemableTrialCode(), never a date
             constant. 0045 retired the per-campaign codes in favour of one
@@ -74,16 +74,13 @@ export default async function RedeemPage() {
               <span>{trial.daysRemaining} day{trial.daysRemaining !== 1 ? "s" : ""} remaining</span>
             </div>
             <div className="text-sm text-success text-success">
-              {/* 0039: one shared pool — listing per-model figures implied
-                  separate allowances that do not exist. */}
+              {/* 0049: the partner trial has no token pool at all — an empty
+                  token_limits map is how "unlimited" is stored. Summing it
+                  would print "0 shared tokens", the opposite of the grant. */}
               <strong>Limits:</strong>{" "}
-              {compact(
-                Object.values(trial.tokenLimits ?? {}).reduce(
-                  (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
-                  0,
-                ),
-              )}{" "}
-              shared tokens across the trial period.
+              {trial.tokens === null
+                ? "Unlimited tokens across the trial period."
+                : `${compact(trial.tokens)} shared tokens across the trial period.`}
             </div>
             <div className="pt-2">
               <Link href="/dashboard/keys" className="flex w-full items-center justify-center rounded-md border border-success/30 bg-transparent px-4 py-2 text-sm font-medium text-success hover:bg-success/10 border-success/30 text-success hover:bg-success/20">

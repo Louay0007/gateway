@@ -18,6 +18,7 @@ import {
   users,
 } from '@/db/schema';
 import { syncOrganizationEntitlements } from '@/lib/entitlements/sync';
+import { tokenPoolFromLimits } from '@/lib/entitlements/quota';
 import { log } from '@/lib/log';
 
 export type RedeemError =
@@ -144,7 +145,7 @@ export async function redeemTrialCode(
             // 0038: the trial's budget is a single MONTHLY-shape total
             // measured over the trial's own window (currentPeriodStart ..
             // trialEnd), so it must not resolve to a Tunis day — that would
-            // grant the 1M pool per DAY for 3 days instead of once.
+            // grant the pool per DAY for 3 days instead of once.
             dailyQuota: false,
             updatedAt: now,
           })
@@ -252,6 +253,12 @@ export async function getTrialStatus(orgId: string): Promise<{
   daysRemaining: number | null;
   /** Blended-token budgets for the trial window. Migration 0023. */
   tokenLimits: Record<string, number>;
+  /**
+   * `tokenPoolFromLimits(tokenLimits)` — null means the trial has no token
+   * budget at all (0049). Exposed so a caller renders "Unlimited" instead of
+   * summing an empty map to 0 and printing a wall that does not exist.
+   */
+  tokens: number | null;
   models: string[];
 } | null> {
   const [sub] = await db
@@ -292,6 +299,7 @@ export async function getTrialStatus(orgId: string): Promise<{
     expiresAt: sub.trialEnd.toISOString(),
     daysRemaining,
     tokenLimits,
+    tokens: tokenPoolFromLimits(tokenLimits),
     models: sub.models ?? [],
   };
 }

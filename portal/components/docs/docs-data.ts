@@ -97,8 +97,19 @@ export const POOL_PLANS: {
   },
 ];
 
-/** Trial is code-gated, 3 days, and 1M total — see ZAINO-LAUNCH-3M. */
-export const TRIAL = { days: 3, tokens: 1_000_000, tokensLabel: "1M", models: ["fast", "smart"] };
+/**
+ * Trial is code-gated, 3 days, and uncapped — see 0049_partner_trial_widen.sql.
+ * `tokens: null` is the unlimited case, matching the empty `token_limits` map
+ * on the plan row. The daily cap still bounds any single day.
+ */
+export const TRIAL = {
+  days: 3,
+  tokens: null,
+  tokensLabel: "Unlimited",
+  models: ["smart", "frontier", "fable"],
+  maxKeys: 15,
+  dailyTokenCap: 15_000_000,
+};
 
 /** What the ceiling looks like, stated once so every section can reuse it. */
 export const POOL_NOTE =

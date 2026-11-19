@@ -28,10 +28,16 @@ import {
 } from '@/components/docs/docs-data';
 
 const REPO_ROOT = new URL('../../', import.meta.url);
-const sql = readFileSync(
-  new URL('portal/db/migrations/0039_pool_totals.sql', REPO_ROOT),
-  'utf8',
-);
+// Pool totals (0039) plus the later trial adjustments (0047, 0049). The trial
+// grant has been widened twice, so a mirror that stops at 0039 — or at 0047 —
+// would lock the docs to a number the database no longer holds.
+const sql = [
+  '0039_pool_totals.sql',
+  '0047_partner_trial_code.sql',
+  '0049_partner_trial_widen.sql',
+]
+  .map((file) => readFileSync(new URL(`portal/db/migrations/${file}`, REPO_ROOT), 'utf8'))
+  .join('\n');
 
 describe('docs alias catalog', () => {
   it('lists exactly the four aliases the gateway serves', () => {
@@ -134,11 +140,34 @@ describe('docs allowances match migrations 0039 + 0046', () => {
     }
   });
 
-  it('the trial publishes 1M, matching the plan row', () => {
-    expect(sql).toContain('{"fast": 1000000}');
-    expect(TRIAL.tokens).toBe(1_000_000);
-    expect(TRIAL.tokensLabel).toBe('1M');
+  it('the trial publishes unlimited tokens, matching the plan row', () => {
+    // Unlimited is the EMPTY map, not a big number: 0049 sets the trial plan's
+    // token_limits to '{}' and tokenPoolFromLimits() reads that as no wall.
+    // Asserting on a magic large number here would let the docs drift from
+    // whatever the migration actually wrote.
+    const trial = readFileSync(
+      new URL('portal/db/migrations/0049_partner_trial_widen.sql', REPO_ROOT),
+      'utf8',
+    );
+    expect(trial).toMatch(/UPDATE plans SET[\s\S]*?token_limits\s*=\s*'\{\}'::jsonb/);
+    // Scoped to 0049, not the concatenation: 0047 still contains the 4M map as
+    // history, and a migration file is forward-only — rewriting it would not
+    // change any database that already ran it.
+    expect(trial).not.toContain('"fast": 4000000');
+    expect(TRIAL.tokens).toBeNull();
+    expect(TRIAL.tokensLabel).toBe('Unlimited');
     expect(TRIAL.days).toBe(3);
+    expect(TRIAL.maxKeys).toBe(15);
+    expect(TRIAL.models).toEqual(['smart', 'frontier', 'fable']);
+  });
+
+  it('the trial has a daily cap, because with no pool it is the only brake', () => {
+    const trial = readFileSync(
+      new URL('portal/db/migrations/0049_partner_trial_widen.sql', REPO_ROOT),
+      'utf8',
+    );
+    expect(trial).toContain('daily_token_cap = 15000000');
+    expect(TRIAL.dailyTokenCap).toBe(15_000_000);
   });
 
   it('every plan states the pool is SHARED, never per model', () => {

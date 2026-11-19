@@ -93,6 +93,9 @@ drip_send.py
 send_all.py
 send-email.py
 __pycache__/
+# Live credentials for ~115 provisioned trial accounts. Passwords in
+# plaintext, necessarily: they have to be readable to be emailed.
+outreach/accounts.json
 
 # ── Marketing render output (not product, not redistributable) ───────
 # plans/linkedin-assets/ holds 60+ generated PNGs, a 2MB motion clip, and

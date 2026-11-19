@@ -1,0 +1,50 @@
+Hello {{COMPANY}},
+
+I'm Louay Rjili, founder of Zaino AI. We're building out of Tunis.
+
+Zaino is a single endpoint in front of four model tiers — fast, smart, frontier,
+fable — so your team implements one SDK and one invoice instead of four. It
+speaks the OpenAI and Anthropic wire formats, so it drops into code you already
+have.
+
+Your account is already open. No signup form, no code to redeem — the
+credentials below are all you need.
+
+YOUR EVALUATION ACCESS
+  Tokens     Unlimited for 3 days
+  Duration   3 days from first call
+  API keys   15
+  Models     smart, frontier, fable
+  Card       Not required
+
+SIGN IN AT https://zaino.soon.it/sign-in
+  Email      {{LOGIN_EMAIL}}
+  Password   {{LOGIN_PASSWORD}}
+
+Sign in, go to API Keys, and create up to 15. The base URL and an example
+request are on the same page. Change the password once you're in — it was
+generated for you.
+
+WHY I'M WRITING, HONESTLY
+
+I would rather have twenty teams genuinely break this product and tell me what's
+wrong with it than two thousand signups who never send a second request. So the
+ask is not a subscription. It's an evaluation.
+
+If the latency, the answer quality, or the Arabic and French handling isn't good
+enough for what you're building — that's the single most useful thing you can
+tell me, and it costs you nothing to find out. If it does hold up, I'm open to a
+partnership: discounted volume, a dedicated endpoint, whatever shape makes sense
+for how you actually ship.
+
+Reply to this email and you'll reach me directly.
+
+Louay Rjili
+Founder, Zaino AI
+https://zaino.soon.it
+ceo-louayrjili@sohabi.app
+
+--
+You're receiving this because your company builds software in Tunisia and Zaino
+is built for teams like yours. If it's not relevant, reply with "unsubscribe"
+and I'll remove you from this list — no follow-up.

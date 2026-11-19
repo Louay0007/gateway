@@ -80,13 +80,13 @@ export function effectForStatus(status: string): Effect {
  * directly would let the customer spend $130 before the cutoff — the
  * exact overshoot this function exists to prevent.
  *
- * TRIAL PLANS: trial plans use one shared token pool (1M since 0039) rather
- * than dollar caps. Their `includedSpendCents` and
- * `hardCapCents` may be set to a generous value just to satisfy LiteLLM's
- * requirement that max_budget > 0, but the real enforcement is the token
- * wall in lib/entitlements/allowed-models.ts. For every live plan we set a
- * high budget ($10,000) so LiteLLM never blocks on dollar spend before the
- * token limit kicks in.
+ * TRIAL PLANS: since 0049 the trial grants NO token pool — its plan row holds
+ * the empty `token_limits` map, which the wall reads as unlimited. What bounds
+ * a trial is therefore its `trial_end` and its `daily_token_cap`, not tokens.
+ * `includedSpendCents` / `hardCapCents` are still set to a generous value only
+ * to satisfy LiteLLM's requirement that max_budget > 0. For every live plan we
+ * set a high budget ($10,000) so LiteLLM never blocks on dollar spend before
+ * the token limit kicks in.
  *
  * Rules, in order:
  *   1. A cut always wins → CUT_BUDGET.
