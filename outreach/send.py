@@ -155,6 +155,12 @@ def connect(password):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--test", metavar="ADDRESS", help="send one copy to this address")
+    ap.add_argument(
+        "--as-account",
+        metavar="ACCOUNT_EMAIL",
+        help="with --test: use this provisioned account's real credentials "
+        "instead of a placeholder password, so the proof copy is openable",
+    )
     ap.add_argument("--send", action="store_true", help="send to the list")
     ap.add_argument("--limit", type=int, default=0, help="stop after N sends")
     ap.add_argument("--delay", type=float, default=45.0, help="seconds between sends")
@@ -172,10 +178,15 @@ def main():
 
     if args.test:
         addr = args.test.strip().lower()
-        account = accounts.get(addr) or {
-            "email": args.test,
-            "password": "TEST-PASSWORD-CHANGE-ME",
-        }
+        if args.as_account:
+            account = accounts.get(args.as_account.strip().lower())
+            if not account:
+                sys.exit(f"--as-account {args.as_account}: no provisioned account with that address")
+        else:
+            account = accounts.get(addr) or {
+                "email": args.test,
+                "password": "TEST-PASSWORD-CHANGE-ME",
+            }
         queue = [{"num": 0, "company": args.company, "email": args.test, "account": account}]
     elif args.send:
         done = already_sent({r["email"].lower() for r in recipients})
