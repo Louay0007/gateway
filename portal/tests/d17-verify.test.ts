@@ -15,6 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { d17ReceiverPhone } from '@/lib/billing/d17-config';
 import {
   type ExpectedPayment,
   type ExtractedProof,
@@ -274,6 +275,35 @@ describe('scoreVerification — flags and corroboration', () => {
     const d = scoreVerification(reading({ receiverPhone: null }), unconfigured);
     expect(d.checks.receiverPhone).toBe('not_checked');
     expect(d.verdict).toBe('pass');
+  });
+});
+
+describe('d17ReceiverPhone — a placeholder must not look configured', () => {
+  afterEach(() => {
+    delete process.env.D17_RECEIVER_PHONE;
+  });
+
+  it('reads a real Tunisian number', () => {
+    process.env.D17_RECEIVER_PHONE = '+216 71 999 999';
+    expect(d17ReceiverPhone()).toBe('+216 71 999 999');
+  });
+
+  it('treats the shipped placeholder as unconfigured', () => {
+    // `+21600000000` normalizes to a valid-looking "00000000", so a naive
+    // presence check would run the receiver comparison against it and send
+    // every honest payment to review. Measured on production before this.
+    process.env.D17_RECEIVER_PHONE = '+21600000000';
+    expect(d17ReceiverPhone()).toBe('');
+  });
+
+  it('treats a non-Tunisian number as unconfigured', () => {
+    process.env.D17_RECEIVER_PHONE = '+33 6 12 34 56 78';
+    expect(d17ReceiverPhone()).toBe('');
+  });
+
+  it('treats an empty value as unconfigured', () => {
+    process.env.D17_RECEIVER_PHONE = '   ';
+    expect(d17ReceiverPhone()).toBe('');
   });
 });
 

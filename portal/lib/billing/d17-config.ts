@@ -11,6 +11,8 @@
  * a test can change it and so nothing throws at import.
  */
 
+import { log } from '@/lib/log';
+
 /** Max screenshot size. Anything larger is refused before it is read twice. */
 export const SCREENSHOT_MAX_BYTES = 3 * 1024 * 1024;
 
@@ -45,9 +47,34 @@ export function detectScreenshotType(buffer: Buffer): { mime: string; ext: strin
 /**
  * Receiver phone, as configured. Never hardcoded: a number in source is
  * a number that is wrong the day the merchant changes it.
+ *
+ * Returns EMPTY when the value is not a usable Tunisian number, which
+ * switches the receiver check off rather than running it against garbage.
+ * That is not hypothetical: `+21600000000` — a placeholder that normalizes
+ * to a perfectly valid-looking "00000000" — was deployed once, and every
+ * honest payment then landed in `review` with `receiver_mismatch`. A
+ * deploy carrying a placeholder must behave exactly like a deploy that
+ * configured nothing, so the mistake shows up in `verify-d17` rather than
+ * in a queue no one can clear.
  */
 export function d17ReceiverPhone(): string {
-  return (process.env.D17_RECEIVER_PHONE ?? '').trim();
+  const raw = (process.env.D17_RECEIVER_PHONE ?? '').trim();
+  if (!raw) return '';
+  const normalized = normalizeSenderPhone(raw);
+  // Prefix check, not a length check. `+21600000000` normalizes to a
+  // perfectly-shaped "00000000", so shape alone would accept it — and did,
+  // on production, sending every honest payment to `receiver_mismatch`.
+  // Tunisian numbers begin 2 (mobile), 4/5 (mobile), 7 (landline) or 9.
+  if (!normalized || !isTunisianPrefix(normalized)) {
+    log.warn('d17: D17_RECEIVER_PHONE is not a Tunisian number — receiver check disabled');
+    return '';
+  }
+  return raw;
+}
+
+/** Tunisian numbering plan: 2, 4, 5, 9 mobile; 7 landline. */
+export function isTunisianPrefix(normalized8: string): boolean {
+  return /^[24579]\d{7}$/.test(normalized8);
 }
 
 /** Payment window in hours. Default 24. */

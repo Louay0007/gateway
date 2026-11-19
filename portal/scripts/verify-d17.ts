@@ -177,7 +177,7 @@ async function main(): Promise<void> {
   check(
     'the merchant phone is configured',
     d17ReceiverPhone().length >= 8,
-    d17ReceiverPhone() || 'D17_RECEIVER_PHONE empty',
+    d17ReceiverPhone() || 'D17_RECEIVER_PHONE is unset or not a Tunisian number',
   );
 
   // ── T1: the amount is ours, computed server-side ────────────────────

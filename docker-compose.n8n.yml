@@ -1,0 +1,76 @@
+# n8n — the D17 proof-verification workflow runner. NOT part of the app stack.
+#
+#   docker compose -f docker-compose.n8n.yml up -d
+#
+# Kept in its own file for the same reason as docker-compose.monitoring.yml:
+# `docker compose up` for the app must never pull an automation engine onto a
+# box, and turning the agent off is pruning one container rather than editing
+# the app compose.
+#
+# WHY LOOPBACK, NOT A PUBLIC PORT. This instance is not a SaaS tenant
+# console; it is one workflow and its editor. Bound to 127.0.0.1 so reach it
+# over an SSH tunnel:
+#
+#   ssh -L 5678:127.0.0.1:5678 ubuntu@<box>
+#   open http://127.0.0.1:5678
+#
+# An exposed 5678 is an unauthenticated-by-default editor on a public IP, and
+# n8n's code nodes execute JavaScript — that is remote code execution by
+# design, which is fine on loopback and indefensible on the internet.
+#
+# WHAT IT TALKS TO, and the two tokens it needs:
+#
+#   D17_AGENT_TOKEN     read the queue, submit readings. Lives in the app
+#                       .env; pass the SAME value here.
+#   ZAINO_AGENT_API_KEY a Zaino gateway key for the vision call. The reader
+#                       is metered like any other request, so it must be a
+#                       real key rather than the master key. Mint one from an
+#                       org you own; it never leaves this container.
+#
+# The scheduled workflow ships INACTIVE (ops/n8n/d17-verify.json has
+# "active": false). Import it, run it once by hand against a real pending
+# payment, and only then enable the schedule. See ops/n8n/README.md.
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:1.72.1
+    container_name: gateway-n8n
+    restart: unless-stopped
+    ports:
+      # Loopback only. See the header.
+      - "127.0.0.1:5678:5678"
+    environment:
+      # SQLite inside the volume. n8n's own Postgres is NOT the portal's,
+      # and pointing it at the app database would be a second writer on a
+      # schema this project owns.
+      - N8N_HOST=127.0.0.1
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      # The editor is reachable on loopback; basic auth is the second lock
+      # so an SSH tunnel left open on a shared laptop is not enough.
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:?set in .env}
+      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:?set in .env}
+      # `$env` in a workflow code node can only read variables named here.
+      # Both go through unchanged; the workflow references them by name.
+      - D17_AGENT_TOKEN=${D17_AGENT_TOKEN:?set in .env}
+      - ZAINO_AGENT_API_KEY=${ZAINO_AGENT_API_KEY:?set in .env}
+      - GENERIC_TIMEZONE=Africa/Tunis
+      - TZ=Africa/Tunis
+      # n8n prunes its own execution history; unbounded it is the one thing
+      # in this container that grows without limit.
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=336
+    volumes:
+      - n8n-data:/home/node/.n8n
+    # The box runs LiteLLM at ~1.5G on 3.8G total. A vision workflow that
+    # forks on a backlog must not take the gateway down with it, so the cap
+    # is a ceiling, not a target.
+    mem_limit: 512m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  n8n-data:

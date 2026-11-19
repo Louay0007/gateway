@@ -31,7 +31,7 @@ import {
 } from '@/db/schema';
 import { appendAudit } from '@/lib/audit';
 import { log } from '@/lib/log';
-import { formatTndMillimes } from './d17-config';
+import { d17ReceiverPhone, formatTndMillimes } from './d17-config';
 import {
   type ExtractedProof,
   type VerificationDecision,
@@ -76,7 +76,7 @@ export async function verifyD17Proof(input: VerifyInput): Promise<VerifyOutcome>
     amountMillimes: payment.amountMillimes,
     authNumber: payment.authorizationNumber ?? '',
     senderPhone: payment.senderPhone,
-    receiverPhone: (process.env.D17_RECEIVER_PHONE ?? '').trim(),
+    receiverPhone: d17ReceiverPhone(),
     submittedAt: payment.submittedAt ?? new Date(),
     flaggedReview: payment.flaggedReview,
   });
