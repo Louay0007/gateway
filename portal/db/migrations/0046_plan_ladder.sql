@@ -189,9 +189,31 @@ END $$;
 -- ── 5. The ladder, in the order it is sold ────────────────────────────
 -- Cheapest first, and every step must raise volume per dinar, keys per
 -- dinar, or model class — otherwise it is not an upgrade, it is a trap.
+--
+-- ⚠ THIS GUARD DOES NOT ASSERT THE POOL OF A ROW IT DID NOT SET.
+--
+-- The first draft compared all six tiers against the numbers above and
+-- aborted the 19 Nov deploy with `pro=150000000 (want 50000000)`. That row
+-- was not corrupt: `plans` has a live admin editor (lib/admin/plans.ts,
+-- components/admin/plan-manager.tsx) and an operator had tuned Pro's pool
+-- there. A guard that fails the deploy on an operator edit is a guard
+-- nobody can ship behind; a guard that overwrites the edit is worse,
+-- because lowering a live plan's pool silently cuts an existing
+-- subscriber's allowance mid-period. So the check splits by ownership:
+--
+--   • rows THIS file inserts or restates — trial, solo, team, business —
+--     are asserted EXACTLY, because their value is this file's own claim
+--     and nothing else in the repo writes it;
+--   • starter and pro are not owned here. Their shape is enforced by
+--     section 4 (no public plan without a pool and a dinar price) and the
+--     one contradiction that actually costs money — Pro reaching Team's
+--     pool, which leaves Team selling nothing but keys — is REPORTED, not
+--     fatal, so the operator who set it sees it in the deploy log.
 DO $$
 DECLARE
-  bad text[];
+  bad   text[];
+  pro_pool  bigint;
+  team_pool bigint;
 BEGIN
   SELECT array_agg(expected.code || '=' ||
                    COALESCE((SELECT SUM(value::bigint)
@@ -201,8 +223,6 @@ BEGIN
     FROM (VALUES
       ('trial',     1000000::bigint),
       ('solo',     35000000::bigint),
-      ('starter',  50000000::bigint),
-      ('pro',      50000000::bigint),
       ('team',    150000000::bigint),
       ('business',400000000::bigint)
     ) AS expected(code, pool)
@@ -212,6 +232,21 @@ BEGIN
 
   IF bad IS NOT NULL THEN
     RAISE EXCEPTION '0046: wrong pool size(s): %', array_to_string(bad, ', ');
+  END IF;
+
+  -- Starter and Pro unlock the same models as each other and Pro adds
+  -- frontier/fable, so Starter = Pro volume is the design (Pro sells model
+  -- class). Pro and Team unlock the IDENTICAL model class, so Team has to
+  -- be strictly bigger or the 160 DT step buys only keys.
+  SELECT COALESCE(SUM(value::bigint), 0) INTO pro_pool
+    FROM plans p, jsonb_each_text(p.token_limits) WHERE p.code = 'pro';
+  SELECT COALESCE(SUM(value::bigint), 0) INTO team_pool
+    FROM plans p, jsonb_each_text(p.token_limits) WHERE p.code = 'team';
+
+  IF pro_pool >= team_pool THEN
+    RAISE NOTICE
+      '0046: ⚠ Pro pool (%) has reached Team (%). Team now sells only keys for 160 DT more — re-tune plans.pro through the admin editor before announcing this ladder.',
+      pro_pool, team_pool;
   END IF;
 
   -- A plan missing entirely is not "wrong", it is absent. Catch that too,
