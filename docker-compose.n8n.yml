@@ -45,11 +45,18 @@ services:
       - N8N_HOST=127.0.0.1
       - N8N_PORT=5678
       - N8N_PROTOCOL=http
-      # The editor is reachable on loopback; basic auth is the second lock
-      # so an SSH tunnel left open on a shared laptop is not enough.
-      - N8N_BASIC_AUTH_ACTIVE=true
-      - N8N_BASIC_AUTH_USER=${N8N_BASIC_AUTH_USER:?set in .env}
-      - N8N_BASIC_AUTH_PASSWORD=${N8N_BASIC_AUTH_PASSWORD:?set in .env}
+      # A LOGIN, NOT basic auth. n8n 1.x removed N8N_BASIC_AUTH_* — setting
+      # them does nothing, which is worse than not setting them, because it
+      # looks like a lock. The owner account is provisioned from env instead
+      # (docs: environment-variables/user-management-smtp-2fa). The password
+      # hash is bcrypt: generate one with
+      #   docker run --rm httpd:2.4-alpine htpasswd -bnBC 10 "" 'PASSWORD'
+      # and paste the part after ":$2y$".
+      - N8N_INSTANCE_OWNER_MANAGED_BY_ENV=true
+      - N8N_INSTANCE_OWNER_EMAIL=${N8N_INSTANCE_OWNER_EMAIL:?set in .env}
+      - N8N_INSTANCE_OWNER_FIRST_NAME=${N8N_INSTANCE_OWNER_FIRST_NAME:-Owner}
+      - N8N_INSTANCE_OWNER_LAST_NAME=${N8N_INSTANCE_OWNER_LAST_NAME:-}
+      - N8N_INSTANCE_OWNER_PASSWORD_HASH=${N8N_INSTANCE_OWNER_PASSWORD_HASH:?set in .env}
       # `$env` in a workflow code node can only read variables named here.
       # Both go through unchanged; the workflow references them by name.
       - D17_AGENT_TOKEN=${D17_AGENT_TOKEN:?set in .env}
