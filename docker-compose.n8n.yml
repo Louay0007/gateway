@@ -32,7 +32,10 @@
 # payment, and only then enable the schedule. See ops/n8n/README.md.
 services:
   n8n:
-    image: docker.n8n.io/n8nio/n8n:1.72.1
+    # Pinned, and recent on purpose: the instance-owner env vars this file
+    # relies on do not exist in early 1.x. `stable` is a moving tag; this is
+    # a deploy that was actually tested, not "whatever shipped overnight".
+    image: docker.n8n.io/n8nio/n8n:1.123.99
     container_name: gateway-n8n
     restart: unless-stopped
     ports:
