@@ -16,6 +16,7 @@ import {
   uuid,
   text,
   integer,
+  smallint,
   bigint,
   boolean,
   numeric,
@@ -406,6 +407,42 @@ export const paymentsD17 = pgTable('payments_d17', {
   oneOpenIdx:    uniqueIndex('payments_d17_one_open_idx')
     .on(t.subscriptionId)
     .where(sql`status IN ('pending_payment', 'proof_submitted', 'rejected')`),
+}));
+
+export const d17VerifyVerdict = pgEnum('d17_verify_verdict', ['pass', 'review', 'fail']);
+
+/**
+ * One row per reading of a proof screenshot. The evidence an automatic
+ * approval leaves behind — see 0050 for why this is neither a log line nor
+ * an audit row.
+ */
+export const paymentsD17Verifications = pgTable('payments_d17_verifications', {
+  id:                   uuid('id').primaryKey().defaultRandom(),
+  paymentId:            uuid('payment_id').notNull().references(() => paymentsD17.id, { onDelete: 'cascade' }),
+
+  model:                text('model').notNull(),
+  promptVersion:        text('prompt_version').notNull(),
+
+  extractedAmount:      text('extracted_amount'),
+  extractedAuthNumber:  text('extracted_auth_number'),
+  extractedPhone:       text('extracted_phone'),
+  extractedReceiver:    text('extracted_receiver'),
+  extractedDate:        text('extracted_date'),
+
+  checks:               jsonb('checks').notNull().default({}),
+  score:                smallint('score').notNull(),
+  verdict:              d17VerifyVerdict('verdict').notNull(),
+  reason:               text('reason'),
+
+  approved:             boolean('approved').notNull().default(false),
+  blockedBy:            text('blocked_by'),
+
+  inputTokens:          integer('input_tokens'),
+  outputTokens:         integer('output_tokens'),
+
+  createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  paymentIdx: index('payments_d17_verifications_payment_idx').on(t.paymentId, t.createdAt),
 }));
 
 // Append-only ledger. Every dashboard number must be derivable from here.

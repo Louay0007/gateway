@@ -278,6 +278,22 @@ services:
       D17_REVIEW_WINDOW_MINUTES: ${D17_REVIEW_WINDOW_MINUTES:-60}
       D17_MAX_PROOF_PER_HOUR: ${D17_MAX_PROOF_PER_HOUR:-5}
 
+      # Automatic proof verification (ops/n8n). All defaulted, not required,
+      # on purpose: an operator who never sets the token gets the manual
+      # queue exactly as before, and the agent routes answer 503 rather than
+      # running unauthenticated. `D17_AGENT_TOKEN` must be >=32 chars or
+      # d17-agent-auth.ts treats it as unset — a short token is a typo, not
+      # a policy.
+      #
+      # AUTO_APPROVE defaults to false. The switch is a deployment decision
+      # after two weeks of shadow mode (ops/n8n/README.md), never a default.
+      D17_AGENT_TOKEN: ${D17_AGENT_TOKEN:-}
+      D17_VERIFY_AUTO_APPROVE: ${D17_VERIFY_AUTO_APPROVE:-false}
+      D17_VERIFY_MIN_SCORE: ${D17_VERIFY_MIN_SCORE:-85}
+      D17_VERIFY_AMOUNT_TOLERANCE_MILLIMES: ${D17_VERIFY_AMOUNT_TOLERANCE_MILLIMES:-50}
+      D17_VERIFY_MAX_PROOF_AGE_HOURS: ${D17_VERIFY_MAX_PROOF_AGE_HOURS:-48}
+      D17_QUEUE_WARN_HOURS: ${D17_QUEUE_WARN_HOURS:-4}
+
     volumes:
       - ./prices:/app/prices:ro
       # D17 proof screenshots: outside the web root, staff-only reads.

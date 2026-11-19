@@ -90,6 +90,18 @@ export const PUBLIC_API: readonly PublicRoute[] = [
     path: '/api/device/*',
     why: 'desktop panel: Bearer zn- key hashed against api_keys, org resolved from the key (lib/device/auth)',
   },
+
+  // ── Agent surfaces, authenticated by a service token ───────────────
+  {
+    path: '/api/agent/*',
+    // No session can exist: the caller is n8n, not a browser. The handler's
+    // `requireAgentToken()` is the auth, and it fails CLOSED — an unset
+    // D17_AGENT_TOKEN makes every route here answer 503, unlike the admin
+    // gate whose unset secret disables the gate. The bucket is narrow on
+    // purpose: it reads one payment queue and records one reading, and it
+    // can approve only through `scoreVerification()`'s verdict.
+    why: 'service token (D17_AGENT_TOKEN), verified constant-time in every handler; no tenant identity crosses it',
+  },
 ] as const;
 
 /**

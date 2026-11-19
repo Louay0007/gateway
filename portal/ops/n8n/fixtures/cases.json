@@ -1,0 +1,33 @@
+{
+  "clean_match.png": {
+    "expect": "pass",
+    "amount": "90.000",
+    "auth": "A1B2C3D4"
+  },
+  "wrong_amount.png": {
+    "expect": "fail",
+    "amount": "39.000",
+    "auth": "A1B2C3D4"
+  },
+  "wrong_auth.png": {
+    "expect": "fail",
+    "amount": "90.000",
+    "auth": "ZZ99XX77"
+  },
+  "wrong_receiver.png": {
+    "expect": "review",
+    "amount": "90.000",
+    "auth": "A1B2C3D4"
+  },
+  "stale_date.png": {
+    "expect": "review",
+    "amount": "90.000",
+    "auth": "A1B2C3D4"
+  },
+  "blurred.png": {
+    "expect": "review_no_guess"
+  },
+  "not_a_receipt.png": {
+    "expect": "review_no_guess"
+  }
+}
