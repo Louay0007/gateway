@@ -60,8 +60,11 @@ services:
       - N8N_INSTANCE_OWNER_FIRST_NAME=${N8N_INSTANCE_OWNER_FIRST_NAME:-Owner}
       - N8N_INSTANCE_OWNER_LAST_NAME=${N8N_INSTANCE_OWNER_LAST_NAME:-}
       - N8N_INSTANCE_OWNER_PASSWORD_HASH=${N8N_INSTANCE_OWNER_PASSWORD_HASH:?set in .env}
-      # `$env` in a workflow code node can only read variables named here.
-      # Both go through unchanged; the workflow references them by name.
+      # `$env` in an expression — and `process.env` in a Code node — is
+      # BLOCKED by default. Without this line both tokens read as undefined
+      # and every call leaves without an Authorization header, which surfaces
+      # as three 401s per run rather than as a configuration error.
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       - D17_AGENT_TOKEN=${D17_AGENT_TOKEN:?set in .env}
       - ZAINO_AGENT_API_KEY=${ZAINO_AGENT_API_KEY:?set in .env}
       - GENERIC_TIMEZONE=Africa/Tunis
