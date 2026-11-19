@@ -78,22 +78,36 @@ def new_password():
     return "".join(secrets.choice(ALPHABET) for _ in range(PASSWORD_LEN))
 
 
-def provision(batch):
+def provision(batch, compose=False):
     """Run the TypeScript provisioner with `batch` on stdin.
 
     Stdin, not argv: argv is visible in `ps` to every user on the box and this
     payload is a list of passwords.
+
+    `compose=True` runs the same script inside the `jobs` container instead of
+    on the host. The production box has no node_modules in the checkout and
+    keeps the database unreachable from the host, so the container is the only
+    place the script has both its dependencies and its network.
     """
-    cmd = [
+    inner = [
         "node",
         "--experimental-transform-types",
         "--import",
         "./scripts/register-ts-resolve.mjs",
         "scripts/provision-trial-account.ts",
     ]
+    if compose:
+        # -T: no TTY, so stdin reaches the container as a pipe. Without it
+        # compose attaches a terminal and the JSON never arrives.
+        cmd = ["docker", "compose", "run", "--rm", "-T", "--no-deps", "jobs", *inner]
+        cwd = ROOT
+    else:
+        cmd = inner
+        cwd = PORTAL
+
     proc = subprocess.run(
         cmd,
-        cwd=PORTAL,
+        cwd=cwd,
         input=json.dumps(batch),
         capture_output=True,
         text=True,
@@ -115,6 +129,11 @@ def main():
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--company", help="provision one company only (substring, case-insensitive)")
+    ap.add_argument(
+        "--compose",
+        action="store_true",
+        help="run the provisioner inside the jobs container (use on the production box)",
+    )
     args = ap.parse_args()
 
     recipients = load_recipients()
@@ -154,7 +173,7 @@ def main():
         for r in todo
     ]
 
-    results = provision(batch)
+    results = provision(batch, compose=args.compose)
     by_email = {a["email"].lower(): a for a in batch}
 
     made = failed = 0

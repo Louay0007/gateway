@@ -1,0 +1,131 @@
+name: Provision trial accounts
+
+# Manual only, and deliberately so. This mints real accounts with real
+# passwords against the production database; it must never fire on a push.
+#
+# Two modes:
+#   report    — how many of the prospect list already have an account. No writes.
+#   provision — create the missing ones and upload accounts.json as an artifact.
+#
+# WHY IT RUNS HERE AND NOT FROM A LAPTOP. The box accepts no SSH from the
+# outside and keeps Postgres on the compose network, so the self-hosted runner
+# is the only place the provisioner has both node_modules and a route to the
+# database. `--compose` runs it inside the `jobs` container for the same
+# reason.
+#
+# THE ARTIFACT IS LIVE CREDENTIALS. It is a file of ~115 working passwords.
+# It expires after a day rather than the default 90, and it must be downloaded
+# then deleted from the run — the addresses it belongs to are third parties
+# who never asked to be in a marketing list.
+#
+# Dispatch inputs reach the shell through `env:`, never through `${{ }}` inside
+# `run:`. They are maintainer-supplied, but interpolating text into a command
+# line is the shape that turns a typo into arbitrary execution on the box that
+# holds production.
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "report (read-only) or provision (creates accounts)"
+        type: choice
+        options: [report, provision]
+        default: report
+      limit:
+        description: "provision at most N accounts (0 = no limit)"
+        type: string
+        default: "0"
+      company:
+        description: "restrict to one company (substring, optional)"
+        type: string
+        default: ""
+
+concurrency:
+  group: provision-trial
+  cancel-in-progress: false
+
+jobs:
+  provision:
+    runs-on: [self-hosted, linux, x64, gateway-new]
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        working-directory: /opt/gateway
+
+    env:
+      MODE: ${{ inputs.mode }}
+      LIMIT: ${{ inputs.limit }}
+      COMPANY: ${{ inputs.company }}
+
+    steps:
+      - name: Show what is provisioned against
+        run: |
+          echo "mode    : $MODE"
+          echo "commit  : $(git rev-parse HEAD)"
+          echo "actor   : ${{ github.actor }}"
+
+      # The checkout on the box is the deploy target; if it has drifted the
+      # provisioner would run code that is not the code that was reviewed.
+      - name: Refuse to provision from a dirty tree
+        run: |
+          dirty=$(git status --porcelain --untracked-files=no)
+          if [ -n "$dirty" ]; then
+            echo "::error::Tracked files on the VPS differ from git:"
+            echo "$dirty"
+            exit 1
+          fi
+          git fetch origin main
+          git merge --ff-only origin/main
+
+      # An array stays an array all the way to the script, so a company name
+      # with a space or a quote is one argument and nothing else is parsed.
+      - name: Build the argument list
+        run: |
+          args=()
+          case "$LIMIT" in
+            ''|*[!0-9]*) echo "::error::limit must be a non-negative integer, got '$LIMIT'"; exit 1 ;;
+          esac
+          args+=(--limit "$LIMIT")
+          if [ -n "$COMPANY" ]; then
+            args+=(--company "$COMPANY")
+          fi
+          printf '%s\n' "${args[@]}" > /tmp/provision-args
+          echo "arguments: ${args[*]}"
+
+      - name: Report coverage
+        run: |
+          mapfile -t args < /tmp/provision-args
+          python3 outreach/provision.py --compose --dry-run "${args[@]}" | tail -5
+
+      - name: Provision missing accounts
+        if: env.MODE == 'provision'
+        run: |
+          mapfile -t args < /tmp/provision-args
+          python3 outreach/provision.py --compose "${args[@]}"
+
+      # Only uploaded when something was actually created, so a report run
+      # cannot leave credentials lying in the run history.
+      - name: Upload credentials
+        if: env.MODE == 'provision'
+        uses: actions/upload-artifact@v4
+        with:
+          name: trial-accounts
+          path: /opt/gateway/outreach/accounts.json
+          retention-days: 1
+          if-no-files-found: error
+
+      # The file on the box is the working copy for the next run (it is what
+      # makes provisioning resumable), so it is not deleted here — but it is
+      # mode 0600 and gitignored, and the run summary says so.
+      - name: Remind about the artifact
+        if: env.MODE == 'provision'
+        run: |
+          {
+            echo "### Accounts provisioned"
+            echo
+            n=$(python3 -c "import json;print(len(json.load(open('outreach/accounts.json'))))")
+            echo "$n accounts in outreach/accounts.json on the box."
+            echo
+            echo "Download the **trial-accounts** artifact (expires in 1 day), move it"
+            echo "to outreach/accounts.json locally, then delete the artifact from the run."
+          } >> "$GITHUB_STEP_SUMMARY"
