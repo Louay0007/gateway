@@ -60,46 +60,77 @@ describe('docs alias catalog', () => {
 });
 
 describe('docs plan mapping matches the plan table', () => {
-  const modelsFor = (code: string): string[] => {
-    const tier = TIERS.filter((t) => t.plans.toLowerCase().includes(
-      code === 'starter' ? 'starter' : 'pro',
-    ));
-    return tier.map((t) => t.alias);
-  };
+  const modelsFor = (code: string): string[] =>
+    TIERS.filter((t) => {
+      const plans = t.plans.toLowerCase();
+      // `smart` ships on every tier, so its row says so rather than
+      // listing five names that would drift. Expand it to every code.
+      if (/every plan|all plans/.test(plans)) return true;
+      return plans.includes(code);
+    }).map((t) => t.alias);
 
-  it('smart is in BOTH plans (the 2026-11-13 bug)', () => {
-    // Live table: starter = {fast, smart}; pro = {smart, frontier, fable}.
-    const starter = modelsFor('starter');
-    const pro = modelsFor('pro');
-    expect(starter).toContain('fast');
-    expect(starter).toContain('smart');
-    expect(pro).toContain('smart');
-    expect(pro).toContain('frontier');
-    expect(pro).toContain('fable');
+  it('smart is on every plan (the 2026-11-13 bug)', () => {
+    // Live ladder since 0046: fast/smart on Solo and Starter,
+    // smart/frontier/fable on Pro, Team and Business. Smart is universal.
+    expect(modelsFor('solo')).toContain('smart');
+    expect(modelsFor('starter')).toContain('smart');
+    expect(modelsFor('pro')).toContain('smart');
+    expect(modelsFor('team')).toContain('smart');
+    expect(modelsFor('business')).toContain('smart');
   });
 
-  it('frontier and fable are Pro-only', () => {
-    const starter = modelsFor('starter');
-    expect(starter).not.toContain('frontier');
-    expect(starter).not.toContain('fable');
+  it('fast is only on the two entry tiers', () => {
+    const entry = [...modelsFor('solo'), ...modelsFor('starter')];
+    expect(entry).toContain('fast');
+    expect(modelsFor('team')).not.toContain('fast');
+    expect(modelsFor('business')).not.toContain('fast');
+  });
+
+  it('frontier and fable are on the reasoning tiers only', () => {
+    const entry = [...modelsFor('solo'), ...modelsFor('starter')];
+    expect(entry).not.toContain('frontier');
+    expect(entry).not.toContain('fable');
+    expect(modelsFor('pro')).toContain('frontier');
+    expect(modelsFor('pro')).toContain('fable');
   });
 
   it('POOL_PLANS model lists agree with the same mapping', () => {
-    const starter = POOL_PLANS.find((p) => p.code === 'starter');
-    const pro = POOL_PLANS.find((p) => p.code === 'pro');
-    expect(starter?.models).toEqual(['fast', 'smart']);
-    expect(pro?.models).toEqual(['smart', 'frontier', 'fable']);
+    const models = (code: string) => POOL_PLANS.find((p) => p.code === code)?.models;
+    expect(models('solo')).toEqual(['fast', 'smart']);
+    expect(models('starter')).toEqual(['fast', 'smart']);
+    expect(models('pro')).toEqual(['smart', 'frontier', 'fable']);
+    expect(models('team')).toEqual(['smart', 'frontier', 'fable']);
+    expect(models('business')).toEqual(['smart', 'frontier', 'fable']);
   });
 });
 
-describe('docs allowances match migration 0039', () => {
-  it('Starter and Pro both publish a 50M pool', () => {
+describe('docs allowances match migrations 0039 + 0046', () => {
+  it('the two legacy tiers still publish the 50M pool 0039 sets', () => {
     expect(sql).toContain('{"fast": 50000000}');
     expect(sql).toContain('{"smart": 50000000}');
+    for (const code of ['starter', 'pro']) {
+      const p = POOL_PLANS.find((x) => x.code === code)!;
+      expect(p.tokens, code).toBe(50_000_000);
+      expect(p.tokensLabel, code).toBe('50M');
+    }
+  });
 
-    for (const p of POOL_PLANS) {
-      expect(p.tokens).toBe(50_000_000);
-      expect(p.tokensLabel).toBe('50M');
+  it('the three ladder tiers publish the pools 0046 writes', () => {
+    // Solo was trimmed from the proposed 40M to 35M: at 40M/39 DT a customer
+    // got MORE volume per dinar than Starter's 50M/50 DT, which makes the
+    // tier above it the irrational choice.
+    const ladder = readFileSync('db/migrations/0046_plan_ladder.sql', 'utf8');
+    const expected: Record<string, [number, string]> = {
+      solo: [35_000_000, '35M'],
+      team: [150_000_000, '150M'],
+      business: [400_000_000, '400M'],
+    };
+    for (const [code, [tokens, label]] of Object.entries(expected)) {
+      const p = POOL_PLANS.find((x) => x.code === code);
+      expect(p, code).toBeDefined();
+      expect(p!.tokens, code).toBe(tokens);
+      expect(p!.tokensLabel, code).toBe(label);
+      expect(ladder, code).toContain(`: ${tokens}}`);
     }
   });
 

@@ -25,13 +25,15 @@ export const CONTEXT_WINDOW = 1048576;
 export const MAX_OUTPUT_TOKENS = 65536;
 
 /**
- * The token allowance model (migration 0039): ONE SHARED POOL per plan.
+ * The token allowance model (migration 0046): ONE SHARED POOL per plan.
  *
- * `poolTokens` is the plan's monthly total. The customer spends it on any
- * model the plan unlocks, in any proportion — 30M fast + 20M smart, 10M +
- * 40M, or all 50M on one alias. There is no per-model ceiling, and the docs
- * must never imply one: a developer who reads "25M fast / 25M smart" will
- * conclude the split is enforced and stop at 25M.
+ * `poolTokens` is the plan's monthly total, in WEIGHTED units — a fast token
+ * counts a third, a smart token one, a frontier or fable token five. The
+ * customer spends it on any model the plan unlocks, in any proportion —
+ * 30M units on one and 20M on another, or all of it on a single model.
+ * There is no per-model ceiling, and the docs must never imply one: a
+ * developer who reads "35M fast / 35M smart" will conclude the split is
+ * enforced and stop early.
  */
 export const POOL_PLANS: {
   code: string;
@@ -43,6 +45,16 @@ export const POOL_PLANS: {
   models: string[];
   maxKeys: number;
 }[] = [
+  {
+    code: "solo",
+    label: "Solo",
+    tokens: 35_000_000,
+    tokensLabel: "35M",
+    priceUsdCents: 1300,
+    priceTndMillimes: 39000,
+    models: ["fast", "smart"],
+    maxKeys: 2,
+  },
   {
     code: "starter",
     label: "Starter",
@@ -62,6 +74,26 @@ export const POOL_PLANS: {
     priceTndMillimes: 90000,
     models: ["smart", "frontier", "fable"],
     maxKeys: 15,
+  },
+  {
+    code: "team",
+    label: "Team",
+    tokens: 150_000_000,
+    tokensLabel: "150M",
+    priceUsdCents: 8000,
+    priceTndMillimes: 250000,
+    models: ["smart", "frontier", "fable"],
+    maxKeys: 30,
+  },
+  {
+    code: "business",
+    label: "Business",
+    tokens: 400_000_000,
+    tokensLabel: "400M",
+    priceUsdCents: 16000,
+    priceTndMillimes: 500000,
+    models: ["smart", "frontier", "fable"],
+    maxKeys: 100,
   },
 ];
 
@@ -90,7 +122,7 @@ export const TIERS: Tier[] = [
     inputPerMtok: "$1.00",
     outputPerMtok: "$5.00",
     cacheReadPerMtok: "$0.10",
-    plans: "Starter · Pro",
+    plans: "Solo · Starter",
     bestFor: ["Chat & copilots", "Bulk jobs", "First drafts"],
     badge: "Cheapest",
   },
@@ -100,7 +132,7 @@ export const TIERS: Tier[] = [
     inputPerMtok: "$3.00",
     outputPerMtok: "$15.00",
     cacheReadPerMtok: "$0.30",
-    plans: "Starter · Pro",
+    plans: "Every plan",
     bestFor: ["Agents", "Tool calling", "Support bots"],
     badge: "Most used",
   },
@@ -110,7 +142,7 @@ export const TIERS: Tier[] = [
     inputPerMtok: "$15.00",
     outputPerMtok: "$75.00",
     cacheReadPerMtok: "$1.50",
-    plans: "Pro only",
+    plans: "Pro · Team · Business",
     bestFor: ["Deep reasoning", "Multi-step agents", "Hard tasks"],
     badge: "Pro",
   },
@@ -120,7 +152,7 @@ export const TIERS: Tier[] = [
     inputPerMtok: "$15.00",
     outputPerMtok: "$75.00",
     cacheReadPerMtok: "$1.50",
-    plans: "Pro only",
+    plans: "Pro · Team · Business",
     bestFor: ["Whole-task runs", "Long agents", "Deepest reasoning"],
     badge: "New",
   },

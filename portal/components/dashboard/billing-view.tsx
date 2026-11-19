@@ -681,7 +681,9 @@ export function BillingView() {
               renewal.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-2 sm:grid-cols-2">
+          {/* Five plans in two columns leaves a lone card on row three, which
+              reads as a broken layout rather than a full ladder. */}
+          <div className="grid gap-4 py-2 sm:grid-cols-2 lg:grid-cols-3">
             {plans.map((p) => (
               <Button
                 key={p.code}

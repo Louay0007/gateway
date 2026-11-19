@@ -7,23 +7,28 @@ import { ArrowRight, Check, Minus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { tndPrice, usdPrice } from "@/lib/dashboard/format";
-import { COMPARISON, PLAN_FACTS, RATES } from "@/lib/pricing/facts";
+import {
+  COMPARISON,
+  FEATURED_PLAN,
+  PLAN_CODES,
+  PLAN_FACTS,
+  RATES,
+} from "@/lib/pricing/facts";
 
 /**
- * PricingPlans — the Phase 7 rebuild.
+ * PricingPlans — the five-tier ladder.
  *
  * SHAPE, and why each piece is here:
  *
- *   1. Two cards, each with a one-line "who it's for" and a headline. A tier
- *      with no stated audience makes the buyer compare numbers instead of
- *      fit, and the numbers are identical here — so the audience IS the
- *      discriminator.
- *   2. A grouped comparison table (Usage / Models / Team / Payment), sticky
- *      header, check-or-dash cells. Grouped by the question a buyer is
- *      asking, not by alphabet.
+ *   1. Five cards, each with a one-line "who it's for" and a headline. The
+ *      ladder sells four different jobs, so the audience IS the
+ *      discriminator — a buyer who reads only prices will pick wrong.
+ *   2. A grouped comparison table (Usage / Models / Team / Payment) that
+ *      scrolls horizontally on narrow screens and pins the feature column,
+ *      because five price columns and a label cannot share 375 pixels.
  *   3. The $/MTok table with input, output and cache-read on separate rows,
  *      because "from $1" hides the rate that actually bills.
- *   4. A nine-question FAQ, answered in the negative where the answer is a
+ *   4. A ten-question FAQ, answered in the negative where the answer is a
  *      trust claim. "Do you mark up token prices? No." is the only credible
  *      form of that sentence.
  *
@@ -32,16 +37,21 @@ import { COMPARISON, PLAN_FACTS, RATES } from "@/lib/pricing/facts";
  */
 export function PricingPlans({ signedIn }: { signedIn: boolean }) {
   return (
-    <div className="grid gap-16">
+    // `min-w-0` on the grid items: a grid child defaults to
+    // `min-width: auto`, so it will not shrink below its widest content —
+    // which makes an `overflow-x-auto` table inside it set the COLUMN
+    // width instead of scrolling, and pushes the whole page sideways on a
+    // phone. The section carries its own `min-w-0` for the same reason.
+    <div className="grid min-w-0 gap-16">
       {/* ── 1. Cards ─────────────────────────────────────────────── */}
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className="grid min-w-0 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {PLAN_FACTS.map((plan) => {
-          const featured = plan.code === "pro";
+          const featured = plan.code === FEATURED_PLAN;
           return (
             <article
               key={plan.code}
               className={cn(
-                "flex flex-col rounded-2xl border bg-card p-6 sm:p-8",
+                "flex flex-col rounded-2xl border bg-card p-6",
                 featured ? "border-foreground/30 ring-1 ring-foreground/10" : "border-border",
               )}
             >
@@ -51,7 +61,7 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
                 </h2>
                 {featured ? (
                   <span className="rounded-full bg-foreground px-2.5 py-1 text-[11px] font-medium tracking-wide text-background uppercase">
-                    Most capable
+                    Best value
                   </span>
                 ) : null}
               </div>
@@ -65,10 +75,10 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
                   the interval is its own unit. One string would read as a
                   single "$15 / 50 DT/mo" figure. */}
               <p className="mt-6 flex flex-wrap items-baseline gap-2">
-                <span className="text-4xl font-semibold tracking-tight tabular-nums text-foreground">
+                <span className="text-3xl font-semibold tracking-tight tabular-nums text-foreground">
                   {usdPrice(plan.priceUsdCents)}
                 </span>
-                <span className="text-lg font-medium tabular-nums text-muted-foreground">
+                <span className="text-base font-medium tabular-nums text-muted-foreground">
                   {tndPrice(plan.priceTndMillimes)}
                 </span>
                 <span className="text-sm font-normal text-muted-foreground">/mo</span>
@@ -110,28 +120,42 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
       </div>
 
       {/* ── 2. Comparison, grouped by job ────────────────────────── */}
-      <section aria-labelledby="compare-title">
+      {/* `min-w-0` is load-bearing: this is a grid item, and a grid item's
+          default `min-width: auto` refuses to shrink below its widest
+          child. Without it the 820px table sets the COLUMN to 822px, the
+          `overflow-x-auto` never engages, and the whole page scrolls
+          sideways on a phone. The wrapper is what scrolls, not the body. */}
+      <section className="min-w-0" aria-labelledby="compare-title">
         <h2 id="compare-title" className="text-2xl font-semibold tracking-tight text-foreground">
-          Compare the two plans
+          Compare the plans
         </h2>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-          Both plans include one shared pool. What changes is which models
-          it can be spent on, and how many people can use it.
+          Every plan is one shared pool. What changes is how big the pool is,
+          which models it can be spent on, and how many people can use it.
         </p>
 
-        <div className="mt-6 overflow-hidden rounded-xl border border-border">
-          <table className="w-full text-sm">
+        <div className="mt-6 overflow-x-auto rounded-xl border border-border">
+          <table className="w-full min-w-[820px] text-sm">
             <thead className="sticky top-16 z-10 bg-muted/80 backdrop-blur">
               <tr className="border-b border-border text-left">
-                <th scope="col" className="px-4 py-3 font-medium text-muted-foreground">
+                <th
+                  scope="col"
+                  className="sticky left-0 z-20 bg-muted/80 px-4 py-3 font-medium text-muted-foreground backdrop-blur"
+                >
                   <span className="sr-only">Feature</span>
                 </th>
-                <th scope="col" className="px-4 py-3 font-medium text-foreground">
-                  Starter
-                </th>
-                <th scope="col" className="px-4 py-3 font-medium text-foreground">
-                  Pro
-                </th>
+                {PLAN_FACTS.map((plan) => (
+                  <th
+                    key={plan.code}
+                    scope="col"
+                    className={cn(
+                      "px-4 py-3 font-medium",
+                      plan.code === FEATURED_PLAN ? "text-foreground" : "text-foreground/80",
+                    )}
+                  >
+                    {plan.name}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
@@ -140,7 +164,7 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
                   <tr className="border-y border-border bg-muted/40">
                     <th
                       scope="colgroup"
-                      colSpan={3}
+                      colSpan={PLAN_CODES.length + 1}
                       className="px-4 py-2 text-[11px] font-semibold tracking-widest text-muted-foreground uppercase"
                     >
                       {group.group}
@@ -148,11 +172,15 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
                   </tr>
                   {group.rows.map((row) => (
                     <tr key={row.label} className="border-b border-border last:border-0">
-                      <th scope="row" className="px-4 py-2.5 text-left font-normal text-muted-foreground">
+                      <th
+                        scope="row"
+                        className="sticky left-0 z-10 bg-card px-4 py-2.5 text-left font-normal text-muted-foreground"
+                      >
                         {row.label}
                       </th>
-                      <Cell value={row.starter} />
-                      <Cell value={row.pro} />
+                      {PLAN_CODES.map((code) => (
+                        <Cell key={code} value={row.values[code]} />
+                      ))}
                     </tr>
                   ))}
                 </React.Fragment>
@@ -163,7 +191,7 @@ export function PricingPlans({ signedIn }: { signedIn: boolean }) {
       </section>
 
       {/* ── 3. Rates ─────────────────────────────────────────────── */}
-      <section aria-labelledby="rates-title">
+      <section className="min-w-0" aria-labelledby="rates-title">
         <h2 id="rates-title" className="text-2xl font-semibold tracking-tight text-foreground">
           Token rates
         </h2>

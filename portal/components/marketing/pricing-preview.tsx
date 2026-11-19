@@ -22,7 +22,24 @@ const MODEL_PRICES: Record<string, { input: number; output: number; label: strin
   fast: { input: 1.00, output: 5.00, label: "Fast" },
   smart: { input: 3.00, output: 15.00, label: "Smart" },
   frontier: { input: 15.00, output: 75.00, label: "Frontier" },
+  fable: { input: 15.00, output: 75.00, label: "Fable" },
 };
+
+/**
+ * The plan's monthly pool, summed from `token_limits`.
+ *
+ * 0039 made the pool ONE total in weighted units, so the split across
+ * `token_limits` entries is an operator convenience, not a per-model
+ * allowance. Stating the sum is the only honest number: "35M" is what the
+ * wall enforces, and it is now the headline difference between the two
+ * entry tiers, so a card that omits it has nothing to compare.
+ */
+function poolTotal(plan: PlanListResponse["plans"][number]): number {
+  return Object.values(plan.tokenLimits ?? {}).reduce(
+    (sum, n) => sum + (Number(n) > 0 ? Number(n) : 0),
+    0,
+  );
+}
 
 function usdPerMtok(usd: number): string {
   return `$${usd.toFixed(2)} / MTok`;
@@ -89,14 +106,16 @@ export function PricingPreview() {
           ) : null}
         </div>
 
-        <div className="mt-14 grid gap-6 lg:grid-cols-2">
+        {/* Five cards: two columns left an orphan, so the preview stacks them
+            1 / 2 / 5 across breakpoints like the pricing page does. */}
+        <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {plans.map((plan) => (
             <div
               key={plan.code}
               className={
                 plan.code === "pro"
-                  ? "relative flex flex-col rounded-2xl border-2 border-foreground bg-white  p-8"
-                  : "flex flex-col rounded-2xl border border-border bg-white  p-8"
+                  ? "relative flex flex-col rounded-2xl border-2 border-foreground bg-white  p-6"
+                  : "flex flex-col rounded-2xl border border-border bg-white  p-6"
               }
             >
               {plan.code === "pro" ? (
@@ -129,7 +148,12 @@ export function PricingPreview() {
               </p>
 
               <ul className="mt-6 grid gap-3 text-sm">
-                <Feature icon={<Infinity className="size-4" />}>One shared blended-token pool per month, across the models on this plan. Failures never count</Feature>
+                <Feature icon={<Infinity className="size-4" />}>
+                  {poolTotal(plan) > 0
+                    ? `${compact(poolTotal(plan))} shared tokens / month, `
+                    : "One shared blended-token pool per month, "}
+                  spendable on any model below. Failures never count
+                </Feature>
                 <Feature>{plan.maxKeys} API keys</Feature>
                 {(plan.models ?? []).length > 0 && (
                   <Feature>Models: {(plan.models ?? []).join(", ")}</Feature>

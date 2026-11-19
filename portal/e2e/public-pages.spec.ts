@@ -21,10 +21,40 @@ test.describe('public pages', () => {
     await expect(page.locator('body')).not.toBeEmpty();
   });
 
+  test('pricing page shows all five tiers from the fallback, no DB', async ({ page }) => {
+    // The reason for this one: /api/plans failed with a 500 on a machine
+    // without Postgres, and the homepage's hardcoded fallback still listed
+    // an "Enterprise / Let's Talk" card that no longer exists and hid
+    // Solo, Team and Business. A visitor with a slow network sees exactly
+    // that fallback, so it is a customer surface and it has to be right.
+    const res = await page.goto('/pricing');
+    expect(res?.status()).toBe(200);
+    for (const tier of ['Solo', 'Starter', 'Pro', 'Team', 'Business']) {
+      await expect(page.getByRole('heading', { name: tier, exact: true }).first()).toBeVisible();
+    }
+    await expect(page.getByText("Let's Talk")).toHaveCount(0);
+  });
+
+  test('pricing page does not scroll sideways on a phone', async ({ page }) => {
+    // Five price columns plus a label do not fit 375px, so the comparison
+    // table scrolls inside its own box. The whole PAGE scrolling instead
+    // means a grid child kept `min-width: auto` and pushed the layout —
+    // which is what happened until 2026-11-19.
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto('/pricing');
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
   test('download page renders with the product name', async ({ page }) => {
     const res = await page.goto('/download');
     expect(res?.status()).toBe(200);
-    await expect(page.getByText(/Zaino AI Agent/i).first()).toBeVisible();
+    // 8d44c63 replaced the desktop-installer page with a "Zaino Agent CLI —
+    // coming soon" note, and this assertion kept looking for the retired
+    // "Zaino AI Agent" title, so it failed on every run from then until now.
+    await expect(page.getByText(/Zaino Agent CLI/i).first()).toBeVisible();
   });
 
   test('/api/downloads answers JSON, empty directory included', async ({ request }) => {

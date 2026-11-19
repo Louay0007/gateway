@@ -43,9 +43,15 @@ export function PricingFaq() {
                 onClick={() => setOpen(isOpen ? null : i)}
                 aria-expanded={isOpen}
                 aria-controls={`pricing-faq-${i}`}
-                className="w-full justify-between rounded-none px-5 py-4 text-left"
+                // `h-auto` and `whitespace-normal`: the Button primitive is
+                // `whitespace-nowrap`, so one long question ("Why do Starter
+                // and Pro cost different prices for the same pool?") set the
+                // section 87px wider than a 390px phone and scrolled the page.
+                className="h-auto w-full min-w-0 justify-between gap-3 rounded-none px-5 py-4 text-left whitespace-normal"
               >
-                <span className="text-sm font-medium text-foreground">{item.q}</span>
+                <span className="min-w-0 text-sm font-medium text-foreground">
+                  {item.q}
+                </span>
                 <ChevronDown
                   className={cn(
                     "size-4 shrink-0 text-muted-foreground transition-transform",

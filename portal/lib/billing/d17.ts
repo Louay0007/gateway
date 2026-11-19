@@ -64,6 +64,7 @@ export const d17BillingProvider: BillingProvider = {
     if (!sub) throw new Error(`d17: subscription ${input.subscriptionId} not found`);
 
     const rate = usdTndRate();
+
     // The promotion is applied HERE, once: the payment row is the money
     // record, so the amount the customer is asked to transfer and the USD
     // cents we store as paid are both the discounted price. Approving the
@@ -75,9 +76,10 @@ export const d17BillingProvider: BillingProvider = {
     // the 50 DT the local price has always been — the same drift 0024 was
     // written to stop, in reverse. The conversion stays as the fallback
     // for any plan that has no local ask (a USD-only plan).
-    const millimes = promo?.priceCents
-      ? planPriceTndMillimes(chargedUsdCents, rate)
-      : plan.priceTndMillimes ?? planPriceTndMillimes(chargedUsdCents, rate);
+    const unitMillimes = promo?.priceCents
+      ? planPriceTndMillimes(promo.priceCents, rate)
+      : plan.priceTndMillimes ?? planPriceTndMillimes(plan.priceCents, rate);
+    const millimes = unitMillimes;
     const expiresAt = paymentDeadline();
     if (promo) {
       log.info('d17: promotion applied', {

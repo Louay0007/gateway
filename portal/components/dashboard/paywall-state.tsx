@@ -29,6 +29,12 @@ interface PaywallStateProps {
  * adding its feature keys here and in d17.ts.
  */
 const PLAN_FEATURES: Record<string, string[]> = {
+  solo: [
+    'd17.feat_pool_tokens',
+    'd17.feat_keys',
+    'd17.feat_rpm',
+    'd17.feat_tpm',
+  ],
   starter: [
     // 0039: ONE shared pool, stated once. The per-alias token keys that used
     // to live here listed a split the customer was never actually held to.
@@ -38,6 +44,20 @@ const PLAN_FEATURES: Record<string, string[]> = {
     'd17.feat_tpm',
   ],
   pro: [
+    'd17.feat_pool_tokens',
+    'd17.feat_keys',
+    'd17.feat_rpm',
+    'd17.feat_tpm',
+    'd17.feat_support',
+  ],
+  team: [
+    'd17.feat_pool_tokens',
+    'd17.feat_keys',
+    'd17.feat_rpm',
+    'd17.feat_tpm',
+    'd17.feat_support',
+  ],
+  business: [
     'd17.feat_pool_tokens',
     'd17.feat_keys',
     'd17.feat_rpm',
@@ -61,6 +81,12 @@ const PLAN_FEATURES: Record<string, string[]> = {
  * to state the same truth.
  */
 const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
+  solo: {
+    'd17.feat_pool_tokens': '35M',
+    'd17.feat_keys': '2',
+    'd17.feat_rpm': '60',
+    'd17.feat_tpm': '200,000',
+  },
   starter: {
     'd17.feat_pool_tokens': '50M',
     'd17.feat_keys': '3',
@@ -72,6 +98,18 @@ const DEFAULT_FEATURE_VALUES: Record<string, Record<string, string>> = {
     'd17.feat_keys': '15',
     'd17.feat_rpm': '300',
     'd17.feat_tpm': '500,000',
+  },
+  team: {
+    'd17.feat_pool_tokens': '150M',
+    'd17.feat_keys': '30',
+    'd17.feat_rpm': '600',
+    'd17.feat_tpm': '4,000,000',
+  },
+  business: {
+    'd17.feat_pool_tokens': '400M',
+    'd17.feat_keys': '100',
+    'd17.feat_rpm': '1,200',
+    'd17.feat_tpm': '8,000,000',
   },
 };
 
@@ -118,7 +156,10 @@ export function PaywallState({
       {/* `items-stretch` is the default, but it is the whole reason the two
           CTAs share a baseline: PlanCard is h-full, so the shorter feature
           list does not lift its footer. */}
-      <div className="grid items-stretch gap-4 pt-4 sm:grid-cols-2">
+      {/* Five tiers at `sm:grid-cols-2` left the last card alone on its row
+          under a two-column block, which reads as a sixth plan that failed to
+          load. Three columns at lg gives 3 + 2. */}
+      <div className="grid items-stretch gap-4 pt-4 sm:grid-cols-2 lg:grid-cols-3">
         {plans.map((plan) => {
           const isPro = plan.code === 'pro';
           const featureKeys = PLAN_FEATURES[plan.code] ?? [];
@@ -140,7 +181,12 @@ export function PaywallState({
           return (
             <PlanCard
               key={plan.code}
-              name={t(isPro ? 'd17.plan_pro_name' : 'd17.plan_starter_name')}
+              // The catalog name, not a two-way ternary: with five tiers
+              // the old `isPro ? 'Pro' : 'Starter'` would have labelled
+              // Solo, Team and Business all as "Starter". Names are brand
+              // words and identical in all three languages, so translating
+              // them bought nothing and cost correctness.
+              name={plan.name}
               priceLabel={priceUsd}
               priceTndLabel={priceTnd}
               intervalLabel="mo"
