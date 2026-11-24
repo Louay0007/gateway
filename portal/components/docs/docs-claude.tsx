@@ -14,15 +14,16 @@ export function ClaudeCodeSection() {
   return (
     <Section
       id="claude-code"
+      index={6}
       kicker="Agent CLI"
       title="Run Claude Code on Zaino"
       body="Claude Code speaks the Anthropic messages shape, served natively. Point it at the Zaino base URL and hand it your zn-… key as the auth token."
     >
-      <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+      <div className="flex min-w-0 items-center gap-4 rounded-xl border border-border bg-card p-4">
         <ClaudeLogo />
-        <span>
+        <span className="min-w-0">
           <span className="block font-medium">Claude Code</span>
-          <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
+          <span className="mt-0.5 block font-mono text-xs break-words text-muted-foreground">
             Anthropic-compatible · tool calling verified
           </span>
         </span>

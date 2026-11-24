@@ -66,7 +66,7 @@ export default function DevicesSection({ className }: { className?: string }) {
       <div className="flex flex-col items-center gap-10 lg:flex-row lg:gap-14">
         {/* ── One pitch, both screens ─────────────────────────────── */}
         <div className="relative flex w-full flex-col justify-center space-y-4 lg:w-1/2">
-          <p className="text-[11px] font-semibold tracking-[0.2em] text-white/40 uppercase">
+          <p className="text-[11px] font-semibold tracking-[0.2em] text-mkt-faint uppercase">
             Desktop + mobile
           </p>
           <TextReveal
@@ -78,7 +78,7 @@ export default function DevicesSection({ className }: { className?: string }) {
             duration={0.6}
             blur="6px"
             y={8}
-            className="relative text-base leading-relaxed text-white/60 sm:text-lg"
+            className="relative text-base leading-relaxed text-mkt-muted sm:text-lg"
           />
           <TextReveal
             text="It plans, codes, and ships like a senior engineer on call 24/7. Start on your Mac, keep going from your phone."
@@ -89,7 +89,7 @@ export default function DevicesSection({ className }: { className?: string }) {
             duration={0.6}
             blur="6px"
             y={8}
-            className="relative text-base font-medium leading-relaxed text-white sm:text-lg"
+            className="relative text-base font-medium leading-relaxed text-mkt-ink sm:text-lg"
           />
 
           <div className="flex items-center gap-4 pt-2">

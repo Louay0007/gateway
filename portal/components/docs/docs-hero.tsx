@@ -1,80 +1,87 @@
 import Link from "next/link";
-import { ArrowRight, BookOpen, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { promoView } from "@/lib/billing/promo";
 import { formatPlanPrice } from "@/lib/dashboard/format";
 
 /**
- * Docs hero + table of contents — shared by public /docs and
- * /dashboard/docs. Flat background on both surfaces: no gradients,
- * one canvas color per shell (white marketing, background dashboard).
+ * Docs hero + table of contents — shared by public /docs and /dashboard/docs.
+ *
+ * WHAT WAS WRONG. The hero was a badge, a heading, a lede, a three-chip step
+ * list and three `border + bg-card` fact tiles — five stacked containers before
+ * the reader reached anything they could copy. On a page whose entire job is
+ * "get to the first request", the two facts that matter (base URL, auth
+ * header) were the last thing on the fold, sitting in boxes the same size as
+ * the decoration around them.
+ *
+ * NOW. The heading and lede speak once at a readable measure, and the three
+ * facts become a single hairline-ruled strip — no card, no border box, no
+ * badge. The steps stay, because a "three steps" promise is what makes two
+ * minutes credible, but they are inline text rather than a second container.
+ *
+ * No gradient, no eyebrow badge: the h1 carries its own weight (see the
+ * craft floor on kickers).
  */
 export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
   return (
     <section
       className={cn(
         "border-b",
-        dashboard ? "border-border bg-background" : "border-border/60 bg-white  ",
+        dashboard ? "border-border bg-background" : "border-border/60 bg-card",
       )}
     >
-      <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
-        <Badge variant="outline" className="rounded-full">
-          <BookOpen className="size-3" />
-          Documentation
-        </Badge>
-        <h1
-          className={cn(
-            "mt-4 max-w-3xl text-4xl font-semibold tracking-tight text-balance sm:text-5xl",
-            dashboard ? "text-foreground" : "text-foreground",
-          )}
-        >
+      <div className="mx-auto w-full max-w-6xl px-4 py-14 sm:px-6 sm:py-20 lg:px-8">
+        <h1 className="max-w-[24ch] text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-foreground sm:text-5xl">
           One API for every model. First call in two minutes.
         </h1>
-        <p
-          className={cn(
-            "mt-4 max-w-2xl text-lg",
-            dashboard ? "text-muted-foreground" : "text-muted-foreground",
-          )}
-        >
+        <p className="mt-5 max-w-[62ch] text-base leading-relaxed text-muted-foreground">
           {dashboard ? (
             <>
-              Your key, your plan&apos;s tiers, and the exact configs for
-              Codex and Claude Code — everything below works with the keys
-              on your{" "}
-              <Link href="/dashboard/keys" className="font-medium underline underline-offset-4 hover:opacity-80">
+              Your key, your plan&apos;s tiers, and the exact configs for Codex
+              and Claude Code — everything below works with the keys on your{" "}
+              <Link
+                href="/dashboard/keys"
+                className="font-medium text-foreground underline underline-offset-4"
+              >
                 keys page
               </Link>
               .
             </>
           ) : (
             <>
-              A single OpenAI- and Anthropic-compatible endpoint, four
-              model tiers, and one shared token pool per plan. Grab a key,
-              paste one snippet, and you&apos;re calling.
+              A single OpenAI- and Anthropic-compatible endpoint, four model
+              tiers, and one shared token pool per plan. Grab a key, paste one
+              snippet, and you&apos;re calling.
             </>
           )}
         </p>
-        <div className="mt-8">
-          <ol className="flex flex-wrap items-center gap-2" aria-label="Three steps">
-            {["Get a key", "Pick a tier", "Send a request"].map((s, i, a) => (
-              <li key={s} className="flex items-center gap-2">
-                <span className="flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-sm">
-                  <span className="flex size-5 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-                    {i + 1}
-                  </span>
-                  {s}
+
+        {/* Three steps, inline. A promise of brevity, not a second container. */}
+        <ol
+          className="mt-7 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground"
+          aria-label="Three steps"
+        >
+          {["Get a key", "Pick a tier", "Send a request"].map((s, i, a) => (
+            <li key={s} className="flex items-center gap-2">
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold tabular-nums text-foreground/40">
+                  {i + 1}
                 </span>
-                {i < a.length - 1 ? (
-                  <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </div>
-        <dl className="mt-10 grid max-w-3xl gap-3 sm:grid-cols-3">
+                {s}
+              </span>
+              {i < a.length - 1 ? (
+                <ChevronRight className="size-3.5 text-muted-foreground/40" aria-hidden />
+              ) : null}
+            </li>
+          ))}
+        </ol>
+
+        {/* The facts, as one ruled strip. These are the values a reader came
+            for, so they are set in mono and given the width, not boxed into
+            three equal cards that read as decoration. */}
+        <dl className="mt-9 grid gap-x-8 gap-y-4 border-t border-border pt-6 sm:grid-cols-3">
           <HeroFact label="Base URL" value="api.zaino.soon.it/v1" mono />
           <HeroFact label="Auth" value="Bearer zn-…" mono />
           <HeroFact label="Models" value="fast · smart · frontier · fable" />
@@ -84,11 +91,28 @@ export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
   );
 }
 
-function HeroFact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function HeroFact({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string;
+  mono?: boolean;
+}) {
   return (
-    <div className="rounded-xl border border-border bg-card px-4 py-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={cn("mt-1 text-sm font-medium", mono && "font-mono")}>{value}</dd>
+    <div className="min-w-0">
+      <dt className="text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd
+        className={cn(
+          "mt-1 truncate text-[13px] font-medium text-foreground",
+          mono && "font-mono",
+        )}
+      >
+        {value}
+      </dd>
     </div>
   );
 }
@@ -124,26 +148,37 @@ export function DocsToc() {
   };
   return (
     <nav aria-label="On this page" className="hidden lg:block">
-      <div className="sticky top-24 grid gap-1">
-        <p className="px-3 pb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+      <div className="sticky top-24 grid gap-0.5">
+        <p className="px-3 pb-2 text-[10px] font-semibold tracking-[0.12em] text-muted-foreground uppercase">
           On this page
         </p>
         {TOC.map((id) => (
           <a
             key={id}
             href={`#${id}`}
-            className="rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            /* A left accent bar on hover is the "side-tab" tell the design
+               detector flags. Replaced with a background wash plus an indent
+               shift, which reads as the row being picked up without drawing a
+               coloured rule beside it. */
+            className="rounded-md px-3 py-1.5 text-[13px] text-muted-foreground transition-all hover:bg-muted hover:pl-4 hover:text-foreground"
           >
             {labels[id]}
           </a>
         ))}
-        <div className="mt-4 rounded-xl border border-border bg-card p-4">
-          <p className="text-sm font-medium">Need a key?</p>
-          <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            Keys are minted in seconds and shown once. Plans start at{" "}
-            {starterPrice}/mo — 50M shared tokens, 3 API keys.
+        <div className="mt-5 border-t border-border pt-4">
+          <p className="px-3 text-[13px] font-medium text-foreground">
+            Need a key?
           </p>
-          <Button size="sm" className="mt-3 w-full rounded-full" nativeButton={false} render={<Link href="/sign-up" />}>
+          <p className="mt-1 px-3 text-[11px] leading-relaxed text-muted-foreground">
+            Minted in seconds, shown once. Plans start at {starterPrice}/mo —
+            50M shared tokens, 3 API keys.
+          </p>
+          <Button
+            size="sm"
+            className="mt-3 w-full rounded-lg"
+            nativeButton={false}
+            render={<Link href="/sign-up" />}
+          >
             Get an API key
             <ArrowRight className="size-3.5" />
           </Button>

@@ -20,7 +20,18 @@ function Tabs({
         // never matched and the root stayed `flex-row`, laying the tab list
         // out BESIDE the panel instead of above it. That silently stole ~190px
         // of table width on the usage page and looked like a table CSS bug.
-        "group/tabs flex gap-2 data-[orientation=horizontal]:flex-col",
+        // `min-w-0` belongs on the ROOT, not on each panel.
+        //
+        // The root is a flex container, and a flex item defaults to
+        // `min-width: auto` — which resolves to its min-content size. Here the
+        // min-content is set by the longest line inside a code block in the
+        // panel, so the tabs never shrank below ~535px. On a 390px phone that
+        // pushed /docs 177px sideways, and `min-w-0` on the `figure` inside
+        // could not help: the scroll container has to be allowed to be
+        // narrower than its content at EVERY level, and the panels were not.
+        // Fixed here rather than at the call site because every consumer of
+        // this primitive with a code block has the same bug.
+        "group/tabs flex min-w-0 gap-2 data-[orientation=horizontal]:flex-col",
         className
       )}
       {...props}
@@ -78,7 +89,11 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   return (
     <TabsPrimitive.Panel
       data-slot="tabs-content"
-      className={cn("flex-1 text-sm outline-none", className)}
+      /* `min-w-0` for the same reason as the root: this panel is the flex item
+         that actually holds the wide content, so it must opt out of
+         min-content sizing for the `pre` below it to scroll instead of
+         widening the page. */
+      className={cn("min-w-0 flex-1 text-sm outline-none", className)}
       {...props}
     />
   )

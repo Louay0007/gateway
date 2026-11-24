@@ -45,17 +45,17 @@ const CTA = ({ className }: CTAProps) => {
         <div className="max-w-7xl mx-auto sm:px-16 px-4">
           <div
             ref={ref}
-            className="relative overflow-hidden min-h-96 flex items-center justify-center px-6 border border-[#A558FB]/20 rounded-3xl before:absolute before:w-full before:h-4/5 before:bg-linear-to-r before:from-black before:from-15% before:via-[#1a0b2e] before:via-55% before:to-[#241033] before:to-90% before:rounded-full before:top-24 before:blur-3xl before:-z-10"
+            className="mkt-cta-panel relative overflow-hidden min-h-96 flex items-center justify-center px-6 rounded-3xl"
           >
             <motion.div
               {...bottomAnimation}
               className="relative z-10 flex flex-col gap-6 items-center mx-auto"
             >
               <div className="flex flex-col gap-3 items-center text-center">
-                <h2 className="text-3xl md:text-5xl font-medium text-white">
+                <h2 className="text-3xl md:text-5xl font-medium text-mkt-ink">
                   Ready to stop counting tokens?
                 </h2>
-                <p className="max-w-2xl mx-auto text-white/70">
+                <p className="max-w-2xl mx-auto text-mkt-body">
                   One key, every model, no throttling. Start with a free trial.
                 </p>
               </div>
@@ -63,14 +63,14 @@ const CTA = ({ className }: CTAProps) => {
                 ref={btnRef}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
-                className="relative text-sm font-medium rounded-full h-12 p-1 ps-6 pe-14 w-fit overflow-hidden bg-white text-black hover:bg-white/90 cursor-pointer border-0"
+                className="relative text-sm font-medium rounded-full h-12 p-1 ps-6 pe-14 w-fit overflow-hidden bg-mkt-ink text-mkt-bg hover:opacity-90 cursor-pointer border-0"
               >
                 <span ref={textRef} className="relative z-10">
                   Get an API key
                 </span>
                 <div
                   ref={iconRef}
-                  className="absolute right-1 w-10 h-10 bg-black text-white rounded-full flex items-center justify-center"
+                  className="absolute right-1 w-10 h-10 bg-mkt-bg text-mkt-ink rounded-full flex items-center justify-center"
                 >
                   <ArrowUpRight size={16} />
                 </div>

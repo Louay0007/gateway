@@ -9,15 +9,17 @@
  *
  * THE RULE, and it is narrow on purpose: inside the AUTHENTICATED app and
  * the interactive payment surfaces, a background must come from a token.
- * Marketing and docs are exempt — those pages are deliberately white in
- * both themes (`.light-surface`, `html.light` force the light token set with
- * `!important`), so `bg-white` there is accurate rather than a bug.
+ * Marketing surfaces that opt into theming (see MARKETING_THEMED) are held to
+ * the same rule as the product. The landing page is exempt because it pins
+ * itself to the dark palette; `.light-surface` and `html.light` still force
+ * the light token set elsewhere with `!important`, so a `bg-white` there is
+ * accurate rather than a bug.
  *
  * Side benefit: this test also catches a `bg-white` added to a NEW auth
  * component, which is where the next one would appear.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { globSync } from 'node:fs';
 
@@ -44,6 +46,21 @@ const THEMED_ROOTS = [
 ];
 
 /**
+ * Marketing surfaces that follow the visitor's theme through `--mkt-*`.
+ *
+ * The landing page (`app/(marketing)/page.tsx`) and its hero are deliberately
+ * NOT here: they pin themselves to the dark palette on purpose, so a fixed
+ * dark canvas there is the intended design, not a theme bug.
+ */
+const MARKETING_THEMED = [
+  'components/marketing/ambient.tsx',
+  'components/marketing/animated-beam-section.tsx',
+  'components/marketing/devices-section.tsx',
+  'components/marketing/faq-section.tsx',
+  'components/marketing/zaino-footer.tsx',
+];
+
+/**
  * `bg-white` with no `dark:` companion in the same class string.
  *
  * A `dark:bg-white` is fine (an element that IS white in dark mode by
@@ -53,13 +70,14 @@ const THEMED_ROOTS = [
 const BARE_WHITE = /(?<!dark:)bg-white(?![\w-])/;
 
 function files(): string[] {
-  return THEMED_ROOTS.flatMap((root) => {
+  const fromRoots = THEMED_ROOTS.flatMap((root) => {
     try {
       return globSync(`${root}**/*.tsx`, { cwd: ROOT }).map((f) => `${root}${f.replace(root, '')}`);
     } catch {
       return [];
     }
   });
+  return [...fromRoots, ...MARKETING_THEMED.filter((f) => existsSync(resolve(ROOT, f)))];
 }
 
 /**

@@ -224,7 +224,7 @@ export default function ChangelogContent() {
         <article key={entry.version} className="changelog-entry">
           {/* Version + Date */}
           <div className="version-badge mb-8 flex items-center gap-4">
-            <span className="inline-flex items-center rounded-full bg-primary px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-white">
+            <span className="inline-flex items-center rounded-full bg-primary px-4 py-1.5 text-xs font-bold uppercase tracking-widest text-primary-foreground">
               {entry.version}
             </span>
             <time className="text-sm font-medium text-muted-foreground">{entry.date}</time>

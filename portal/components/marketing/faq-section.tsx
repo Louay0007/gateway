@@ -144,10 +144,10 @@ export default function FaqSection() {
       <div className="max-w-3xl mx-auto">
         {/* Heading */}
         <div data-faq-heading className="text-center mb-12">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4 text-white">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4 text-mkt-ink">
             Frequently Asked Questions
           </h2>
-          <p className="text-lg text-white/60">
+          <p className="text-lg text-mkt-muted">
             Everything you need to know about Zaino AI and how we work.
           </p>
         </div>
@@ -158,23 +158,24 @@ export default function FaqSection() {
             <div
               key={index}
               data-faq-item
-              className="rounded-xl border border-white/10 bg-white/[0.04] overflow-hidden transition-colors hover:border-[#A558FB]/40"
+              className="rounded-xl border border-mkt-line bg-mkt-surface overflow-hidden transition-colors hover:border-mkt-accent/40"
             >
               {/* Question Button */}
               <Button
                 type="button"
                 variant="ghost"
+                id={`faq-question-${index}`}
                 onClick={() => toggleItem(index)}
-                className="w-full justify-between rounded-xl px-6 py-5 text-left"
+                className="w-full justify-between rounded-xl px-6 py-5 text-left hover:bg-transparent"
                 aria-expanded={openIndex === index}
                 aria-controls={`faq-answer-${index}`}
               >
-                <span className="text-base font-semibold text-white pr-4">
+                <span className="text-base font-semibold text-mkt-ink pr-4">
                   {item.question}
                 </span>
                 <span
                   ref={setChevronRef(index)}
-                  className="shrink-0 text-[#A558FB]"
+                  className="shrink-0 text-mkt-accent"
                 >
                   <ChevronDown className="h-5 w-5" />
                 </span>
@@ -190,7 +191,7 @@ export default function FaqSection() {
                 aria-labelledby={`faq-question-${index}`}
               >
                 <div className="px-6 pb-5 pt-0">
-                  <p className="text-sm leading-relaxed text-white/60">
+                  <p className="text-sm leading-relaxed text-mkt-muted">
                     {item.answer}
                   </p>
                 </div>
@@ -201,20 +202,20 @@ export default function FaqSection() {
 
         {/* Footer CTA */}
         <div className="text-center mt-10">
-          <p className="text-sm text-white/60">
+          <p className="text-sm text-mkt-muted">
             Still have questions?{' '}
             <a
               href="https://wa.me/21656794578"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[#A558FB] font-medium hover:underline underline-offset-4"
+              className="text-mkt-accent font-medium hover:underline underline-offset-4"
             >
               Chat on WhatsApp
             </a>{' '}
             or call{' '}
             <a
               href="tel:+21656794578"
-              className="text-[#A558FB] font-medium hover:underline underline-offset-4"
+              className="text-mkt-accent font-medium hover:underline underline-offset-4"
             >
               +216 56 794 578
             </a>

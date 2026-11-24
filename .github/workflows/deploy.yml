@@ -25,17 +25,34 @@ concurrency:
 
 jobs:
   deploy:
-    # PINNED TO THE NEW BOX.
+    # PINNED TO THE ONE PRODUCTION BOX: `event-toolbox-db` = 197.5.133.66.
     #
-    # Both VPSs run a self-hosted runner, and both advertise the default
-    # `self-hosted`/`Linux`/`X64` labels — so `runs-on: [self-hosted, linux, x64]`
-    # was satisfied by BOTH of them. GitHub picks whichever is idle, which
-    # means a push could deploy to the box DNS no longer points at, or fail
-    # confusingly on the old box whose tree is dirty. `gateway-new` is a
-    # label carried ONLY by the runner on 15.188.66.155, so the job can land
-    # nowhere else.
+    # That is the host serving zaino.soon.it / api.zaino.soon.it / the portal,
+    # and the only box in the estate with a registered runner
+    # (`gateway-db-prod`, labels: self-hosted, Linux, X64, production,
+    # gateway-new). The boxes previously named in this comment
+    # (15.188.66.155, 15.224.52.176) are decommissioned and unreachable on :22
+    # — do not reintroduce them.
+    #
+    # WHY A LABEL AND NOT JUST THE DEFAULT SET. Default `self-hosted`/`Linux`/
+    # `X64` labels are advertised by ANY self-hosted runner, so they pin
+    # nothing: when two boxes both ran one, a push could deploy to the box DNS
+    # no longer pointed at. `gateway-new` is carried only by the production
+    # runner, so the job can land nowhere else.
+    #
+    # WHY THIS IS STILL NOT ENOUGH ON ITS OWN. A label is a promise made by a
+    # registration someone can re-create on the wrong host. The IP assertion in
+    # "Assert the deploy target" below is the part that makes it structural:
+    # a job that somehow lands elsewhere fails on its first step with the
+    # actual address printed, instead of quietly rebuilding the wrong stack.
     runs-on: [self-hosted, linux, x64, gateway-new]
     timeout-minutes: 45
+
+    env:
+      # The physical identity of production, asserted at run time. IPv4 only —
+      # the box also carries Docker bridge addresses (172.17.0.1, …), which is
+      # why the check looks for an exact match rather than "contains".
+      EXPECTED_HOST_IP: 197.5.133.66
 
     defaults:
       run:
@@ -44,6 +61,32 @@ jobs:
         working-directory: /opt/gateway
 
     steps:
+      # FIRST STEP, BEFORE ANYTHING TOUCHES THE STACK.
+      #
+      # The runner label is the routing mechanism; this is the proof. A
+      # self-hosted label only says how a runner was registered, and a runner
+      # can be registered on the wrong machine by anyone with shell access to
+      # it. If this job is not on the box DNS points at, every step below
+      # would still succeed — it would just rebuild a stale stack nobody
+      # reaches, and the deploy would report green. That is the failure this
+      # step converts into a red run that names the address it actually found.
+      #
+      # It runs before the dirty-tree check on purpose: "wrong host" is the
+      # more serious finding, and on a wrong host the dirty-tree result is
+      # meaningless.
+      - name: Assert the deploy target
+        run: |
+          echo "runner    : ${RUNNER_NAME:-unknown}"
+          echo "hostname  : $(hostname)"
+          echo "addresses : $(hostname -I)"
+          if ! hostname -I | tr ' ' '\n' | grep -Fxq "$EXPECTED_HOST_IP"; then
+            echo "::error::This job did not land on production ($EXPECTED_HOST_IP)."
+            echo "Addresses found: $(hostname -I). Refusing to deploy here."
+            echo "Check the runner registration for the 'gateway-new' label."
+            exit 1
+          fi
+          echo "target    : event-toolbox-db ($EXPECTED_HOST_IP) — confirmed"
+
       - name: Show what is deploying
         run: |
           echo "commit  : $(git rev-parse HEAD)"

@@ -15,6 +15,7 @@ export function KeysLimitsSection({ dashboard = false }: { dashboard?: boolean }
   return (
     <Section
       id="keys"
+      index={7}
       kicker="Operate"
       title="Keys, headers, and limits"
       body={
@@ -27,7 +28,7 @@ export function KeysLimitsSection({ dashboard = false }: { dashboard?: boolean }
         </>
       }
     >
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-border bg-card p-4">
           <p className="flex items-center gap-2 text-sm font-medium">
             <ShieldCheck className="size-4" aria-hidden />
@@ -112,7 +113,7 @@ x-api-key: zn-…              # equivalent`}
 
       <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border border-border bg-background p-6 sm:flex-row sm:items-center sm:p-8">
         <div>
-          <p className="text-xl font-semibold tracking-tight text-white">
+          <p className="text-xl font-semibold tracking-tight text-foreground">
             Ready to make your first call?
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -125,7 +126,7 @@ x-api-key: zn-…              # equivalent`}
           size="lg"
           nativeButton={false}
           render={<Link href={dashboard ? "/dashboard/keys" : "/sign-up"} />}
-          className="shrink-0 rounded-full bg-white text-foreground hover:bg-muted dark:hover:bg-muted"
+          className="shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90"
         >
           {dashboard ? "Manage keys" : "Get an API key"}
           <ArrowRight className="size-4" />

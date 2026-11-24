@@ -34,12 +34,13 @@ export function Quickstart({
   return (
     <Section
       id="quickstart"
+      index={1}
       kicker="Quickstart"
       title="Your first request"
       body="Set one environment variable, pick a tier, paste the snippet. Auth is a Bearer token — your zn-… key, shown once when minted."
     >
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-border bg-card p-4">
+      <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+        <div className="min-w-0 rounded-xl border border-border bg-card p-4">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             1 · Credential
           </p>
@@ -47,10 +48,10 @@ export function Quickstart({
             className="mt-3"
             language="bash"
             filename="terminal"
-            code={`export ZAINO_API_KEY='zn-…  # paste the value shown once at creation'`}
+            code={`export ZAINO_API_KEY='zn-…'  # shown once, at creation`}
           />
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
+        <div className="min-w-0 rounded-xl border border-border bg-card p-4">
           <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
             2 · Tier & endpoint
           </p>
@@ -76,7 +77,7 @@ export function Quickstart({
         </div>
       </div>
 
-      <div className="mt-4 rounded-xl border border-border bg-card p-4 sm:p-5">
+      <div className="mt-4 min-w-0 rounded-xl border border-border bg-card p-4 sm:p-5">
         <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
           3 · Send it — model: <span className="font-mono text-foreground">{model}</span>
         </p>

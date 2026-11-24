@@ -116,13 +116,39 @@ export function ConnectPicker({
                   {tier === t.alias ? <Check className="size-2.5" /> : null}
                 </span>
                 <span className="min-w-0">
-                  <span className="block font-mono text-sm font-semibold text-foreground">
+                  {/*
+                    THE PRESSED STATE INVERTS THE BUTTON, so these three
+                    colours cannot be static. `variant="toggle"` paints
+                    `aria-pressed:bg-foreground` on the button; a child that
+                    hardcoded `text-foreground` then rendered foreground on
+                    foreground — a measured 1:1, i.e. the selected tier's name
+                    and blurb vanished. Composed from the same `tier ===
+                    t.alias` the radio dot already uses, rather than a
+                    `group-aria-pressed:` variant: the button carries a NAMED
+                    group (`group/button`), which that selector does not match.
+                  */}
+                  <span
+                    className={cn(
+                      'block font-mono text-sm font-semibold',
+                      tier === t.alias ? 'text-background' : 'text-foreground',
+                    )}
+                  >
                     {t.alias}
                   </span>
-                  <span className="block text-xs leading-snug text-muted-foreground">
+                  <span
+                    className={cn(
+                      'block text-xs leading-snug',
+                      tier === t.alias ? 'text-background/80' : 'text-muted-foreground',
+                    )}
+                  >
                     {t.blurb}
                   </span>
-                  <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  <span
+                    className={cn(
+                      'mt-0.5 block text-[11px]',
+                      tier === t.alias ? 'text-background/70' : 'text-muted-foreground',
+                    )}
+                  >
                     {t.plans}
                   </span>
                 </span>

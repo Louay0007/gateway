@@ -13,15 +13,16 @@ export function CodexSection() {
   return (
     <Section
       id="codex"
+      index={5}
       kicker="Agent CLI"
       title="Run Codex on Zaino"
       body="codex-cli 0.156 speaks the Responses API exclusively. The gateway translates it to chat before metering — reasoning deltas stay out of the answer text, streams always terminate, error statuses pass through."
     >
-      <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+      <div className="flex min-w-0 items-center gap-4 rounded-xl border border-border bg-card p-4">
         <OpenAILogo />
-        <span>
+        <span className="min-w-0">
           <span className="block font-medium">Codex</span>
-          <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
+          <span className="mt-0.5 block font-mono text-xs break-words text-muted-foreground">
             0.156.1 verified · wire_api = responses · OpenAI CLI
           </span>
         </span>
@@ -38,15 +39,23 @@ export function CodexSection() {
       <div>
         <StepN n={2} text="Export the key and run with the override" />
         <CodeBlock language="bash" filename="run-codex.sh" code={CODEX_RUN} />
-        <p className="mt-2 flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-warning dark:border-warning/40 text-warning" role="note">
-          <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+        <p className="mt-2 flex items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-foreground" role="note">
+          {/*
+            `text-warning`, NOT `text-warning-foreground`, WAS WRONG HERE.
+            --warning is a FILL colour (oklch 0.72 0.17 70 in light mode): fine
+            as a 10% tint behind text, but as text on that same tint it measures
+            2.34:1 — below the 4.5:1 body floor AND below the 3:1 icon floor.
+            The amber now stays on the border, the background and the icon,
+            and the sentence is ink. Reads as a note in both themes.
+          */}
+          <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
           <span>
             <code className="font-mono">-c model=fast</code> is required —
             without it Codex sends its global default, rejected with 403.
           </span>
         </p>
       </div>
-      <ul className="grid gap-2 rounded-xl border border-border bg-card p-4 text-sm sm:grid-cols-3">
+      <ul className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-2 rounded-xl border border-border bg-card p-4 text-sm sm:grid-cols-3">
         {["Prompt → tool call → answer", "Multi-step file read/write/exec", "Use max_output ≥ 1024"].map((t) => (
           <li key={t} className="flex items-start gap-2 text-[13px]">
             <Check className="mt-0.5 size-4 shrink-0" aria-hidden />

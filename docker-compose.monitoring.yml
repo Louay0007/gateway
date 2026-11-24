@@ -9,8 +9,11 @@
 # Bound to loopback on purpose: the dashboard is for an operator on an SSH
 # tunnel, not a public port. Reach it with:
 #
-#   ssh -L 19999:127.0.0.1:19999 admin@15.188.66.155
+#   ssh -L 19999:127.0.0.1:19999 event-toolbox-db
 #   open http://127.0.0.1:19999
+#
+# `event-toolbox-db` is 197.5.133.66 — the production box. The `admin@
+# 15.188.66.155` this comment used to name is decommissioned.
 services:
   netdata:
     image: netdata/netdata:stable

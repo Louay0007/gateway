@@ -52,7 +52,7 @@ export default function ContactPage() {
     <>
       <SiteNav active="Contact" />
       <main className="pt-16">
-        <section className="bg-white py-16 sm:py-24">
+        <section className="bg-background py-16 sm:py-24">
           <div className="mx-auto max-w-3xl px-4 lg:px-8">
             <p className="text-sm font-medium text-muted-foreground">
               Contact

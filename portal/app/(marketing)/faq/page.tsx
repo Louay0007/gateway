@@ -28,21 +28,21 @@ export default function FaqPage() {
       <SiteNav active="FAQ" />
       <main className="pt-16">
         <FaqSection />
-        <div className="border-t border-border/60 bg-white py-12">
+        <div className="border-t border-mkt-line bg-mkt-bg py-12">
           <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 lg:px-8">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-mkt-muted">
               Still unsure which plan fits?
             </p>
             <div className="flex flex-wrap gap-3 text-sm">
               <Link
                 href="/pricing"
-                className="font-medium underline underline-offset-4"
+                className="font-medium text-mkt-accent underline underline-offset-4"
               >
                 Compare plans
               </Link>
               <Link
                 href="/contact"
-                className="font-medium underline underline-offset-4"
+                className="font-medium text-mkt-accent underline underline-offset-4"
               >
                 Ask us directly
               </Link>

@@ -216,6 +216,18 @@ describe('the FAQ does the trust work', () => {
     expect(PRICING_FAQ.some((f) => /seat/i.test(f.q) || /seat/i.test(f.a))).toBe(false);
   });
 
+  it('never sells seats anywhere else in the facts module either', () => {
+    // The check above only read PRICING_FAQ, so a "Priced per seat" line in a
+    // plan description shipped and rendered on /pricing for as long as the
+    // facts module existed. Every customer-facing string in this file is
+    // covered now, because the seat feature is gone and no surface may
+    // advertise it.
+    const copy = PLAN_FACTS.flatMap((p) => [p.name, p.forWhom, p.headline])
+      .concat(COMPARISON.flatMap((g) => [g.group, ...g.rows.flatMap((r) => [r.label, ...Object.values(r.values)])]))
+      .join(' ');
+    expect(copy).not.toMatch(/seat/i);
+  });
+
   it('is between 8 and 12 questions', () => {
     expect(PRICING_FAQ.length).toBeGreaterThanOrEqual(8);
     expect(PRICING_FAQ.length).toBeLessThanOrEqual(12);

@@ -139,6 +139,59 @@
   --chat-rail: oklch(0.975 0 0);
   --chat-code-bg: oklch(0.968 0 0);
   --chat-hairline: oklch(0.9 0 0);
+
+  /*
+   * Landing palette — light.
+   *
+   * DECLARED HERE, IN THE FIRST `:root` BLOCK, AND NOT IN A SECOND ONE
+   * AFTER `.dark`. A second `:root { --mkt-* }` block later in this file is
+   * compiled by Lightning CSS to sit AFTER `.dark`, and `:root` and `.dark`
+   * have equal specificity — so the later rule won and the landing page
+   * rendered LIGHT in dark mode. Verified in the built CSS, not assumed.
+   * Every other token in this file already follows the "light here, dark in
+   * .dark" shape; the landing tokens now do too.
+   *
+   * WHY THE ACCENT FLIPS ROLE, NOT JUST VALUE. #A558FB and #4922E5 have
+   * opposite legibility on the two canvases:
+   *
+   *            on #050507   on #ffffff
+   *   #A558FB     5.23:1       3.90:1   <- fails AA as text on white
+   *   #4922E5     2.56:1       7.94:1   <- fails AA as text on black
+   *
+   * So neither is a theme-agnostic accent: each is only usable as TEXT on
+   * one side. `--mkt-accent` therefore carries whichever one is legible on
+   * the current canvas (a body-copy link at 3.9:1 is the failure this
+   * prevents), and `--mkt-accent-glow` carries the other one for DECORATIVE
+   * fills only — gradients, ring tints, focus glows — where contrast rules
+   * do not apply because no text sits on it.
+   *
+   * Measured against the canvases they are used on:
+   *   ink 19.79:1 · body 10.44:1 · muted 7.73:1 · faint 5.26:1 · accent 7.94:1
+   */
+  --mkt-bg:            #ffffff;
+  --mkt-surface:       #faf9fb;
+  --mkt-ink:           #0a0a0b;
+  --mkt-body:          #3f3f46;
+  --mkt-muted:         #52525b;
+  --mkt-faint:         #6b6b76;
+  --mkt-line:          rgb(10 10 11 / 0.10);
+  --mkt-line-strong:   rgb(10 10 11 / 0.16);
+  --mkt-accent:        #4922e5;
+  --mkt-accent-glow:   #a558fb;
+  --mkt-accent-ink:    #ffffff;
+  /* SOLID FILLS THAT CARRY WHITE TEXT. The "Most Popular" pill is white
+     text on a violet gradient, so its gradient cannot use `accent-glow`:
+     #A558FB is 3.90:1 against white (AA needs 4.5). These two are the
+     gradient's ends and are held to that floor in both themes — 7.94:1
+     and 7.10:1 in light, 5.70:1 and 7.10:1 in dark. */
+  --mkt-fill-1:        #4922e5;
+  --mkt-fill-2:        #6d28d9;
+  --mkt-glass:         rgb(255 255 255 / 0.72);
+  --mkt-dot:           rgb(73 34 229 / 0.10);
+  --mkt-glow-1:        rgb(73 34 229 / 0.10);
+  --mkt-glow-2:        rgb(165 88 251 / 0.07);
+  --mkt-horizon:       #4922e5;
+  --mkt-horizon-halo:  rgb(73 34 229 / 0.18);
 }
 
 .dark {
@@ -189,6 +242,88 @@
   --chat-rail: oklch(0.128 0 0);
   --chat-code-bg: oklch(0.215 0 0);
   --chat-hairline: oklch(1 0 0 / 9%);
+
+  /* Landing palette — dark. Every value here is what the landing page
+     shipped BEFORE it had a theme (near-black #050507 canvas, #0b0714
+     cards, #A558FB accent), so making the page theme-aware cannot change
+     how it looks in dark mode. See the light block below for why the
+     accent flips role between themes. */
+  --mkt-bg:            #050507;
+  --mkt-surface:       #0b0714;
+  --mkt-ink:           #ffffff;
+  --mkt-body:          rgb(255 255 255 / 0.70);
+  --mkt-muted:         rgb(255 255 255 / 0.60);
+  --mkt-faint:         rgb(255 255 255 / 0.50);
+  --mkt-line:          rgb(255 255 255 / 0.10);
+  --mkt-line-strong:   rgb(255 255 255 / 0.20);
+  --mkt-accent:        #a558fb;
+  --mkt-accent-glow:   #4922e5;
+  --mkt-accent-ink:    #ffffff;
+  /* Identical to the light theme on purpose: a filled violet button
+     should look the same in both modes, and both ends clear 4.5:1 against
+     white. Only the TEXT accent flips; the FILL does not. */
+  --mkt-fill-1:        #4922e5;
+  --mkt-fill-2:        #6d28d9;
+  --mkt-glass:         rgb(0 0 0 / 0.55);
+  --mkt-dot:           rgb(165 88 251 / 0.16);
+  --mkt-glow-1:        rgb(73 34 229 / 0.12);
+  --mkt-glow-2:        rgb(165 88 251 / 0.10);
+  --mkt-horizon:       #ffffff;
+  --mkt-horizon-halo:  rgb(255 255 255 / 0.71);
+}
+
+/*
+ * `.mkt-on-dark` — pin a subtree to the DARK landing palette whatever the
+ * document theme is. The mirror image of `.light-surface`: that one pins a
+ * white surface readable under a dark <html>; this one pins a black
+ * surface readable under a light <html>.
+ *
+ * Used by the marketing footer. A black footer under a white page is a
+ * deliberate pattern (Stripe, Vercel), and the footer is shared by eleven
+ * routes, so pinning it keeps a theme switch on the landing page from
+ * re-styling ten pages nobody was looking at. Because the footer's brand
+ * lockup and links read `--mkt-*` tokens, pinning the tokens is enough —
+ * no second set of classes, and `Logo tone="light"` is no longer needed
+ * to keep the wordmark legible on black.
+ *
+ * Declared after `.dark` on purpose: it is a class like `.dark`, so being
+ * later is what makes it win inside a dark document too.
+ *
+ * IT RE-DECLARES THE CORE TOKENS, NOT JUST `--mkt-*`. Pinning only the
+ * landing palette was not enough, and the failure was visible: the footer's
+ * brand lockup reads `--foreground` (components/assets/logo/logo.tsx
+ * `tone="auto"`), which under a LIGHT document is near-black — so "Zaino"
+ * painted rgb(10,10,10) on a rgb(5,5,7) footer. Caught by the contrast audit
+ * at 1.03:1. Mirroring what `.light-surface` does (it re-declares the whole
+ * light set) makes every token-based child correct inside this scope,
+ * including the logo, `text-muted-foreground` and any border.
+ */
+.mkt-on-dark {
+  --background:        #050507;
+  --foreground:        #ffffff;
+  --muted-foreground:  rgb(255 255 255 / 0.60);
+  --border:            rgb(255 255 255 / 0.10);
+  --input:             rgb(255 255 255 / 0.15);
+
+  --mkt-bg:            #050507;
+  --mkt-surface:       #0b0714;
+  --mkt-ink:           #ffffff;
+  --mkt-body:          rgb(255 255 255 / 0.70);
+  --mkt-muted:         rgb(255 255 255 / 0.60);
+  --mkt-faint:         rgb(255 255 255 / 0.50);
+  --mkt-line:          rgb(255 255 255 / 0.10);
+  --mkt-line-strong:   rgb(255 255 255 / 0.20);
+  --mkt-accent:        #a558fb;
+  --mkt-accent-glow:   #4922e5;
+  --mkt-accent-ink:    #ffffff;
+  --mkt-fill-1:        #4922e5;
+  --mkt-fill-2:        #6d28d9;
+  --mkt-glass:         rgb(0 0 0 / 0.55);
+  --mkt-dot:           rgb(165 88 251 / 0.16);
+  --mkt-glow-1:        rgb(73 34 229 / 0.12);
+  --mkt-glow-2:        rgb(165 88 251 / 0.10);
+  --mkt-horizon:       #ffffff;
+  --mkt-horizon-halo:  rgb(255 255 255 / 0.71);
 }
 
 @theme inline {
@@ -299,6 +434,23 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Landing palette -> utilities. `bg-mkt-surface`, `text-mkt-muted`,
+     `border-mkt-line` and friends exist because of these lines; without
+     them Tailwind v4 has no idea the tokens are colours. */
+  --color-mkt-bg: var(--mkt-bg);
+  --color-mkt-surface: var(--mkt-surface);
+  --color-mkt-ink: var(--mkt-ink);
+  --color-mkt-body: var(--mkt-body);
+  --color-mkt-muted: var(--mkt-muted);
+  --color-mkt-faint: var(--mkt-faint);
+  --color-mkt-line: var(--mkt-line);
+  --color-mkt-line-strong: var(--mkt-line-strong);
+  --color-mkt-accent: var(--mkt-accent);
+  --color-mkt-accent-glow: var(--mkt-accent-glow);
+  --color-mkt-accent-ink: var(--mkt-accent-ink);
+  --color-mkt-fill-1: var(--mkt-fill-1);
+  --color-mkt-fill-2: var(--mkt-fill-2);
 }
 
 @layer base {
@@ -340,7 +492,14 @@ html.light,
   --secondary: oklch(0.97 0 0) !important;
   --secondary-foreground: oklch(0.205 0 0) !important;
   --muted: oklch(0.97 0 0) !important;
-  --muted-foreground: oklch(0.556 0 0) !important;
+  /* 0.54, NOT the 0.556 this block carried for months. Step 11 lifted
+     `--muted-foreground` from 0.556 to 0.54 in the `:root` block above to
+     clear 4.5:1 on the muted surface, but this !important override kept the
+     OLD value — and `!important` beats the plain declaration, so every
+     surface that re-declares light tokens still rendered 4.35:1. The fix
+     shipped in one place and was silently reverted in the other; caught by
+     a measured contrast audit, not by review. */
+  --muted-foreground: oklch(0.54 0 0) !important;
   --accent: oklch(0.97 0 0) !important;
   --accent-foreground: oklch(0.205 0 0) !important;
   --destructive: oklch(0.51 0.245 27.325) !important;
@@ -689,6 +848,83 @@ a:not([class]) {
 }
 .chat-scroll::-webkit-scrollbar-thumb {
   border-width: 2px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+ *  MARKETING NAVBAR
+ *
+ *  Black glass in BOTH themes, which is why these rules read `--mkt-ink`
+ *  explicitly instead of `text-foreground`: the bar is dark on a white
+ *  page, so a token that flips with the document theme would paint dark
+ *  text on it. `.mkt-nav` pins the dark marketing palette for its subtree
+ *  and the children then use the same tokens as the rest of the page.
+ *
+ *  This replaces a 73-line `useEffect` in the navbar that wrote inline
+ *  styles onto the nav, the wordmark and every link, driven by a
+ *  MutationObserver plus a 50ms poll that ran 40 times after mount. Same
+ *  appearance, no JavaScript, and no race between hydration and paint.
+ * ════════════════════════════════════════════════════════════════════ */
+.mkt-nav {
+  background-color: rgb(0 0 0 / 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.mkt-nav-wordmark {
+  color: #ffffff;
+}
+
+.mkt-nav-sep {
+  background-color: rgb(255 255 255 / 0.2);
+}
+
+.mkt-nav-link {
+  color: rgb(255 255 255 / 0.7);
+}
+
+.mkt-nav-link:hover,
+.mkt-nav-link:focus-visible {
+  color: #ffffff;
+}
+
+/* The nav is fixed over page content, so a keyboard focus inside it must
+ * stay visible against the glass rather than the page behind it. */
+.mkt-nav a:focus-visible,
+.mkt-nav button:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 0.75);
+  outline-offset: 2px;
+}
+
+/*
+ * The CTA panel at the foot of the landing page.
+ *
+ * Its glow used to be a `before:` pseudo-element with literal colours
+ * (`from-black via-[#1a0b2e] to-[#241033]`) — a violet bloom that only
+ * works on black. On white, `from-black` painted a hard dark smear behind
+ * the panel. Here the gradient is built from the marketing tokens, so the
+ * bloom is a deep violet on the dark canvas and a soft lavender wash on
+ * the light one, and the panel keeps the same rounded footprint in both.
+ */
+.mkt-cta-panel {
+  border: 1px solid color-mix(in oklab, var(--mkt-accent) 20%, transparent);
+}
+
+.mkt-cta-panel::before {
+  content: "";
+  position: absolute;
+  top: 6rem;
+  width: 100%;
+  height: 80%;
+  border-radius: 100%;
+  z-index: -1;
+  filter: blur(64px);
+  background: linear-gradient(
+    to right,
+    var(--mkt-bg) 15%,
+    color-mix(in oklab, var(--mkt-accent-glow) 55%, var(--mkt-bg)) 55%,
+    color-mix(in oklab, var(--mkt-accent) 45%, var(--mkt-bg)) 90%
+  );
 }
 
 /*

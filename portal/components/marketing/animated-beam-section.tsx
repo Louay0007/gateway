@@ -46,6 +46,14 @@ const UserIcon = () => (
   </svg>
 );
 
+/**
+ * Colours are `--mkt-*` tokens throughout. The node interiors were
+ * `bg-[#0b0714]` (near-black) and the user chips `bg-white/5` — both
+ * invisible-in-reverse on a white canvas, where a near-black disc on white
+ * reads as a deliberate mark but a 5%-white chip reads as nothing at all.
+ * `bg-mkt-surface` gives the dark mode its existing #0b0714 and the light
+ * mode a warm off-white that a 1px accent ring can sit on.
+ */
 export default function AnimatedBeamSection({ className }: { className?: string }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const toolRef = useRef<HTMLDivElement>(null);
@@ -64,15 +72,21 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           0%, 100% { transform: translateY(0px); }
           50% { transform: translateY(-12px); }
         }
+        /* The global reduced-motion rule collapses durations, which would
+           leave this loop pinned mid-frame. Removing the animation outright
+           lands it on the resting position instead. */
+        @media (prefers-reduced-motion: reduce) {
+          .mkt-float { animation: none !important; }
+        }
       `}</style>
-      <h2 className="mb-8 text-center font-medium text-lg tracking-tight md:text-2xl text-white">
-        <span className="text-white/60">One API.</span>{' '}
-        <span className="font-semibold text-white">Every model connected.</span>
+      <h2 className="mb-8 text-center font-medium text-lg tracking-tight md:text-2xl text-mkt-ink">
+        <span className="text-mkt-muted">One API.</span>{' '}
+        <span className="font-semibold text-mkt-ink">Every model connected.</span>
       </h2>
       <div className="flex flex-col lg:flex-row items-center gap-8 lg:gap-12">
         <div
           className={cn(
-            'relative flex w-full lg:w-1/2 max-w-[500px] items-center justify-center overflow-visible p-4',
+            'mkt-float relative flex w-full lg:w-1/2 max-w-[500px] items-center justify-center overflow-visible p-4',
           )}
           style={{ animation: 'float-drift 4s ease-in-out infinite', willChange: 'transform', transform: 'translateZ(0)' }}
           ref={containerRef}
@@ -80,31 +94,31 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           <div className='flex h-full w-full flex-row items-stretch justify-between gap-8'>
             {/* Left: your tool — no vendor mark, see ToolIcon above. */}
             <div className='flex flex-col justify-center'>
-              <Circle ref={toolRef} className="h-18 w-18 bg-[#0b0714] border-[#A558FB]/40 text-[#A558FB]">
+              <Circle ref={toolRef} className="h-18 w-18 bg-mkt-surface border-mkt-accent/40 text-mkt-accent">
                 <ToolIcon />
               </Circle>
             </div>
             {/* Center: Zaino AI */}
             <div className='flex flex-col justify-center'>
-              <Circle ref={zainoRef} className='h-20 w-20 bg-[#0b0714] border-[#A558FB]/50 shadow-[0_0_40px_rgba(165,88,251,0.25)] text-white'>
+              <Circle ref={zainoRef} className='h-20 w-20 bg-mkt-surface border-mkt-accent/50 shadow-[0_0_40px_var(--mkt-glow-2)] text-mkt-ink'>
                 <ZainoLogo />
               </Circle>
             </div>
             {/* Right: Multiple Users */}
-            <div className='flex flex-col justify-center gap-2 text-white/80'>
-              <Circle ref={user1Ref} className="h-14 w-14 bg-white/5 border-[#4922E5]/40">
+            <div className='flex flex-col justify-center gap-2 text-mkt-body'>
+              <Circle ref={user1Ref} className="h-14 w-14 bg-mkt-surface border-mkt-accent-glow/40">
                 <UserIcon />
               </Circle>
-              <Circle ref={user2Ref} className="h-14 w-14 bg-white/5 border-[#A558FB]/30">
+              <Circle ref={user2Ref} className="h-14 w-14 bg-mkt-surface border-mkt-accent/30">
                 <UserIcon />
               </Circle>
-              <Circle ref={user3Ref} className="h-14 w-14 bg-white/5 border-[#4922E5]/40">
+              <Circle ref={user3Ref} className="h-14 w-14 bg-mkt-surface border-mkt-accent-glow/40">
                 <UserIcon />
               </Circle>
-              <Circle ref={user4Ref} className="h-14 w-14 bg-white/5 border-[#A558FB]/30">
+              <Circle ref={user4Ref} className="h-14 w-14 bg-mkt-surface border-mkt-accent/30">
                 <UserIcon />
               </Circle>
-              <Circle ref={user5Ref} className="h-14 w-14 bg-white/5 border-[#4922E5]/40">
+              <Circle ref={user5Ref} className="h-14 w-14 bg-mkt-surface border-mkt-accent-glow/40">
                 <UserIcon />
               </Circle>
             </div>
@@ -117,7 +131,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
           <AnimatedBeam containerRef={containerRef} fromRef={user4Ref} toRef={zainoRef} duration={3} />
           <AnimatedBeam containerRef={containerRef} fromRef={user5Ref} toRef={zainoRef} duration={3} />
           {/* AnimatedBeam: your tool → Zaino */}
-          <AnimatedBeam containerRef={containerRef} fromRef={zainoRef} toRef={toolRef} duration={3} reverse gradientStartColor="#4922E5" gradientStopColor="#A558FB" />
+          <AnimatedBeam containerRef={containerRef} fromRef={zainoRef} toRef={toolRef} duration={3} reverse gradientStartColor="var(--mkt-accent-glow)" gradientStopColor="var(--mkt-accent)" />
         </div>
 
         {/* Right: the throttling contrast, stated without naming a vendor */}
@@ -131,7 +145,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
             duration={0.6}
             blur="6px"
             y={8}
-            className="text-base sm:text-lg text-white/60 leading-relaxed"
+            className="text-base sm:text-lg text-mkt-muted leading-relaxed"
           />
           <TextReveal
             text="Zaino gives you a shared token pool and no per-minute throttling — so a heavy hour costs you an hour, not a day. Just code."
@@ -142,7 +156,7 @@ export default function AnimatedBeamSection({ className }: { className?: string 
             duration={0.6}
             blur="6px"
             y={8}
-            className="text-base sm:text-lg font-medium text-white leading-relaxed"
+            className="text-base sm:text-lg font-medium text-mkt-ink leading-relaxed"
           />
         </div>
       </div>

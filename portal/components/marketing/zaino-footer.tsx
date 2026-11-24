@@ -61,9 +61,23 @@ const columns = [
 
 export default function ZainoFooter() {
   return (
+    /*
+     * `.mkt-on-dark` PINS THE DARK PALETTE FOR THIS SUBTREE.
+     *
+     * The footer is deliberately black in both themes — a black plinth under
+     * a white page is a common and deliberate pattern (Stripe, Vercel) — and
+     * it is shared by eleven routes. Pinning the tokens means a theme switch
+     * on the landing page cannot restyle the footer of /docs, /pricing,
+     * /terms and the rest, so this change stays where it was asked for.
+     *
+     * It also fixes a latent contrast bug: the wordmark used `tone="auto"`,
+     * which resolves to `text-foreground`. On a light <html> that is
+     * near-BLACK text on this near-black footer. Pinning `--mkt-ink` inside
+     * the scope is what makes `tone="light"` (fixed black) unnecessary and
+     * `tone="auto"` correct again — the token it reads is white here.
+     */
     <RuixenGradientFooter
-      className="relative overflow-hidden bg-[#000000] dark:bg-[#000000]"
-      style={{ backgroundColor: '#000000', backgroundImage: 'none' }}
+      className="mkt-on-dark relative overflow-hidden bg-mkt-bg"
     >
       <Ambient />
       <div className="relative z-10 mx-auto w-full max-w-6xl px-6 pt-16">
@@ -73,7 +87,7 @@ export default function ZainoFooter() {
             <div className="flex items-center gap-2">
               <Logo tone="auto" />
             </div>
-            <p className="mt-4 max-w-xs text-sm text-white/60">
+            <p className="mt-4 max-w-xs text-sm text-mkt-muted">
               One key, one shared token pool per plan, and a meter you can audit. Built for developers in Tunisia and the Maghreb, payable by D17.
             </p>
             <div className="mt-6 flex max-w-xs gap-2">
@@ -81,12 +95,12 @@ export default function ZainoFooter() {
                 type="email"
                 aria-label="Email address"
                 placeholder="you@company.com"
-                className="h-9 w-full rounded-md border border-white/20 bg-white/5 px-3 text-sm text-white placeholder:text-white/40 focus:border-[#A558FB] focus:outline-none"
+                className="h-9 w-full rounded-md border border-mkt-line-strong bg-mkt-surface px-3 text-sm text-mkt-ink placeholder:text-mkt-faint focus:border-mkt-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-mkt-accent/40"
               />
               <Button
                 type="button"
                 size="sm"
-                className="shrink-0 bg-white text-black hover:bg-white/90"
+                className="shrink-0 bg-mkt-ink text-mkt-bg hover:opacity-90 cursor-pointer"
               >
                 Join
               </Button>
@@ -97,13 +111,13 @@ export default function ZainoFooter() {
           <nav className="grid grid-cols-2 gap-10 text-sm sm:grid-cols-4 lg:col-span-4">
             {columns.map((col) => (
               <div key={col.title}>
-                <h3 className="font-semibold text-white">{col.title}</h3>
+                <h3 className="font-semibold text-mkt-ink">{col.title}</h3>
                 <ul className="mt-4 flex flex-col gap-3">
                   {col.links.map((link) => (
                     <li key={link.label}>
                       <a
                         href={link.href}
-                        className="text-white/50 transition-colors hover:text-[#A558FB]"
+                        className="text-mkt-faint transition-colors hover:text-mkt-accent"
                       >
                         {link.label}
                       </a>
@@ -116,10 +130,10 @@ export default function ZainoFooter() {
         </div>
 
         {/* Bottom bar */}
-        <div className="flex flex-col items-center justify-between gap-3 border-t border-white/10 pt-6 pb-2 text-xs text-white/40 sm:flex-row">
+        <div className="flex flex-col items-center justify-between gap-3 border-t border-mkt-line pt-6 pb-2 text-xs text-mkt-faint sm:flex-row">
           <span>© 2026 Zaino AI</span>
           <span className="flex items-center gap-2">
-            <span className="size-1.5 rounded-full bg-[#A558FB]" />
+            <span className="size-1.5 rounded-full bg-mkt-accent" />
             All systems normal
           </span>
           <span>Tunis · Remote</span>

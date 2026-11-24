@@ -56,12 +56,20 @@ export function CodeBlock({
 
   return (
     <figure
+      /* `min-w-0` IS LOAD-BEARING, and its absence pushed /docs 320px wide on
+       * a 390px phone and /download 145px. A grid or flex child defaults to
+       * `min-width: auto`, so it refuses to shrink below its widest content —
+       * which for this block is the longest line inside <pre>. The `pre` did
+       * have `overflow-x-auto`, but the scroll container was sized BY the
+       * line, so it never engaged and the whole page scrolled instead.
+       * `w-full` + `min-w-0` on the figure caps it at its container, and the
+       * `pre` then scrolls its own content as intended. */
       className={cn(
-        "group/code overflow-hidden rounded-xl border border-border bg-background",
+        "group/code relative w-full min-w-0 overflow-hidden rounded-xl border border-border bg-background",
         className,
       )}
     >
-      <figcaption className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2">
+      <figcaption className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
         <span className="flex items-center gap-2 text-xs text-muted-foreground">
           <span
             aria-hidden
@@ -84,15 +92,24 @@ export function CodeBlock({
           size="xs"
           onClick={copy}
           aria-label={copied ? "Copied" : `Copy ${language} snippet`}
-          className="text-muted-foreground hover:bg-white/10 hover:text-white"
+          className="text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copied ? "Copied" : "Copy"}
         </Button>
       </figcaption>
-      <pre className="overflow-x-auto p-4 text-[13px] leading-relaxed text-foreground">
+      <pre className="min-w-0 overflow-x-auto p-4 text-[13px] leading-relaxed text-foreground">
         <code className="font-mono whitespace-pre">{code}</code>
       </pre>
+      {/* A right-edge fade: the one honest way to say "this scrolls" without
+          spending a paragraph on it. It sits over the pre's padding and is
+          pointer-transparent, so it never blocks a drag. A code block whose
+          content overflows and shows no affordance reads as truncated — the
+          quickstart credential block was doing exactly that at 380px wide. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-background to-transparent opacity-0 transition-opacity group-hover/code:opacity-100"
+      />
     </figure>
   );
 }

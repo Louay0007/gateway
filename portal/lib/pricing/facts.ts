@@ -65,7 +65,7 @@ export const PLAN_FACTS: PlanFacts[] = [
   {
     code: "pro",
     name: "Pro",
-    forWhom: "For work that needs the strongest reasoning. Priced per seat.",
+    forWhom: "For work that needs the strongest reasoning, on the frontier and fable models.",
     priceUsdCents: 3000,
     priceTndMillimes: 90000,
     poolTokens: 50_000_000,

@@ -188,8 +188,8 @@ export default function PricingComponent({
   // Auth-aware CTA without next-auth's SessionProvider: the provider is
   // not mounted in the marketing tree (see app/layout.tsx), so useSession()
   // returns undefined and crashes prerender. /api/profile answers 401 when
-  // signed out — same pattern as PricingPreview — so a successful fetch
-  // means authenticated and an error means anonymous.
+  // signed out — same pattern as the catalog fetch below — so a successful
+  // fetch means authenticated and an error means anonymous.
   const profile = useApi<ProfileView>('/api/profile');
   // Live catalog is the price source of truth. When the caller passes
   // explicit plans (a custom embed), that selection wins.
@@ -244,11 +244,11 @@ export default function PricingComponent({
 
   const cell = (value: string) =>
     value === 'Yes' ? (
-      <Check className="h-5 w-5 text-[#A558FB] mx-auto" aria-label="Included" strokeWidth={2.5} />
+      <Check className="h-5 w-5 text-mkt-accent mx-auto" aria-label="Included" strokeWidth={2.5} />
     ) : value === '—' ? (
-      <X className="h-5 w-5 text-white/20 mx-auto" aria-label="Not included" strokeWidth={2.5} />
+      <X className="h-5 w-5 text-mkt-faint mx-auto" aria-label="Not included" strokeWidth={2.5} />
     ) : (
-      <span className="text-sm text-white/80">{value}</span>
+      <span className="text-sm text-mkt-body">{value}</span>
     );
 
   return (
@@ -257,10 +257,10 @@ export default function PricingComponent({
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4 text-white">
+          <h2 className="text-3xl font-bold tracking-tight sm:text-4xl mb-4 text-mkt-ink">
             Choose Your Plan
           </h2>
-          <p className="text-lg text-white/60 max-w-2xl mx-auto mb-8">
+          <p className="text-lg text-mkt-muted max-w-2xl mx-auto mb-8">
             Every model, one API. Pay in dinars by D17 transfer anywhere in
             Tunisia, or by card on Starter and Pro.
           </p>
@@ -268,16 +268,16 @@ export default function PricingComponent({
           {/* Tab Navigation */}
           {showComparison && (
             <div className="flex justify-center mb-8">
-              <div className="inline-flex items-center bg-white/5 border border-white/10 p-1 rounded-lg">
+              <div className="inline-flex items-center bg-mkt-surface border border-mkt-line p-1 rounded-lg">
                 <button
                   onClick={() => setActiveTab('pricing')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${ activeTab === 'pricing' ? 'bg-white/10 text-white shadow-sm' : 'text-white/50 hover:text-white' }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${ activeTab === 'pricing' ? 'bg-mkt-bg text-mkt-ink shadow-sm ring-1 ring-mkt-line' : 'text-mkt-muted hover:text-mkt-ink' }`}
                 >
                   Pricing
                 </button>
                 <button
                   onClick={() => setActiveTab('comparison')}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${ activeTab === 'comparison' ? 'bg-white/10 text-white shadow-sm' : 'text-white/50 hover:text-white' }`}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-all ${ activeTab === 'comparison' ? 'bg-mkt-bg text-mkt-ink shadow-sm ring-1 ring-mkt-line' : 'text-mkt-muted hover:text-mkt-ink' }`}
                 >
                   Compare Features
                 </button>
@@ -296,16 +296,16 @@ export default function PricingComponent({
               <div key={plan.id} className={`flex flex-col ${plan.popular ? 'relative z-10' : ''}`}>
                 {/* Outer wrapper for gradient border on popular card */}
                 <div
-                  className={`relative rounded-2xl h-full flex flex-col transition-all duration-300 ${ plan.popular ? 'p-[2px] bg-gradient-to-b from-[#A558FB] via-[#4922E5]/70 to-[#4922E5]/20 shadow-[0_0_40px_rgba(76,34,229,0.35)] lg:scale-[1.04] xl:scale-100' : 'border border-white/10 shadow-md hover:shadow-lg bg-[#0b0714]' }`}
+                  className={`relative rounded-2xl h-full flex flex-col transition-all duration-300 ${ plan.popular ? 'p-[2px] bg-gradient-to-b from-mkt-accent-glow via-mkt-accent/70 to-mkt-accent/20 shadow-[0_0_40px_var(--mkt-glow-1)] lg:scale-[1.04] xl:scale-100' : 'border border-mkt-line shadow-md hover:shadow-lg bg-mkt-surface' }`}
                 >
                   {/* Inner card */}
                   <div
-                    className={`relative rounded-[14px] h-full flex flex-col bg-[#0b0714]`}
+                    className={`relative rounded-[14px] h-full flex flex-col bg-mkt-surface`}
                   >
                     {/* Most Popular Badge */}
                     {plan.popular && (
                       <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20">
-                        <span className="inline-flex items-center rounded-full bg-gradient-to-r from-[#4922E5] to-[#A558FB] px-4 py-1.5 text-xs font-semibold text-white shadow-lg whitespace-nowrap">
+                        <span className="inline-flex items-center rounded-full bg-gradient-to-r from-mkt-fill-1 to-mkt-fill-2 px-4 py-1.5 text-xs font-semibold text-mkt-accent-ink shadow-lg whitespace-nowrap">
                           Most Popular
                         </span>
                       </div>
@@ -313,8 +313,8 @@ export default function PricingComponent({
 
                     {/* Card Header */}
                     <div className="px-6 pt-6 pb-4">
-                      <h3 className="text-xl font-bold text-white">{plan.name}</h3>
-                      <p className="text-sm text-white/60 mt-1">{plan.description}</p>
+                      <h3 className="text-xl font-bold text-mkt-ink">{plan.name}</h3>
+                      <p className="text-sm text-mkt-muted mt-1">{plan.description}</p>
                     </div>
 
                     {/* Card Content */}
@@ -324,20 +324,20 @@ export default function PricingComponent({
                             string made "/month" hang off the dinars and the
                             two amounts read as a single figure. */}
                         <div className="flex flex-wrap items-baseline gap-2">
-                          <span className="text-4xl font-bold tracking-tight text-white">
+                          <span className="text-4xl font-bold tracking-tight text-mkt-ink">
                             {formatPrice(plan)}
                           </span>
                           {!plan.customPrice && plan.priceTndLabel && (
-                            <span className="text-lg font-medium text-white/60 tabular-nums">
+                            <span className="text-lg font-medium text-mkt-muted tabular-nums">
                               {plan.priceTndLabel}
                             </span>
                           )}
                           {!plan.customPrice && (
-                            <span className="text-white/50 text-sm">/month</span>
+                            <span className="text-mkt-faint text-sm">/month</span>
                           )}
                         </div>
                         {plan.customPrice && (
-                          <div className="text-sm text-white/50 mt-1">
+                          <div className="text-sm text-mkt-faint mt-1">
                             Custom pricing for your team
                           </div>
                         )}
@@ -347,7 +347,7 @@ export default function PricingComponent({
                         {plan.features.map((feature, idx) => (
                           <li key={idx} className="flex items-start gap-3">
                             <div
-                              className={`mt-0.5 shrink-0 ${ feature.included ? 'text-[#A558FB]' : 'text-white/20' }`}
+                              className={`mt-0.5 shrink-0 ${ feature.included ? 'text-mkt-accent' : 'text-mkt-faint' }`}
                             >
                               {feature.included ? (
                                 <Check className="h-5 w-5" aria-hidden="true" strokeWidth={2.5} />
@@ -356,7 +356,7 @@ export default function PricingComponent({
                               )}
                             </div>
                             <span
-                              className={`text-sm ${ feature.included ? 'text-white' : 'text-white/50' }`}
+                              className={`text-sm ${ feature.included ? 'text-mkt-ink' : 'text-mkt-faint' }`}
                             >
                               {feature.name}
                             </span>
@@ -366,7 +366,7 @@ export default function PricingComponent({
                     </div>
 
                     {/* Card Footer — mt-auto pushes it to bottom for equal height */}
-                    <div className="px-6 pb-6 pt-4 border-t border-white/10 mt-auto">
+                    <div className="px-6 pb-6 pt-4 border-t border-mkt-line mt-auto">
                       <Button
                         onClick={() => handlePlanSelect(plan.id)}
                         variant={plan.buttonVariant || (plan.popular ? 'default' : 'outline')}
@@ -383,26 +383,26 @@ export default function PricingComponent({
         ) : (
           <div className="max-w-7xl mx-auto">
             <div
-              className="overflow-x-auto rounded-xl border border-white/10 shadow-lg bg-[#0b0714]"
+              className="overflow-x-auto rounded-xl border border-mkt-line shadow-lg bg-mkt-surface"
             >
               <table className="w-full min-w-[860px] border-collapse">
                 <thead>
-                  <tr className="border-b-2 border-white/10">
-                    <th className="sticky left-0 z-10 bg-[#0b0714] text-left py-4 px-4 font-semibold text-white">
+                  <tr className="border-b-2 border-mkt-line">
+                    <th className="sticky left-0 z-10 bg-mkt-surface text-left py-4 px-4 font-semibold text-mkt-ink">
                       Features
                     </th>
                     {plans.map((plan) => (
                       <th key={plan.id} className="text-center py-4 px-4 min-w-[160px]">
                         <div className="space-y-1">
-                          <div className="font-bold text-white">{plan.name}</div>
-                          <div className="text-2xl font-bold text-white">{formatPrice(plan)}</div>
+                          <div className="font-bold text-mkt-ink">{plan.name}</div>
+                          <div className="text-2xl font-bold text-mkt-ink">{formatPrice(plan)}</div>
                           {!plan.customPrice && plan.priceTndLabel && (
-                            <div className="text-sm font-medium text-white/60 tabular-nums">
+                            <div className="text-sm font-medium text-mkt-muted tabular-nums">
                               {plan.priceTndLabel}
                             </div>
                           )}
                           {!plan.customPrice && (
-                            <div className="text-xs text-white/50">/month</div>
+                            <div className="text-xs text-mkt-faint">/month</div>
                           )}
                         </div>
                       </th>
@@ -415,7 +415,7 @@ export default function PricingComponent({
                         <tr key={`group-${group.group}`}>
                           <td
                             colSpan={plans.length + 1}
-                            className="pt-6 pb-2 px-4 text-xs font-semibold uppercase tracking-wider text-white/40"
+                            className="pt-6 pb-2 px-4 text-xs font-semibold uppercase tracking-wider text-mkt-faint"
                           >
                             {group.group}
                           </td>
@@ -423,9 +423,9 @@ export default function PricingComponent({
                         ...group.rows.map((row) => (
                           <tr
                             key={`${group.group}-${row.label}`}
-                            className="border-b border-white/5 hover:bg-white/5 transition-colors"
+                            className="border-b border-mkt-line hover:bg-mkt-bg transition-colors"
                           >
-                            <td className="sticky left-0 z-10 bg-[#0b0714] py-4 px-4 font-medium text-white">
+                            <td className="sticky left-0 z-10 bg-mkt-surface py-4 px-4 font-medium text-mkt-ink">
                               {row.label}
                             </td>
                             {plans.map((plan) => (
@@ -442,17 +442,17 @@ export default function PricingComponent({
                     : allFeatures.map((featureName, idx) => (
                         <tr
                           key={featureName}
-                          className={`border-b border-white/5 hover:bg-white/5 transition-colors ${ idx % 2 === 0 ? '' : 'bg-white/[0.02]' }`}
+                          className={`border-b border-mkt-line hover:bg-mkt-bg transition-colors ${ idx % 2 === 0 ? '' : 'bg-mkt-bg' }`}
                         >
-                          <td className="py-4 px-4 font-medium text-white">{featureName}</td>
+                          <td className="py-4 px-4 font-medium text-mkt-ink">{featureName}</td>
                           {plans.map((plan) => {
                             const feature = plan.features.find((f) => f.name === featureName);
                             return (
                               <td key={`${plan.id}-${featureName}`} className="text-center py-4 px-4">
                                 {feature?.included ? (
-                                  <Check className="h-5 w-5 text-[#A558FB] mx-auto" aria-label="Included" strokeWidth={2.5} />
+                                  <Check className="h-5 w-5 text-mkt-accent mx-auto" aria-label="Included" strokeWidth={2.5} />
                                 ) : (
-                                  <X className="h-5 w-5 text-white/20 mx-auto" aria-label="Not included" strokeWidth={2.5} />
+                                  <X className="h-5 w-5 text-mkt-faint mx-auto" aria-label="Not included" strokeWidth={2.5} />
                                 )}
                               </td>
                             );
@@ -466,8 +466,8 @@ export default function PricingComponent({
         )}
 
         {/* Footer */}
-        <div className="text-center mt-12 pt-8 border-t border-white/10">
-          <p className="text-sm text-white/50">
+        <div className="text-center mt-12 pt-8 border-t border-mkt-line">
+          <p className="text-sm text-mkt-faint">
             Pay by D17 transfer (Tunisia), or by card on Starter and Pro.
             Cancel anytime.
           </p>

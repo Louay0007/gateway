@@ -33,9 +33,23 @@ export default defineConfig({
   webServer: {
     // A port of its own so this never fights `next dev` on 3000, and
     // `reuseExistingServer` so a second run is fast.
+    //
+    // THE DATABASE IS NOT REQUIRED BY THESE SPECS — the public pages fall
+    // back to the hardcoded plan cards when `/api/plans` fails. But the
+    // portal's `db/index.ts` throws at MODULE evaluation if `DATABASE_URL` is
+    // unset, so the server refuses to boot before a single page renders. A
+    // placeholder that points at nothing (and is never queried by these
+    // specs) is enough; a real DSN is not needed to prove the marketing
+    // pages paint.
     command: 'npx next start -p 3100',
     url: 'http://127.0.0.1:3100',
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      DATABASE_URL:
+        process.env.DATABASE_URL ?? 'postgresql://e2e:e2e@127.0.0.1:5432/portal',
+      AUTH_SECRET:
+        process.env.AUTH_SECRET ?? 'e2e-only-not-a-real-secret-0000000000',
+    },
   },
 });

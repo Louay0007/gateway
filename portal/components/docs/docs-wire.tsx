@@ -18,6 +18,7 @@ export function OpenAISection({ model, base }: { model: string; base: string }) 
   return (
     <Section
       id="openai"
+      index={3}
       kicker="Wire format"
       title="OpenAI-compatible chat"
       body={
@@ -65,6 +66,7 @@ export function AnthropicSection({ model, base }: { model: string; base: string 
   return (
     <Section
       id="anthropic"
+      index={4}
       kicker="Wire format"
       title="Anthropic-compatible messages"
       body={
@@ -93,7 +95,7 @@ export function AnthropicSection({ model, base }: { model: string; base: string 
 
 function CompatCard({ mark, name, note }: { mark: React.ReactNode; name: string; note: string }) {
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-border bg-card p-4">
+    <div className="flex min-w-0 items-center gap-4 rounded-xl border border-border bg-card p-4">
       {mark}
       <span>
         <span className="block font-medium">{name}-compatible</span>

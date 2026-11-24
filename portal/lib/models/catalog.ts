@@ -47,11 +47,17 @@ export interface CatalogModel {
 /**
  * Volume for every alias in one grouped scan.
  *
+ * Returns `null` when the measurement could not be taken at all (database
+ * unreachable), rather than `{}`. The distinction matters: an empty OBJECT
+ * means "no rows in the window", which is an honest zero for each alias,
+ * while no answer at all must render as "volume unavailable". Passing `{}`
+ * through made a broken read look like a measured zero on the marketing page.
+ *
  * A failure here must not take the page down: the catalog is still true
- * without the volume line, and a public marketing page is the worst place
- * to render a database error. The caller renders "—" instead.
+ * without the volume line, and a public marketing page is the worst place to
+ * render a database error.
  */
-export async function volumeLast7d(): Promise<Record<string, number>> {
+export async function volumeLast7d(): Promise<Record<string, number> | null> {
   try {
     const rows = (await db.execute(sql`
       SELECT u.model,
@@ -65,7 +71,7 @@ export async function volumeLast7d(): Promise<Record<string, number>> {
     for (const r of rows) out[r.model] = Number(r.tokens ?? 0);
     return out;
   } catch {
-    return {};
+    return null;
   }
 }
 
@@ -83,9 +89,10 @@ export async function buildCatalog(): Promise<CatalogModel[]> {
     plans: t.plans,
     contextWindow: CONTEXT_WINDOW,
     maxOutputTokens: MAX_OUTPUT_TOKENS,
-    servedLast7d: Object.prototype.hasOwnProperty.call(volume, t.alias)
-      ? volume[t.alias]!
-      : 0,
+    // `null` = the read failed, so the card says "unavailable" instead of
+    // claiming a zero it cannot vouch for. An alias genuinely absent from a
+    // SUCCESSFUL scan is a real 0.
+    servedLast7d: volume === null ? null : (volume[t.alias] ?? 0),
   }));
 }
 

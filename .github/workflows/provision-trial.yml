@@ -45,19 +45,38 @@ concurrency:
 
 jobs:
   provision:
+    # Pinned to the production box (`event-toolbox-db`, 197.5.133.66) for the
+    # same reason as deploy.yml: `gateway-new` is the only label that
+    # distinguishes it, and the IP is asserted below so a mis-registered
+    # runner cannot mint real accounts against the wrong database.
     runs-on: [self-hosted, linux, x64, gateway-new]
     timeout-minutes: 60
+
+    env:
+      # Same constant as deploy.yml. Provisioning writes real rows to the
+      # production Postgres, so "which machine am I on" must be a check, not a
+      # comment.
+      EXPECTED_HOST_IP: 197.5.133.66
+      MODE: ${{ inputs.mode }}
+      LIMIT: ${{ inputs.limit }}
+      COMPANY: ${{ inputs.company }}
 
     defaults:
       run:
         working-directory: /opt/gateway
 
-    env:
-      MODE: ${{ inputs.mode }}
-      LIMIT: ${{ inputs.limit }}
-      COMPANY: ${{ inputs.company }}
-
     steps:
+      - name: Assert the deploy target
+        run: |
+          echo "runner    : ${RUNNER_NAME:-unknown}"
+          echo "addresses : $(hostname -I)"
+          if ! hostname -I | tr ' ' '\n' | grep -Fxq "$EXPECTED_HOST_IP"; then
+            echo "::error::This job did not land on production ($EXPECTED_HOST_IP)."
+            echo "Addresses found: $(hostname -I). Refusing to provision here."
+            exit 1
+          fi
+          echo "target    : event-toolbox-db ($EXPECTED_HOST_IP) — confirmed"
+
       - name: Show what is provisioned against
         run: |
           echo "mode    : $MODE"

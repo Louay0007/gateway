@@ -22,6 +22,7 @@ export function ModelsSection() {
   return (
     <Section
       id="models"
+      index={2}
       kicker="Models"
       title="Four names. That's the whole catalog."
       body={
@@ -34,7 +35,7 @@ export function ModelsSection() {
         </>
       }
     >
-      <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-6 sm:grid-cols-2 xl:grid-cols-4">
         {TIERS.map((t) => {
           const featured = t.alias === "smart";
           return (
