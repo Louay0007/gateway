@@ -13,7 +13,7 @@ LOCAL := http://127.0.0.1:4000
 .PHONY: help init probe up up-local down down-local restart logs ps health key \
         report reconcile smoke latency backup restore pull deploy verify-config \
         check-format verify-caddy db-init db-migrate jobs jobs-once accounts \
-        health-local test-local e2e plan \
+        health-local test-local e2e plan pro-accounts \
         verify-metering verify-d17 verify-dodo verify-grant backup-drill verify-engine
 
 help: ## Show this help
@@ -548,6 +548,19 @@ plan: ## Put the local customer account on a plan so models and chat work
 	  -e PLAN_CODE="$(PLAN)" \
 	  jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/grant-plan.ts
+
+# Comped accounts for named people. Same three calls the product makes —
+# createLocalUser, ensurePersonalOrg, grantPlan — so the account is not a
+# special case the gateway has to be taught about. Idempotent by email.
+# The password is random and never printed: the way in is the reset link,
+# which is why SEND_RESET exists. Each row carries its own `plan`.
+PRO_ACCOUNTS ?= []
+
+pro-accounts: ## Provision comped Pro accounts from PRO_ACCOUNTS JSON (idempotent)
+	@printf '%s' '$(PRO_ACCOUNTS)' | $(COMPOSE) run --rm --no-deps -T \
+	  -e SEND_RESET=1 \
+	  jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/provision-pro-accounts.ts
 
 health-local: ## Health check for the Docker Desktop stack (adds the Caddy entry points)
 	@$(MAKE) --no-print-directory health
