@@ -34,6 +34,10 @@
 --  which is the difference between a feature that helps and one that is
 --  never discovered.
 --
+--  NOTE: this file does NOT register the job in `job_runs`, and it must
+--  have. `acquireLock` is an UPDATE keyed on that row, so an unregistered
+--  job never runs while logging only "job skipped". 0052 does the insert.
+--
 --  FORWARD-ONLY. Recovery is `make restore`.
 -- ══════════════════════════════════════════════════════════════════════
 
