@@ -1,13 +1,19 @@
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { compact } from "@/lib/dashboard/format";
+import { quotaPercent, quotaTone } from "@/lib/dashboard/quota-tone";
 
 /**
- * QuotaMeter — one alias and its blended-token budget.
+ * The quota meter and the exhausted banner.
  *
- * Tokens are the only quota (migration 0023). The bar fills with
- * used / limit; an exhausted alias renders red with an explicit badge so
- * it reads as "blocked" rather than merely "almost done".
+ * Tokens are the only quota (migration 0023). Under one shared pool (0039)
+ * there is exactly ONE bar — the per-alias `QuotaMeter`/`QuotaMeters` pair
+ * was deleted here because nothing called it and it described a split that
+ * no longer exists.
+ *
+ * Tones come from `lib/dashboard/quota-tone.ts`, the same module the status
+ * strip reads, so the colour of this bar and the sentence at the top of the
+ * page cannot drift apart.
  */
 
 /** Raw-token formatter: 50000000 → "50M", 1500 → "1.5k". */
@@ -45,14 +51,17 @@ export function QuotaPoolMeter({
   const unlimited = typeof poolTokens !== 'number' || !Number.isFinite(poolTokens) || poolTokens <= 0;
   const used = Math.max(0, poolUsedTokens ?? 0);
   const limit = unlimited ? 0 : poolTokens;
-  const percent = unlimited ? 0 : Math.min(100, Math.round((used / limit) * 100));
-  const exhausted = !unlimited && used >= limit;
+  // Tone comes from the shared module, so this bar and the status strip at
+  // the top of the page cannot disagree about what "almost out" means.
+  const state = quotaTone(used, poolTokens);
+  const percent = quotaPercent(used, poolTokens);
+  const exhausted = state === 'blocked';
   const remaining = unlimited ? 0 : Math.max(0, limit - used);
 
   const tone =
-    exhausted || percent >= 95
+    state === 'blocked' || state === 'warning'
       ? "[&_[data-slot=progress-indicator]]:bg-destructive"
-      : percent >= 80
+      : state === 'watching'
         ? "[&_[data-slot=progress-indicator]]:bg-warning"
         : undefined;
 
@@ -109,74 +118,6 @@ export function QuotaPoolMeter({
   );
 }
 
-export function QuotaMeter({
-  usedTokens,
-  tokenLimit,
-  alias,
-  className,
-}: {
-  usedTokens: number;
-  /** Blended-token budget (raw). Undefined/0 = unlimited. */
-  tokenLimit?: number;
-  alias: string;
-  className?: string;
-}) {
-  const hasTokenBudget =
-    typeof tokenLimit === 'number' && Number.isFinite(tokenLimit) && tokenLimit > 0;
-  const tokens = hasTokenBudget ? usedTokens : 0;
-  const tokenLimitNum = (tokenLimit ?? 0) as number;
-  const tokenRatio = hasTokenBudget ? tokens / tokenLimitNum : 0;
-  const tokenPercent = hasTokenBudget ? Math.min(100, Math.round(tokenRatio * 100)) : 0;
-  const exhausted = hasTokenBudget && tokens >= tokenLimitNum;
-
-  const tokenClass =
-    exhausted || tokenPercent >= 95
-      ? "[&_[data-slot=progress-indicator]]:bg-destructive"
-      : tokenPercent >= 80
-        ? "[&_[data-slot=progress-indicator]]:bg-warning"
-        : undefined;
-
-  const label =
-    alias === 'fast'
-      ? 'Fast'
-      : alias === 'smart'
-        ? 'Smart'
-        : alias === 'frontier'
-          ? 'Frontier'
-          : alias;
-
-  return (
-    <div className={cn("grid gap-2", className)}>
-      <div className="flex items-center justify-between gap-2 text-sm">
-        <span className="flex items-center gap-2 font-medium">
-          {label}
-          {exhausted ? (
-            <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-              Out of tokens
-            </span>
-          ) : null}
-        </span>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {exhausted ? (
-            <>0 / {tokensCompact(tokenLimitNum)} tokens left</>
-          ) : hasTokenBudget ? (
-            <>{tokensCompact(Math.max(0, tokenLimitNum - tokens))} / {tokensCompact(tokenLimitNum)} tokens left</>
-          ) : (
-            <>Unlimited</>
-          )}
-        </span>
-      </div>
-      {hasTokenBudget ? (
-        <Progress
-          value={exhausted ? 100 : tokenPercent}
-          aria-label={`${alias} tokens: ${exhausted ? 100 : tokenPercent}% of ${tokenLimitNum}${exhausted ? ' (exhausted)' : ''}`}
-          className={cn("[&_[data-slot=progress-track]]:h-1.5", tokenClass)}
-        />
-      ) : null}
-    </div>
-  );
-}
-
 /**
  * Exhausted-quota banner — `Out of tokens for this period — resets <end>`.
  *
@@ -224,51 +165,6 @@ export function QuotaExhaustedBanner({
       <span className="inline-flex items-center rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
         {tokensCompact(poolTokens)} used
       </span>
-    </div>
-  );
-}
-
-/**
- * QuotaMeters — one QuotaMeter per alias with a token budget.
- *
- * Order follows the plan's declared fast → smart → frontier. Aliases with
- * no budget are unlimited and get no bar.
- */
-export function QuotaMeters({
-  tokensByModel,
-  tokenLimits,
-  entitled,
-  className,
-}: {
-  tokensByModel?: Record<string, number>;
-  tokenLimits?: Record<string, number>;
-  /** Only meters for entitled aliases are shown. */
-  entitled?: string[];
-  className?: string;
-}) {
-  const ALIAS_ORDER = ["fast", "smart", "frontier", "fable"];
-  const allowed = entitled ? new Set(entitled) : null;
-  const entries = ALIAS_ORDER.filter(
-    (alias) =>
-      (tokenLimits ?? {})[alias] != null && (allowed == null || allowed.has(alias)),
-  ).map((alias) => ({
-    alias,
-    usedTokens: (tokensByModel ?? {})[alias] ?? 0,
-    tokenLimit: (tokenLimits ?? {})[alias],
-  }));
-
-  if (entries.length === 0) return null;
-
-  return (
-    <div className={cn("grid gap-4", className)}>
-      {entries.map((e) => (
-        <QuotaMeter
-          key={e.alias}
-          usedTokens={e.usedTokens}
-          tokenLimit={e.tokenLimit}
-          alias={e.alias}
-        />
-      ))}
     </div>
   );
 }

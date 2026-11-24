@@ -47,6 +47,7 @@ import type {
   UsageSeriesResponse,
 } from "@/lib/api/types";
 import { compact, dateTime, rangeLabel } from "@/lib/dashboard/format";
+import { useUsageWindow } from "@/lib/dashboard/use-usage-window";
 
 const PAGE_SIZE = 25;
 
@@ -82,28 +83,28 @@ export function UsageView() {
   const keyId = params.get("key") ?? "all";
   const page = Math.max(1, Number(params.get("page") ?? "1") || 1);
 
+  // ONE window definition for the table, the chart and the export — see
+  // `use-usage-window.ts` for why three copies was a bug waiting to happen.
+  const window = useUsageWindow(range);
+
   const query = React.useMemo(() => {
     const q = new URLSearchParams();
     q.set("page", String(page));
     q.set("pageSize", String(PAGE_SIZE));
 
-    // The endpoint takes `from`/`to` datetimes, not a day count. Computed
+    // The endpoint takes `from`/`to` datetimes, not a day count. Resolved
     // here because the URL is the source of truth for the view: a shared
-    // link to "last 7 days" resolves to the same window on the server
-    // (relative to when it is opened, which is the honest reading of a
-    // rolling window).
-    const days = Number(range) || 30;
-    if (days !== 30) {
-      const to = new Date();
-      const from = new Date(to.getTime() - days * 86_400_000);
-      q.set("from", from.toISOString());
-      q.set("to", to.toISOString());
+    // link to "last 7 days" means seven days from when it is opened, which
+    // is the honest reading of a rolling window.
+    if (window.days !== 30) {
+      q.set("from", window.fromIso);
+      q.set("to", window.toIso);
     }
 
     if (model !== "all") q.set("model", model);
     if (keyId !== "all") q.set("apiKeyId", keyId);
     return q.toString();
-  }, [page, range, model, keyId]);
+  }, [page, window.days, window.fromIso, window.toIso, model, keyId]);
 
   const usage = useApi<UsagePageResponse>(`/api/usage?${query}`);
 
@@ -117,15 +118,12 @@ export function UsageView() {
   const summaryQuery = React.useMemo(() => {
     const q = new URLSearchParams();
     q.set("bucket", "day");
-    const days = Number(range) || 30;
-    const to = new Date();
-    const from = new Date(to.getTime() - days * 86_400_000);
-    q.set("from", from.toISOString());
-    q.set("to", to.toISOString());
+    q.set("from", window.fromIso);
+    q.set("to", window.toIso);
     if (model !== "all") q.set("model", model);
     if (keyId !== "all") q.set("apiKeyId", keyId);
     return q.toString();
-  }, [range, model, keyId]);
+  }, [window.fromIso, window.toIso, model, keyId]);
   const series = useApi<UsageSeriesResponse>(`/api/usage/summary?${summaryQuery}`);
 
   /**
@@ -134,17 +132,14 @@ export function UsageView() {
    */
   const exportQuery = React.useMemo(() => {
     const q = new URLSearchParams();
-    const days = Number(range) || 30;
-    if (days !== 30) {
-      const to = new Date();
-      const from = new Date(to.getTime() - days * 86_400_000);
-      q.set("from", from.toISOString());
-      q.set("to", to.toISOString());
+    if (window.days !== 30) {
+      q.set("from", window.fromIso);
+      q.set("to", window.toIso);
     }
     if (model !== "all") q.set("model", model);
     if (keyId !== "all") q.set("apiKeyId", keyId);
     return q.toString();
-  }, [range, model, keyId]);
+  }, [window.days, window.fromIso, window.toIso, model, keyId]);
   const bundle = useApi<SubscriptionBundle>("/api/subscription");
   const keysApi = useApi<{ keys: KeyView[] }>("/api/keys");
 

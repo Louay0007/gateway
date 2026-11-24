@@ -39,6 +39,8 @@ interface ShellValue {
   } | null;
   bundle: SubscriptionBundle | null;
   loading: boolean;
+  /** True while the bundle is being re-read with data still on screen. */
+  refreshing: boolean;
   /**
    * Re-read everything the shell knows about the caller.
    *
@@ -62,6 +64,7 @@ const ShellContext = React.createContext<ShellValue>({
   user: null,
   bundle: null,
   loading: true,
+  refreshing: false,
   refresh: () => {},
 });
 
@@ -96,9 +99,19 @@ export function ShellIdentityProvider({ children }: { children: React.ReactNode 
         : null,
       bundle: bundle.data,
       loading: orgs.loading || profile.loading || bundle.loading,
+      refreshing: bundle.refreshing,
       refresh,
     };
-  }, [orgs.data, orgs.loading, profile.data, profile.loading, bundle.data, bundle.loading, refresh]);
+  }, [
+    orgs.data,
+    orgs.loading,
+    profile.data,
+    profile.loading,
+    bundle.data,
+    bundle.loading,
+    bundle.refreshing,
+    refresh,
+  ]);
 
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }

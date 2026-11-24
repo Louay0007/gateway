@@ -32,8 +32,6 @@ export interface GettingStartedProps {
   keyCount: number;
   /** Whether any gateway call has ever been recorded for this org. */
   hasAnyRequest: boolean;
-  /** Most recent request time, for the "you're live" line. */
-  lastRequestAt?: string | null;
 }
 
 export function GettingStarted({

@@ -2,7 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { BarChart3, CalendarClock, Gauge, KeyRound } from "lucide-react";
+import {
+  BarChart3,
+  CalendarClock,
+  Coins,
+  Flame,
+  Gauge,
+  KeyRound,
+  RefreshCw,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,10 +21,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StatCard } from "@/components/dashboard/stat-card";
-import {
-  QuotaExhaustedBanner,
-  QuotaPoolMeter,
-} from "@/components/dashboard/quota-meter";
+import { StatusStrip } from "@/components/dashboard/status-strip";
+import { QuotaPoolMeter } from "@/components/dashboard/quota-meter";
 import {
   ErrorState,
   PanelSkeleton,
@@ -28,34 +34,47 @@ import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { GettingStarted } from "@/components/dashboard/getting-started";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import { useApi } from "@/lib/api/use-api";
+import { useShellIdentity } from "@/components/dashboard/shell-identity";
 import type {
   KeyView,
-  SubscriptionBundle,
   UsagePageResponse,
   UsageSeriesResponse,
 } from "@/lib/api/types";
-import { compact, rangeLabel, relativeTime } from "@/lib/dashboard/format";
+import { compact, rangeLabel, relativeTime, usd } from "@/lib/dashboard/format";
+import { daysRemainingAtRate } from "@/lib/dashboard/quota-tone";
 
 /**
  * /dashboard — the overview, live.
  *
- * Two requests, because `/api/subscription` returns the plan, the bundle
- * and a key COUNT (`keys: {active, max}`) but not the key LIST. Rather
- * than widen the bundle — which every other caller would then pay for —
- * the list comes from `GET /api/keys`, the same call the keys page makes.
+ * THE BUNDLE COMES FROM THE SHELL, NOT A FOURTH FETCH. `/api/subscription`
+ * was requested here AND by `ShellIdentityProvider`, so every dashboard load
+ * paid for the same query twice and the two copies could disagree mid-flight
+ * (one refreshed, one stale). The shell already holds the bundle for the
+ * header's spend figure; reading it from context removes a request and makes
+ * the header and the page show one number.
+ *
+ * The key LIST still comes from `GET /api/keys` because the bundle carries
+ * only a key COUNT (`keys: {active, max}`) — widening the bundle would make
+ * every caller pay for a list they do not render.
  *
  * The chart is fed by `GET /api/usage/summary`, a real server-bucketed,
- * dense series (Step 8). It used to bucket the first page of ledger rows
- * client-side and label that page's extent a "date range", which could
- * never show more than a page of days and hid quiet days entirely.
+ * dense series. It used to bucket the first page of ledger rows client-side
+ * and label that page's extent a "date range", which could never show more
+ * than a page of days and hid quiet days entirely.
  */
 export function DashboardOverview() {
-  const bundle = useApi<SubscriptionBundle>("/api/subscription");
+  // One bundle for the whole shell (header + page). `refresh()` re-reads it.
+  const {
+    bundle: shellBundle,
+    loading: shellLoading,
+    refreshing: shellRefreshing,
+    refresh,
+  } = useShellIdentity();
   const keysApi = useApi<{ keys: KeyView[] }>("/api/keys");
   const recent = useApi<UsagePageResponse>("/api/usage?page=1&pageSize=8");
   const series = useApi<UsageSeriesResponse>("/api/usage/summary?bucket=day");
 
-  const b = bundle.data;
+  const b = shellBundle;
   const plan = b?.plan ?? null;
   const keys = keysApi.data?.keys ?? [];
   const noPlan = b?.state === "no_subscription";
@@ -81,22 +100,31 @@ export function DashboardOverview() {
       })
     : "—";
 
-  if (bundle.loading || keysApi.loading) return <PanelSkeleton rows={4} />;
-  if (bundle.error) return <ErrorState error={bundle.error} onRetry={bundle.reload} />;
+  // Days at the current average burn, derived from the bundle alone.
+  const daysLeft = daysRemainingAtRate(
+    poolTokens,
+    poolUsed,
+    b?.period.start ?? b?.subscription?.currentPeriodStart ?? null,
+  );
+
+  if (shellLoading || keysApi.loading) return <PanelSkeleton rows={4} />;
   if (keysApi.error) return <ErrorState error={keysApi.error} onRetry={keysApi.reload} />;
   if (!b) return null;
 
   return (
     <>
-      <RefreshingBar show={bundle.refreshing || keysApi.refreshing} />
+      <RefreshingBar show={shellRefreshing || keysApi.refreshing} />
 
-      {b.plan ? (
-        <QuotaExhaustedBanner
-          poolTokens={b.poolTokens}
-          poolUsedTokens={b.poolUsedTokens}
-          resetDate={b.subscription?.currentPeriodEnd ?? b.period.end}
-        />
-      ) : null}
+      {/* THE ANSWER, above every panel. One sentence, one tone, one action.
+          `noPlan` renders the paywall copy in the strip, so a customer
+          without a subscription is oriented before they scroll. */}
+      <StatusStrip
+        poolTokens={b.poolTokens}
+        poolUsedTokens={b.poolUsedTokens}
+        periodStart={b.period.start ?? b.subscription?.currentPeriodStart ?? null}
+        periodEnd={b.subscription?.currentPeriodEnd ?? b.period.end}
+        noPlan={noPlan}
+      />
 
       {/* Checklist first: a new account's job is a next step, not a
           dashboard reading zero. It renders nothing once complete. */}
@@ -117,10 +145,19 @@ export function DashboardOverview() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Overview</h2>
           <p className="text-sm text-muted-foreground">
-            Here is what your gateway has been doing today.
+            Here is what your gateway has been doing this period.
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={refresh}
+            aria-label="Refresh dashboard"
+            disabled={shellRefreshing}
+          >
+            <RefreshCw className={shellRefreshing ? "animate-spin" : undefined} />
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -155,7 +192,7 @@ export function DashboardOverview() {
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Tokens used"
           value={compact(poolUsed)}
@@ -173,6 +210,31 @@ export function DashboardOverview() {
               : "No token budget on this plan"
           }
           icon={Gauge}
+        />
+        {/* WHEN, not just how much: the question the pool card raises. */}
+        <StatCard
+          label="Burn rate"
+          value={
+            daysLeft === null
+              ? "—"
+              : daysLeft <= 0
+                ? "Out now"
+                : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`
+          }
+          hint={
+            hasBudget && poolUsed > 0
+              ? "at the current average rate"
+              : "no usage this period yet"
+          }
+          icon={Flame}
+        />
+        {/* The promise the FAQ makes: what this period cost. One card, not
+            a fourth headline — tokens remain the quota. */}
+        <StatCard
+          label="Cost this period"
+          value={usd(b.usage.costCustomerUsd)}
+          hint={`${(b.usage.requests ?? 0).toLocaleString()} requests`}
+          icon={Coins}
         />
         <StatCard
           label={b.subscription?.cancelAtPeriodEnd ? "Access until" : "Resets"}
@@ -195,6 +257,11 @@ export function DashboardOverview() {
               poolTokens={b.poolTokens}
               poolUsedTokens={b.poolUsedTokens}
               entitled={plan.models ?? []}
+              // 0043: the daily cap is enforced but was rendered only on
+              // Billing, so a customer at the cap learned about it from a
+              // 403. It belongs on the page they open.
+              dailyCap={b.dailyTokenCap ?? null}
+              dailyUsed={b.dailyUsedTokens ?? 0}
             />
           </CardContent>
         </Card>
