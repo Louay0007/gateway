@@ -602,7 +602,8 @@ function ModelBreakdown({
                     <Progress
                       value={share}
                       aria-label={`${r.model}: ${share}% of this window's tokens`}
-                      className="w-16 [&_[data-slot=progress-track]]:h-1.5"
+                      size="sm"
+                      className="w-20"
                     />
                     <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
                       {share}%

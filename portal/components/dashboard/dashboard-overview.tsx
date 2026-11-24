@@ -192,7 +192,10 @@ export function DashboardOverview() {
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* FIVE cards, not four: a 4-column grid leaves the fifth alone on a
+          second row at desktop width. Three columns fills both rows (3 + 2)
+          and keeps the eye moving left-to-right. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <StatCard
           label="Tokens used"
           value={compact(poolUsed)}

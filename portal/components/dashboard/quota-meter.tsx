@@ -88,7 +88,8 @@ export function QuotaPoolMeter({
         <Progress
           value={exhausted ? 100 : percent}
           aria-label={`Shared token pool: ${exhausted ? 100 : percent}% of ${limit} used${exhausted ? ' (exhausted)' : ''}`}
-          className={cn("[&_[data-slot=progress-track]]:h-1.5", tone)}
+          size="sm"
+          className={cn("w-full", tone)}
         />
       )}
       {/* The daily cap is invisible until it stops you, which reads as a
