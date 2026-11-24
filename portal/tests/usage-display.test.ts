@@ -53,4 +53,33 @@ describe('usage API', () => {
     expect(svc).toMatch(/blendedTokens: number;/);
     expect(svc).toContain('blendedTokens: Number(r.blended_tokens ?? 0)');
   });
+
+  /**
+   * The series endpoint aliased its filtered CTE as `f` and rewrote the
+   * expression's `u.` to `f.`. BILLABLE_TOKEN_COLUMNS embeds MODEL_WEIGHT_SQL
+   * with the `u.` spelling BAKED IN, so the rewrite produced `CASE f.model` —
+   * a column the query never selected. Postgres rejected the statement at
+   * parse time and /api/usage/summary answered 500 for every account, which
+   * is the usage chart's only data source.
+   *
+   * These assertions are structural because the failure was a name mismatch
+   * across three places (CTE columns, join alias, embedded SQL) and no unit
+   * test ran the SQL.
+   */
+  it('the series CTE is aliased `u`, the name the embedded expression uses', () => {
+    const series = svc.slice(svc.indexOf('export async function usageHistorySeries'));
+    expect(series).toMatch(/LEFT JOIN filtered u ON u\.bucket = gs/);
+    expect(series).not.toMatch(/LEFT JOIN filtered f ON f\.bucket = gs/);
+  });
+
+  it('the series CTE carries `model`, which MODEL_WEIGHT_SQL branches on', () => {
+    const series = svc.slice(svc.indexOf('export async function usageHistorySeries'));
+    expect(series).toMatch(/\bu\.model\b\s*\n\s*FROM usage_records u/);
+  });
+
+  it('never rewrites the expression to a different table alias', () => {
+    // A `.replace(/\bu\./g, …)` here silently desynchronises the expression
+    // from its FROM clause. Any future alias change must carry `model` too.
+    expect(svc).not.toMatch(/BILLABLE_TOKEN_COLUMNS\.replace/);
+  });
 });

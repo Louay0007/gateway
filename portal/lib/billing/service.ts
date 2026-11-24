@@ -1378,23 +1378,26 @@ export async function usageHistorySeries(
              u.cache_write_1h_tokens,
              u.cache_read_tokens,
              u.cost_customer_usd,
-             u.cost_upstream_usd
+             u.cost_upstream_usd,
+             -- MODEL_WEIGHT_SQL (inside BILLABLE_TOKEN_COLUMNS) branches on
+             -- u.model, so the CTE has to carry it under that alias.
+             u.model
         FROM usage_records u
        WHERE ${where}
     )
     SELECT gs AS bucket,
-           count(f.bucket)::int                          AS requests,
-           coalesce(sum(f.prompt_count), 0)::int          AS prompts,
-           coalesce(sum(f.input_tokens), 0)::bigint      AS input_tokens,
-           coalesce(sum(f.output_tokens), 0)::bigint     AS output_tokens,
-           coalesce(sum(f.cache_read_tokens), 0)::bigint AS cache_read_tokens,
-           coalesce(sum(${sql.raw(BILLABLE_TOKEN_COLUMNS.replace(/\bu\./g, 'f.'))}), 0)::bigint AS blended_tokens,
-           coalesce(sum(f.cost_customer_usd), 0)         AS cost_customer,
-           coalesce(sum(f.cost_upstream_usd), 0)         AS cost_upstream
+           count(u.bucket)::int                          AS requests,
+           coalesce(sum(u.prompt_count), 0)::int          AS prompts,
+           coalesce(sum(u.input_tokens), 0)::bigint      AS input_tokens,
+           coalesce(sum(u.output_tokens), 0)::bigint     AS output_tokens,
+           coalesce(sum(u.cache_read_tokens), 0)::bigint AS cache_read_tokens,
+           coalesce(sum(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS blended_tokens,
+           coalesce(sum(u.cost_customer_usd), 0)         AS cost_customer,
+           coalesce(sum(u.cost_upstream_usd), 0)         AS cost_upstream
       FROM generate_series(${from.toISOString()}::timestamptz,
                            ${to.toISOString()}::timestamptz,
                            ${step}::interval) AS gs
-      LEFT JOIN filtered f ON f.bucket = gs
+      LEFT JOIN filtered u ON u.bucket = gs
      GROUP BY gs
      ORDER BY gs
   `)) as unknown as {
