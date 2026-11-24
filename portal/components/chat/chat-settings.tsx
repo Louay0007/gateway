@@ -13,6 +13,13 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { PanelSkeleton } from "@/components/dashboard/states";
 import { useApi, apiSend } from "@/lib/api/use-api";
 import type { GenerationSettings } from "@/lib/chat/preset";
@@ -36,6 +43,10 @@ export function ChatSettings() {
   );
   const [prompt, setPrompt] = React.useState("");
   const [temperature, setTemperature] = React.useState("");
+  // `auto` is the UI's word for "no stored value": the server then decides
+  // by turn shape. It is NOT a server value — sending it would be rejected
+  // by the schema, so it is stripped before save.
+  const [ponytail, setPonytail] = React.useState<NonNullable<GenerationSettings['ponytail']> | "auto">("auto");
   const [saving, setSaving] = React.useState(false);
 
   const current = data?.presets?.[""] ?? {};
@@ -48,6 +59,7 @@ export function ChatSettings() {
     seeded.current = true;
     setPrompt(current.systemPrompt ?? "");
     setTemperature(current.temperature === undefined ? "" : String(current.temperature));
+    setPonytail(current.ponytail ?? "auto");
   }, [current, data, loading]);
 
   async function save() {
@@ -67,6 +79,7 @@ export function ChatSettings() {
           settings: {
             ...(prompt.trim() ? { systemPrompt: prompt.trim() } : {}),
             ...(parsed !== undefined ? { temperature: parsed } : {}),
+            ...(ponytail !== "auto" ? { ponytail } : {}),
           },
         },
       },
@@ -117,6 +130,32 @@ export function ChatSettings() {
             placeholder="default"
           />
           <p className="text-xs text-muted-foreground">0 to 2. Empty uses the plan default.</p>
+        </div>
+
+        <div className="grid gap-1.5 sm:max-w-64">
+          <Label htmlFor="chat-ponytail">Coding style</Label>
+          <Select
+            value={ponytail}
+            // The primitive can clear to `null`; an empty value means the
+            // same thing as auto here — fall back to the server's decision
+            // rather than storing nothing and rendering a blank trigger.
+            onValueChange={(v) => setPonytail(v ?? "auto")}
+          >
+            <SelectTrigger id="chat-ponytail">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto — on for coding turns</SelectItem>
+              <SelectItem value="full">Always on (full)</SelectItem>
+              <SelectItem value="lite">Always on (lite)</SelectItem>
+              <SelectItem value="ultra">Always on (ultra)</SelectItem>
+              <SelectItem value="off">Off</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Ponytail writes the smallest code that fully works. Leave it on auto:
+            it only applies to coding requests, never to ordinary writing.
+          </p>
         </div>
 
         <div>

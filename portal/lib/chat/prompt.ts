@@ -14,8 +14,10 @@
  *   1. custom instructions — who the user is (stable, applies everywhere)
  *   2. memories           — facts learned, capped and labelled by age
  *   3. project            — the objective this chat serves
+ *   3.5 ponytail          — how to write CODE (conditional: ponytail.ts)
  *   4. per-chat preset    — this conversation's own system prompt
  *   5. attachment notice  — what is in the user's turn, with its caveat
+ *   6. web search         — fresh text, and that it is untrusted
  *
  * Later sections win when they conflict, which is what a user means when
  * they set a per-chat prompt after setting global instructions.
@@ -30,6 +32,7 @@ import {
   type ImageBlock,
 } from './vision';
 import { identityPrompt } from './identity';
+import { isCodingTurn, ponytailPrompt } from './ponytail';
 
 /** One remembered fact, as the prompt sees it. */
 export interface PromptMemory {
@@ -58,6 +61,14 @@ export interface PromptInput {
   }[];
   /** Set when a web search ran, so the model knows why it has fresh text. */
   webSearch?: { query: string; results: number; deep?: boolean };
+  /**
+   * Ponytail level, already resolved for this turn ('off' disables), or
+   * `undefined` to let the turn's shape decide. Resolving it here rather
+   * than in the route keeps the decision pure and unit-testable.
+   */
+  ponytail?: string | null;
+  /** The user's own text, used only to classify a coding turn. */
+  userText?: string;
 }
 
 /**
@@ -135,6 +146,23 @@ export function buildSystemPrompt(input: PromptInput): string | null {
         projectInstructions,
       ].join('\n'),
     );
+  }
+
+  // ── 3.5. Ponytail — HOW to write code, when this turn is a coding one.
+  //
+  // BELOW slot 4, and that is the point: ponytail is a default way of
+  // working, never an authority over what the user wrote. A customer who
+  // sets "explain your reasoning at length" in their chat prompt must win,
+  // so ponytail sits above the attachment notice (a fact about this turn,
+  // not a preference) and below the per-chat preset.
+  //
+  // Conditional by design — see the header of `ponytail.ts` for why
+  // always-on would be a defect rather than a style. `ponytail: 'off'` is
+  // a user's explicit no and wins regardless of the turn's shape.
+  if (input.ponytail !== 'off') {
+    const level = input.ponytail ?? (isCodingTurn(input.userText ?? '') ? 'full' : null);
+    const block = ponytailPrompt(level);
+    if (block) parts.push(block);
   }
 
   // ── 4. This chat's own prompt. Last so it wins.

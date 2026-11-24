@@ -20,6 +20,8 @@
  */
 import { z } from 'zod';
 
+import { PONYTAIL_LEVELS } from './ponytail';
+
 /**
  * The effort levels `config/litellm.yaml` accepts. The deployment pins a
  * floor at `max` for the thinking aliases, so `low` is deliberately absent:
@@ -44,6 +46,15 @@ export const GenerationSettings = z.object({
    * search result is untrusted text entering the prompt.
    */
   webSearch: z.boolean().optional(),
+  /**
+   * The ponytail intensity (`lib/chat/ponytail.ts`), or `off`.
+   *
+   * `undefined` is not `off`: absent means "the deployment decides", which
+   * today is auto by turn shape. Storing `off` explicitly is how a user
+   * says "never, not even for code" — a distinction that would be lost by
+   * making this a boolean.
+   */
+  ponytail: z.enum(['off', ...PONYTAIL_LEVELS]).optional(),
 });
 
 export type GenerationSettings = z.infer<typeof GenerationSettings>;

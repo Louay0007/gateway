@@ -44,6 +44,7 @@ import { bearerKey, keyDigest, keyInfoFor } from '@/lib/device/auth';
 import { getAllowedModels } from '@/lib/entitlements/allowed-models';
 import { wallRefusal } from '@/lib/chat/wall';
 import { identityPrompt, isIdentityQuestion, repairIdentityAnswer } from '@/lib/chat/identity';
+import { isCodingTurn, ponytailPrompt } from '@/lib/chat/ponytail';
 import {
   streamChatCompletion,
   GatewayError,
@@ -147,10 +148,16 @@ export async function POST(request: Request): Promise<Response> {
   // buildSystemPrompt, so the playground answers "who are you?" identically
   // to chat. Without this the two surfaces disagreed about the product name.
   const identity = identityPrompt(alias);
-  if (identity) {
+  // Ponytail rides with identity in the same system message: it is a way of
+  // working, and it must not outrank the caller's own `system`. Same
+  // conditional rule as chat — on by default for a coding turn, never for
+  // prose. The playground has no per-chat preset, so there is no `off`.
+  const ponytail = ponytailPrompt(isCodingTurn(prompt) ? 'full' : null);
+  const preamble = [identity, ponytail].filter(Boolean).join('\n\n');
+  if (preamble) {
     messages.push({
       role: 'system',
-      content: system && system.length > 0 ? `${identity}\n\n${system}` : identity,
+      content: system && system.length > 0 ? `${preamble}\n\n${system}` : preamble,
     });
   } else if (system && system.length > 0) {
     messages.push({ role: 'system', content: system });
