@@ -55,13 +55,22 @@ CREATE TABLE IF NOT EXISTS org_alert_prefs (
   -- A threshold outside 1..100 is a typo, and a 0 or a 140 would either
   -- fire immediately on every pass or never fire at all. Reject both at the
   -- data layer rather than trusting every writer.
+  --
+  -- NO SUBQUERY: Postgres rejects `NOT EXISTS (SELECT … unnest(…))` inside a
+  -- CHECK ("cannot use subquery in check constraint"). This is the equivalent
+  -- with array operators, verified against the live database:
+  --
+  --   {80,95}  passes · {1,100} passes · {0} fails · {101} fails · {} fails
+  --
+  -- `ALL` on an empty array is vacuously true, so `cardinality(...) >= 1` is
+  -- what rejects an empty list — without it, `channel='email'` with no
+  -- thresholds would be accepted and silently never mail.
   CONSTRAINT org_alert_prefs_thresholds_check
     CHECK (
       quota_thresholds IS NOT NULL
-      AND NOT EXISTS (
-        SELECT 1 FROM unnest(quota_thresholds) AS t
-         WHERE t < 1 OR t > 100
-      )
+      AND cardinality(quota_thresholds) BETWEEN 1 AND 5
+      AND 1 <= ALL (quota_thresholds)
+      AND 100 >= ALL (quota_thresholds)
     )
 );
 
@@ -87,19 +96,76 @@ COMMENT ON TABLE org_alert_sent IS
 CREATE INDEX IF NOT EXISTS org_alert_sent_period_idx
   ON org_alert_sent (period_start);
 
--- Guard: the defaults must be the values the job documents. A migration
--- that quietly changed the default to {0} would mail every org on every
--- pass, which is worse than no alerts at all.
+-- Guard 1: the CHECK actually rejects what it claims to.
+--
+-- The first version of this file used a subquery inside the CHECK and was
+-- rejected by Postgres at deploy time (`cannot use subquery in check
+-- constraint`), so the deploy failed after 0050 with nothing applied. This
+-- block proves the replacement expression on the database that will run it,
+-- so a future edit that "simplifies" the constraint fails here rather than
+-- in production.
+--
+-- The expression is evaluated into a BOOLEAN first: PL/pgSQL's `IF` takes a
+-- condition, not an expression in parentheses, so inlining the arithmetic
+-- raises a syntax error at parse time.
 DO $$
 DECLARE
-  d int[];
+  ok boolean;
 BEGIN
-  SELECT quota_thresholds INTO d
-    FROM org_alert_prefs
-   LIMIT 1;
+  ok := cardinality(ARRAY[80,95]) BETWEEN 1 AND 5
+        AND 1 <= ALL (ARRAY[80,95]) AND 100 >= ALL (ARRAY[80,95]);
+  IF NOT ok THEN
+    RAISE EXCEPTION '0051: the threshold expression rejects the defaults';
+  END IF;
 
-  -- No rows yet is the normal case on first deploy.
-  IF d IS NOT NULL AND d <> ARRAY[80, 95] THEN
-    RAISE EXCEPTION '0051: unexpected default thresholds %', d;
+  ok := cardinality(ARRAY[0]) BETWEEN 1 AND 5
+        AND 1 <= ALL (ARRAY[0]) AND 100 >= ALL (ARRAY[0]);
+  IF ok THEN
+    RAISE EXCEPTION '0051: the threshold expression accepts 0';
+  END IF;
+
+  ok := cardinality(ARRAY[101]) BETWEEN 1 AND 5
+        AND 1 <= ALL (ARRAY[101]) AND 100 >= ALL (ARRAY[101]);
+  IF ok THEN
+    RAISE EXCEPTION '0051: the threshold expression accepts 101';
+  END IF;
+
+  ok := cardinality('{}'::int[]) BETWEEN 1 AND 5;
+  IF ok THEN
+    RAISE EXCEPTION '0051: the threshold expression accepts an empty list';
+  END IF;
+END $$;
+
+-- Guard 2: the column's stored DEFAULT must be the value the job documents.
+--
+-- Read from `pg_attrdef`, not from `SELECT … FROM org_alert_prefs LIMIT 1`:
+-- on a fresh table that returns no row, so the earlier version of this guard
+-- asserted nothing at all. `pg_get_expr` yields the expression source
+-- (`ARRAY[80, 95]`), which has to be cast to the column type before it can
+-- be compared — an uncast assignment fails with
+-- `malformed array literal: "ARRAY[80, 95]"`.
+DO $$
+DECLARE
+  expr text;
+  def  int[];
+BEGIN
+  SELECT pg_get_expr(adbin, adrelid)::text
+    INTO expr
+    FROM pg_attrdef
+   WHERE adrelid = 'org_alert_prefs'::regclass
+     AND adnum = (
+       SELECT attnum FROM pg_attribute
+        WHERE attrelid = 'org_alert_prefs'::regclass
+          AND attname = 'quota_thresholds'
+     );
+
+  IF expr IS NULL THEN
+    RAISE EXCEPTION '0051: quota_thresholds has no default';
+  END IF;
+
+  EXECUTE format('SELECT (%s)::int[]', expr) INTO def;
+
+  IF def IS DISTINCT FROM ARRAY[80, 95] THEN
+    RAISE EXCEPTION '0051: unexpected default thresholds % (from %)', def, expr;
   END IF;
 END $$;
