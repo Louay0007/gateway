@@ -159,13 +159,32 @@ const Navbar = ({
         <div className="flex items-center gap-4 lg:gap-6">
           <a href="/" className="shrink-0">
             <span className="flex items-center gap-2.5">
-              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-primary dark:ring-1 dark:ring-white/20">
+              {/*
+                BLACK TILE, NOT `bg-primary`.
+
+                The navbar background is black glass on every surface (see
+                the effect above), but this tile used the `primary` TOKEN.
+                In dark mode `--primary` is oklch(0.922 0 0) — near-WHITE —
+                so the white `zaino-curved-z-white.png` glyph was painted
+                white-on-white: the mark disappeared and the tile read as a
+                blank light square in the header.
+
+                The shared `assets/logo/logo.tsx` already settled this: a
+                white glyph needs a fixed black ground, so the ground must
+                not be a theme token. Fixed `bg-black` keeps the mark legible
+                in both themes, and the hairline ring stops the tile from
+                dissolving into the black navbar behind it.
+              */}
+              <span className="relative flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-black ring-1 ring-white/12 ring-inset">
+                {/* Specular top edge — the detail that reads as a rendered
+                    tile rather than a flat swatch. Mirrors logo.tsx. */}
+                <span className="pointer-events-none absolute inset-x-0 top-0 h-px bg-white/22" />
                 <img
                   src="/logo/zaino-curved-z-white.png"
                   alt="Zaino AI logo"
                   width={28}
                   height={28}
-                  className="size-7 object-contain"
+                  className="relative size-7 object-contain"
                 />
               </span>
               <span
