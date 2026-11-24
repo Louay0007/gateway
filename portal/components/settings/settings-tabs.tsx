@@ -37,6 +37,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const TABS = [
   ["profile", "Profile"],
   ["ai", "AI"],
+  ["notifications", "Notifications"],
   ["danger", "Danger"],
 ] as const;
 

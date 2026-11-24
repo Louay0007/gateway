@@ -34,6 +34,7 @@ import { enforcePromptLimits } from '@/lib/jobs/enforce-prompt-limits';
 import { reconcileEntitlements } from '@/lib/jobs/reconcile-entitlements';
 import { expireSubscriptions } from '@/lib/jobs/expire-subscriptions';
 import { sendOpsAlerts } from '@/lib/jobs/send-alerts';
+import { runCustomerQuotaAlerts } from '@/lib/jobs/customer-quota-alerts';
 import { detectAnomalies } from '@/lib/jobs/anomaly-alerts';
 import { runTrialExpiry } from '@/lib/jobs/trial-expiry';
 import { runDueSchedules } from '@/lib/chat/schedule-run';
@@ -121,6 +122,17 @@ const JOBS: readonly Job[] = [
     name: 'send_alerts',
     everyMs: 15 * 60_000,
     run: () => sendOpsAlerts(),
+  },
+  {
+    // Customer-facing threshold mail. Separate from `send_alerts` on
+    // purpose: ops mail is about the platform and must keep flowing even if
+    // a customer's preferences are broken, and a customer mail failing must
+    // not suppress an outage alert. 15 minutes matches the ops cadence; the
+    // `org_alert_sent` ledger is what keeps that from being four mails an
+    // hour at the same threshold.
+    name: 'customer_quota_alerts',
+    everyMs: 15 * 60_000,
+    run: () => runCustomerQuotaAlerts(),
   },
   {
     name: 'detect_anomalies',

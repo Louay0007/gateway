@@ -132,6 +132,21 @@ export interface UsageSeriesResponse {
   totals: UsagePageResponse["totals"];
 }
 
+/** One row of `GET /api/usage/by-model` — true aggregates, not a page. */
+export interface UsageByModelResponse {
+  rows: {
+    model: string;
+    requests: number;
+    blendedTokens: number;
+    inputTokens: number;
+    outputTokens: number;
+    cacheReadTokens: number;
+    costCustomerUsd: number;
+  }[];
+  /** Sum of `requests` across every model row. */
+  total: number;
+}
+
 export interface OrgListItem {
   id: string;
   name: string;

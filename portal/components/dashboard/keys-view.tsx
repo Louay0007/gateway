@@ -44,6 +44,7 @@ import { apiSend, useApi } from "@/lib/api/use-api";
 import type { KeyView, SubscriptionBundle } from "@/lib/api/types";
 import { ErrorState, FirstUseState, PaywallState, RefreshingBar, PanelSkeleton } from "@/components/dashboard/states";
 import { relativeTime } from "@/lib/dashboard/format";
+import { keyHealth } from "@/lib/dashboard/key-health";
 import { toast } from "sonner";
 
 /**
@@ -371,7 +372,7 @@ export function KeysView() {
                       })}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {relativeTime(key.lastUsedAt)}
+                      <KeyHealthCell apiKey={key} />
                     </TableCell>
                     <TableCell className="pr-6 text-right">
                       <Button
@@ -476,5 +477,30 @@ export function KeysView() {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+/**
+ * "Last used" plus the one badge that changes a decision.
+ *
+ * Two states are worth surfacing and nothing else: a key that has never
+ * made a request (the one created and forgotten) and a key that has sat
+ * dark for a month (the one to revoke). A healthy key gets no badge —
+ * a column of green ticks is noise.
+ */
+function KeyHealthCell({ apiKey }: { apiKey: KeyView }) {
+  const health = keyHealth(apiKey);
+  return (
+    <span className="inline-flex items-center gap-2">
+      {relativeTime(apiKey.lastUsedAt)}
+      {health.label ? (
+        <Badge
+          variant={health.state === "stale" ? "outline" : "secondary"}
+          title={health.hint ?? undefined}
+        >
+          {health.label}
+        </Badge>
+      ) : null}
+    </span>
   );
 }

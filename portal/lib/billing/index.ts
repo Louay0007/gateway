@@ -75,6 +75,7 @@ export {
   listPlans,
   usageHistory,
   usageHistorySeries,
+  usageByModel,
 } from './service';
 export type {
   UsageHistoryQuery,
@@ -83,4 +84,5 @@ export type {
   UsageSeries,
   UsageSeriesPoint,
   UsageSeriesQuery,
+  UsageByModelRow,
 } from './service';

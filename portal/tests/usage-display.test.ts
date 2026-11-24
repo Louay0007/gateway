@@ -22,8 +22,21 @@ describe('usage display', () => {
     expect(view).not.toMatch(/\+\s*row\.cacheReadTokens/);
   });
 
-  it('the model breakdown sums the same field the table shows', () => {
-    expect(view).toMatch(/entry\.tokens \+= row\.blendedTokens/);
+  it('the model breakdown reads the server aggregate, not the visible page', () => {
+    // Phase 2 replaced the page-summing version with /api/usage/by-model.
+    // The old shape is what this asserts is GONE: summing `rows` made the
+    // tab describe 25 of 40,000 rows and say so in a hint.
+    expect(view).toContain('/api/usage/by-model');
+    expect(view).not.toMatch(/entry\.tokens \+= row\.blendedTokens/);
+    expect(view).not.toContain('Counts this page only');
+  });
+
+  it('orders the breakdown by quota-weighted tokens', () => {
+    // `ORDER BY blended_tokens` is what answers "which model ate the pool";
+    // ordering by request count would point at the cheapest high-traffic
+    // alias instead.
+    const svc = readFileSync('lib/billing/service.ts', 'utf8');
+    expect(svc).toMatch(/ORDER BY blended_tokens DESC, u\.model/);
   });
 });
 

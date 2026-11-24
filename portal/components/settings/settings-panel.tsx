@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { TabsContent } from "@/components/ui/tabs";
 import { SettingsTabs } from "@/components/settings/settings-tabs";
+import { NotificationsCard } from "@/components/settings/notifications-card";
 import {
   DangerCard,
   PasswordCard,
@@ -65,6 +66,10 @@ const TABS = [
   // buried under Profile is a tab nobody finds, and the audit's trust
   // requirement is that the list is discoverable as well as deletable.
   "ai",
+  // Quota warnings: the one settings tab that changes what the product does
+  // while you are away from it (0051). Next to AI rather than under Profile
+  // because it is a behaviour, not an account detail.
+  "notifications",
   "danger",
 ] as const;
 
@@ -132,6 +137,10 @@ export function SettingsPanel({
         <TabsContent value="ai" className="grid gap-4 sm:gap-6">
           <MemoryPanel />
           <InstructionsPanel />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="grid gap-4 sm:gap-6">
+          <NotificationsCard />
         </TabsContent>
 
         <TabsContent value="danger">

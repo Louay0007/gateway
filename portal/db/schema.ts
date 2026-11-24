@@ -554,6 +554,41 @@ export const auditLog = pgTable('audit_log', {
   createdIdx:  index('audit_log_created_idx').on(t.createdAt),
 }));
 
+/**
+ * Per-org quota notification preferences (migration 0051).
+ *
+ * NO ROW = DEFAULTS. The columns carry the default so an org that never
+ * opened the settings tab still gets threshold mail; the job reads the row
+ * with `coalesce`-style semantics rather than requiring one.
+ */
+export const orgAlertPrefs = pgTable('org_alert_prefs', {
+  organizationId:  uuid('organization_id').primaryKey().references(() => organizations.id, { onDelete: 'cascade' }),
+  /** Percentages of the period pool at which to mail. */
+  quotaThresholds: integer('quota_thresholds').array().notNull().default(sql`ARRAY[80, 95]::int[]`),
+  channel:         text('channel').notNull().default('email'),
+  onExhausted:     boolean('on_exhausted').notNull().default(true),
+  onAnomaly:       boolean('on_anomaly').notNull().default(false),
+  createdAt:       timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:       timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+/**
+ * The sent ledger — one row per (org, period, threshold).
+ *
+ * The primary key is the whole idempotency story: `ON CONFLICT DO NOTHING`
+ * on an insert is what stops a 15-minute job mailing the same threshold
+ * four times an hour.
+ */
+export const orgAlertSent = pgTable('org_alert_sent', {
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  periodStart:    timestamp('period_start', { withTimezone: true }).notNull(),
+  threshold:      integer('threshold').notNull(),
+  sentAt:         timestamp('sent_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.organizationId, t.periodStart, t.threshold] }),
+  periodIdx: index('org_alert_sent_period_idx').on(t.periodStart),
+}));
+
 export const jobRuns = pgTable('job_runs', {
   name:      text('name').primaryKey(),
   lastRunAt: timestamp('last_run_at', { withTimezone: true }),

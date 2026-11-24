@@ -1,6 +1,6 @@
 # Dashboard UX plan
 
-**Status:** Phase 0 and Phase 1 SHIPPED (2026-11-24); Phases 2–5 proposed ·
+**Status:** Phases 0–3 SHIPPED (2026-11-24); Phases 4–5 proposed ·
 **Scope:** `app/(app)/dashboard/*`, `components/dashboard/*`,
 `app/api/usage/*`, `lib/auth/authorize.ts` · **Out of scope:** chat, admin console,
 marketing.
@@ -190,7 +190,7 @@ they are unit-tested in one module.
 
 ---
 
-### Phase 2 — the evidence (1.5–2 days)
+### Phase 2 — the evidence (SHIPPED)
 
 | Task | Detail |
 |---|---|
@@ -201,12 +201,19 @@ they are unit-tested in one module.
 **Why a route here and not before:** per-model aggregates cannot be derived from
 a paginated page; the other two need no route.
 
-**Acceptance:** the By-model tab's figures equal `SUM` over the same filter on
-every page (assert in a route test); the hint is gone; CSV untouched.
+**Shipped.** `/api/usage/by-model` (same `from`/`to`/`model`/`apiKeyId`
+contract), the breakdown now reads it and orders by quota-weighted tokens, the
+sparkline rides `summary?bucket=hour`, and key health is `never-used` / `unused
+30d`.
+
+Two deviations recorded: **no `expiresAt` badge** — the portal's `KeyView` does
+not expose the field, and a countdown derived from a value that is not there
+would be invented; and the sparkline is 24 divs rather than a chart library,
+because one 24-point strip does not justify one.
 
 ---
 
-### Phase 3 — the loop (2–3 days; the only schema change)
+### Phase 3 — the loop (SHIPPED; the only schema change)
 
 Close the gap where the customer learns about exhaustion from a `403`.
 
@@ -220,8 +227,23 @@ Close the gap where the customer learns about exhaustion from a `403`.
 (idempotent on `(org, period, threshold)`); `send_alerts` still passes with zero
 prefs rows; ops alerts unaffected.
 
-**Risk:** highest of any phase — it touches the job runner and outbound mail.
-Gate it behind a flag if the mail path is not already covered.
+**Shipped.** `0051_org_alert_prefs` (+ `org_alert_sent` as the dedupe),
+`customer_quota_alerts` registered as its own 15-minute job, `GET/PATCH
+/api/notifications`, and a Notifications tab.
+
+Changes from the plan, deliberately:
+
+- The ledger insert is **the gate**, and it happens BEFORE the send. Send-then-
+  record re-sends after a crash; record-then-send costs at most one mail.
+- **At most one mail per pass, highest threshold first.** A jump from 79% to
+  97% sends the 95 mail, not 80-then-95 — the inbox stays proportional to the
+  situation.
+- The customer job is **separate from `send_alerts`**, not merged into it: a
+  broken customer preference must never suppress a platform outage alert.
+- Defaults are a real row-less default (`{80,95}`, email on, exhausted on,
+  anomaly off), so the feature works for orgs that never open the tab.
+- No owner email ⇒ the ledger row still lands (no retry loop) and a warning is
+  logged; that gap is visible rather than silent.
 
 ---
 

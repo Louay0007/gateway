@@ -30,19 +30,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
+import { RequestSpark } from "@/components/dashboard/request-spark";
 import {
   ErrorState,
   NoResultsState,
   PanelSkeleton,
   RefreshingBar,
 } from "@/components/dashboard/states";
-import { useApi } from "@/lib/api/use-api";
+import { useApi, type ApiError } from "@/lib/api/use-api";
 import type {
   KeyView,
   SubscriptionBundle,
+  UsageByModelResponse,
   UsagePageResponse,
   UsageSeriesResponse,
 } from "@/lib/api/types";
@@ -140,6 +143,32 @@ export function UsageView() {
     if (keyId !== "all") q.set("apiKeyId", keyId);
     return q.toString();
   }, [window.days, window.fromIso, window.toIso, model, keyId]);
+  /**
+   * The By-model aggregate — the same filter as the table, summed in the
+   * database. Fetched only when the tab can be shown, because most visits
+   * never open it and this is one more query against a shared VPS.
+   */
+  const byModelQuery = React.useMemo(() => {
+    const q = new URLSearchParams();
+    if (window.days !== 30) {
+      q.set("from", window.fromIso);
+      q.set("to", window.toIso);
+    }
+    if (model !== "all") q.set("model", model);
+    if (keyId !== "all") q.set("apiKeyId", keyId);
+    return q.toString();
+  }, [window.days, window.fromIso, window.toIso, model, keyId]);
+  const byModel = useApi<UsageByModelResponse>(`/api/usage/by-model?${byModelQuery}`);
+
+  /**
+   * The last 24 hours, for the sparkline beside "Requests". Deliberately
+   * NOT filtered by the page's range picker: it answers "what is happening
+   * right now", and a 90-day window would make it 2160 points of noise.
+   */
+  const lastDay = useApi<UsageSeriesResponse>(
+    "/api/usage/summary?bucket=hour",
+  );
+
   const bundle = useApi<SubscriptionBundle>("/api/subscription");
   const keysApi = useApi<{ keys: KeyView[] }>("/api/keys");
 
@@ -201,6 +230,7 @@ export function UsageView() {
           value={(totals?.requests ?? 0).toLocaleString()}
           hint={filtered ? "Matching these filters (incl. failures)" : "All gateway calls, incl. failures"}
           icon={Activity}
+          footer={<RequestSpark points={lastDay.data?.points ?? []} />}
         />
         <StatCard
           label="Cached tokens"
@@ -447,12 +477,10 @@ export function UsageView() {
                 shifted the layout. */}
             <TabsContent value="models" className="pt-4">
               <ModelBreakdown
-                rows={rows}
-                hint={
-                  pageCount > 1
-                    ? `Counts this page only (${rows.length} of ${usage.data?.total}). Aggregates per model land with the CSV export.`
-                    : undefined
-                }
+                data={byModel.data}
+                loading={byModel.loading}
+                error={byModel.error}
+                onRetry={byModel.reload}
               />
             </TabsContent>
           </Tabs>
@@ -485,72 +513,105 @@ function StatusBadge({ code }: { code: number | null }) {
   );
 }
 
+/**
+ * The By-model tab, from `/api/usage/by-model`.
+ *
+ * WHAT CHANGED AND WHY IT MATTERS. This used to sum the 25 rows on screen
+ * and admit it in a hint. The tab exists to answer "where did my pool go",
+ * and on a 40,000-row month a 25-row sample can name the wrong model. The
+ * aggregate now comes from the database over the same filter as the table,
+ * so the number under "By model" and the number in the stat cards are the
+ * same quantity.
+ *
+ * The share bar is quota-weighted, not row-weighted: a frontier token costs
+ * the pool fifteen times a fast one, so "which model ate my allowance" is
+ * answered by blended tokens — sorting by request count would point at the
+ * alias with the most traffic, which is usually the cheapest one.
+ */
 function ModelBreakdown({
-  rows,
-  hint,
+  data,
+  loading,
+  error,
+  onRetry,
 }: {
-  rows: UsagePageResponse["rows"];
-  hint?: string;
+  data: UsageByModelResponse | null;
+  loading: boolean;
+  error: ApiError | null;
+  onRetry: () => void;
 }) {
-  const byModel = new Map<
-    string,
-    { requests: number; tokens: number; cache: number }
-  >();
-  for (const row of rows) {
-    const entry = byModel.get(row.model) ?? {
-      requests: 0,
-      tokens: 0,
-      cache: 0,
-    };
-    entry.requests += 1;
-    // Same number the row table and the header show: the server's weighted
-    // total, not a browser-side re-addition of the raw columns.
-    entry.tokens += row.blendedTokens;
-    entry.cache += row.cacheReadTokens;
-    byModel.set(row.model, entry);
-  }
+  if (loading && !data) return <PanelSkeleton rows={3} />;
+  if (error) return <ErrorState error={error} onRetry={onRetry} />;
 
-  if (byModel.size === 0) {
+  const rows = data?.rows ?? [];
+  if (rows.length === 0) {
     return (
-      <p className="py-10 text-center text-sm text-muted-foreground">
-        No usage to break down.
+      <p className="px-6 py-10 text-center text-sm text-muted-foreground">
+        No usage to break down in this window.
       </p>
     );
   }
 
+  const totalTokens = rows.reduce((n, r) => n + r.blendedTokens, 0);
+
   return (
     <div className="grid gap-3">
-      {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      <p className="px-6 text-xs text-muted-foreground">
+        Every model you called in this window, ordered by share of the pool.
+        Tokens are quota-weighted, so a frontier call counts more than a fast
+        one.
+      </p>
       <Table className="table-fixed">
         {/* Percentages summing to 100%, matching the requests table. Model
             holds an alias badge, so it gets the flexible share. */}
         <colgroup>
-          <col className="w-[49%]" />
-          <col className="w-[17%]" />
-          <col className="w-[17%]" />
-          <col className="w-[17%]" />
+          <col className="w-[26%]" />
+          <col className="w-[16%]" />
+          <col className="w-[16%]" />
+          <col className="w-[20%]" />
+          <col className="w-[22%]" />
         </colgroup>
         <TableHeader>
           <TableRow>
-            <TableHead>Model</TableHead>
+            <TableHead className="pl-6">Model</TableHead>
             <TableHead className="text-right">Requests</TableHead>
             <TableHead className="text-right">Tokens</TableHead>
             <TableHead className="text-right">Cache read</TableHead>
+            <TableHead className="pr-6 text-right">Share of pool</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
-          {[...byModel.entries()].map(([model, e]) => (
-            <TableRow key={model}>
-              <TableCell className="font-medium">{model}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                {e.requests.toLocaleString()}
-              </TableCell>
-              <TableCell className="text-right tabular-nums">{compact(e.tokens)}</TableCell>
-              <TableCell className="text-right tabular-nums text-muted-foreground">
-                {compact(e.cache)}
-              </TableCell>
-            </TableRow>
-          ))}
+          {rows.map((r) => {
+            const share =
+              totalTokens > 0 ? Math.round((r.blendedTokens / totalTokens) * 100) : 0;
+            return (
+              <TableRow key={r.model}>
+                <TableCell className="max-w-0 truncate pl-6 font-medium" title={r.model}>
+                  {r.model}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {r.requests.toLocaleString()}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  {compact(r.blendedTokens)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums text-muted-foreground">
+                  {compact(r.cacheReadTokens)}
+                </TableCell>
+                <TableCell className="pr-6">
+                  <div className="flex items-center justify-end gap-2">
+                    <Progress
+                      value={share}
+                      aria-label={`${r.model}: ${share}% of this window's tokens`}
+                      className="w-16 [&_[data-slot=progress-track]]:h-1.5"
+                    />
+                    <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+                      {share}%
+                    </span>
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

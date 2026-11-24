@@ -1453,3 +1453,94 @@ export async function usageHistorySeries(
     ),
   };
 }
+
+/**
+ * Per-model aggregate over the SAME filter as `/api/usage` — the "By model"
+ * tab's real answer (dashboard UX plan, Phase 2).
+ *
+ * WHY THIS IS A ROUTE AND NOT CLIENT ARITHMETIC. The By-model tab summed
+ * the visible page of 25 rows and said so in a hint ("counts this page
+ * only"). That is the one tab a customer opens to find out where their pool
+ * went, and it could be wrong by orders of magnitude — 25 rows out of
+ * 40,000. The database has to answer it.
+ *
+ * ORDERING IS BY QUOTA COST, not raw tokens: a frontier token costs the pool
+ * fifteen times a fast token (MODEL_WEIGHT_SQL), so "which model ate my
+ * allowance" is answered by `blended_tokens`, and sorting by raw rows would
+ * point at whichever alias had the most traffic.
+ *
+ * The filter is built by `usageFilterFor`, the same function the table and
+ * the CSV use — a second WHERE is how an export and its screen disagree.
+ */
+export interface UsageByModelRow {
+  model: string;
+  requests: number;
+  blendedTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  costCustomerUsd: number;
+}
+
+export async function usageByModel(
+  organizationId: string,
+  query: Omit<UsageHistoryQuery, 'page' | 'pageSize'>,
+): Promise<{ rows: UsageByModelRow[]; total: number }> {
+  const conditions: SQL[] = [sql`u.organization_id = ${organizationId}::uuid`];
+
+  if (query.from) {
+    const from = new Date(query.from);
+    if (!Number.isNaN(from.getTime())) {
+      conditions.push(sql`u.occurred_at >= ${from.toISOString()}::timestamptz`);
+    }
+  }
+  if (query.to) {
+    const to = new Date(query.to);
+    if (!Number.isNaN(to.getTime())) {
+      conditions.push(sql`u.occurred_at <= ${to.toISOString()}::timestamptz`);
+    }
+  }
+  if (query.model) conditions.push(sql`u.model = ${query.model}`);
+  if (query.apiKeyId) {
+    // Same rule as `usageHistory`: a malformed id is an empty result, never
+    // a database error surfaced as a 500.
+    if (!UUID_RE.test(query.apiKeyId)) return { rows: [], total: 0 };
+    conditions.push(sql`u.api_key_id = ${query.apiKeyId}::uuid`);
+  }
+
+  const where = sql.join(conditions, sql` AND `);
+
+  const raw = (await db.execute(sql`
+    SELECT u.model,
+           count(*)::int                                 AS requests,
+           coalesce(sum(${sql.raw(BILLABLE_TOKEN_COLUMNS)}), 0)::bigint AS blended_tokens,
+           coalesce(sum(u.input_tokens), 0)::bigint      AS input_tokens,
+           coalesce(sum(u.output_tokens), 0)::bigint     AS output_tokens,
+           coalesce(sum(u.cache_read_tokens), 0)::bigint AS cache_read_tokens,
+           coalesce(sum(u.cost_customer_usd), 0)         AS cost_customer
+      FROM usage_records u
+     WHERE ${where}
+     GROUP BY u.model
+     ORDER BY blended_tokens DESC, u.model
+  `)) as unknown as {
+    model: string;
+    requests: number;
+    blended_tokens: string;
+    input_tokens: string;
+    output_tokens: string;
+    cache_read_tokens: string;
+    cost_customer: string;
+  }[];
+
+  const rows: UsageByModelRow[] = raw.map((r) => ({
+    model: r.model,
+    requests: Number(r.requests ?? 0),
+    blendedTokens: Number(r.blended_tokens ?? 0),
+    inputTokens: Number(r.input_tokens ?? 0),
+    outputTokens: Number(r.output_tokens ?? 0),
+    cacheReadTokens: Number(r.cache_read_tokens ?? 0),
+    costCustomerUsd: Number(r.cost_customer ?? 0),
+  }));
+
+  return { rows, total: rows.reduce((n, r) => n + r.requests, 0) };
+}
