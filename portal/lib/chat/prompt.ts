@@ -10,6 +10,7 @@
  *
  * ORDER IS LOAD-BEARING, strongest instruction last:
  *
+ *   0. brand identity      — who the MODEL is (fixed, every chat)
  *   1. custom instructions — who the user is (stable, applies everywhere)
  *   2. memories           — facts learned, capped and labelled by age
  *   3. project            — the objective this chat serves
@@ -28,6 +29,7 @@ import {
   type ContentPart,
   type ImageBlock,
 } from './vision';
+import { identityPrompt } from './identity';
 
 /** One remembered fact, as the prompt sees it. */
 export interface PromptMemory {
@@ -37,6 +39,8 @@ export interface PromptMemory {
 }
 
 export interface PromptInput {
+  /** The tier serving this turn (`fast`, `smart`, `claude-fast`, …). */
+  alias?: string | null;
   aboutUser?: string;
   responseStyle?: string;
   memories?: PromptMemory[];
@@ -75,6 +79,12 @@ export const MAX_PROMPT_MEMORIES = 40;
  */
 export function buildSystemPrompt(input: PromptInput): string | null {
   const parts: string[] = [];
+
+  // ── 0. Brand identity. FIRST, and unconditionally — see the note above
+  // on why it is neither a setting nor an afterthought. A per-chat prompt
+  // can still override it, which is the intended layer order.
+  const identity = identityPrompt(input.alias);
+  if (identity) parts.push(identity);
 
   // ── 1. Custom instructions, as one block with two labelled halves.
   const about = input.aboutUser?.trim();

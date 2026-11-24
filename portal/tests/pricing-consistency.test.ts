@@ -18,6 +18,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolvePrice } from '@/lib/pricing/index';
+import { identityFor } from '@/lib/chat/identity';
 
 const LITELLM_YAML = new URL('../../config/litellm.yaml', import.meta.url);
 const PRICES_YAML = new URL('../../prices/models.yaml', import.meta.url);
@@ -322,6 +323,30 @@ describe('litellm.yaml <-> prices/models.yaml', () => {
       .filter(([model]) => !served.has(model))
       .map(([model]) => model);
     expect(stale, 'alias entries for models no deployment serves').toEqual([]);
+  });
+
+  it('keeps the brand-identity engine map in step with `aliases:`', () => {
+    // lib/chat/identity.ts duplicates the model→tier map deliberately: the
+    // prompt builder is pure and synchronous and must not read a file. That
+    // duplication is only safe if something fails when the two drift — a
+    // tier that moved to a new engine would otherwise keep telling customers
+    // the old model name, and that copy is not visible in any dashboard.
+    const registered = (() => {
+      const raw = readFileSync(PRICES_YAML, 'utf8');
+      const inBlock = raw.slice(raw.indexOf('aliases:'));
+      const out: Record<string, string> = {};
+      for (const m of inBlock.matchAll(/^  ([A-Za-z0-9._:@-]+):\s+(fast|smart|frontier|fable)\s*$/gm)) {
+        out[m[1]!] = m[2]!;
+      }
+      return out;
+    })();
+
+    for (const [model, tier] of Object.entries(registered)) {
+      expect(
+        identityFor(model),
+        `identity.ts does not resolve "${model}" to its tier "${tier}"`,
+      ).toEqual(identityFor(tier));
+    }
   });
 });
 

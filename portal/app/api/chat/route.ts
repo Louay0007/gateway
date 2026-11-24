@@ -76,6 +76,7 @@ import { loadInstructions } from '@/lib/chat/instructions';
 import { promptMemories } from '@/lib/chat/memory';
 import { extractMemories } from '@/lib/chat/memory-extract';
 import { buildSystemPrompt, buildUserTurn, buildUserTurnParts } from '@/lib/chat/prompt';
+import { repairIdentityAnswer, isIdentityQuestion } from '@/lib/chat/identity';
 import { imageBlockFor } from '@/lib/chat/vision';
 import { MAX_ATTACHMENTS } from '@/lib/chat/attachments';
 import { getProject } from '@/lib/chat/projects';
@@ -333,6 +334,7 @@ export async function POST(request: Request): Promise<Response> {
   const webResults = searchOutcome?.ok ? searchOutcome.results : [];
 
   const systemPrompt = buildSystemPrompt({
+    alias: parsed.alias,
     aboutUser: instructions.aboutUser,
     responseStyle: instructions.responseStyle,
     memories,
@@ -369,6 +371,20 @@ export async function POST(request: Request): Promise<Response> {
   if (regenerate) await supersedeLastAnswer(conversationId);
 
   const prior = await historyForModel(conversationId, HISTORY_TURNS);
+
+  // What the model is actually answering. A regenerate carries no new text,
+  // so the question is the last stored user turn. Identity repair follows
+  // THIS and not `userText`, or a regenerated "what model are you?" would
+  // stream the leak through unrepaired.
+  const answeredText =
+    userText ||
+    [...prior]
+      .reverse()
+      .filter((m) => m.role === 'user')
+      .map((m) => (typeof m.content === 'string' ? m.content : ''))
+      .find((t) => t.length > 0) ||
+    '';
+
   const contextMessages: WireMessage[] = [];
   if (systemPrompt) {
     contextMessages.push({ role: 'system', content: systemPrompt });
@@ -502,6 +518,9 @@ export async function POST(request: Request): Promise<Response> {
       webResults.length > 0
         ? webResults.map((r) => ({ title: r.title, url: r.url, snippet: r.snippet }))
         : null,
+    // A regenerate re-asks the same last question, so the classification
+    // follows the text actually being answered, not the new (empty) turn.
+    identity: isIdentityQuestion(answeredText) ? { alias: parsed.alias } : null,
     // A temporary chat teaches the system nothing, and a regenerate has no
     // new user text to learn from.
     memory:
@@ -610,6 +629,15 @@ function relayStream(input: {
    * does not have to wait for the answer to show what it read.
    */
   sources: { title: string; url: string; snippet: string }[] | null;
+  /**
+   * Set when the user asked what the assistant is.
+   *
+   * A leaked vendor name cannot be repaired once it is on screen, so these
+   * turns hold the text back and send it as ONE delta after the upstream
+   * finishes — see `repairIdentityAnswer`. Reasoning still streams, so the
+   * turn does not look frozen.
+   */
+  identity: { alias: string } | null;
   /**
    * Everything extraction needs, so the memory pass can run AFTER the answer
    * is delivered. Passed as data rather than closed over the request scope:
@@ -734,7 +762,10 @@ function relayStream(input: {
             }
             if (event.delta) {
               text += event.delta;
-              controller.enqueue(frame({ delta: event.delta }));
+              // Identity turns hold the text until the end: see
+              // `repairIdentityAnswer`. Every other turn streams as it
+              // always has.
+              if (!input.identity) controller.enqueue(frame({ delta: event.delta }));
             }
             if (event.reasoning) {
               reasoning += event.reasoning;
@@ -746,6 +777,25 @@ function relayStream(input: {
               if (event.usage.outputTokens !== null) outputTokens = event.usage.outputTokens;
               if (event.usage.costUsd !== null) streamCostUsd = event.usage.costUsd;
             }
+          }
+        }
+
+        // ── Identity repair, exactly once, before anything is persisted.
+        //
+        // `text` is what the customer sees AND what goes into the row and
+        // the memory pass, so the replacement has to land here rather than
+        // in the frame alone — otherwise a reload shows the leaked vendor.
+        if (input.identity) {
+          const repaired = repairIdentityAnswer(
+            text,
+            input.identity.alias,
+            true,
+          );
+          if (repaired !== null) {
+            text = repaired;
+            controller.enqueue(frame({ delta: repaired }));
+          } else {
+            controller.enqueue(frame({ delta: text }));
           }
         }
 

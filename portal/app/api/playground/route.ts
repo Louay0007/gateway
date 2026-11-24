@@ -43,6 +43,7 @@ import { MINUTE, rateLimit } from '@/lib/api/ratelimit';
 import { bearerKey, keyDigest, keyInfoFor } from '@/lib/device/auth';
 import { getAllowedModels } from '@/lib/entitlements/allowed-models';
 import { wallRefusal } from '@/lib/chat/wall';
+import { identityPrompt, isIdentityQuestion, repairIdentityAnswer } from '@/lib/chat/identity';
 import {
   streamChatCompletion,
   GatewayError,
@@ -142,7 +143,16 @@ export async function POST(request: Request): Promise<Response> {
 
   // ── Build the turn. ─────────────────────────────────────────────────
   const messages: WireMessage[] = [];
-  if (system && system.length > 0) {
+  // Identity first, the caller's own system prompt after it — same order as
+  // buildSystemPrompt, so the playground answers "who are you?" identically
+  // to chat. Without this the two surfaces disagreed about the product name.
+  const identity = identityPrompt(alias);
+  if (identity) {
+    messages.push({
+      role: 'system',
+      content: system && system.length > 0 ? `${identity}\n\n${system}` : identity,
+    });
+  } else if (system && system.length > 0) {
     messages.push({ role: 'system', content: system });
   }
 
@@ -220,6 +230,19 @@ export async function POST(request: Request): Promise<Response> {
         let outputTokens: number | null = null;
         let costUsd: number | null = upstream.costUsd;
 
+        // A turn about the assistant's own identity is held back instead of
+        // streamed, so the text can be repaired before anyone sees it — the
+        // playground is the surface a prospect tries FIRST, so a vendor name
+        // here is the most expensive one to leak. Same guarantee, same
+        // function, as app/api/chat/route.ts.
+        const askedIdentity = isIdentityQuestion(
+          messages
+            .filter((m) => m.role === 'user')
+            .map((m) => (typeof m.content === 'string' ? m.content : ''))
+            .join(' '),
+        );
+        let answer = '';
+
         try {
           const reader = upstream.body.getReader();
           const decoder = new TextDecoder();
@@ -259,7 +282,8 @@ export async function POST(request: Request): Promise<Response> {
                   | undefined;
                 const delta = choices?.[0]?.delta?.content;
                 if (typeof delta === 'string' && delta.length > 0) {
-                  controller.enqueue(frame({ delta }));
+                  answer += delta;
+                  if (!askedIdentity) controller.enqueue(frame({ delta }));
                 }
 
                 const usage = event.usage as
@@ -288,6 +312,10 @@ export async function POST(request: Request): Promise<Response> {
             );
           }
         } finally {
+          if (askedIdentity) {
+            const repaired = repairIdentityAnswer(answer, alias, true);
+            controller.enqueue(frame({ delta: repaired ?? answer }));
+          }
           controller.enqueue(
             frame({
               usage: {
