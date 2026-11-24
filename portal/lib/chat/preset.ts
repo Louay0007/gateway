@@ -47,14 +47,19 @@ export const GenerationSettings = z.object({
    */
   webSearch: z.boolean().optional(),
   /**
-   * The ponytail intensity (`lib/chat/ponytail.ts`), or `off`.
+   * The coding-style intensity (`lib/chat/ponytail.ts`), or `off`.
+   *
+   * NAMED FOR THE PRODUCT, NOT THE UPSTREAM RULESET. This object is what
+   * `GET /api/chat/presets` returns to the browser, so every key here is
+   * user-visible in network traffic. The ruleset's own name is a third
+   * party's; a customer reading their own settings should see ours.
    *
    * `undefined` is not `off`: absent means "the deployment decides", which
    * today is auto by turn shape. Storing `off` explicitly is how a user
    * says "never, not even for code" — a distinction that would be lost by
    * making this a boolean.
    */
-  ponytail: z.enum(['off', ...PONYTAIL_LEVELS]).optional(),
+  codingStyle: z.enum(['off', ...PONYTAIL_LEVELS]).optional(),
 });
 
 export type GenerationSettings = z.infer<typeof GenerationSettings>;

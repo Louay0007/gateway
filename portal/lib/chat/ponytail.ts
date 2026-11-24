@@ -21,10 +21,19 @@
  * `isCodingTurn` — and every injection is visible and switchable per chat
  * (`GenerationSettings.ponytail`).
  *
- * ORDER. `prompt.ts` puts this at slot 5.5: after the attachment notice
- * (which describes what is in the turn) and before the web-results block
- * (which describes untrusted outside text). It is a way of working, not a
- * fact about the turn, so it must not sit above the per-chat preset.
+ * ORDER. `prompt.ts` puts this at slot 3.5: below the per-chat preset (a
+ * default way of working never outranks what the customer wrote) and above
+ * the attachment notice (a fact about this turn, not a preference).
+ *
+ * NAMED FOR THE PRODUCT, NEVER FOR UPSTREAM. The module, the file and the
+ * tests keep the upstream name because provenance matters to whoever
+ * maintains this. Everything a customer or the MODEL sees says "Zaino AI
+ * settings" — the settings label, the stored key (`codingStyle`) and the
+ * prompt's own first line. The model is told the rule is ours; it is not
+ * told a third party's product name, because a model that has just been
+ * handed a vendor's ruleset will sometimes volunteer that vendor's name in
+ * unrelated answers, which is exactly the leak the identity layer exists
+ * to prevent.
  */
 
 /** The intensities the upstream prompt documents. `off` is absence, not a value. */
@@ -34,15 +43,19 @@ export type PonytailLevel = (typeof PONYTAIL_LEVELS)[number];
 /**
  * The ruleset.
  *
- * Adapted from `skills/ponytail/SKILL.md` (MIT, Dietrich Gebert). The
- * changes are the ones a gateway needs and a coding-agent host does not:
+ * Adapted from `skills/ponytail/SKILL.md` (MIT, Dietrich Gebert) — see the
+ * attribution at the end of this file for the required notice. The changes
+ * are the ones a gateway needs and a coding-agent host does not:
  *
- *  - the `/ponytail` slash commands are dropped; the level is a setting here
+ *  - the slash commands are dropped; the level is a setting here
  *  - "end your reply with what you skipped" is scoped to code answers, so a
  *    customer asking an ordinary question never gets a risk footer
  *  - it is told explicitly not to touch the identity lines, because an
  *    exact-copy rule and a "be brief" rule both win otherwise and the
  *    model answers identity questions with a truncated brand name
+ *  - THE RULE IS OURS IN THE MODEL'S VIEW. The first line names it "Zaino
+ *    AI settings" and nothing below carries the upstream product name, so
+ *    the model has no new vendor token to volunteer later.
  *
  * Everything else is upstream's wording, kept because it is what was
  * measured — rewriting it would be an unmeasured prompt.
@@ -50,6 +63,8 @@ export type PonytailLevel = (typeof PONYTAIL_LEVELS)[number];
 const RULES = {
   /** The persona and the ladder. Both lite and full carry this. */
   core: [
+    'Zaino AI settings — how you write code.',
+    '',
     'You are a lazy senior developer. The best code is the code never written.',
     'You solve the whole problem with the least new code.',
     '',
@@ -181,3 +196,17 @@ export function isCodingTurn(text: string): boolean {
   if (CODE_NOUNS.test(t) && t.trim().length <= 220) return true;
   return false;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * Attribution — MIT, and the licence requires this notice to stay.
+ *
+ * The ruleset above is adapted from ponytail (https://ponytail.dev),
+ * copyright Dietrich Gebert, MIT licensed. Only the prompt TEXT is used;
+ * no code was copied. The modifications are listed above `RULES`.
+ *
+ * This notice is deliberately in the source and NOT in the prompt: the
+ * licence attaches to the software, and it must survive here — but a
+ * customer's conversation should never carry a third party's name, and a
+ * model that reads it will sometimes repeat it. Kept adjacent to the file
+ * it licenses so a future fork cannot lose it by deleting a README.
+ * ═══════════════════════════════════════════════════════════════════════ */

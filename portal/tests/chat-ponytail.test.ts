@@ -104,25 +104,25 @@ describe('isCodingTurn', () => {
 describe('the settings knob', () => {
   it('accepts every level plus off', () => {
     for (const level of ['off', ...PONYTAIL_LEVELS]) {
-      expect(readSettings({ ponytail: level }).ponytail).toBe(level);
+      expect(readSettings({ codingStyle: level }).codingStyle).toBe(level);
     }
   });
 
   it('drops a level the schema does not know', () => {
     // A typo must degrade to "unset", never to a 500.
-    expect(readSettings({ ponytail: 'maximum' }).ponytail).toBeUndefined();
+    expect(readSettings({ codingStyle: 'maximum' }).codingStyle).toBeUndefined();
   });
 
   it('absent is not off', () => {
     // Absent means "decide by turn shape"; off means never. Collapsing the
     // two would remove the default behaviour from every new account.
-    expect(readSettings({}).ponytail).toBeUndefined();
-    expect(readSettings({ ponytail: undefined }).ponytail).toBeUndefined();
+    expect(readSettings({}).codingStyle).toBeUndefined();
+    expect(readSettings({ codingStyle: undefined }).codingStyle).toBeUndefined();
   });
 
   it('a later layer wins', () => {
-    expect(mergeSettings({ ponytail: 'lite' }, { ponytail: 'off' }).ponytail).toBe('off');
-    expect(mergeSettings({ ponytail: 'off' }, {}).ponytail).toBe('off');
+    expect(mergeSettings({ codingStyle: 'lite' }, { codingStyle: 'off' }).codingStyle).toBe('off');
+    expect(mergeSettings({ codingStyle: 'off' }, {}).codingStyle).toBe('off');
   });
 });
 
@@ -171,5 +171,31 @@ describe('buildSystemPrompt with ponytail', () => {
   it('never displaces the identity block', () => {
     const prompt = buildSystemPrompt({ alias: 'fast', userText: 'write a rust function' }) as string;
     expect(prompt.indexOf('Zaino AI Fast')).toBeLessThan(prompt.indexOf('lazy senior developer'));
+  });
+});
+
+describe('branding — the customer and the model see only Zaino AI', () => {
+  it('the prompt never carries the upstream product name', () => {
+    // A model handed a third party's ruleset will sometimes volunteer that
+    // third party's name in an unrelated answer. The identity layer exists
+    // to stop exactly that, so this block must not seed it.
+    for (const level of PONYTAIL_LEVELS) {
+      const text = ponytailPrompt(level) as string;
+      expect(text.toLowerCase()).not.toContain('ponytail');
+      expect(text.toLowerCase()).not.toContain('dietrich');
+      expect(text.toLowerCase()).not.toContain('gebert');
+    }
+  });
+
+  it('the prompt opens with our own name', () => {
+    expect(ponytailPrompt('full')?.trimStart().startsWith('Zaino AI settings')).toBe(true);
+  });
+
+  it('the stored settings key is ours, not upstream’s', () => {
+    // GET /api/chat/presets returns this object to the browser, so the key
+    // name is user-visible in network traffic.
+    const stored = readSettings({ codingStyle: 'full' });
+    expect(stored.codingStyle).toBe('full');
+    expect(Object.keys(stored)).not.toContain('ponytail');
   });
 });

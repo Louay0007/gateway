@@ -46,7 +46,9 @@ export function ChatSettings() {
   // `auto` is the UI's word for "no stored value": the server then decides
   // by turn shape. It is NOT a server value — sending it would be rejected
   // by the schema, so it is stripped before save.
-  const [ponytail, setPonytail] = React.useState<NonNullable<GenerationSettings['ponytail']> | "auto">("auto");
+  const [codingStyle, setCodingStyle] = React.useState<
+    NonNullable<GenerationSettings['codingStyle']> | "auto"
+  >("auto");
   const [saving, setSaving] = React.useState(false);
 
   const current = data?.presets?.[""] ?? {};
@@ -59,7 +61,7 @@ export function ChatSettings() {
     seeded.current = true;
     setPrompt(current.systemPrompt ?? "");
     setTemperature(current.temperature === undefined ? "" : String(current.temperature));
-    setPonytail(current.ponytail ?? "auto");
+    setCodingStyle(current.codingStyle ?? "auto");
   }, [current, data, loading]);
 
   async function save() {
@@ -79,7 +81,7 @@ export function ChatSettings() {
           settings: {
             ...(prompt.trim() ? { systemPrompt: prompt.trim() } : {}),
             ...(parsed !== undefined ? { temperature: parsed } : {}),
-            ...(ponytail !== "auto" ? { ponytail } : {}),
+            ...(codingStyle !== "auto" ? { codingStyle } : {}),
           },
         },
       },
@@ -132,29 +134,35 @@ export function ChatSettings() {
           <p className="text-xs text-muted-foreground">0 to 2. Empty uses the plan default.</p>
         </div>
 
-        <div className="grid gap-1.5 sm:max-w-64">
-          <Label htmlFor="chat-ponytail">Coding style</Label>
+        {/* ── Zaino AI settings ──────────────────────────────────────
+            Worded and named for the customer, never for the ruleset we
+            vendored. The internal module keeps the upstream name because
+            its provenance matters to whoever maintains it; a customer
+            reading their own settings sees only our product. */}
+        <div className="grid gap-1.5 sm:max-w-72">
+          <Label htmlFor="chat-coding-style">Zaino AI settings</Label>
           <Select
-            value={ponytail}
+            value={codingStyle}
             // The primitive can clear to `null`; an empty value means the
             // same thing as auto here — fall back to the server's decision
             // rather than storing nothing and rendering a blank trigger.
-            onValueChange={(v) => setPonytail(v ?? "auto")}
+            onValueChange={(v) => setCodingStyle(v ?? "auto")}
           >
-            <SelectTrigger id="chat-ponytail">
+            <SelectTrigger id="chat-coding-style">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="auto">Auto — on for coding turns</SelectItem>
-              <SelectItem value="full">Always on (full)</SelectItem>
-              <SelectItem value="lite">Always on (lite)</SelectItem>
-              <SelectItem value="ultra">Always on (ultra)</SelectItem>
+              <SelectItem value="auto">Auto — best for coding requests</SelectItem>
+              <SelectItem value="lite">Use for all replies — light</SelectItem>
+              <SelectItem value="full">Use for all replies — standard</SelectItem>
+              <SelectItem value="ultra">Use for all replies — strictest</SelectItem>
               <SelectItem value="off">Off</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
-            Ponytail writes the smallest code that fully works. Leave it on auto:
-            it only applies to coding requests, never to ordinary writing.
+            Zaino AI writes the smallest code that fully solves the task — no
+            unused options, no extra layers. On auto it applies only to coding
+            requests, never to ordinary writing.
           </p>
         </div>
 

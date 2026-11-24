@@ -344,7 +344,7 @@ export async function POST(request: Request): Promise<Response> {
     // Resolved here, not in the builder, because the builder is pure and
     // must not know a settings shape. `off` is a user's explicit no and is
     // passed through as-is; absent lets the turn's shape decide.
-    ponytail: settings.ponytail,
+    ponytail: settings.codingStyle,
     userText,
     attachments: attachedFiles.map((f) => ({
       filename: f.filename,
