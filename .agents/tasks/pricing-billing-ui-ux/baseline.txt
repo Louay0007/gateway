@@ -1,0 +1,3 @@
+tsc --noEmit: clean (exit 0)
+vitest run: 67 files passed, 1070/1070 tests passed, 3.26s
+verified at commit 1205a8f on branch fix/pricing-billing-ui-ux

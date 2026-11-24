@@ -1,0 +1,20 @@
+ ✓ tests/device-key-expiry.test.ts (4 tests) 4ms
+ ✓ tests/return-path.test.ts (6 tests) 2ms
+ ✓ tests/chat-preset.test.ts (6 tests) 3ms
+ ✓ tests/wall-and-envelope.test.ts (18 tests) 8ms
+ ✓ tests/security.test.ts (24 tests) 2104ms
+   ✓ password hashing (scrypt) > round-trips a correct password 401ms
+   ✓ password hashing (scrypt) > rejects a wrong password 400ms
+   ✓ password hashing (scrypt) > salts, so identical passwords produce different hashes 344ms
+   ✓ password hashing (scrypt) > rejects a nonexistent user without throwing (timing parity) 411ms
+   ✓ password hashing (scrypt) > rejects a malformed stored hash rather than crashing 378ms
+ ✓ tests/nav.test.ts (5 tests) 3ms
+ ✓ tests/dodo.test.ts (9 tests) 2ms
+ ✓ tests/chat-share.test.ts (9 tests) 2ms
+ ✓ tests/chat-quota-hint.test.ts (6 tests) 13ms
+
+ Test Files  67 passed (67)
+      Tests  1070 passed (1070)
+   Start at  15:24:23
+   Duration  3.26s (transform 1.45s, setup 0ms, collect 5.58s, tests 3.19s, environment 8ms, prepare 2.72s)
+

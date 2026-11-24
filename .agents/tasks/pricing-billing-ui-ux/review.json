@@ -1,0 +1,26 @@
+{
+  "verdict": "CHANGES_REQUESTED",
+  "findings": [
+    {
+      "id": "pro-email-advertises-fast",
+      "severity": "blocking",
+      "file": "portal/lib/i18n/d17.ts",
+      "lines": "96 (FR), 220 (AR), 339 (EN)",
+      "introducedBy": "b820ce8",
+      "evidence": "'• 50M jetons partagés entre Fast, Smart et Frontier, par mois' (:96); '• 50M tokens shared across Fast, Smart and Frontier, per month' (:339). Pro excludes Fast: portal/lib/pricing/facts.ts:47-56 `code: \"pro\", models: [\"smart\", \"frontier\", \"fable\"]`; portal/tests/token-quota.test.ts:34 `PRO_ENTITLED = ['smart','frontier','fable']`; portal/components/ui/interactive-pricing-component.tsx:71 'Spendable on Smart, Frontier and Fable'. Base d6d02ab claimed no Fast entitlement; `git log -S` attributes the change to b820ce8 only.",
+      "consequence": "The D17 payment-confirmation email — the durable record of what the customer bought — tells every Pro customer their 50M shared pool is spendable on Fast. `fast` is refused by getAllowedModels (portal/lib/entitlements/allowed-models.ts:36), so their first `fast` request fails against a paid-for written claim.",
+      "correction": "Remove Fast from all three approved-body bullets: FR '• 50M jetons partagés entre Smart et Frontier, par mois', EN '• 50M tokens shared across Smart and Frontier, per month', AR '• 50 مليون رمز مشترك بين Smart وFrontier شهرياً'."
+    },
+    {
+      "id": "forbidden-lib-scope-modified",
+      "severity": "blocking",
+      "file": "portal/lib/i18n/d17.ts",
+      "lines": "portal/lib/i18n/d17.ts (+3/-12), portal/lib/changelog/entries.ts (+6/-6) at b820ce8",
+      "introducedBy": "b820ce8",
+      "evidence": "`git diff --name-only d6d02ab 9d7a2d6` lists both files under portal/lib/. Approved scope was the seven portal/components files only and required lib/ untouched. report.md itself records 'Out of scope... touches `lib/`, which the task forbids me to modify' yet ships the change and attributes the email edit to the approved work.",
+      "consequence": "The scope guard the task exists to enforce is bypassed, and the out-of-scope edit is the vehicle for the false-entitlement claim above.",
+      "correction": "Remove b820ce8's portal/lib/ hunks from this change set and re-file as a separate approved task, carrying the Fast correction from the finding above. Do not bare-revert: that would restore 'Sonnet 5.5'/'Opus 5.5' upstream names in customer-facing email. If the alias-only rule is held to require the email fix, obtain explicit approval of the scope expansion first."
+    }
+  ],
+  "reviewDoc": "/Users/user/Workspace/gateway/.agents/tasks/pricing-billing-ui-ux/review.md"
+}
