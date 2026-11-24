@@ -196,3 +196,18 @@ describe('repairIdentityAnswer', () => {
     expect(repairIdentityAnswer('anything', 'mystery-tier', true)).toBeNull();
   });
 });
+
+describe('identityPrompt grammar for a descriptive engine', () => {
+  it('keeps fable readable', () => {
+    // `fable` names a class, not a model, so the indefinite article has to
+    // move: "a frontier-class engine is the engine inside it" is not
+    // English and reads as a bug to anyone who opens that tier.
+    const text = identityPrompt('fable') as string;
+    expect(text).toContain('the engine inside it is a frontier-class engine.');
+    expect(text).not.toContain('a frontier-class engine is the engine inside it');
+  });
+
+  it('leaves a proper-noun engine alone', () => {
+    expect(identityPrompt('fast')).toContain('Haiku 5.5 is the engine inside it.');
+  });
+});

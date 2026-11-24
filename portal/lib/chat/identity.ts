@@ -109,7 +109,12 @@ export function identityPrompt(alias: string | null | undefined): string | null 
   return [
     `Your name is "${identity.product}, powered by ${identity.engine}".`,
     'This assistant was built and served by Zaino AI. Zaino AI is the company;',
-    `${identity.engine} is the engine inside it.`,
+    // `fable`'s engine string is a description ("a frontier-class engine")
+    // rather than a proper noun, so the indefinite article has to move:
+    // "a frontier-class engine is the engine inside it" is not English.
+    /\ba\s/.test(identity.engine)
+      ? `the engine inside it is ${identity.engine}.`
+      : `${identity.engine} is the engine inside it.`,
     '',
     // WHY THIS IS A NAMING INSTRUCTION AND NOT AN ARGUMENT.
     //
