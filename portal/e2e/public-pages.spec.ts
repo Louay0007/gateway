@@ -165,10 +165,11 @@ test.describe('public pages', () => {
   test('download page renders with the product name', async ({ page }) => {
     const res = await page.goto('/download');
     expect(res?.status()).toBe(200);
-    // 8d44c63 replaced the desktop-installer page with a "Zaino Agent CLI —
-    // coming soon" note, and this assertion kept looking for the retired
-    // "Zaino AI Agent" title, so it failed on every run from then until now.
-    await expect(page.getByText(/Zaino Agent CLI/i).first()).toBeVisible();
+    // /download now announces the shipped VS Code extension. The CLI and the
+    // Claude Desktop integration are gone from this page, so assert the
+    // extension title and the actual download link instead.
+    await expect(page.getByText(/official Zaino AI extension for VS Code/i).first()).toBeVisible();
+    await expect(page.locator('a[href="/downloads/zaino-1.0.0.vsix"]').first()).toBeVisible();
   });
 
   test('/api/downloads answers JSON, empty directory included', async ({ request }) => {

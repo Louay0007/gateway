@@ -1,120 +1,140 @@
-import Image from 'next/image';
+import { stat } from 'node:fs/promises';
+import { join } from 'node:path';
+
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { ArrowRight, Minus, Terminal } from 'lucide-react';
+import { ArrowRight, Download, ShieldCheck } from 'lucide-react';
 
 import SiteNav from '@/components/marketing/site-nav';
 import ZainoFooter from '@/components/marketing/zaino-footer';
 import { CodeBlock } from '@/components/docs/code-block';
 
 export const metadata: Metadata = {
-  title: 'Zaino Agent CLI — Coming Soon',
-  description: 'The Zaino Agent CLI is in development. Check back shortly.',
+  title: 'Download the Zaino AI extension for VS Code',
+  description:
+    'The official Zaino AI extension for VS Code is available. Install it, sign in with your Zaino account, and start coding.',
 };
 
 /**
- * /download — a not-yet page that has to do a job anyway.
+ * /download — the official VS Code extension.
  *
- * THE PROBLEM. The product is not shipped, so the honest answer is "not yet".
- * The old page said that in a centred block and then unspooled ~180 lines of
- * undifferentiated prose underneath: seven `h3`s, five code blocks and an
- * error list all at the same weight, on one column, with no way to skim. A
- * visitor who wanted only the base URL had to read the whole page to find it.
+ * This page used to be a "not yet" page for a CLI, with Claude Desktop
+ * instructions and curl diagnostics standing in for a shipped product. The
+ * extension is now the product: one file, one install command, one sign-in.
  *
- * THE SHAPE NOW.
- *
- *   1. A short header that says "not yet" once and immediately offers the
- *      thing that DOES work today — the same tiers, in Claude Desktop. That
- *      is the page's real job: convert a dead end into a working path.
- *   2. Three numbered steps, each with the exact value it needs, because the
- *      failure mode here is a wrong base URL, not a missing paragraph.
- *   3. A diagnostics block: the four status codes a person actually hits,
- *      as a definition list rather than as prose bullets.
- *
- * The copy is unchanged in substance — same URLs, same snippet, same codes.
- * Only the grouping changed, plus the removal of the "coming soon / until
- * then" apology framing from the body.
+ * The layout is deliberately short. A visitor arriving here wants three
+ * answers — is it ready, how do I install it, what happens next — and the
+ * page gives them in that order, with the download above the fold.
  */
 
-const STEPS = [
+/** Served by Caddy (`handle_path /downloads/*`) from data/downloads. */
+const EXTENSION_FILE = '/downloads/zaino-1.0.0.vsix';
+const EXTENSION_VERSION = '1.0.0';
+const VS_CODE_VERSION = '1.101 or newer';
+
+/** The same directory /api/downloads lists, so both agree on what shipped. */
+const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR || '/app/data/downloads';
+
+/**
+ * The size printed beside the button, read from the artifact itself.
+ *
+ * Hardcoding "14 MB" was wrong within one build: the file is 14.6 MB, and a
+ * hand-typed size drifts on every release. `stat` is the one source of truth
+ * — the same bytes Caddy serves. Decimal units (1 MB = 1,000,000) because
+ * that is what the visitor's file manager shows for the download they just
+ * saved; binary MiB would print 13.9 MB for the same file and read as a
+ * different one. When the file is absent (a dev checkout with no
+ * DOWNLOADS_DIR) the size is simply not claimed, rather than printing a
+ * number nobody verified.
+ */
+async function extensionSize(): Promise<string | null> {
+  try {
+    const { size } = await stat(join(DOWNLOADS_DIR, 'zaino-1.0.0.vsix'));
+    return `${(size / 1_000_000).toFixed(1)} MB`;
+  } catch {
+    return null;
+  }
+}
+
+const INSTALL_STEPS = [
   {
-    title: 'Open Settings → Developer',
-    body: 'Claude Desktop accepts a custom Anthropic-compatible endpoint under Developer. No extension, no proxy.',
+    title: 'Download the extension',
+    body: 'A single .vsix file. No account is needed to download it.',
   },
   {
-    title: 'Add the endpoint',
-    body: 'A base URL with no path, and your zn- key. The client appends /v1 itself.',
+    title: 'Install it in VS Code',
+    body: 'Open the Extensions view, choose “Install from VSIX…”, and pick the file you downloaded.',
   },
   {
-    title: 'Restart and pick a tier',
-    body: 'The endpoint only loads at startup. Then choose claude-fast, claude-smart, claude-frontier or claude-fable.',
+    title: 'Sign in and start coding',
+    body: 'Click “Sign in with Zaino AI”. Your browser opens the approval page, you confirm the code, and a key is created for you — no key to copy.',
   },
 ] as const;
 
-const DIAGNOSTICS = [
-  { code: '404', meaning: 'The base URL has a trailing path. Use the bare host — the client appends /v1, so /v1/v1 is a 404.' },
-  { code: '401', meaning: 'The key is wrong or revoked. Re-issue it from the dashboard; the value is shown once.' },
-  { code: '403', meaning: 'The key is valid but not allowlisted for that tier. Issue a key that includes it.' },
-  { code: 'Images ignored', meaning: 'Use /v1/messages, not /v1/chat/completions. Vision is stripped on the chat path.' },
+const REQUIREMENTS = [
+  { label: 'Editor', value: `VS Code ${VS_CODE_VERSION}` },
+  { label: 'Platforms', value: 'macOS, Windows, Linux' },
+  { label: 'Network', value: 'api.zaino.soon.it' },
+  { label: 'Account', value: 'Any active Zaino plan (or the 3-day trial)' },
 ] as const;
 
-const VERIFY_CURL = `curl -s https://api.zaino.soon.it/v1/models \\
-  -H "Authorization: Bearer zn-YOUR_KEY" | jq -r '.data[].id'`;
+const INSTALL_COMMAND = `code --install-extension ~/Downloads/zaino-1.0.0.vsix`;
 
-const SEND_CURL = `curl -s https://api.zaino.soon.it/v1/messages \\
-  -H "x-api-key: zn-YOUR_KEY" \\
-  -H "anthropic-version: 2023-06-01" \\
-  -H "content-type: application/json" \\
-  -d '{
-    "model": "claude-smart",
-    "max_tokens": 64,
-    "messages": [{ "role": "user", "content": "Say ok" }]
-  }'`;
+const verifyCommand = `code --list-extensions | grep zaino`;
 
-export default function DownloadPage() {
+export default async function DownloadPage() {
+  const size = await extensionSize();
+
   return (
     <div className="flex min-h-screen flex-col bg-mkt-bg text-mkt-ink">
       <SiteNav active="Download" />
 
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-16 sm:py-20">
-        {/* ── Header: say "not yet" once, then offer what works ────────── */}
+        {/* ── Header: the announcement, with the download in reach ─────── */}
         <header className="max-w-[62ch]">
           <span className="inline-flex items-center gap-2 rounded-full border border-mkt-line-strong px-3 py-1 text-[11px] font-medium tracking-[0.08em] text-mkt-muted uppercase">
-            <Terminal className="size-3" aria-hidden />
-            In development
+            {/* The success token, not a raw palette colour: the design-system
+                test refuses palette-level status colours outside globals.css,
+                and this dot means exactly what "success" means. */}
+            <span className="size-1.5 rounded-full bg-success" aria-hidden />
+            Available now
           </span>
           <h1 className="mt-5 text-balance text-4xl font-semibold leading-[1.05] tracking-[-0.03em] text-mkt-ink sm:text-5xl">
-            Zaino Agent CLI
+            The official Zaino AI extension for VS Code
           </h1>
           <p className="mt-4 text-base leading-relaxed text-mkt-muted">
-            One command to put the gateway in your terminal. It is not shipped
-            yet — and rather than leave you with a placeholder, here is the
-            path that works today with the same tiers, the same key and the
-            same billing.
+            Zaino AI now runs inside your editor. Pick a tier, sign in once, and
+            the agent reads your codebase, edits files and runs commands — with
+            your approval at every step. Billing is the same Zaino plan you
+            already have.
           </p>
-        </header>
 
-        {/* ── The working path ─────────────────────────────────────────── */}
-        <section aria-labelledby="workaround" className="mt-14">
-          <div className="flex flex-wrap items-baseline justify-between gap-3 border-b border-mkt-line pb-4">
-            <h2
-              id="workaround"
-              className="text-lg font-semibold tracking-tight text-mkt-ink"
+          <div className="mt-8 flex flex-wrap items-center gap-3">
+            <a
+              href={EXTENSION_FILE}
+              download
+              className="inline-flex h-11 items-center gap-2 rounded-xl bg-mkt-ink px-5 text-sm font-medium text-mkt-bg transition-opacity hover:opacity-90"
             >
-              Zaino models in Claude Desktop
-            </h2>
-            <span className="text-[11px] font-medium tracking-[0.08em] text-mkt-muted uppercase">
-              Works now
+              <Download className="size-4" aria-hidden />
+              Download for VS Code
+            </a>
+            <span className="text-[13px] text-mkt-muted">
+              v{EXTENSION_VERSION}
+              {size ? ` · ${size}` : ''} · .vsix
             </span>
           </div>
-          <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-mkt-muted">
-            Claude Desktop speaks the Anthropic Messages API, and the gateway
-            serves it. Any Zaino tier works as a custom inference endpoint with
-            your existing key and billing.
-          </p>
+        </header>
 
-          <ol className="mt-8 grid gap-6">
-            {STEPS.map((step, i) => (
+        {/* ── Install: three steps, each with the value it needs ───────── */}
+        <section aria-labelledby="install" className="mt-16">
+          <h2
+            id="install"
+            className="border-b border-mkt-line pb-3 text-lg font-semibold tracking-tight text-mkt-ink"
+          >
+            Install
+          </h2>
+          <ol className="mt-6 grid gap-6">
+            {INSTALL_STEPS.map((step, i) => (
               <li key={step.title} className="grid grid-cols-[1.75rem_1fr] gap-4">
                 <span className="mt-0.5 flex size-7 items-center justify-center rounded-full border border-mkt-line-strong text-xs font-semibold tabular-nums text-mkt-muted">
                   {i + 1}
@@ -125,33 +145,18 @@ export default function DownloadPage() {
                     {step.body}
                   </p>
 
-                  {/* The exact values, attached to the step that needs them,
-                      rather than pooled at the bottom of the page. */}
                   {i === 1 ? (
-                    <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-                      <div className="rounded-lg border border-mkt-line bg-mkt-surface px-3 py-2">
-                        <dt className="text-[10px] tracking-[0.1em] text-mkt-muted uppercase">
-                          Base URL
-                        </dt>
-                        <dd className="mt-0.5 font-mono text-[13px] text-mkt-ink">
-                          https://api.zaino.soon.it
-                        </dd>
-                      </div>
-                      <div className="rounded-lg border border-mkt-line bg-mkt-surface px-3 py-2">
-                        <dt className="text-[10px] tracking-[0.1em] text-mkt-muted uppercase">
-                          API key
-                        </dt>
-                        <dd className="mt-0.5 font-mono text-[13px] text-mkt-ink">
-                          zn-YOUR_KEY
-                        </dd>
-                      </div>
-                    </dl>
-                  ) : null}
-
-                  {i === 2 ? (
-                    <p className="mt-3 font-mono text-[13px] text-mkt-muted">
-                      claude-fast · claude-smart · claude-frontier · claude-fable
-                    </p>
+                    <div className="mt-5 min-w-0">
+                      <p className="text-[12px] text-mkt-muted">
+                        Prefer the terminal? The same file installs with:
+                      </p>
+                      <CodeBlock
+                        className="mt-2.5"
+                        language="bash"
+                        filename="install.sh"
+                        code={INSTALL_COMMAND}
+                      />
+                    </div>
                   ) : null}
                 </div>
               </li>
@@ -159,80 +164,109 @@ export default function DownloadPage() {
           </ol>
         </section>
 
-        {/* ── Proof: two calls that prove the whole path ───────────────── */}
-        <section aria-labelledby="verify" className="mt-14">
+        {/* ── What you get ─────────────────────────────────────────────── */}
+        <section aria-labelledby="tiers" className="mt-16">
           <h2
-            id="verify"
-            className="text-lg font-semibold tracking-tight text-mkt-ink"
+            id="tiers"
+            className="border-b border-mkt-line pb-3 text-lg font-semibold tracking-tight text-mkt-ink"
           >
-            Prove it works
+            Four tiers, one key
           </h2>
-          <p className="mt-2 max-w-[62ch] text-sm leading-relaxed text-mkt-muted">
-            Two requests. The first shows which tiers your key may call; the
-            second proves the whole path — edge, gateway, model.
+          <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-mkt-muted">
+            Switch tiers from the model picker at any time. Usage counts against
+            your plan&rsquo;s token pool.
           </p>
-
-          <div className="mt-6 grid min-w-0 gap-5">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-mkt-ink">
-                Check the key's tiers
-              </p>
-              <p className="mt-1 text-[13px] leading-relaxed text-mkt-muted">
-                If a tier is missing from this list, the key is not allowlisted
-                for it — the gateway is working, the key is not.
-              </p>
-              <CodeBlock className="mt-3" language="bash" filename="list-models.sh" code={VERIFY_CURL} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-mkt-ink">Send one message</p>
-              <CodeBlock className="mt-3" language="bash" filename="send.sh" code={SEND_CURL} />
-            </div>
-          </div>
-        </section>
-
-        {/* ── Diagnostics ──────────────────────────────────────────────── */}
-        <section aria-labelledby="diagnostics" className="mt-14">
-          <h2
-            id="diagnostics"
-            className="text-lg font-semibold tracking-tight text-mkt-ink"
-          >
-            If something is wrong
-          </h2>
-          <dl className="mt-5 grid gap-0 overflow-hidden rounded-xl border border-mkt-line">
-            {DIAGNOSTICS.map((d) => (
+          <dl className="mt-6 grid gap-0 overflow-hidden rounded-xl border border-mkt-line">
+            {[
+              { tier: 'fast', use: 'Quick edits and small questions', price: '$1.00 in · $5.00 out' },
+              { tier: 'smart', use: 'Everyday coding — the default', price: '$3.00 in · $15.00 out' },
+              { tier: 'frontier', use: 'Architecture and hard debugging', price: '$15.00 in · $75.00 out' },
+              { tier: 'fable', use: 'Long-horizon and creative work', price: '$15.00 in · $75.00 out' },
+            ].map((row) => (
               <div
-                key={d.code}
-                className="grid gap-1 border-b border-mkt-line px-4 py-3 last:border-0 sm:grid-cols-[9rem_1fr] sm:gap-4"
+                key={row.tier}
+                className="grid grid-cols-[1fr_auto] items-baseline gap-x-4 gap-y-0.5 border-b border-mkt-line px-4 py-3 last:border-0 sm:grid-cols-[8rem_1fr_auto] sm:gap-x-4 sm:gap-y-0"
               >
-                <dt className="font-mono text-[13px] font-semibold text-mkt-ink">
-                  {d.code}
+                <dt className="col-start-1 row-start-1 font-mono text-[13px] font-semibold text-mkt-ink">
+                  {row.tier}
                 </dt>
-                <dd className="text-[13px] leading-relaxed text-mkt-muted">
-                  {d.meaning}
+                {/* One row on a phone (tier · price), three columns from sm up.
+                    Left to stack, the price fell onto a third line and every
+                    row read as a paragraph. */}
+                <dd className="col-span-2 row-start-2 text-[13px] leading-relaxed text-mkt-muted sm:col-span-1 sm:col-start-2 sm:row-start-1">
+                  {row.use}
+                </dd>
+                <dd className="col-start-2 row-start-1 text-right font-mono text-[12px] whitespace-nowrap text-mkt-muted tabular-nums sm:col-start-3">
+                  {row.price}
                 </dd>
               </div>
             ))}
           </dl>
-
-          <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-mkt-muted">
-            <Minus className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-            Context is 1M tokens per request and up to 64K output on every
-            tier. Claude Desktop may report a smaller window for model names it
-            does not recognise — the gateway still accepts the full 1M.
+          <p className="mt-3 text-[11px] text-mkt-muted">
+            Per 1M tokens, USD. Cache reads bill at a tenth of the input rate.
           </p>
         </section>
 
+        {/* ── Requirements ─────────────────────────────────────────────── */}
+        <section aria-labelledby="requirements" className="mt-16">
+          <h2
+            id="requirements"
+            className="border-b border-mkt-line pb-3 text-lg font-semibold tracking-tight text-mkt-ink"
+          >
+            Before you install
+          </h2>
+          <dl className="mt-6 grid gap-0 overflow-hidden rounded-xl border border-mkt-line">
+            {REQUIREMENTS.map((row) => (
+              <div
+                key={row.label}
+                className="grid gap-1 border-b border-mkt-line px-4 py-3 last:border-0 sm:grid-cols-[9rem_1fr] sm:gap-4"
+              >
+                <dt className="text-[10px] tracking-[0.1em] text-mkt-muted uppercase sm:pt-0.5">
+                  {row.label}
+                </dt>
+                <dd className="text-[13px] leading-relaxed text-mkt-ink">{row.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-mkt-muted">
+            <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+            The download is unsigned, so VS Code may show an unverified-publisher
+            prompt. Install only from this page.
+          </p>
+        </section>
+
+        {/* ── Verify ───────────────────────────────────────────────────── */}
+        <section aria-labelledby="verify" className="mt-16">
+          <h2
+            id="verify"
+            className="border-b border-mkt-line pb-3 text-lg font-semibold tracking-tight text-mkt-ink"
+          >
+            Already installed?
+          </h2>
+          <p className="mt-4 max-w-[62ch] text-sm leading-relaxed text-mkt-muted">
+            Confirm the extension is registered, then open the Zaino sidebar from
+            the activity bar.
+          </p>
+          <CodeBlock
+            className="mt-4"
+            language="bash"
+            filename="verify.sh"
+            code={verifyCommand}
+          />
+        </section>
+
         {/* ── Closing ──────────────────────────────────────────────────── */}
-        <section className="mt-14 border-t border-mkt-line pt-8">
+        <section className="mt-16 border-t border-mkt-line pt-8">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <p className="max-w-[46ch] text-sm leading-relaxed text-mkt-muted">
-              No key yet? The trial is three days and needs no card.
+              No plan yet? The trial is three days, needs no card, and works in
+              the extension.
             </p>
             <Link
               href="/sign-up"
               className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-mkt-ink px-4 text-sm font-medium text-mkt-bg transition-opacity hover:opacity-90"
             >
-              Get an API key
+              Start the trial
               <ArrowRight className="size-4" aria-hidden />
             </Link>
           </div>
