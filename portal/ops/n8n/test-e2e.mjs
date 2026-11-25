@@ -290,6 +290,23 @@ async function main() {
   report();
 }
 
+/**
+ * Mirror of the server's parseAmountMillimes, for assertions only.
+ *
+ * Kept here rather than imported so the script stays runnable against a
+ * container image without the TypeScript sources. If the two ever diverge the
+ * numeric checks below start failing, which is the signal to re-read
+ * lib/billing/d17-verify.ts.
+ */
+function parseAmount(raw) {
+  if (!raw) return null;
+  const cleaned = String(raw).replace(/[^\d.,]/g, '').replace(',', '.').trim();
+  if (!cleaned) return null;
+  const m = /^(\d+)(?:\.(\d{1,3}))?$/.exec(cleaned);
+  if (!m) return null;
+  return Math.round(Number(`${m[1]}.${(m[2] ?? '').padEnd(3, '0')}`) * 1000);
+}
+
 /** Character positions that differ, or Infinity when the shapes differ. */
 function hamming(a, b) {
   if (typeof a !== 'string' || typeof b !== 'string') return Infinity;
@@ -318,7 +335,16 @@ async function runReaderChecks() {
     // The amount is printed at 7x on every fixture and has never slipped.
     // Asserted exactly: if it ever does slip, that IS the finding.
     if (spec.amount) {
-      check(`${file}: read the amount as ${spec.amount}`, got.amount === spec.amount, got);
+      // NUMERIC, not string: the fixture prints `90.000` and the reader
+      // sometimes answers `90,000` because it reports the locale as seen.
+      // Both parse to 90000 millimes, which is the only thing the server
+      // compares — asserting the raw string produced a failure on a
+      // perfectly correct reading.
+      check(
+        `${file}: read the amount as ${spec.amount}`,
+        parseAmount(got.amount) === parseAmount(spec.amount),
+        got,
+      );
     }
 
     // THE AUTHORIZATION NUMBER IS ASSERTED WITH ONE CHARACTER OF TOLERANCE,

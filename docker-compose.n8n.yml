@@ -73,6 +73,12 @@ services:
       # in this container that grows without limit.
       - EXECUTIONS_DATA_PRUNE=true
       - EXECUTIONS_DATA_MAX_AGE=336
+      # V8's default heap ceiling is ~256MB and n8n EXCEEDS it on boot: the
+      # first start died with "Ineffective mark-compacts near heap limit
+      # Allocation failed" at 249MB, right after provisioning the owner. The
+      # container cap below is 512m, so 384m leaves the rest for native
+      # allocations and the task runner without approaching the cgroup limit.
+      - NODE_OPTIONS=--max-old-space-size=384
     volumes:
       - n8n-data:/home/node/.n8n
     # The box runs LiteLLM at ~1.5G on 3.8G total. A vision workflow that

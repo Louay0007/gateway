@@ -172,29 +172,45 @@ os.makedirs(OUT, exist_ok=True)
 
 CASES = {}
 
+# DATES ARE RELATIVE, NOT LITERAL.
+#
+# The first version printed 19/11/2026. That reads as the honest case on the
+# day it was written and as a STALE receipt two days later, because
+# checkDate() rejects anything older than D17_VERIFY_MAX_PROOF_AGE_HOURS
+# (default 48). The end-to-end test then reported "an exact read passes" as a
+# failure when nothing was wrong with the pipeline — the fixture had simply
+# aged out. A receipt fixture is only meaningful relative to "now".
+from datetime import datetime, timedelta
+
+def _d(days_ago: int) -> str:
+    return (datetime.now() - timedelta(days=days_ago)).strftime("%d/%m/%Y")
+
+TODAY = _d(0)
+STALE = _d(9)   # comfortably beyond the 48h window
+
 # 1. The honest payment — must pass.
 receipt("90.000", "A1B2C3D4", "20 123 456", "71 999 999",
-        "19/11/2026").save(f"{OUT}/clean_match.png")
+        TODAY).save(f"{OUT}/clean_match.png")
 CASES["clean_match.png"] = {"expect": "pass", "amount": "90.000", "auth": "A1B2C3D4"}
 
 # 2. Underpayment — the Solo price against a Pro invoice. Must fail.
 receipt("39.000", "A1B2C3D4", "20 123 456", "71 999 999",
-        "19/11/2026").save(f"{OUT}/wrong_amount.png")
+        TODAY).save(f"{OUT}/wrong_amount.png")
 CASES["wrong_amount.png"] = {"expect": "fail", "amount": "39.000", "auth": "A1B2C3D4"}
 
 # 3. Wrong authorization number. Must fail.
 receipt("90.000", "ZZ99XX77", "20 123 456", "71 999 999",
-        "19/11/2026").save(f"{OUT}/wrong_auth.png")
+        TODAY).save(f"{OUT}/wrong_auth.png")
 CASES["wrong_auth.png"] = {"expect": "fail", "amount": "90.000", "auth": "ZZ99XX77"}
 
 # 4. Paid to a different merchant. Review, not fail.
 receipt("90.000", "A1B2C3D4", "20 123 456", "71 000 000",
-        "19/11/2026").save(f"{OUT}/wrong_receiver.png")
+        TODAY).save(f"{OUT}/wrong_receiver.png")
 CASES["wrong_receiver.png"] = {"expect": "review", "amount": "90.000", "auth": "A1B2C3D4"}
 
 # 5. A stale receipt reused a week later. Review.
 receipt("90.000", "A1B2C3D4", "20 123 456", "71 999 999",
-        "12/11/2026").save(f"{OUT}/stale_date.png")
+        STALE).save(f"{OUT}/stale_date.png")
 CASES["stale_date.png"] = {"expect": "review", "amount": "90.000", "auth": "A1B2C3D4"}
 
 # 6. Blurred past legibility. An earlier version of this fixture at
