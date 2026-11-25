@@ -3,7 +3,8 @@ import Link from "next/link";
 
 import SiteNav from "@/components/marketing/site-nav";
 import ZainoFooter from "@/components/marketing/zaino-footer";
-import { ModelCard, formatTokens } from "@/components/models/model-card";
+import { ModelCard } from "@/components/models/model-card";
+import { formatTokens } from "@/lib/models/format";
 import { buildCatalog } from "@/lib/models/catalog";
 import { POOL_PLANS } from "@/components/docs/docs-data";
 

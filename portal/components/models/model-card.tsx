@@ -6,6 +6,7 @@ import { ArrowRight, Check, Copy } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatContext, formatTokens } from "@/lib/models/format";
 import type { CatalogModel } from "@/lib/models/catalog";
 
 /**
@@ -156,20 +157,4 @@ export function ModelCard({
       </div>
     </article>
   );
-}
-
-/** 1048576 → "1M" */
-export function formatContext(n: number): string {
-  if (n >= 1_048_576) return "1M";
-  if (n >= 1000) return `${Math.round(n / 1000)}k`;
-  return String(n);
-}
-
-/** Raw token count → a short human figure. 0 stays "0". */
-export function formatTokens(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0";
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`;
-  if (n >= 1000) return `${Math.round(n / 1000)}k`;
-  return String(Math.round(n));
 }
