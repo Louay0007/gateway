@@ -887,21 +887,31 @@ export async function enforceRetention(input: {
   // Retention is per plan. A user on `history_days = 90` loses chats whose
   // last message is older than that, unless pinned or shared — pinning is
   // the user saying "keep this", and a live share would 404 for a reader.
+  //
+  // ONE predicate, interpolated by the count AND the update. They were
+  // written twice and drifted: only the count excluded a conversation with a
+  // live share, so a run reported `expired: 0` and then archived the chat
+  // anyway, breaking a link its owner had handed to someone else. Duplicating
+  // this again reintroduces exactly that class of bug.
+  const expiredSince = sql`
+    c.archived_at IS NULL
+      AND c.pinned_at IS NULL
+      AND c.temporary = false
+      AND (p.features->>'history_days') IS NOT NULL
+      AND COALESCE(c.last_message_at, c.created_at)
+            < now() - (${sql.raw("(p.features->>'history_days')")} || ' days')::interval
+      AND NOT EXISTS (
+        SELECT 1 FROM conversation_shares sh
+         WHERE sh.conversation_id = c.id AND sh.revoked_at IS NULL
+      )
+  `;
+
   const expiredRows = (await db.execute(sql`
     SELECT c.id
       FROM conversations c
       JOIN subscriptions s ON s.organization_id = c.organization_id
       JOIN plans p         ON p.id = s.plan_id
-     WHERE c.archived_at IS NULL
-       AND c.pinned_at IS NULL
-       AND c.temporary = false
-       AND (p.features->>'history_days') IS NOT NULL
-       AND COALESCE(c.last_message_at, c.created_at)
-             < now() - (${sql.raw("(p.features->>'history_days')")} || ' days')::interval
-       AND NOT EXISTS (
-         SELECT 1 FROM conversation_shares sh
-          WHERE sh.conversation_id = c.id AND sh.revoked_at IS NULL
-       )
+     WHERE ${expiredSince}
   `)) as unknown as { id: string }[];
   if (!input.dryRun && expiredRows.length > 0) {
     // ARCHIVE, not delete. Retention is about what the product keeps
@@ -915,12 +925,7 @@ export async function enforceRetention(input: {
            FROM conversations c
            JOIN subscriptions s ON s.organization_id = c.organization_id
            JOIN plans p         ON p.id = s.plan_id
-          WHERE c.archived_at IS NULL
-            AND c.pinned_at IS NULL
-            AND c.temporary = false
-            AND (p.features->>'history_days') IS NOT NULL
-            AND COALESCE(c.last_message_at, c.created_at)
-                  < now() - (${sql.raw("(p.features->>'history_days')")} || ' days')::interval
+          WHERE ${expiredSince}
        )
     `);
   }
