@@ -913,6 +913,17 @@ export function ChatView({
               </>
             }
           />
+
+          {/* A sibling of the composer, never a row inside it: the input owns
+              one border and one filled control, and a caption between them
+              would read as part of the field.
+
+              `foreground/70`, not `muted-foreground`: the muted token is tuned
+              for 13-14px body copy, and at 11px on white it measures 3.5:1 —
+              under the 4.5:1 floor for small text. */}
+          <p className="-mt-1 text-center text-[11px] leading-relaxed text-foreground/70">
+            Zaino AI can make mistakes. Please always recheck important answers.
+          </p>
         </div>
 
         {/* Confirmation, because the visible effect is a chunk of the
