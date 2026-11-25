@@ -95,3 +95,56 @@ test('/v1/models non-list payload is returned untouched', () => {
   assert.deepEqual(advertiseClaudeAliases({ error: 'nope' }), { error: 'nope' });
   assert.deepEqual(advertiseClaudeAliases({}), {});
 });
+
+// ── Model size metadata ───────────────────────────────────────────────────
+// Claude Desktop reads `context_window` on an Anthropic-shaped model object.
+// When it is absent the client falls back to its own default for that id
+// (200K for `claude-*`), which made a 1M-context model report "160K / 200K"
+// and auto-compact early. These assertions are that regression's lock.
+
+test('every alias and its claude-* twin states the real context window', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const out = advertiseModelSizes({
+    data: ['fast', 'smart', 'frontier', 'fable', 'claude-fast', 'claude-smart'].map((id) => ({ id })),
+  });
+  for (const m of out.data) {
+    assert.equal(m.context_window, 1048576, `${m.id} context_window`);
+    assert.equal(m.max_input_tokens, 1048576, `${m.id} max_input_tokens`);
+    assert.equal(m.max_output_tokens, 65536, `${m.id} max_output_tokens`);
+  }
+});
+
+test('a model id the edge does not know is left exactly as-is', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const entry = { id: 'some-other-vendor-model', object: 'model' };
+  const out = advertiseModelSizes({ data: [entry] });
+  assert.deepEqual(out.data[0], { id: 'some-other-vendor-model', object: 'model' });
+  assert.equal(out.data[0].context_window, undefined);
+});
+
+test('an existing display_name or output cap is not overwritten', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const out = advertiseModelSizes({
+    data: [{ id: 'smart', display_name: 'Zaino Smart', max_output_tokens: 8192 }],
+  });
+  assert.equal(out.data[0].display_name, 'Zaino Smart');
+  assert.equal(out.data[0].max_output_tokens, 8192);
+  assert.equal(out.data[0].context_window, 1048576);
+});
+
+test('tier entries carry sizes BEFORE twins are cloned from them', async () => {
+  // The clone copies the tier entry, so applying sizes afterwards is what
+  // makes the twins correct; applying them first would leave twins at the
+  // client's 200K default. This asserts the composition the server uses.
+  const { advertiseClaudeAliases, advertiseModelSizes } = await import('./server.mjs');
+  const out = advertiseModelSizes(advertiseClaudeAliases({ data: [{ id: 'smart' }] }));
+  const twin = out.data.find((m) => m.id === 'claude-smart');
+  assert.ok(twin, 'claude-smart twin present');
+  assert.equal(twin.context_window, 1048576);
+});
+
+test('non-list payloads are returned untouched', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const payload = { error: 'nope' };
+  assert.deepEqual(advertiseModelSizes(payload), payload);
+});

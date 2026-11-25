@@ -174,6 +174,62 @@ export const CLAUDE_ALIAS = {
   'claude-fable': 'fable',
 };
 
+/** How big each alias actually is, in tokens.
+ *
+ * WHY THE EDGE STATES THIS AND NOT LITELLM. LiteLLM's `/v1/models` answers
+ * `max_input_tokens` / `max_output_tokens` only. An Anthropic-dialect client
+ * (Claude Desktop above all) does not read those names — it reads
+ * `context_window` on an Anthropic-shaped model object, and when that key is
+ * ABSENT it falls back to its own built-in default for the model id. For a
+ * `claude-*` id that default is 200K, which is what a customer sees even
+ * though the upstream serves 1,048,576: every session reports "160K / 200K"
+ * and auto-compacts long before it needs to. The number was never wrong on
+ * the wire — it was simply never stated in the dialect the client speaks.
+ *
+ * Values mirror `config/litellm.yaml` model_info, which mirrors the
+ * provider's own /v1/models (`context_window` 1048576, 65536 output).
+ */
+export const MODEL_CONTEXT = {
+  fast: 1048576,
+  smart: 1048576,
+  frontier: 1048576,
+  fable: 1048576,
+  'claude-fast': 1048576,
+  'claude-smart': 1048576,
+  'claude-frontier': 1048576,
+  'claude-fable': 1048576,
+};
+
+export const MODEL_MAX_OUTPUT = 65536;
+
+/**
+ * Add Anthropic-dialect size fields to every model the key can use.
+ *
+ * PURE, so the rule is testable without a server — same discipline as
+ * `advertiseClaudeAliases` next to it. It only ever restates a size for an
+ * id that is already in the payload, so it cannot advertise a model the key
+ * is not allowed to call.
+ *
+ * `context_window` is the field Claude Desktop reads; `max_input_tokens` and
+ * `max_output_tokens` stay because OpenAI-dialect clients (and our own docs)
+ * use them. `display_name` is set only when the entry has none, so a future
+ * LiteLLM-supplied label is not overwritten.
+ */
+export function advertiseModelSizes(payload) {
+  const data = Array.isArray(payload && payload.data) ? payload.data : null;
+  if (!data) return payload;
+  for (const entry of data) {
+    if (!entry || typeof entry.id !== 'string') continue;
+    const ctx = MODEL_CONTEXT[entry.id];
+    if (!ctx) continue;
+    entry.context_window = ctx;
+    entry.max_input_tokens = ctx;
+    entry.max_output_tokens = entry.max_output_tokens ?? MODEL_MAX_OUTPUT;
+    if (!entry.display_name) entry.display_name = entry.id;
+  }
+  return payload;
+}
+
 /** Add a `claude-*` entry to a /v1/models payload for every tier already
  * in it. Pure, so the rule is testable without an HTTP server.
  *
@@ -591,7 +647,11 @@ const server = http.createServer((req, res) => {
           const raw = Buffer.concat(chunks);
           let body = raw;
           try {
-            body = Buffer.from(JSON.stringify(advertiseClaudeAliases(JSON.parse(raw.toString('utf8')))), 'utf8');
+            // Size fields FIRST: the claude-* twins are cloned from the tier
+            // entry below, so stating sizes after the clone would leave the
+            // twins advertising the client's default 200K.
+            const withTwins = advertiseClaudeAliases(JSON.parse(raw.toString('utf8')));
+            body = Buffer.from(JSON.stringify(advertiseModelSizes(withTwins)), 'utf8');
             outHeaders['content-length'] = body.length;
           } catch {
             // Not JSON (a proxy error page, say). Forward it byte-for-byte
