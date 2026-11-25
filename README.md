@@ -1,489 +1,370 @@
-# Zaino AI — LLM Gateway + SaaS Platform
+<div align="center">
 
-One subscription, three model tiers, 50M blended tokens per tier per month.
-No per-minute rate limits, no dollar caps on top — the monthly token budget
-per tier is the only limit.
+<img src="portal/public/logo/zaino-icon.svg" width="104" alt="Zaino AI" />
+
+# Zaino AI
+
+**One API for every model.** OpenAI- and Anthropic-compatible endpoints, one
+key, one shared token pool, priced in dinars.
+
+[zaino.soon.it](https://zaino.soon.it) · [API](https://api.zaino.soon.it/v1) · [Docs](https://zaino.soon.it/docs) · [Status](https://zaino.soon.it/status)
+
+</div>
+
+---
+
+Zaino is a self-hosted LLM gateway and the SaaS around it. A customer signs up,
+picks a plan, and gets a `zn-` key that speaks both the OpenAI and the Anthropic
+wire formats. Behind that key, four model aliases resolve to upstream
+deployments; the customer never sees an upstream model name, so the engine
+under an alias can be swapped without breaking a single integration.
+
+The gateway enforces one thing: a **shared monthly token pool** per plan,
+measured in weighted units over the subscription period. There are no
+per-minute rate limits, no concurrency ceilings and no dollar caps standing
+between a paying customer and inference.
+
+## Architecture
 
 ```
-                            ┌──────────── CONTROL PLANE ────────────┐
-customer ──▶ portal ──▶ Next.js dashboard, auth, billing, admin    │
-                            │           ▲                           │
-                            │           │ usage (REST, never SQL)    │
-                            ▼           │                           │
-                            └──── DATA PLANE ───────────────────────┘
-your client ──zn-your-key──▶ api.zaino.soon.it ──sk-your-key──▶ upstream
-                                (Caddy + auth-edge + LiteLLM)   (both formats)
+                        ┌──────────────── CONTROL PLANE ────────────────┐
+   customer ──▶ portal ──▶  Next.js 16 · auth · billing · admin console  │
+                        │        │              ▲                        │
+                        │        │ usage        │ entitlements (REST)    │
+                        ▼        ▼              │                        │
+                        └──────────────── DATA PLANE ────────────────────┘
+   your client ──zn-key──▶ api.zaino.soon.it ──sk-key──▶ upstream
+                             Caddy → auth-edge → LiteLLM
 ```
 
-The **gateway** issues scoped keys and enforces per-tier monthly token budgets.
-The **portal** turns that into a product: dashboards, plans, payments, and an
-admin console.
-
-## Docs
-
-This README is the only maintained document. Everything an operator needs to
-run, deploy and reason about the system is below or in the code comments,
-which are the authoritative record for each decision.
-
-| Where | What it answers |
+| Layer | What it does |
 |---|---|
-| This file | Architecture, plans and quota, enforcement, deploy, commands |
-| `config/litellm.yaml` | Model aliases, rates, routing and retry policy (comments are the rationale) |
-| `config/Caddyfile` | Public surface: `@modelApi` allowlist (everything else 404), IP gates, TLS |
-| `edge/server.mjs` | The `zn-` → `sk-` boundary and its fail-closed rules |
-| `edge/responses-shim.mjs` | Responses → Chat translation, and why it sits before LiteLLM |
-| `portal/lib/entitlements/quota.ts` | The token wall — the one window and the one rule |
-| `portal/db/migrations/*.sql` | Schema history, forward-only, each with its reasoning |
-| `portal/public/logos/ATTRIBUTION.md` | Trademark attribution for the vendor logos on `/docs` |
+| **Caddy** | TLS, the `@modelApi` path allowlist (everything else 404s), body ceilings |
+| **auth-edge** | The `zn-` → `sk-` boundary. Validates the customer key, resolves the alias, fails closed |
+| **LiteLLM** | Alias → deployment routing, retries, cooldowns, spend logs |
+| **engine** (Rust) | Document extraction and full-text search for attachments — axum + tantivy |
+| **portal** (Next.js) | Dashboard, chat, keys, usage, billing, admin console |
+| **jobs** | Ten background jobs: metering, entitlement sync, expiry, alerts, retention |
+| **Postgres + Redis** | The ledger, the plans, the sessions, the locks |
 
-## Stack
-
-**Gateway:** Caddy (TLS) → auth-edge (`zn-`→`sk-`, loopback `:4001`) →
-LiteLLM Proxy v1.103.1 (loopback `:4000`) → PostgreSQL 16 + Redis 7
-**Portal:** Next.js 16 + TypeScript + Drizzle + Auth.js (self-hosted) + D17
-manual transfer (La Poste Tunisienne) — there is no card path; Stripe was removed.
-
-Password sign-in and Google / GitHub / Apple sign-in run side by side; neither
-is ever required. Social providers are optional and each appears only when its
-env vars are set (`.env.example` documents all of them). The exchange is
-implemented here — state, PKCE S256, token exchange, provider adapters, account
-linking — in `portal/lib/auth/oauth/`, with the routes at `/api/oauth/<provider>/`
-rather than under Auth.js's `/api/auth/` catch-all. Everything that spends
-money or tokens still requires our own emailed confirmation, whatever a
-provider claims about an address.
-
-Docker Compose, single VPS. Gateway infra ~$5/mo, with portal ~$12/mo.
-
-## Models served
-
-Three aliases, three upstreams. The alias is what customers request; LiteLLM
-resolves it through `config/litellm.yaml` `model_list` and allowlists keys by
-alias name — the edge deliberately forwards the alias as-is (rewriting it to
-the upstream name would be denied with 403).
-
-| Alias | Upstream | Context in / out | Request it with |
-|---|---|---|---|
-| `fast` | Haiku 5.5 | 1M / 64k | `"model": "fast"` |
-| `smart` | Sonnet 5.5 | 1M / 64k | `"model": "smart"` |
-| `frontier` | Opus 5.5 | 1M / 64k | `"model": "frontier"` |
-
-All three share: `timeout 600`, `num_retries 6`, `reasoning_effort max`,
-`verbosity high`, `temperature 0.2`, `top_p 0.9`,
-`supported_endpoints [/v1/chat/completions]` only (`/v1/responses` is
-translated to chat at the edge, `/v1/messages` by LiteLLM),
-`usage-based-routing-v2`, `default_max_parallel_requests 100`.
-Unknown model names are rejected at the edge with a clear `400`; unknown
-aliases on LiteLLM surface as a `403` that the edge maps to the
-out-of-tokens message below.
-
-Per-token list rates (mirrored in `config/litellm.yaml` and
-`prices/models.yaml`, divergence-checked by `pricing-consistency.test.ts`):
-
-| Alias | Input | Output | 5m/1h cache write | Cache read |
-|---|---|---|---|---|
-| `fast` | $1.00 | $5.00 | $2.00 | $0.10 |
-| `smart` | $3.00 | $15.00 | $6.00 | $0.30 |
-| `frontier` | $15.00 | $75.00 | $30.00 | $1.50 |
-
-…per 1M tokens. What the customer effectively pays is upstream × plan
-multiplier: Starter `13000` (1.30×), Pro `12500` (1.25×).
-
-## Plans & monthly limits — the whole quota system
-
-Each tier gets **50M blended tokens per month**, split across the aliases the
-plan serves and measured over the subscription period. That is the entire
-quota. There are no per-minute rate limits, no spend caps, no concurrency
-ceilings standing between a live customer and inference.
-
-| Plan | Models | Monthly budget (split) | Keys | Price |
-|---|---|---|---|---|
-| **Starter** | `fast` + `smart` | 25M `fast` + 25M `smart` = 50M | 3 | 50 DT/mo |
-| **Pro** | `smart` + `frontier` + `fable` | ~16.7M each = 50M | 15 | 90 DT/mo |
-| **Trial** | `fast` + `smart` | 25M `fast` + 25M `smart` = 50M | 1 | free, 3 days |
-
-Budgets are a **monthly total split across aliases**, not a per-alias figure
-repeated on each one. Repeating it multiplies the exposure by the alias count
-— that is the 0025 mistake that made a 50 DT plan worth 1,200 DT of tokens
-(0038).
-
-(`fast` is Starter-only since the Pro refocus: each tier has one clear job —
-high-volume Starter work on Fast, balanced work on Smart, hardest reasoning
-on Frontier and Fable.)
-
-### What counts: blended tokens
-
-One meter, five ledger columns, summed per alias:
-
-```
-billable = input + output + cache_write_5m + cache_write_1h + cache_read
-```
-
-Blended tokens count every token that passes through the gateway, so a long
-agentic session that resends full history each turn consumes proportionally
-more of the budget. Only **successful inference calls are metered** — failures
-never consume quota. `prompt_count` stays in the ledger for historical
-analytics but is never read by any enforcement path.
-
-### The window: the Tunis calendar day
-
-The wall sums `occurred_at >= period_start AND < period_end`, where the
-window is the **subscription period** (`portal/lib/entitlements/quota.ts`
-`usageWindowForSubscription()`), falling back to the UTC calendar month when
-no period is known. Since 0038 that is the only shipping window: budgets are
-monthly totals, so they must be measured over the month the customer paid
-for.
-
-At renewal the new period starts with zero usage in it, so every exhausted
-alias automatically re-allows — no manual reset, no sync needed.
-
-### The token wall: the ONLY thing that can block a request
-
-Rule, enforced identically by the 5-minute enforcer, the sync path, and the
-hourly backstop (all through one helper — they cannot disagree):
-
-```
-allowed = entitled WHERE tokens_used < token_limit
-```
-
-- At `24,999,999` of a 25M alias budget the alias serves. At `25,000,000`
-  it is cut. The next token would be `limit + 1`.
-- A missing or `0` budget entry means **unlimited**, never deny — the
-  fail-open covers only plans nobody configured (shipped plans carry a
-  migration guard forcing a budget on every served alias).
-- When one alias is exhausted it is removed from the gateway allowlist (team
-  models + every key's models). The sibling alias keeps serving. When all
-  entitled aliases are exhausted the allowlist becomes `[]` and every
-  inference `403`s.
-
-What is deliberately **not** blocking, even though the columns exist on the
-plan (kept for display + rollback safety):
-
-| Control | Stored | Pushed to the gateway | Effect |
-|---|---|---|---|
-| Token allowlist | `token_limits` | allowlist of aliases | **the only request-blocking control** |
-| RPM / TPM | `rpm_limit`, `tpm_limit` | always `null` | never blocks |
-| Concurrency | `max_concurrent_requests` | always `null` | never blocks |
-| Dollar budget | fixed $10,000 upstream | $10,000 (backstop) | catastrophic backstop only — the token wall always hits first |
-| Key count | `max_keys` | — | enforced in-app at key creation, not on the request path |
-
-`0` is never written to LiteLLM (it reads `0` as *unlimited*), and a cut org
-gets `[]` + a `0.000001` budget so keys stay alive for instant reactivation
-without serving anything.
-
-### What the customer sees when a tier is spent
-
-```
-403  Out of <alias> tokens for this period. Upgrade for more or wait for
-     renewal.
-```
-
-The edge maps LiteLLM's generic denial to this per-alias wording on both the
-proxy and `/v1/responses` paths (naming the alias from the body, the model
-the customer actually requested, or a translated upstream name like
-`sonnet-5.5` → `smart` — never the raw JSON `"error"` key). The dashboard
-banner, remaining-tokens cards, and marketing/FAQ copy all use the same
-period wording, and the "Resets" card counts down to the period end. The
-cadence travels with the bundle (`bundle.cadence`) so the message cannot
-describe a daily reset the budget does not have.
-
-### Old subscriptions are untouched until renewal
-
-`subscriptions.daily_quota` (`0038_monthly_50m.sql`): `FALSE` — every row
-since 0038 — sums the subscription period. `TRUE` is the 0025 Tunis-day
-window, kept only so an operator can put a single row on a daily quota; no
-plan ships that way. Renewal (`subscription.activated`), plan changes and
-trial redemption all write `FALSE`, and the column default is `FALSE`, so a
-new signup cannot inherit a daily window. The dashboard bundle reads the same
-window helper as the gateway wall, so the numbers a customer is shown and the
-numbers that block them are one definition.
-
-### Status → access
-
-`active`, `past_due` (7-day grace keeps serving), `trialing` → full monthly
-quotas. `unpaid`, `canceled`, `paused`, `incomplete`, or no subscription →
-cut (`models []`). Expiry and trial-expiry jobs run on top of the same rule,
-so every path converges instead of racing.
-
-## Enforcement loop (all server-side, all from the ledger)
-
-`usage_records` is the truth. Everything else derives from it:
-
-| Job | Cadence | What it does |
-|---|---|---|
-| `collect_usage` | 5m | polls LiteLLM `/spend/logs`, resolves alias via `prices/models.yaml`, dedupes by hash (`ON CONFLICT DO NOTHING`) |
-| `enforce_prompt_limits` | 5m | recomputes `getAllowedModels()` per org, narrows/restores team + key allowlists; anyone under quota self-heals to the full plan list |
-| `rollup_usage` | 15m | rebuilds `usage_periods` month buckets from the ledger (chart accelerator — quota never reads it) |
-| `reconcile_entitlements` | 60m | hourly backstop: same wall push as sync, heals any drift |
-| `expire_subscriptions` | 5m | period end → `past_due` + 7d grace → `unpaid` + cut |
-| `expire_trials` | 60m | `trialing` past `trial_end` → `canceled` |
-
-`billing_period` on the ledger is `date_trunc('month', occurred_at)` — a
-calendar-month bucket for charts and history. Allowance math uses the quota
-window (Tunis day / legacy period), never the month bucket: a D17
-subscription starting mid-month spans two buckets, and one bucket can hold
-two periods, so month math would attribute spend to the wrong allowance.
-
-## Two things to read before selling anything
-
-**1. Taking payment for model access is resale.** Anthropic's Commercial ToS
-§A.1 permits powering your own products; §D.2 forbids reselling "except as
-expressly approved by Anthropic." Your payment processor permitting it is not
-your upstream permitting it. Three structures are viable; **BYOK** (customer
-holds the key, you sell the software) avoids the clause entirely. If your own
-upstream is a reseller, you inherit its exposure.
-
-**2. `rate_multiplier_bps` is your business.** At 1.30 you keep ~23% gross
-margin. Below ~1.20 you subsidise your heaviest users, and your heaviest users
-always use their full allowance. The multiplier lives on `plans`
-(`portal/db/migrations/0001_init.sql`) and is applied by
-`lib/billing/service.ts`; the overage invariant (`markup == multiplier − 10000`)
-is asserted in `portal/tests/security.test.ts`.
-
-**3. The 50M monthly budget is generous on purpose — size the margin for the
-ceiling, not the average.** A customer who burns the full 25M `smart` tokens
-in a day costs you upstream × 1.25; the plan price must survive that day
-repeated, not the median day. Watch `verify-metering` margins per tier after
-any price or budget change.
+Nine Compose services, five named volumes, one VPS. Gateway infrastructure runs
+at roughly $5/month; with the portal, about $12.
 
 ## Quick start
 
-Local machine = editor + git. The stack also runs locally for proofs
-(`make verify-metering`, `make verify-d17`, `make verify-grant`), but the VPS is the only place it
-serves traffic. `make verify-config` is the one check that runs without
-containers; latency numbers measured anywhere but the VPS are fiction, because
-every layer between the client and the upstream adds a hop you cannot model
-from a laptop.
-
 ```bash
-# ── local ─────────────────────────────────────────────────────
-$EDITOR config/litellm.yaml        # change something
-make verify-config                 # YAML + shell syntax, runs anywhere
-git add <files> && git commit -m "..." && git push   # deploys (below)
+curl https://api.zaino.soon.it/v1/chat/completions \
+  -H "Authorization: Bearer zn-your-key" \
+  -H "Content-Type: application/json" \
+  -d '{"model": "smart", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
-## Deploy — push to main, nothing else
+```python
+from openai import OpenAI
 
-The VPS runs a **self-hosted GitHub Actions runner** (`.github/workflows/deploy.yml`).
-Pushing to `main` (or "Run workflow" by hand) deploys: refuse a dirty tree →
-fast-forward → `make db-init && make db-migrate` (**migrations run before the
-new code is up**, so a deploy never serves code that expects a column the
-database doesn't have yet) → `docker compose up -d --build` → readiness +
-portal-health + jobs-runner gates. One deploy at a time (concurrency group,
-latest commit wins).
-
-```bash
-# ── normal deploy ─────────────────────────────────────────────
-git push origin main               # runner does migrate → rebuild → health
-gh run list --repo Louay0007/gateway --limit 3   # watch it
-
-# ── VPS, first time only ──────────────────────────────────────
-ssh gateway@<VPS_IP>
-cd /opt/gateway && make init       # .env is created HERE, never in git
-$EDITOR .env                       # API_DOMAIN, UPSTREAM_*, secrets
-make probe                         # ⭐ detects upstream format support
-make up && make health
-make key ALIAS=acme MODELS=fast,smart BUDGET=50
-make smoke KEY=zn-...              # 17-test acceptance suite
+client = OpenAI(api_key="zn-…", base_url="https://api.zaino.soon.it/v1")
+client.chat.completions.create(model="smart", messages=[{"role": "user", "content": "Hello"}])
 ```
 
-Two hard rules the pipeline enforces, learned the painful way:
+```python
+from anthropic import Anthropic
 
-1. **Never hand-edit tracked files on the VPS.** The deploy refuses a dirty
-   tree (`M edge/server.mjs … Refusing to deploy`) — including hotfixes made
-   over SSH during an incident. The 2026-10-27 edge hotfix (alias-rewriting
-   outage + `Model 'error'` denial bug) blocked the daily-limits deploy for
-   exactly this reason: the fix was real, it lived only on the box, and the
-   runner correctly refused to deploy over it. Back the diff up
-   (`git diff > /tmp/hotfix-backup.patch`), commit it properly from local,
-   push — then the tree is clean and the deploy flows.
-2. **Migrations are forward-only, ledger-guarded, and run before the build.**
-   `scripts/db-migrate.sh` applies each `portal/db/migrations/*.sql` exactly
-   once (`schema_migrations` ledger); recovery is `make restore`, never a
-   down-migration. Currently through `0041_oauth_identity` (social sign-in:
-   provider metadata on `auth_accounts`, `signup_method`, and the
-   case-insensitive unique index the account-linking rule depends on).
-
-`make deploy HOST=gateway@<VPS_IP>` (rsync, never copies `.env`) remains as
-the manual fallback; it runs the same migrate → rebuild → health sequence.
-
-## Why the probe comes first
-
-If your upstream is **OpenAI-compatible only**, LiteLLM must *translate*
-`/v1/messages` requests — and its own docs confirm this **drops
-`cache_control`**. Prompt caching then silently fails, and a cache-read token
-that should cost 0.1× is billed at 1×. That's a ~10× cost increase on repeated
-prefixes, with nothing in the logs indicating a problem.
-
-`make probe` tells you which situation you're in before you build on it.
-
-## Clients
-
-### OpenCode Desktop (official)
-
-Download from the portal download page. Sign in with the browser device flow
-(`/api/auth/device` → `/device` approval → `/api/auth/device/token`, see
-`portal/lib/auth/device/`) — no key pasting.
-The key lives in the OS keychain; config only carries `{env:ZAINO_API_KEY}`.
-Only the models your plan allows appear in the picker: Fast + Smart on
-Starter, Smart + Frontier on Pro.
+client = Anthropic(api_key="zn-…", base_url="https://api.zaino.soon.it")
+client.messages.create(model="smart", max_tokens=1024, messages=[{"role": "user", "content": "Hello"}])
+```
 
 ```bash
-# Claude Code  — note ANTHROPIC_API_KEY MUST be empty
+# Claude Code — ANTHROPIC_API_KEY must be empty, or the SDK prefers it
 export ANTHROPIC_BASE_URL=https://api.zaino.soon.it
 export ANTHROPIC_AUTH_TOKEN=zn-your-key
 export ANTHROPIC_API_KEY=""
 ```
 
-```python
-# OpenAI SDK
-OpenAI(api_key="zn-…", base_url="https://api.zaino.soon.it/v1")
+`/v1/responses` is translated to chat at the edge; `/v1/messages` is served
+natively. Unknown model names are rejected at the edge with a `400` naming the
+aliases that exist.
 
-# Anthropic SDK
-Anthropic(base_url="https://api.zaino.soon.it", api_key="zn-…")
+## Models
+
+Four aliases, one per capability class. The alias is the product: it is what
+customers request, what the plan tables list, and what the ledger records.
+
+| Alias | Context in / out | Input | Output | Cache write | Cache read |
+|---|---|---|---|---|---|
+| `fast` | 1M / 64k | $1.00 | $5.00 | $2.00 | $0.10 |
+| `smart` | 1M / 64k | $3.00 | $15.00 | $6.00 | $0.30 |
+| `frontier` | 1M / 64k | $15.00 | $75.00 | $30.00 | $1.50 |
+| `fable` | 1M / 64k | $15.00 | $75.00 | $30.00 | $1.50 |
+
+Per 1M tokens. Cache writes are priced at 2× input for every alias.
+
+Four further names — `claude-fast`, `claude-smart`, `claude-frontier`,
+`claude-fable` — exist only so Claude Desktop's model picker accepts them. They
+are separate LiteLLM model groups on purpose (one cooldown must not take down
+both names), and the ledger resolves them back to their tier, so
+`usage_records.model` is never a `claude-*` value.
+
+Rates live in two files that must agree — `prices/models.yaml` (the operator's
+view) and `config/litellm.yaml` `model_info` (what LiteLLM bills against).
+`portal/tests/pricing-consistency.test.ts` fails the build on drift.
+
+## Plans
+
+Five public plans and a hidden trial. Every plan gets **one shared pool**,
+spendable on any model the plan unlocks, in any proportion.
+
+| Plan | Price | Pool | Models | Keys | Daily cap |
+|---|---|---|---|---|---|
+| **Solo** | 39 DT/mo | 35M | `fast`, `smart` | 2 | 3.5M |
+| **Starter** | 50 DT/mo | 50M | `fast`, `smart` | 3 | 3M |
+| **Pro** | 90 DT/mo | 50M | `smart`, `frontier`, `fable` | 15 | 8M |
+| **Team** | 250 DT/mo | 150M | `smart`, `frontier`, `fable` | 30 | 15M |
+| **Business** | 500 DT/mo | 400M | `smart`, `frontier`, `fable` | 100 | 40M |
+| *Trial* | free | 1M | `fast`, `smart` | 1 | 250k |
+
+Pro differs from Starter by **model class and key count**, not by volume — the
+pool is the same 50M. Team and Business are bigger pools and more keys on one
+invoice; seats were removed in `0044_remove_seats.sql` because a seat is a
+billing concept the gateway cannot enforce.
+
+The pool is stated once, on a single alias key in `plans.token_limits`. The key
+is where the total is written, not what it may be spent on — `plans.models`
+decides that. Repeating the total on every alias is the `0025` mistake that
+made a 50 DT plan worth 1,200 DT of tokens.
+
+### What counts: weighted units
+
+One unit is one fresh `smart` input token. Everything else is converted:
+
+```
+units = ( fresh_input
+        + output            × 5
+        + cache_writes      × 2
+        + min(cache_read, 64_000) / 10 )
+      × model_weight          # fast ⅓ · smart 1 · frontier 5 · fable 5
 ```
 
-Spend the month's 25M on one tier and that tier answers `403 … for this
-period` until renewal while the other tier keeps serving — plan key
-scopes and model pickers around that, not around a monthly pool.
+The weights are not arbitrary: they track the upstream price ratio, so a
+customer who spends their whole pool on `frontier` costs the same as one who
+spends it on `smart`. Cache reads are capped at 64k per request because a
+desktop client re-sends the entire conversation every turn — a chat turn bills
+about 70 cached tokens, a Desktop session 602,080.
 
-## Code from the web
+`prompt_count` counts only a `200` — a rejected or failed request is not a
+prompt. The token sums are not filtered by status, so a request that failed
+after the upstream had already reported usage still bills its tokens.
 
-`opencode web` runs on the VPS as a systemd unit (`opencode-web`,
-loopback `:4096`, project `/opt/gateway`). Two ways to reach it:
+### The window
+
+The wall sums `usage_records` over the **subscription period**, not the
+calendar day and not the calendar month. `usageWindowForSubscription()` in
+`portal/lib/entitlements/quota.ts` is the single definition; the dashboard
+bundle and the gateway wall both call it, so the number a customer is shown and
+the number that blocks them cannot diverge. At renewal the new period starts
+empty and the plan re-allows automatically.
+
+`plans.daily_token_cap` is a second, independent ceiling measured per Tunis
+day. It exists because one runaway agent loop can spend a month of margin in an
+hour. It is a safety rail, not the product's quota.
+
+### The wall
+
+```
+allowed = entitled WHERE units_used < pool
+```
+
+At `49,999,999` of a 50M pool the plan serves; at `50,000,000` the allowlist
+becomes `[]` and every alias on that plan stops at once. There is no per-alias
+exhaustion: the pool is shared, so `computeTokenAllowedModels()` returns the
+whole entitled list or nothing. Inference then returns:
+
+```
+403  Out of tokens for this period. Upgrade for more or wait for renewal.
+```
+
+A missing or `0` pool means *unlimited* in LiteLLM's own semantics, which is
+the most expensive possible failure — so a migration guard refuses to ship a
+public plan without a pool and a dinar price.
+
+## Repository layout
+
+```
+config/            litellm.yaml (aliases, rates, routing) · Caddyfile (public surface)
+edge/              auth-edge: the zn- → sk- boundary, the Responses shim, the upstream guard
+engine/            Rust: axum + tantivy document extraction and search
+portal/            Next.js 16 app — dashboard, chat, billing, admin, API routes
+  app/             41 pages · 76 API routes
+  components/      16 dirs — ui/ (Base UI primitives) · ai/ · chat/ · admin/ · marketing/ · docs/
+  lib/             25 dirs — chat/ (26 modules) · entitlements/ · billing/ · pricing/ · models/
+  scripts/         jobs.ts — the ten background jobs
+  db/migrations/   52 forward-only SQL migrations, each with its reasoning in the header
+  tests/           86 files, 1,347 assertions
+docs/              11 operator documents (see below)
+prices/            models.yaml — the rate table the ledger reconciles against
+scripts/           db-init, db-migrate, smoke, backup, restore, reconcile, probes
+```
+
+## Local development
+
+Local machine = editor and git. The stack also runs locally for proofs, but the
+VPS is the only place it serves traffic — latency measured anywhere else is
+fiction, because every layer between the client and the upstream adds a hop you
+cannot model from a laptop.
 
 ```bash
-# Option A — no public surface at all (recommended for daily use):
-ssh -L 4096:localhost:4096 gateway
-# then open http://localhost:4096 in your browser
-
-# Option B — TLS subdomain (needs DNS + your IP in the allowlist):
-#   1. DNS: code A <VPS_IP>
-#   2. CODE_DOMAIN in .env
-#   3. replace 203.0.113.4/32 in config/Caddyfile {$CODE_DOMAIN} block
-#      with your public IP, redeploy
-# then: https://code.zaino.soon.it
+make init            # .env from template, secrets generated
+make probe           # ⭐ detect which wire formats the upstream supports — run this first
+make up              # the full stack
+make health          # gateway, portal, jobs, Postgres, pricing wiring
+make accounts        # seed a customer + staff login
+make plan            # put the local account on a plan so chat works
 ```
-
-`opencode web` has no built-in auth — the IP allowlist (Option B) or the
-SSH tunnel (Option A) **is** the security. Never remove the `@blocked`
-gate.
-
-## Two things that will bite you if you skip them
-
-1. **Postgres is mandatory.** Without it LiteLLM's budgets are silently
-   no-ops. `make health` checks this. Test **A-8** proves it.
-2. **Cache writes are priced by TTL.** `cache_creation_input_tokens` is a
-   single merged field; 1h-TTL writes cost 2.0× vs 1.25× for 5m. Pricing them
-   all at the 5m rate under-bills by ~19%. `make reconcile` detects this.
-3. **The token wall is per-day now, not per-period.** Any runbook, alert, or
-   support macro that says "wait for renewal" or "resets next period" is
-   stale — the answer is "resets <period end>." Grep for it after
-   every quota change.
-
-## Portal
-
-The portal is a Next.js app under `portal/` — API routes covering auth,
-orgs, keys, usage, billing, D17 payments, admin, profile and account deletion.
-Payments are **manual D17 transfers** verified by staff: the customer submits a
-proof, staff approve it, and the subscription activates (and flips
-`daily_quota` on). There is no card path.
 
 ```bash
 cd portal
 npm install
-npm run typecheck                    # tsc --noEmit
-npx vitest run                       # full suite: quota wall, billing, edge, auth
-npm run build                        # next build (standalone)
-
-# Migrations are forward-only and applied from the repo root, before deploys:
-make db-migrate                      # every pending *.sql once each, ledger-guarded
+npm run typecheck    # tsc --noEmit
+npm test             # vitest — 1,347 assertions
+npm run build        # next build (standalone)
 ```
 
-Schema, newest-first: `0041_oauth_identity` (social sign-in: provider metadata
-columns on `auth_accounts`, `auth_users.signup_method` and
-`email_is_private_relay`, and `auth_users_email_lower_idx` — the
-case-insensitive unique index the linking rule reads), `0038_monthly_50m`
-(50M/month budgets per tier, split
-across aliases; `daily_quota` FALSE plus the column default; trial-code budget;
-guards), `0025_daily_100m` (the superseded daily 100M shape),
-`0024_plan_base_prices`
-(50/90 DT catalog), `0023_tokens_only` (tokens are the only quota),
-`0022_token_limits` (per-alias budgets), `0021` (trial extension),
-`0019_pro_smart_frontier` (Fast is Starter-only), `0018`, `0010_model_tiers`,
-`0007_d17_renewals`, `0006_account_operations`, `0015_admin_console`, back to
-`0001_init`.
+`make help` lists all 43 documented targets. The ones used most:
 
-Implementation order matters — entitlements and payment activation are where
-"customer paid but has no access" and "customer paid twice" bugs live. Both are
-silent. Payment activation is idempotent through the event id in
-`billing_events` (`d17:<paymentId>:approved`), and entitlement push is shared by
-`enforce_prompt_limits`, sync and the hourly backstop so they cannot disagree.
+| Target | What it proves |
+|---|---|
+| `make verify-config` | YAML and shell parse — runs anywhere, no containers |
+| `make verify-engine` | Rust extraction and search, no Docker needed |
+| `make verify-metering` | Metering end to end: ledger, cost, dedupe, revoke |
+| `make verify-d17` | The manual D17 path: duplicate, expiry, double-approve, staff gate |
+| `make verify-dodo` | The card path: checkout, signed webhook, replay, grace, cancel |
+| `make verify-grant` | Manual plan grant: one row, idempotent window, audit, cut |
+| `make smoke KEY=…` | The acceptance suite (A-1…A-16) against a live tenant key |
+| `make backup-drill` | Dump → scratch DB → sanity checks → drop |
 
-The single most expensive invariant: **bundle and wall share one window
-helper.** `subscriptionBundle()` (what the customer sees) imports
-`usageWindowForSubscription()` from `lib/entitlements/quota.ts` — the exact
-function `getAllowedModels()` (what blocks them) sums over. If those two ever
-diverge again, dashboards lie while the gateway cuts, or vice versa.
+## Deploy
+
+Push to `main`. Nothing else.
+
+A self-hosted GitHub Actions runner on the production box
+(`.github/workflows/deploy.yml`) refuses a dirty tree, fast-forwards, runs
+`make db-init && make db-migrate` **before** the new code is up, rebuilds,
+restarts LiteLLM for its bind-mounted config, then gates on: ≥8 model groups
+from `/model/info`, gateway readiness, portal `/api/health` reporting
+`"database":true`, the jobs runner alive, the engine answering `"ok":true`, and
+searxng returning a real JSON search. One deploy at a time; the latest commit
+wins.
+
+```bash
+git push origin main
+gh run list --repo Louay0007/gateway --limit 3
+```
+
+Two rules the pipeline enforces, both learned the hard way:
+
+1. **Never hand-edit tracked files on the VPS.** The deploy refuses a dirty
+   tree, including hotfixes made over SSH during an incident. Back the diff up,
+   commit it properly from local, push.
+2. **Migrations are forward-only and ledger-guarded.** Each `*.sql` applies
+   exactly once (`schema_migrations`). Recovery is `make restore`, never a
+   down-migration.
+
+`make deploy HOST=gateway@<ip>` remains as a manual fallback for first-time
+bootstrap; it runs the same migrate → rebuild → health sequence and never
+copies `.env`.
+
+## Documentation
+
+| Document | What it answers |
+|---|---|
+| [`docs/deploy.md`](docs/deploy.md) | Host, runner, work directory, the ten-step deploy order |
+| [`docs/ROUTING.md`](docs/ROUTING.md) | Which alias resolves to which deployment, and why |
+| [`docs/auth-edge.md`](docs/auth-edge.md) | The `zn-` → `sk-` boundary and its fail-closed rules |
+| [`docs/aipilot-upstream.md`](docs/aipilot-upstream.md) | Using AiPilot as the gateway upstream |
+| [`docs/claude-desktop.md`](docs/claude-desktop.md) | Claude Desktop against the gateway |
+| [`docs/opencode-desktop.md`](docs/opencode-desktop.md) | OpenCode Desktop client setup |
+| [`docs/device-code-flow.md`](docs/device-code-flow.md) | Desktop sign-in without pasting a key |
+| [`docs/d17-payments.md`](docs/d17-payments.md) | D17 (La Poste Tunisienne) — the manual rail |
+| [`docs/dodo-payments.md`](docs/dodo-payments.md) | Dodo Payments — the international card rail |
+| [`docs/usage-tracking-gaps.md`](docs/usage-tracking-gaps.md) | The portal ↔ desktop usage contract, and every gap in it |
+| [`docs/ux-world-class-plan.md`](docs/ux-world-class-plan.md) | The UX, IA and design plan |
+| [`portal/docs/dashboard-architecture.md`](portal/docs/dashboard-architecture.md) | Dashboard architecture |
+| [`portal/docs/dashboard-ux-plan.md`](portal/docs/dashboard-ux-plan.md) | The dashboard's UX plan |
+| [`portal/docs/hardening-round-1.md`](portal/docs/hardening-round-1.md) | Gaps closed in the first hardening round |
+
+The code comments are the authoritative record for each decision. Every
+migration header states the problem it solves and what it supersedes; every
+non-obvious module explains *why* it exists, not what it does.
+
+## Payments
+
+Two rails, deliberately independent:
+
+- **D17** (La Poste Tunisienne) — a transfer, verified by staff or by the
+  auto-verification agent (`0050_d17_auto_verify.sql`). Priced in
+  `plans.price_tnd_millimes`. Works for every plan.
+- **Dodo Payments** — card, USD, priced in `plans.price_cents`. Live for
+  Starter and Pro; the newer tiers have a display price but no provider price
+  id yet, and checkout fails with an error naming the plan rather than
+  silently charging the wrong amount.
+
+Neither price is derived from the other (`0037_dodo_and_seat_prices.sql`).
+`BILLING_PROVIDER` sets the default rail; the customer's choice at checkout
+overrides it per session.
 
 ## Operations console
 
-The staff-facing console is the Next.js app on its **own, IP-gated host**:
-
-```
-{$CONSOLE_DOMAIN}   →   127.0.0.1:3000   (the portal's /admin)
-```
+The staff console is the portal's `/admin`, on its own host
+(`CONSOLE_DOMAIN`). It is not IP-gated: the gate page and `/api/admin/gate`
+answer from any address, and the HMAC-signed cookie minted by the correct
+`ADMIN_GATE_SECRET` is the sole access control. Four tiers —
+`read_only < support < admin < owner` — resolved from `staff_users` on every
+request, never from a customer's org.
 
 | Page | What it answers |
 |---|---|
-| `/admin` | The access-code gate; redirects to `/admin/ops` once it passes |
-| `/admin/orgs` | Filterable account roster (search, plan, status, over-cap, failed sync) with per-row retry, suspend, credit and grant actions |
-| `/admin/orgs/[id]` | One account: keys, members, payments, credits, audit; **grant a plan by hand** (admin only, fresh period, pushed to the gateway, audited as `subscription.admin_granted`) |
+| `/admin/orgs` | Account roster: retry sync, grant plan, record credit, suspend, reactivate |
+| `/admin/orgs/[id]` | One account: actions, keys, members, subscriptions, credit notes, D17 payments, history |
 | `/admin/d17` | Approve or reject a payment proof |
-| `/admin/usage` | Per-account revenue, upstream cost and margin |
-| `/admin/credits` | The refund ledger — read back, not just recorded |
-| `/admin/plans` | Plan CRUD (owner only) — budgets are RAW TOKENS per day; rpm/tpm/concurrency stored are display-only, never pushed |
-| `/admin/audit` | Who changed what, filterable |
+| `/admin/usage` | Per-account revenue, upstream cost, margin |
+| `/admin/credits` | The refund ledger, read back |
+| `/admin/plans` | Plan CRUD (owner only) |
+| `/admin/audit` | Who changed what |
 | `/admin/ops` | Job health and ledger freshness |
-| `/admin/staff` | Grant, change and revoke staff access (owner only) |
+| `/admin/staff` | Grant, change, revoke staff access (owner only) |
 
-Four staff tiers, `read_only < support < admin < owner`, resolved from
-`staff_users` on every request — a revoked account loses the console on its
-next navigation, and no role is ever read from a customer's org.
-
-**`CONSOLE_DOMAIN` is not `ADMIN_DOMAIN`.** LiteLLM's own Admin UI
-(`127.0.0.1:4000`, master-key-only) has **no public vhost at all**; reach it
-over SSH:
+LiteLLM's own Admin UI has **no public vhost**. Reach it over SSH:
 
 ```bash
-ssh -L 4000:localhost:4000 gateway@<VPS_IP>   # then http://localhost:4000/ui
+ssh -L 4000:localhost:4000 gateway@<ip>   # then http://localhost:4000/ui
 ```
 
-Before first use, replace `203.0.113.4/32` in the `{$CONSOLE_DOMAIN}` block of
-`config/Caddyfile` with your public IP (`curl -s ifconfig.me`), or the console
-will 403 you — including from localhost's perspective on a fresh install.
+## Operating notes
 
-## Before serving third parties
+**Postgres is mandatory.** Without it LiteLLM's budgets are silently no-ops.
+`make health` checks this.
 
-Anthropic's Commercial ToS permits powering your own products (§A.1) but
-forbids reselling the Services without express approval (§D.2). If your upstream is itself a
-reseller, you inherit its exposure. **Private/team use can proceed now;
-third-party use should wait for a written answer.**
+**Cache writes are priced by TTL.** `cache_creation_input_tokens` is a single
+merged field; 5m and 1h writes are priced identically here (2× input), which
+under-bills a 1h write if the upstream charges more. `make reconcile` detects
+the drift against a real invoice.
 
-## Commands
+**Taking payment for model access is resale.** Anthropic's Commercial ToS
+permits powering your own products (§A.1) and forbids reselling the Services
+without express approval (§D.2). A payment processor permitting it is not the
+upstream permitting it. Private and team use can proceed; third-party use
+should wait for a written answer. If your own upstream is itself a reseller,
+you inherit its exposure.
 
-```
-make help          # all targets
-make probe         # detect upstream capabilities
-make up | down | restart | logs | ps
-make health        # health + Postgres + pricing wiring
-make key           # mint tenant key
-make report USER=x # usage for a tenant
-make reconcile     # cost cross-check
-make smoke KEY=…   # acceptance suite
-make backup        # pg_dump
-make pull          # new gateway image (review release notes)
-make verify-config # validate YAML + shell syntax
-make db-migrate    # apply pending portal migrations (before deploys do it too)
-make verify-metering # end-to-end quota/billing proof (needs live stack)
-make verify-grant   # manual plan grant proof (needs live stack)
-```
+**`rate_multiplier_bps` is the business model.** At 1.30 the gross margin is
+about 23%. Below roughly 1.20 you subsidise your heaviest users, and your
+heaviest users always use their full allowance. The overage invariant
+(`markup == multiplier − 10000`) is asserted in `portal/tests/security.test.ts`.
+
+## Licence
+
+Proprietary. `Cargo.toml` declares `license = "proprietary"`; there is no
+LICENSE file granting rights. All rights reserved.
+
+Third-party trademarks and logos used on the marketing and docs surfaces are
+attributed in [`portal/public/logos/ATTRIBUTION.md`](portal/public/logos/ATTRIBUTION.md)
+and [`portal/public/logos/ATTRIBUTION-PROVIDERS.md`](portal/public/logos/ATTRIBUTION-PROVIDERS.md).
