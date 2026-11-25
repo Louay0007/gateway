@@ -27,7 +27,12 @@ import { db } from '@/db';
 import { subscriptions } from '@/db/schema';
 import { requireActiveOrg } from '@/lib/auth/authorize';
 import { errorResponse, jsonError } from '@/lib/api/errors';
-import { submitD17Proof, D17ProofError } from '@/lib/billing/d17-proof';
+import {
+  submitD17Proof,
+  notifyD17ProofReceived,
+  D17ProofError,
+} from '@/lib/billing/d17-proof';
+import { after } from 'next/server';
 import { isD17Lang, t17 } from '@/lib/i18n/d17';
 
 export const runtime = 'nodejs';
@@ -129,6 +134,29 @@ export async function POST(request: Request): Promise<Response> {
       userAgent: request.headers.get('user-agent'),
       lang,
     });
+
+    // RESPOND FIRST, MAIL AFTER.
+    //
+    // The acknowledgement is a promise that the proof is RECORDED, which it
+    // already is by this point. Waiting on SMTP made the customer's page
+    // hang for 2.6-2.8s per message (1.8s of it TLS login), twice when ops
+    // mail is configured — measured on this box. `after()` runs the work
+    // once the response is flushed, so the customer sees the confirmation
+    // immediately and the mail still goes out on the same request.
+    //
+    // A mail failure must never surface here: notifyD17ProofReceived logs
+    // and swallows, exactly as the inline version did.
+    after(() =>
+      notifyD17ProofReceived({
+        paymentId: result.paymentId,
+        subscriptionId,
+        organizationId: ctx.orgId,
+        amountMillimes: result.amountMillimes,
+        authorizationNumber,
+        senderPhone,
+        lang,
+      }),
+    );
 
     return Response.json({ ok: true, flaggedReview: result.flaggedReview });
   } catch (e) {

@@ -16,7 +16,10 @@
       "name": "Every 5 minutes",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [-560, 0]
+      "position": [
+        -560,
+        0
+      ]
     },
     {
       "parameters": {
@@ -44,17 +47,23 @@
       "name": "Fetch queue",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [-340, 0]
+      "position": [
+        -340,
+        0
+      ]
     },
     {
       "parameters": {
-        "jsCode": "// One item per payment that is worth a model call.\n//\n// Two reasons an item is skipped here rather than in the workflow's\n// branching: a missing screenshot has nothing to read, and a payment\n// that already has a previous `pass` was approved by an earlier run —\n// re-reading it costs a vision call to confirm what the payment row no\n// longer has status proof_submitted for.\n//\n// THE PROMPT LIVES HERE, not in an env var, and it is deliberately blind:\n// it never receives the expected amount or authorization number. A reader\n// shown the answer will agree with the answer. The comparison happens on\n// the server against `expected`, which this item carries but the model\n// never sees — see the `Read the screenshot` node, which sends only\n// `screenshot`.\nconst queue = $input.first().json;\nif (!queue || !Array.isArray(queue.items)) {\n  throw new Error('queue response had no items array — check the token and the portal URL');\n}\n\nconst PROMPT = [\n  'You read Tunisian D17 (La Poste) money-transfer receipts from a photograph.',\n  'Your only job is to report what is PRINTED. You never decide whether a payment is valid.',\n  '',\n  'Return ONLY a JSON object, no prose and no code fences, with exactly these keys:',\n  '{\"amount\": string|null, \"authNumber\": string|null, \"senderPhone\": string|null, \"receiverPhone\": string|null, \"date\": string|null}',\n  '',\n  'Rules:',\n  '- NEVER guess a digit. If a character is blurry, cropped, or glare-obscured, return null for that field.',\n  '- amount: the transferred AMOUNT ONLY, as printed, with its decimal separator. Do not add a currency word.',\n  '  Do not return a fee, a balance, or a total-sum line unless it is the amount sent.',\n  '- authNumber: the authorization / transaction / reference number exactly as printed, no spaces added.',\n  '- senderPhone: the phone number of the sender (the payer), digits only, no country code formatting.',\n  '- receiverPhone: the phone number of the recipient (the payee).',\n  '- date: the transfer date and time in ISO 8601. If only a date is printed, return YYYY-MM-DD.',\n  '- If the image is not a payment receipt, return every field as null.',\n  '- If two numbers could be the authorization number, return null rather than pick one.',\n].join('\\n');\n\nconst work = queue.items.filter(\n  (it) => it.screenshot && !(it.previous && it.previous.verdict === 'pass'),\n);\n\nif (work.length === 0) {\n  return [];\n}\n\nreturn work.map((it) => ({ json: { ...it, prompt: PROMPT } }));"
+        "jsCode": "// One item per payment that is worth a model call.\n//\n// Two reasons an item is skipped here rather than in the workflow's\n// branching: a missing screenshot has nothing to read, and a payment\n// that already has a previous `pass` was approved by an earlier run —\n// re-reading it costs a vision call to confirm what the payment row no\n// longer has status proof_submitted for.\n//\n// THE PROMPT LIVES HERE, not in an env var, and it is deliberately blind:\n// it never receives the expected amount or authorization number. A reader\n// shown the answer will agree with the answer. The comparison happens on\n// the server against `expected`, which this item carries but the model\n// never sees — see the `Read the screenshot` node, which sends only\n// `screenshot`.\nconst queue = $input.first().json;\nif (!queue || !Array.isArray(queue.items)) {\n  throw new Error('queue response had no items array — check the token and the portal URL');\n}\n\nconst PROMPT = [\n  'You read Tunisian D17 (La Poste) money-transfer receipts from a photograph.',\n  'Your only job is to report what is PRINTED. You never decide whether a payment is valid.',\n  '',\n  'Return ONLY a JSON object, no prose and no code fences, with exactly these keys:',\n  '{\"amount\": string|null, \"authNumber\": string|null, \"senderPhone\": string|null, \"receiverPhone\": string|null, \"date\": string|null}',\n  '',\n  'Rules:',\n  '- NEVER guess a digit. If a character is blurry, cropped, or glare-obscured, return null for that field.',\n  '- amount: the transferred AMOUNT ONLY, as printed, with its decimal separator. Do not add a currency word.',\n  '  Do not return a fee, a balance, or a total-sum line unless it is the amount sent.',\n  '- authNumber: the authorization / transaction / reference number exactly as printed, no spaces added.',\n  '  In the official D17 app receipt it appears under \"Numero d\\'autorisation\" and is usually 6 digits.',\n  '',\n  'THE OFFICIAL D17 APP LAYOUT (La Poste Tunisienne), which is what most customers will send:',\n  '  A blue card. A diamond logo reading \"LA POSTE TUNISIENNE\" / \"البريد التونسي\" at the top.',\n  '  Then, in order, as labelled rows:',\n  '    \"Operation D17\"            followed by a timestamp, e.g. 12/11/2026 19:14:44',\n  '    \"Service\"                  e.g. \"Transfert vers 29293037\"  <- that number is the RECEIVER',\n  '    \"Montant\"                  e.g. \"-100,000 TND\"  <- NEGATIVE and comma-decimal',\n  '    \"Numero d\\'autorisation\"   e.g. \"244650\"',\n  '  Notes for this layout:',\n  '  - The amount is printed NEGATIVE and with a COMMA decimal separator. Report it as',\n  '    printed (\"-100,000\"); the debit sign is how D17 shows money leaving the sender.',\n  '  - There is NO sender phone on this layout. Return senderPhone as null — do not',\n  '    invent one, and do not substitute the receiver number.',\n  '  - senderPhone comes only from layouts that print \"TELEPHONE EXPEDITEUR\".',\n  '  - The receiver is the number after \"Transfert vers\"; report it as digits only.',\n  '  - The date is the timestamp next to \"Operation D17\", not a separate DATE row.',\n  '- senderPhone: the phone number of the sender (the payer), digits only, no country code formatting.',\n  '- receiverPhone: the phone number of the recipient (the payee).',\n  '- date: the transfer date and time in ISO 8601. If only a date is printed, return YYYY-MM-DD.',\n  '- If the image is not a payment receipt, return every field as null.',\n  '- If two numbers could be the authorization number, return null rather than pick one.',\n].join('\\n');\n\nconst work = queue.items.filter(\n  (it) => it.screenshot && !(it.previous && it.previous.verdict === 'pass'),\n);\n\nif (work.length === 0) {\n  return [];\n}\n\nreturn work.map((it) => ({ json: { ...it, prompt: PROMPT } }));"
       },
       "id": "c1a4f000-0000-4000-8000-000000000003",
       "name": "Pick unread proofs",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [-120, 0]
+      "position": [
+        -120,
+        0
+      ]
     },
     {
       "parameters": {
@@ -94,7 +103,10 @@
       "name": "Read the screenshot",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [100, 0],
+      "position": [
+        100,
+        0
+      ],
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 3000
@@ -107,7 +119,10 @@
       "name": "Normalize the reading",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [320, 0]
+      "position": [
+        320,
+        0
+      ]
     },
     {
       "parameters": {
@@ -143,7 +158,10 @@
       "name": "Submit the reading",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [540, 0],
+      "position": [
+        540,
+        0
+      ],
       "retryOnFail": true,
       "maxTries": 2,
       "waitBetweenTries": 2000
@@ -156,27 +174,78 @@
       "name": "Run summary",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [760, 0]
+      "position": [
+        760,
+        0
+      ]
     }
   ],
   "connections": {
     "Every 5 minutes": {
-      "main": [[{ "node": "Fetch queue", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Fetch queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch queue": {
-      "main": [[{ "node": "Pick unread proofs", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Pick unread proofs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Pick unread proofs": {
-      "main": [[{ "node": "Read the screenshot", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Read the screenshot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Read the screenshot": {
-      "main": [[{ "node": "Normalize the reading", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normalize the reading",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normalize the reading": {
-      "main": [[{ "node": "Submit the reading", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Submit the reading",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Submit the reading": {
-      "main": [[{ "node": "Run summary", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Run summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

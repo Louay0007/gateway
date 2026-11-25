@@ -44,6 +44,7 @@ import {
 import { appendAudit } from '@/lib/audit';
 import { sendEmail } from '@/lib/email';
 import { d17EmailTemplates } from '@/lib/email/d17-templates';
+import type { D17Lang } from '@/lib/i18n/d17';
 import { logoAttachments, textToHtml, wrapEmail } from '@/lib/email/layout';
 import { loadOpenD17Payment } from './d17';
 import { recordSubmission } from './d17-ratelimit';
@@ -90,6 +91,8 @@ export interface SubmitProofInput {
 export interface SubmitProofResult {
   paymentId: string;
   flaggedReview: boolean;
+  /** The invoice amount, so the notification does not re-read the row. */
+  amountMillimes: number;
 }
 
 /** Strip metadata by re-encoding: sharp never copies EXIF unless told to. */
@@ -281,17 +284,47 @@ export async function submitD17Proof(
     },
   });
 
-  // ── Notifications: customer first, ops second ──────────────────────
+  log.info('d17: proof submitted', {
+    organizationId: payment.organizationId,
+    paymentId: payment.id,
+    flaggedReview,
+  });
+
+  return { paymentId: payment.id, flaggedReview, amountMillimes: payment.amountMillimes };
+}
+
+/**
+ * Notify the customer (and ops) that a proof was received.
+ *
+ * WHY THIS IS SEPARATE FROM `submitD17Proof`. It used to run inline, and the
+ * route awaited it — so the customer's HTTP response waited on an SMTP
+ * handshake. Measured on the production box: 1.8s of it is TLS login and a
+ * full send is 2.6–2.8s, TWICE when ops mail is configured. The submission is
+ * already durable by the time this is called; the acknowledgement page does
+ * not need to wait for mail to prove it.
+ *
+ * THE CONTRACT IS THE SAME AS BEFORE: a mail failure is logged and swallowed,
+ * never surfaced to the customer. The proof is recorded either way.
+ */
+export async function notifyD17ProofReceived(input: {
+  paymentId: string;
+  subscriptionId: string;
+  organizationId: string;
+  amountMillimes: number;
+  authorizationNumber: string;
+  senderPhone: string;
+  lang?: D17Lang | null;
+}): Promise<void> {
   const [sub, org, ownerMembership] = await Promise.all([
     db.query.subscriptions.findFirst({
       where: eq(subscriptions.id, input.subscriptionId),
     }),
     db.query.organizations.findFirst({
-      where: eq(organizations.id, payment.organizationId),
+      where: eq(organizations.id, input.organizationId),
     }),
     db.query.organizationMembers.findFirst({
       where: and(
-        eq(organizationMembers.organizationId, payment.organizationId),
+        eq(organizationMembers.organizationId, input.organizationId),
         eq(organizationMembers.role, 'owner'),
       ),
     }),
@@ -300,71 +333,63 @@ export async function submitD17Proof(
     ? await db.query.plans.findFirst({ where: eq(plans.id, sub.planId) })
     : null;
 
-  if (org?.name && plan) {
-    const templates = d17EmailTemplates(input.lang ?? 'fr');
-    const vars = {
-      plan: plan.name,
-      amount: formatTndMillimes(payment.amountMillimes),
-      auth: authNumber,
-      hours: String(Math.max(1, Math.round(reviewWindowMinutes() / 60))),
-    };
+  if (!(org?.name && plan)) return;
 
-    // Customer confirmation. A failure here must NOT fail the
-    // submission: the proof is recorded either way, and the customer is
-    // looking at a waiting page that says so.
-    if (ownerMembership) {
-      const owner = await db.query.users.findFirst({
-        where: eq(users.id, ownerMembership.userId),
-      });
-      if (owner?.email) {
-        try {
-          const receivedText = templates.receivedBody(vars);
-          await sendEmail({
-            to: owner.email,
-            subject: templates.receivedSubject(vars),
-            text: receivedText,
-            html: wrapEmail(textToHtml(receivedText), { dir: input.lang === 'ar' ? 'rtl' : 'ltr' }),
-            attachments: logoAttachments(),
-          });
-        } catch (e) {
-          log.error('d17: customer notification failed', {
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-      }
-    }
+  const templates = d17EmailTemplates(input.lang ?? 'fr');
+  const vars = {
+    plan: plan.name,
+    amount: formatTndMillimes(input.amountMillimes),
+    auth: input.authorizationNumber,
+    hours: String(Math.max(1, Math.round(reviewWindowMinutes() / 60))),
+  };
 
-    // Ops notification — D17 sends the merchant nothing, so this email
-    // is the only signal that money may have arrived.
-    const opsEmail = (process.env.OPS_ALERT_EMAIL ?? '').trim();
-    if (opsEmail) {
+  // Customer first: that is the mail the confirmation page promises.
+  if (ownerMembership) {
+    const owner = await db.query.users.findFirst({
+      where: eq(users.id, ownerMembership.userId),
+    });
+    if (owner?.email) {
       try {
-        const adminText = templates.adminBody({
-            ...vars,
-            org: org.name,
-            phone: senderPhone,
-            submittedAt: new Date().toISOString(),
-          });
+        const receivedText = templates.receivedBody(vars);
         await sendEmail({
-          to: opsEmail,
-          subject: templates.adminSubject(vars),
-          text: adminText,
-          html: wrapEmail(textToHtml(adminText)),
+          to: owner.email,
+          subject: templates.receivedSubject(vars),
+          text: receivedText,
+          html: wrapEmail(textToHtml(receivedText), { dir: input.lang === 'ar' ? 'rtl' : 'ltr' }),
           attachments: logoAttachments(),
         });
       } catch (e) {
-        log.error('d17: ops notification failed', {
+        log.error('d17: customer notification failed', {
+          paymentId: input.paymentId,
           error: e instanceof Error ? e.message : String(e),
         });
       }
     }
   }
 
-  log.info('d17: proof submitted', {
-    organizationId: payment.organizationId,
-    paymentId: payment.id,
-    flaggedReview,
-  });
-
-  return { paymentId: payment.id, flaggedReview };
+  // Ops second — D17 sends the merchant nothing, so this is the only signal
+  // that money may have arrived.
+  const opsEmail = (process.env.OPS_ALERT_EMAIL ?? '').trim();
+  if (opsEmail) {
+    try {
+      const adminText = templates.adminBody({
+        ...vars,
+        org: org.name,
+        phone: input.senderPhone,
+        submittedAt: new Date().toISOString(),
+      });
+      await sendEmail({
+        to: opsEmail,
+        subject: templates.adminSubject(vars),
+        text: adminText,
+        html: wrapEmail(textToHtml(adminText)),
+        attachments: logoAttachments(),
+      });
+    } catch (e) {
+      log.error('d17: ops notification failed', {
+        paymentId: input.paymentId,
+        error: e instanceof Error ? e.message : String(e),
+      });
+    }
+  }
 }
