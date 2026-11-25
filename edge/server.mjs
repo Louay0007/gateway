@@ -203,6 +203,49 @@ export const MODEL_CONTEXT = {
 export const MODEL_MAX_OUTPUT = 65536;
 
 /**
+ * What these models can actually do — verified against the provider, not
+ * copied from a spec sheet.
+ *
+ * Each flag below was measured on the live upstream (2026-11-25) before it
+ * was advertised:
+ *
+ *   tools            chat/completions returned finish_reason "tool_calls"
+ *                    with a well-formed call; /v1/messages returned
+ *                    stop_reason "tool_use".
+ *   tool round-trip  a tool_result / role:"tool" continuation answered in
+ *                    text on both dialects, so a coding agent can loop.
+ *   vision           an 8x8 solid-red PNG answered "Red." through
+ *                    /v1/messages.
+ *   attachment       the provider's own /v1/models declares it, and a PDF
+ *                    document block is what upstream-guard rewrites — so it
+ *                    is real, with the documented caveat that this upstream
+ *                    refuses base64 PDFs and the guard converts them to a
+ *                    text note.
+ *
+ * WHY ADVERTISE AT ALL. The transport already worked; nothing in our
+ * metadata said so. A client that decides which models to offer for a
+ * coding or tool-driven workflow reads these flags, and an absent flag is
+ * indistinguishable from "unsupported" — the same class of bug as the
+ * missing `context_window` that made a 1M model report 160K/200K.
+ *
+ * NOT ADVERTISED, DELIBERATELY:
+ *   - reasoning / thinking. Every structure was tried
+ *     (reasoning_effort none..max, reasoning:{effort}, thinking:{budget})
+ *     and every one returned reasoning_tokens: 0 within ±0.4s. Claiming
+ *     extended thinking would be a lie a client could not diagnose.
+ *   - audio. The provider declares text and image only.
+ */
+export const MODEL_CAPABILITIES = {
+  supports_function_calling: true,
+  supports_tool_choice: true,
+  supports_vision: true,
+  supports_attachments: true,
+  supports_parallel_tool_calls: true,
+  /** Explicitly false: measured, not assumed. See the note above. */
+  supports_reasoning: false,
+};
+
+/**
  * Add Anthropic-dialect size fields to every model the key can use.
  *
  * PURE, so the rule is testable without a server — same discipline as
@@ -226,6 +269,22 @@ export function advertiseModelSizes(payload) {
     entry.max_input_tokens = ctx;
     entry.max_output_tokens = entry.max_output_tokens ?? MODEL_MAX_OUTPUT;
     if (!entry.display_name) entry.display_name = entry.id;
+    // Capability flags in the snake_case spellings OpenAI- and
+    // Anthropic-dialect clients both probe.
+    Object.assign(entry, MODEL_CAPABILITIES);
+    entry.supports_tools = true;
+    // Anthropic-shaped clients read capabilities off a nested object.
+    entry.capabilities = {
+      tools: true,
+      function_calling: true,
+      vision: true,
+      attachment: true,
+    };
+    entry.architecture = entry.architecture ?? {
+      modality: 'text+image->text',
+      input_modalities: ['text', 'image', 'file'],
+      output_modalities: ['text'],
+    };
   }
   return payload;
 }

@@ -148,3 +148,49 @@ test('non-list payloads are returned untouched', async () => {
   const payload = { error: 'nope' };
   assert.deepEqual(advertiseModelSizes(payload), payload);
 });
+
+// ── Capability metadata ───────────────────────────────────────────────────
+// Each flag here was measured on the live upstream before it was advertised.
+// An absent flag reads as "unsupported" to a client picking a model for a
+// tool-driven coding workflow, which is the same failure class as the missing
+// `context_window`.
+
+test('every served model advertises the tools it was proved to have', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const out = advertiseModelSizes({ data: ['smart', 'claude-smart'].map((id) => ({ id })) });
+  for (const m of out.data) {
+    assert.equal(m.supports_function_calling, true, `${m.id} function_calling`);
+    assert.equal(m.supports_tool_choice, true, `${m.id} tool_choice`);
+    assert.equal(m.supports_vision, true, `${m.id} vision`);
+    assert.equal(m.supports_tools, true, `${m.id} tools`);
+    assert.deepEqual(m.capabilities, {
+      tools: true,
+      function_calling: true,
+      vision: true,
+      attachment: true,
+    });
+  }
+});
+
+test('reasoning is advertised as FALSE because it was measured as absent', async () => {
+  // reasoning_effort none..max, reasoning:{effort} and thinking:{budget} all
+  // returned reasoning_tokens 0. Advertising thinking would be a claim no
+  // client could diagnose, so the flag is explicit rather than omitted.
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const out = advertiseModelSizes({ data: [{ id: 'smart' }] });
+  assert.equal(out.data[0].supports_reasoning, false);
+});
+
+test('modality describes image input, which was verified end to end', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const out = advertiseModelSizes({ data: [{ id: 'frontier' }] });
+  assert.equal(out.data[0].architecture.modality, 'text+image->text');
+  assert.deepEqual(out.data[0].architecture.input_modalities, ['text', 'image', 'file']);
+});
+
+test('an upstream-supplied architecture is respected, not overwritten', async () => {
+  const { advertiseModelSizes } = await import('./server.mjs');
+  const given = { modality: 'text->text', input_modalities: ['text'], output_modalities: ['text'] };
+  const out = advertiseModelSizes({ data: [{ id: 'smart', architecture: given }] });
+  assert.deepEqual(out.data[0].architecture, given);
+});
