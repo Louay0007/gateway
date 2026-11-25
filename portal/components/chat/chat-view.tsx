@@ -757,9 +757,9 @@ export function ChatView({
         {temporary ? (
           <div
             role="status"
-            className="flex shrink-0 items-center justify-center gap-1.5 border-b border-border/60 bg-muted/40 px-4 py-1.5 text-[11px] text-muted-foreground"
+            className="flex shrink-0 items-center justify-center gap-2 border-b border-border/60 bg-muted/40 px-4 py-2 text-[12px] text-muted-foreground"
           >
-            <Pin className="size-3 rotate-45" aria-hidden />
+            <Pin className="size-3.5 rotate-45" aria-hidden />
             Temporary chat — not saved to your history, not remembered, and cannot be shared.
           </div>
         ) : null}
@@ -774,10 +774,10 @@ export function ChatView({
                 // composer past the fold. `svh` is the one that cannot
                 // overshoot: it is the height with browser chrome showing.
                 <div className="flex min-h-[55svh] flex-col justify-center">
-                  <h1 className="text-3xl font-semibold tracking-tight text-balance">
+                  <h1 className="text-[2rem] leading-[1.15] font-semibold tracking-tight text-balance">
                     {hasPlan ? "What are you working on?" : "Welcome to Zaino AI"}
                   </h1>
-                  <p className="mt-2 max-w-[54ch] text-base leading-relaxed text-muted-foreground">
+                  <p className="mt-3 max-w-[54ch] text-[15.5px] leading-relaxed text-muted-foreground">
                     {hasPlan ? (
                       <>
                         You are on{" "}
@@ -857,7 +857,7 @@ export function ChatView({
           <MessageScrollerButton />
         </MessageScroller>
 
-        <div className="grid shrink-0 gap-4 pt-4">
+        <div className="grid shrink-0 gap-4 pt-5">
           {/* The suggestion row is for a conversation that has not started.
               Showing it mid-thread competes with the composer and pushes the
               input down the page for no gain. */}
@@ -867,34 +867,41 @@ export function ChatView({
               (bottom-right is where the send button is), and dismissible so
               it never becomes permanent furniture. */}
           {undoOffer ? (
-            <div
-              role="status"
-              className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground"
-            >
-              <Undo2 className="size-3.5 shrink-0" aria-hidden />
-              <span className="min-w-0 flex-1">
-                Reverted {undoOffer.hides} {undoOffer.hides === 1 ? "message" : "messages"}. Your
-                text is back in the composer — edit it and send again.
-              </span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                onClick={() => void undoRevert(undoOffer.batchId)}
-                className="shrink-0 px-1.5 py-1 font-medium"
+            // Wrapped, not inset: this strip and the queue below are the only
+            // two children of the composer column that carry no padding of
+            // their own, so they ran edge-to-edge between a suggestion row and
+            // a composer that are both inset by 20px. The wrapper gives them
+            // the same `px-5 / max-w-3xl` pair the field uses.
+            <div className="px-5">
+              <div
+                role="status"
+                className="mx-auto flex w-full max-w-3xl items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3.5 py-2.5 text-[13px] text-muted-foreground"
               >
-                Undo
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                onClick={() => setUndoOffer(null)}
-                aria-label="Dismiss"
-                className="shrink-0 p-1"
-              >
-                <X className="size-3.5" aria-hidden />
-              </Button>
+                <Undo2 className="size-4 shrink-0" aria-hidden />
+                <span className="min-w-0 flex-1">
+                  Reverted {undoOffer.hides} {undoOffer.hides === 1 ? "message" : "messages"}. Your
+                  text is back in the composer — edit it and send again.
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void undoRevert(undoOffer.batchId)}
+                  className="shrink-0 px-2 font-medium"
+                >
+                  Undo
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setUndoOffer(null)}
+                  aria-label="Dismiss"
+                  className="shrink-0"
+                >
+                  <X className="size-4" aria-hidden />
+                </Button>
+              </div>
             </div>
           ) : null}
 
@@ -902,51 +909,56 @@ export function ChatView({
               when something is waiting: an empty queue box is furniture that
               costs a row of the transcript for no information. */}
           {queued.length > 0 ? (
-            <Queue>
-              <div className="flex items-center justify-between px-1 text-[11px] font-medium text-muted-foreground">
-                <span>
-                  {queued.length} {queued.length === 1 ? "message" : "messages"} waiting
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="xs"
-                  onClick={() => {
-                    queueRef.current = [];
-                    setQueued([]);
-                  }}
-                  className="px-1.5 text-[11px]"
-                >
-                  Clear
-                </Button>
-              </div>
-              <QueueList>
-                {queued.map((text, index) => (
-                  <QueueItem key={`${index}-${text.slice(0, 24)}`}>
-                    <div className="flex items-start gap-2">
-                      <QueueItemIndicator />
-                      <QueueItemContent>{text}</QueueItemContent>
-                      <QueueItemActions>
-                        <QueueItemAction
-                          onClick={() => editQueued(index)}
-                          aria-label="Edit this message"
-                          title="Edit"
-                        >
-                          <Pencil className="size-3" aria-hidden />
-                        </QueueItemAction>
-                        <QueueItemAction
-                          onClick={() => dropQueued(index)}
-                          aria-label="Remove from the queue"
-                          title="Remove"
-                        >
-                          <X className="size-3" aria-hidden />
-                        </QueueItemAction>
-                      </QueueItemActions>
-                    </div>
-                  </QueueItem>
-                ))}
-              </QueueList>
-            </Queue>
+            // Same wrapper as the undo strip: the Queue primitive is a bare
+            // bordered box, so without an inset it spanned the full column
+            // while the field under it sat on a 20px gutter.
+            <div className="px-5">
+              <Queue className="mx-auto w-full max-w-3xl">
+                <div className="flex items-center justify-between px-1 text-[12px] font-medium text-muted-foreground">
+                  <span>
+                    {queued.length} {queued.length === 1 ? "message" : "messages"} waiting
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => {
+                      queueRef.current = [];
+                      setQueued([]);
+                    }}
+                    className="px-2 text-[12px]"
+                  >
+                    Clear
+                  </Button>
+                </div>
+                <QueueList>
+                  {queued.map((text, index) => (
+                    <QueueItem key={`${index}-${text.slice(0, 24)}`}>
+                      <div className="flex items-start gap-2.5">
+                        <QueueItemIndicator />
+                        <QueueItemContent>{text}</QueueItemContent>
+                        <QueueItemActions>
+                          <QueueItemAction
+                            onClick={() => editQueued(index)}
+                            aria-label="Edit this message"
+                            title="Edit"
+                          >
+                            <Pencil className="size-3.5" aria-hidden />
+                          </QueueItemAction>
+                          <QueueItemAction
+                            onClick={() => dropQueued(index)}
+                            aria-label="Remove from the queue"
+                            title="Remove"
+                          >
+                            <X className="size-3.5" aria-hidden />
+                          </QueueItemAction>
+                        </QueueItemActions>
+                      </div>
+                    </QueueItem>
+                  ))}
+                </QueueList>
+              </Queue>
+            </div>
           ) : null}
 
           <PromptInput
@@ -1007,13 +1019,13 @@ export function ChatView({
                       webSearch ? "Searching the web for this chat" : "Search the web for this chat"
                     }
                     className={cn(
-                      "shrink-0 gap-1 rounded-full px-2.5 text-[11px] font-medium sm:px-2",
+                      "h-8 shrink-0 gap-1.5 rounded-full px-3 text-[12px] font-medium sm:px-2.5",
                       webSearch
                         ? "bg-accent text-accent-foreground"
                         : "text-muted-foreground",
                     )}
                   >
-                    <Globe className="size-3" aria-hidden />
+                    <Globe className="size-3.5" aria-hidden />
                     Search
                   </Button>
                 )}
@@ -1032,13 +1044,13 @@ export function ChatView({
                         : "Read the pages found, not just their summaries"
                     }
                     className={cn(
-                      "shrink-0 gap-1 rounded-full px-2.5 text-[11px] font-medium sm:px-2",
+                      "h-8 shrink-0 gap-1.5 rounded-full px-3 text-[12px] font-medium sm:px-2.5",
                       deepSearch
                         ? "bg-accent text-accent-foreground"
                         : "text-muted-foreground",
                     )}
                   >
-                    <BookOpen className="size-3" aria-hidden />
+                    <BookOpen className="size-3.5" aria-hidden />
                     Deep
                   </Button>
                 )}
@@ -1067,9 +1079,13 @@ export function ChatView({
               would read as part of the field.
 
               `foreground/70`, not `muted-foreground`: the muted token is tuned
-              for 13-14px body copy, and at 11px on white it measures 3.5:1 —
-              under the 4.5:1 floor for small text. */}
-          <p className="-mt-1 text-center text-[11px] leading-relaxed text-foreground/70">
+              for 13-14px body copy, and at 12px on white it measures 3.5:1 —
+              under the 4.5:1 floor for small text.
+
+              `-mt-2` rather than `-mt-1`: PromptInput carries its own bottom
+              safe-area padding, and the old value left the caption optically
+              glued to the field's rounded edge once the radius grew. */}
+          <p className="-mt-2 text-center text-[12px] leading-relaxed text-foreground/70">
             Zaino AI can make mistakes. Please always recheck important answers.
           </p>
         </div>
@@ -1176,21 +1192,21 @@ function Turn({
             ("hey") wrapping its last letter onto a second line, and an
             unbreakable URL sizing the bubble to 778px inside a 736px
             column. */}
-        <MessageContent className="flex w-full flex-col items-end gap-1.5">
+        <MessageContent className="flex w-full flex-col items-end gap-2">
           <Bubble variant="muted">
             <BubbleContent>{message.content}</BubbleContent>
           </Bubble>
           {message.attachments && message.attachments.length > 0 && (
             <ul
-              className="flex max-w-[95%] flex-wrap justify-end gap-1.5"
+              className="flex max-w-[95%] flex-wrap justify-end gap-2"
               aria-label="Attached files"
             >
               {message.attachments.map((file) => (
                 <li
                   key={file.id}
-                  className="flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-2 py-1 text-[11px] text-muted-foreground"
+                  className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-2.5 py-1 text-[12px] text-muted-foreground"
                 >
-                  <span className="max-w-[180px] truncate">{file.filename}</span>
+                  <span className="max-w-[200px] truncate">{file.filename}</span>
                   {file.chars !== undefined && file.chars > 0 ? (
                     <span className="tabular-nums opacity-70">{formatChars(file.chars)}</span>
                   ) : (
@@ -1210,11 +1226,11 @@ function Turn({
               <Button
                 type="button"
                 variant="ghost"
-                size="xs"
+                size="sm"
                 onClick={onRevert}
-                className="gap-1 px-1.5"
+                className="gap-1.5 px-2"
               >
-                <Undo2 className="size-3" aria-hidden />
+                <Undo2 className="size-3.5" aria-hidden />
                 Revert to here
               </Button>
             </MessageActions>
@@ -1276,8 +1292,8 @@ function Turn({
                 the sentence is foreground — the same rule as
                 components/docs/docs-codex.tsx. */}
             {truncated && !streaming ? (
-              <p className="flex items-start gap-1.5 text-[11px] text-foreground/85">
-                <AlertCircle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+              <p className="flex items-start gap-1.5 text-[12px] leading-relaxed text-foreground/85">
+                <AlertCircle className="mt-px size-3.5 shrink-0 text-warning" aria-hidden />
                 This answer hit the length limit and was cut off. Ask it to continue.
               </p>
             ) : null}
@@ -1323,11 +1339,11 @@ function Turn({
                 <Button
                   type="button"
                   variant="ghost"
-                  size="xs"
+                  size="sm"
                   onClick={onRegenerate}
-                  className="gap-1 px-1.5"
+                  className="gap-1.5 px-2"
                 >
-                  <RotateCcw className="size-3" aria-hidden />
+                  <RotateCcw className="size-3.5" aria-hidden />
                   Regenerate
                 </Button>
               ) : null}
@@ -1351,13 +1367,13 @@ function CopyButton({ text }: { text: string }) {
     <Button
       type="button"
       variant="ghost"
-      size="xs"
+      size="sm"
       onClick={() => {
         void navigator.clipboard?.writeText(text).then(() => setCopied(true)).catch(() => {});
       }}
-      className="gap-1 px-1.5"
+      className="gap-1.5 px-2"
     >
-      {copied ? <Check className="size-3" aria-hidden /> : <Copy className="size-3" aria-hidden />}
+      {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
       {copied ? "Copied" : "Copy"}
     </Button>
   );

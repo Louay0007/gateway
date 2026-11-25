@@ -170,10 +170,10 @@ function Row({
       title={tooltip}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex h-8 items-center gap-2 rounded-md px-2 text-[13px]",
+        "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-[13.5px]",
         "transition-colors duration-100",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+        "group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
         active
           ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
           : muted
@@ -238,14 +238,14 @@ function UserMenu({ collapsed, isStaff }: { collapsed: boolean; isStaff: boolean
           <button
             type="button"
             className={cn(
-              "flex w-full items-center gap-2 rounded-md p-1.5 text-left text-sm outline-none",
+              "flex w-full items-center gap-2.5 rounded-md p-1.5 text-left text-sm outline-none",
               "transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-sidebar-ring",
               "aria-expanded:bg-sidebar-accent",
-              "group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
+              "group-data-[collapsible=icon]:size-9 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0",
             )}
             aria-label="Account menu"
           >
-            <Avatar className="size-6 shrink-0">
+            <Avatar className="size-7 shrink-0">
               {user?.image ? <AvatarImage src={user.image} alt="" /> : null}
               <AvatarFallback className="text-[11px] font-medium">
                 {user ? user.initials : "…"}
@@ -253,7 +253,7 @@ function UserMenu({ collapsed, isStaff }: { collapsed: boolean; isStaff: boolean
             </Avatar>
             {!collapsed || isMobile ? (
               <span className="grid min-w-0 flex-1 leading-tight">
-                <span className="truncate text-[13px] font-medium">
+                <span className="truncate text-[13.5px] font-medium">
                   {(user?.name || org?.name) ?? "Account"}
                 </span>
               </span>

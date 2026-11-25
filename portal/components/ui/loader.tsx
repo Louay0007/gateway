@@ -53,26 +53,26 @@ export function Loader({
     >
       <span className="inline-flex items-center gap-2">
         {/* Breathing orb: gradient core, two expanding rings. */}
-        <span aria-hidden className="relative flex size-4 shrink-0 items-center justify-center">
+        <span aria-hidden className="relative flex size-5 shrink-0 items-center justify-center">
           <span className="thinking-orb-ring absolute inset-0 rounded-full border border-foreground/40" />
           <span
             aria-hidden
             className="thinking-orb-ring absolute inset-0 rounded-full border border-foreground/25"
             style={{ animationDelay: "0.9s" }}
           />
-          <span className="thinking-orb-core relative size-2.5 rounded-full" />
+          <span className="thinking-orb-core relative size-3 rounded-full" />
         </span>
 
         {/* Shimmer phrase: a light bar sweeps across the words in place,
             so the eye catches movement without the text moving. */}
-        <span aria-hidden className="thinking-shimmer text-[13px] font-medium">
+        <span aria-hidden className="thinking-shimmer text-[14px] font-medium">
           {phrase}
         </span>
 
         {/* Hopping dots — the classic "still going" beat. */}
         <span aria-hidden className="inline-flex items-center gap-1">
           {[0, 1, 2].map((i) => (
-            <span key={i} className="thinking-dot size-1 rounded-full bg-foreground/70" />
+            <span key={i} className="thinking-dot size-1.5 rounded-full bg-foreground/70" />
           ))}
         </span>
 
@@ -80,7 +80,7 @@ export function Loader({
         {elapsed >= 3 ? (
           <span
             aria-hidden
-            className="ml-1.5 rounded-full border border-border bg-muted/50 px-1.5 py-0.5 text-[11px] tabular text-muted-foreground"
+            className="ml-1.5 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[12px] tabular text-muted-foreground"
           >
             {elapsed}s
           </span>
@@ -96,9 +96,9 @@ export function Loader({
           bars are capped at a realistic measure and the second one is short
           enough to look like a broken line rather than a second track. */}
       <span aria-hidden className="flex flex-col gap-2">
-        <span className="thinking-skeleton block h-2.5 w-full max-w-[17rem] rounded-full" />
+        <span className="thinking-skeleton block h-3 w-full max-w-[17rem] rounded-full" />
         <span
-          className="thinking-skeleton block h-2.5 w-full max-w-[9rem] rounded-full"
+          className="thinking-skeleton block h-3 w-full max-w-[9rem] rounded-full"
           style={{ animationDelay: "0.35s" }}
         />
       </span>

@@ -94,7 +94,7 @@ export function QuotaHint({
             aria-label={`Token usage. ${summary}`}
             title="Tokens used"
             className={cn(
-              "shrink-0 gap-1.5 px-1 py-0.5 text-[11px] whitespace-nowrap text-muted-foreground/80",
+              "h-7 shrink-0 gap-2 px-1.5 py-0.5 text-[12px] whitespace-nowrap text-muted-foreground/80",
               className,
             )}
           >
@@ -102,10 +102,12 @@ export function QuotaHint({
               {[0, 1, 2, 3, 4].map((i) => (
                 // Filled proportionally, so the meter reads at a glance
                 // without a track line competing with the composer border.
+                // 3px wide and 11px tall: at 2.5px these read as a dotted
+                // rule rather than a meter at the new composer's scale.
                 <span
                   key={i}
                   className={cn(
-                    "block h-2.5 w-[3px] rounded-full transition-colors duration-300",
+                    "block h-[11px] w-[3px] rounded-full transition-colors duration-300",
                     percent >= (i + 1) * 20
                       ? tone === "critical"
                         ? "bg-destructive"
@@ -128,13 +130,13 @@ export function QuotaHint({
         </DialogHeader>
 
         <div className="grid gap-1">
-          <h3 className="text-[11px] font-medium text-muted-foreground/70">This chat</h3>
+          <h3 className="text-[12px] font-medium text-muted-foreground/70">This chat</h3>
           {usage && usage.turns > 0 ? (
             <>
-              <p className="text-2xl leading-tight font-medium tabular-nums">
+              <p className="text-[1.7rem] leading-tight font-medium tabular-nums">
                 {formatTokens(usage.inputTokens + usage.outputTokens)}
               </p>
-              <p className="text-[12px] text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 {formatTokens(usage.inputTokens)} in · {formatTokens(usage.outputTokens)} out ·{" "}
                 {usdPrecise(usage.costUsd)} gateway cost
               </p>
@@ -142,13 +144,13 @@ export function QuotaHint({
                   quota: the message row stores input/output only, and the
                   pool additionally weights cache reads, cache writes and the
                   model. Labelled so the two are not read as the same number. */}
-              <p className="text-[11px] text-muted-foreground/70">
+              <p className="text-[12px] leading-relaxed text-muted-foreground/70">
                 Raw tokens for this chat. Your plan meter on Billing weights
                 cache and model, so it will differ.
               </p>
             </>
           ) : (
-            <p className="text-[12px] leading-relaxed text-muted-foreground">
+            <p className="text-[13px] leading-relaxed text-muted-foreground">
               Nothing answered yet. This chat's count appears after the first reply.
             </p>
           )}
@@ -158,10 +160,10 @@ export function QuotaHint({
 
         <div className="grid gap-2">
           <div className="flex items-baseline justify-between gap-3">
-            <h3 className="text-[11px] font-medium text-muted-foreground/70">
+            <h3 className="text-[12px] font-medium text-muted-foreground/70">
               {label} this period
             </h3>
-            <span className="text-[11px] tabular-nums text-muted-foreground">
+            <span className="text-[12px] tabular-nums text-muted-foreground">
               {exhausted ? "empty" : `${percent}%`}
             </span>
           </div>
@@ -181,7 +183,7 @@ export function QuotaHint({
               style={{ width: `${percent}%` }}
             />
           </div>
-          <p className="flex items-baseline justify-between gap-3 text-[12px] text-muted-foreground">
+          <p className="flex items-baseline justify-between gap-3 text-[13px] text-muted-foreground">
             <span className="tabular-nums">
               {exhausted
                 ? `Nothing left${resetsAt ? ` — resets ${resetsAt}` : ""}`
@@ -196,14 +198,14 @@ export function QuotaHint({
         {/* Named rather than hidden: the period figure running above the
             transcript's own count looks like a bug until something says
             why. */}
-        <p className="text-[11px] leading-relaxed text-muted-foreground/60">
+        <p className="text-[12px] leading-relaxed text-muted-foreground/60">
           The period total includes cached reads and writes, so it runs higher than the count
           above.
         </p>
 
         <Link
           href="/dashboard/billing"
-          className="text-[12px] text-foreground/80 underline underline-offset-3 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          className="text-[13px] text-foreground/80 underline underline-offset-3 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           Plan and full usage
         </Link>

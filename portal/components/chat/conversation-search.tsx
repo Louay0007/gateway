@@ -93,7 +93,7 @@ export function SidebarConversations({
     <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
       <div className="relative px-2 pt-2 pb-1">
         <Search
-          className="pointer-events-none absolute top-1/2 left-4 size-3.5 -translate-y-1/2 text-muted-foreground/70"
+          className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground/70"
           aria-hidden
         />
         <input
@@ -103,7 +103,10 @@ export function SidebarConversations({
           placeholder="Search chats"
           aria-label="Search conversations"
           className={cn(
-            "h-9 w-full rounded-md border border-transparent bg-sidebar-accent/60 pr-9 pl-8 text-base sm:h-8 sm:text-[13px]",
+            // `h-10` on touch, `h-9` on a pointer: this is a text field, so
+            // it is the one control in the rail that has to clear the 44px
+            // touch target without looking like a button.
+            "h-10 w-full rounded-lg border border-transparent bg-sidebar-accent/60 pr-9 pl-9 text-base sm:h-9 sm:text-[13.5px]",
             "outline-none transition-colors placeholder:text-muted-foreground/70",
             "hover:bg-sidebar-accent focus:bg-background focus-visible:ring-2 focus-visible:ring-ring",
             "[&::-webkit-search-cancel-button]:hidden",
@@ -182,7 +185,7 @@ export function SearchResults({
     return (
       <ul className="space-y-1 px-2 py-1" aria-busy="true">
         {[0, 1, 2].map((i) => (
-          <li key={i} className="h-9 animate-pulse rounded-lg bg-muted/50" />
+          <li key={i} className="h-11 animate-pulse rounded-lg bg-muted/50" />
         ))}
       </ul>
     );
@@ -190,7 +193,7 @@ export function SearchResults({
 
   if (hits.length === 0) {
     return (
-      <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+      <p className="px-3 py-8 text-center text-[13px] leading-relaxed text-muted-foreground">
         No chats match “{query.trim()}”.
       </p>
     );
@@ -225,15 +228,15 @@ export function SearchResults({
             onClick={() => go(hit)}
             onMouseEnter={() => setActive(i)}
             aria-current={i === active ? "true" : undefined}
-            className="h-auto w-full flex-col items-stretch gap-0.5 rounded-lg px-2 py-1.5 text-left"
+            className="h-auto w-full flex-col items-stretch gap-1 rounded-lg px-2.5 py-2 text-left"
           >
-            <span className="flex items-center gap-1.5 truncate text-[13px] font-medium">
-              <MessageSquare className="size-3 shrink-0 text-muted-foreground" aria-hidden />
+            <span className="flex items-center gap-2 truncate text-[13.5px] font-medium">
+              <MessageSquare className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
               {hit.title || "Untitled"}
             </span>
             {/* The snippet is WHY it matched. Showing only the title makes
                 two chats with the same name indistinguishable. */}
-            <span className="line-clamp-2 pl-[18px] text-[11px] leading-snug text-muted-foreground">
+            <span className="line-clamp-2 pl-[22px] text-[12px] leading-snug text-muted-foreground">
               {hit.snippet}
             </span>
           </Button>
@@ -348,9 +351,9 @@ export function SearchPalette({ enabled = true }: { enabled?: boolean }) {
             }}
             placeholder="Search your conversations…"
             aria-label="Search query"
-            className="h-11 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-sm"
+            className="h-12 flex-1 bg-transparent text-base outline-none placeholder:text-muted-foreground sm:text-[15px]"
           />
-          <kbd className="hidden shrink-0 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground sm:block">
+          <kbd className="hidden shrink-0 rounded border border-border px-2 py-0.5 text-[11px] text-muted-foreground sm:block">
             esc
           </kbd>
         </div>
@@ -366,7 +369,7 @@ export function SearchPalette({ enabled = true }: { enabled?: boolean }) {
             onNavigate={close}
           />
         ) : (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+          <p className="px-3 py-8 text-center text-[13px] leading-relaxed text-muted-foreground">
             Type to search message text across your chats.
           </p>
         )}

@@ -147,13 +147,13 @@ export function ConversationList({
             {[0, 1, 2, 3, 4].map((i) => (
               <div
                 key={i}
-                className="h-7 animate-pulse rounded-md bg-sidebar-accent/50"
+                className="h-8 animate-pulse rounded-md bg-sidebar-accent/50"
                 style={{ animationDelay: `${i * 70}ms` }}
               />
             ))}
           </div>
         ) : empty ? (
-          <p className="px-2 py-3 text-[12px] leading-relaxed text-muted-foreground/70">
+          <p className="px-2 py-3 text-[13px] leading-relaxed text-muted-foreground/70">
             {projectId
               ? "No chats in this project yet. Move one here from its ⋯ menu."
               : "Nothing here yet. Your conversations appear as you start them."}
@@ -162,7 +162,7 @@ export function ConversationList({
           groups.map((rows, bucket) =>
             rows.length === 0 ? null : (
               <section key={bucket} className="pt-3 first:pt-1">
-                <h3 className="px-2 pb-1 text-[11px] font-medium text-muted-foreground/70">
+                <h3 className="px-2 pb-1 text-[12px] font-medium text-muted-foreground/70">
                   {BUCKET_LABELS[bucket]}
                 </h3>
                 <ul>
@@ -211,7 +211,7 @@ export function ConversationList({
                           href={`/chat/${c.id}`}
                           aria-current={active ? "page" : undefined}
                           className={cn(
-                            "flex h-8 items-center gap-1.5 rounded-md px-2 pr-8 text-[13px]",
+                            "flex h-9 items-center gap-2 rounded-md px-2.5 pr-9 text-[13.5px]",
                             "transition-colors duration-100",
                             "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                             active
@@ -221,7 +221,7 @@ export function ConversationList({
                         >
                           {pinned ? (
                             <Pin
-                              className="size-3 shrink-0 text-muted-foreground/60"
+                              className="size-3.5 shrink-0 text-muted-foreground/60"
                               aria-label="Pinned"
                             />
                           ) : null}
@@ -231,7 +231,7 @@ export function ConversationList({
                         <DropdownMenu>
                           <DropdownMenuTrigger
                             className={cn(
-                              "absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md sm:size-6",
+                              "absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md sm:size-6",
                               // Visible on touch, hover-revealed on a
                               // pointer. There is no hover on a phone, so
                               // `opacity-0` alone made Rename/Pin/Delete
@@ -242,7 +242,7 @@ export function ConversationList({
                             )}
                             aria-label={`Actions for ${c.title}`}
                           >
-                            <MoreHorizontal className="size-3.5" />
+                            <MoreHorizontal className="size-4" />
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="start" side="right" className="w-52">
                             <DropdownMenuItem onClick={() => void patch(c.id, { pinned: !pinned })}>

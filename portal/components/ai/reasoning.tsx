@@ -42,26 +42,26 @@ export function Reasoning({
       <Button
         type="button"
         variant="ghost"
-        size="xs"
+        size="sm"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full justify-start px-1 py-1 text-left text-xs font-medium text-muted-foreground"
+        className="w-full justify-start gap-1.5 px-1.5 py-1 text-left text-[13px] font-medium text-muted-foreground"
       >
-        <Brain className={cn("size-3.5", live && "animate-pulse")} aria-hidden />
+        <Brain className={cn("size-4", live && "animate-pulse")} aria-hidden />
         <span className={cn(live && "thinking-shimmer")}>{live ? "Thinking…" : "Thought process"}</span>
         {live ? (
-          <span aria-hidden className="thinking-dot inline-block size-1 rounded-full bg-foreground/70" />
+          <span aria-hidden className="thinking-dot inline-block size-1.5 rounded-full bg-foreground/70" />
         ) : null}
         <ChevronDown
-          className={cn("ml-auto size-3.5 transition-transform", open && "rotate-180")}
+          className={cn("ml-auto size-4 transition-transform", open && "rotate-180")}
           aria-hidden
         />
       </Button>
       {open ? (
         <div
           className={cn(
-            "chat-scroll mt-2 max-h-64 overflow-y-auto border-l-2 border-border pl-3",
-            "text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground",
+            "chat-scroll mt-2.5 max-h-72 overflow-y-auto border-l-2 border-border pl-3.5",
+            "text-[13px] leading-relaxed whitespace-pre-wrap text-muted-foreground",
           )}
         >
           {text}

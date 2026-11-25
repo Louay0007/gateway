@@ -126,7 +126,7 @@ export function ProjectList({
   return (
     <div className="px-2 group-data-[collapsible=icon]:hidden">
       <div className="flex items-center justify-between px-2 pt-3 pb-1">
-        <h3 className="text-[11px] font-medium text-muted-foreground/70">Projects</h3>
+        <h3 className="text-[12px] font-medium text-muted-foreground/70">Projects</h3>
         <Button
           type="button"
           variant="ghost"
@@ -225,7 +225,7 @@ export function ProjectList({
                   onClick={() => onSelect(active ? null : project.id)}
                   aria-pressed={active}
                   className={cn(
-                    "h-8 w-full justify-start gap-2 px-2 pr-8 text-left text-[13px]",
+                    "h-9 w-full justify-start gap-2.5 px-2.5 pr-9 text-left text-[13.5px]",
                     active
                       ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
                       : "text-sidebar-foreground/80",
@@ -234,7 +234,7 @@ export function ProjectList({
                   <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                   <span className="truncate">{project.name}</span>
                   {project.conversationCount > 0 && (
-                    <span className="ml-auto shrink-0 text-[11px] text-muted-foreground/60 tabular-nums">
+                    <span className="ml-auto shrink-0 text-[12px] text-muted-foreground/60 tabular-nums">
                       {project.conversationCount}
                     </span>
                   )}
@@ -242,7 +242,7 @@ export function ProjectList({
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     className={cn(
-                      "absolute top-1/2 right-1 flex size-8 -translate-y-1/2 items-center justify-center rounded-md sm:size-6",
+                      "absolute top-1/2 right-1.5 flex size-8 -translate-y-1/2 items-center justify-center rounded-md sm:size-6",
                       // Same rule as the conversation rows: no hover exists
                       // on a phone, so the menu must not be hover-only.
                       "text-muted-foreground transition-opacity md:opacity-0",
@@ -251,7 +251,7 @@ export function ProjectList({
                     )}
                     aria-label={`Actions for ${project.name}`}
                   >
-                    <MoreHorizontal className="size-3.5" />
+                    <MoreHorizontal className="size-4" />
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="start" side="right" className="w-52">
                     <DropdownMenuItem

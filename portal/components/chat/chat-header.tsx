@@ -47,11 +47,11 @@ export function ChatHeader({ title }: { title?: string | null } = {}) {
     return () => window.removeEventListener("chat:title", onTitle);
   }, [pathname]);
 
-  // The height carries the top inset as well as the 52px bar: with
+  // The height carries the top inset as well as the 56px bar: with
   // `viewportFit: 'cover'` the page paints under the status bar, so a flat
-  // 52px header would put its own controls there.
+  // 56px header would put its own controls there.
   return (
-    <header className="sticky top-0 z-20 flex h-[calc(3.25rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 border-b border-border/60 bg-background/80 px-2 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 sm:gap-2 sm:px-3">
+    <header className="sticky top-0 z-20 flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-center gap-1 border-b border-border/60 bg-background/80 px-2.5 pt-[env(safe-area-inset-top)] backdrop-blur-xl supports-[backdrop-filter]:bg-background/60 sm:gap-2 sm:px-3.5">
       <SidebarTrigger
         aria-label="Toggle conversations"
         className="size-9 shrink-0 text-muted-foreground hover:text-foreground sm:size-7"
@@ -61,7 +61,7 @@ export function ChatHeader({ title }: { title?: string | null } = {}) {
         similarly-named threads there was no way to tell which one was open
         once the transcript scrolled past its first question.
       */}
-      <span className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em]">
+      <span className="min-w-0 flex-1 truncate text-[14px] font-medium tracking-[-0.01em]">
         {onSettings ? "Settings" : (liveTitle || title || "New chat")}
       </span>
       {/*

@@ -40,17 +40,17 @@ export function Sources({
         size="xs"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="rounded-full px-2.5 py-1 text-[11px] font-medium text-muted-foreground"
+        className="h-7 rounded-full px-3 text-[12px] font-medium text-muted-foreground"
       >
-        <Globe className="size-3" aria-hidden />
+        <Globe className="size-3.5" aria-hidden />
         <span>
           {sources.length} {sources.length === 1 ? "source" : "sources"}
         </span>
-        <ChevronDown className={cn("size-3 transition-transform", open && "rotate-180")} aria-hidden />
+        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden />
       </Button>
 
       {open ? (
-        <ul className="mt-2 space-y-1.5">
+        <ul className="mt-2.5 space-y-1.5">
           {sources.map((s, i) => (
             <li key={`${s.url}-${i}`}>
               <a
@@ -58,18 +58,18 @@ export function Sources({
                 target="_blank"
                 rel="noreferrer noopener"
                 className={cn(
-                  "flex flex-col gap-0.5 rounded-lg px-2 py-1.5",
+                  "flex flex-col gap-1 rounded-lg px-2.5 py-2",
                   "transition-colors hover:bg-accent/60",
                   "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                 )}
               >
-                <span className="flex items-center gap-1.5 text-[13px] font-medium">
-                  <span className="shrink-0 text-[11px] tabular-nums text-muted-foreground">
+                <span className="flex items-center gap-2 text-[14px] font-medium">
+                  <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
                     {i + 1}
                   </span>
                   <span className="truncate">{s.title || hostOf(s.url)}</span>
                 </span>
-                <span className="truncate pl-[22px] text-[11px] text-muted-foreground">
+                <span className="truncate pl-[24px] text-[12px] text-muted-foreground">
                   {hostOf(s.url)}
                 </span>
               </a>

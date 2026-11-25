@@ -8,6 +8,18 @@ import { ACCEPT_ATTRIBUTE, MAX_ATTACHMENTS } from "@/lib/chat/attachments"
 import { Button } from "@/components/ui/button";
 
 /**
+ * The growth ceiling, in px, and the ONE place it is written.
+ *
+ * It used to be two numbers: `12 * 24` in the autosize effect and
+ * `max-h-48` (192px) in the textarea's class list. The effect therefore
+ * grew the field past the point where CSS clipped it, so the last ~4 lines
+ * of a pasted stack trace were inside the box but outside the visible
+ * area — a scrollbar that looked broken and a caret that ran off the edge.
+ * 260px is 10 lines at the composer's 26px line height.
+ */
+const MAX_COMPOSER_HEIGHT_PX = 260;
+
+/**
  * Prompt Input — the composer.
  *
  * ONE BORDER, ONE SEND. The field is a single rounded surface: the textarea
@@ -116,7 +128,7 @@ export function PromptInput({
     const el = ref.current
     if (!el) return
     el.style.height = "auto"
-    el.style.height = `${Math.min(el.scrollHeight, 12 * 24)}px`
+    el.style.height = `${Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT_PX)}px`
   }, [value])
 
   // A seeded draft lands the caret at the end, ready to continue typing.
@@ -152,7 +164,15 @@ export function PromptInput({
       // The bottom inset is the home indicator on a notched phone: with
       // `viewportFit: 'cover'` (app/layout.tsx) the page paints under it, so
       // a flat 16px would put the send button on top of the gesture bar.
-      className={cn("relative w-full px-3 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-4", className)}
+      //
+      // The horizontal padding matches `MessageScrollerContent`'s `px-5`, so
+      // the field's left edge sits on the same line as the first character of
+      // every answer above it. They were 12px and 16px apart from each other,
+      // which is visible the moment a reply starts on a left edge.
+      className={cn(
+        "relative w-full px-5 pb-[max(1rem,env(safe-area-inset-bottom))]",
+        className,
+      )}
       onDragEnter={(e) => {
         if (!onAttach || disabled || streaming || !hasFiles(e)) return
         e.preventDefault()
@@ -187,7 +207,9 @@ export function PromptInput({
         <InputGroup
           className={cn(
             // A soft, tall surface: this is a writing area, not a form field.
-            "rounded-[26px] border-border/70 bg-background/70 shadow-sm backdrop-blur",
+            // The radius tracks the one on the drop overlay below — two
+            // different values is a visible seam the moment a drag starts.
+            "rounded-[28px] border-border/70 bg-background/70 shadow-sm backdrop-blur",
             "transition-[border-color,box-shadow] duration-200",
             // FOCUS IS A BORDER SHIFT, NOT A RING.
             //
@@ -213,7 +235,7 @@ export function PromptInput({
           {dropping ? (
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[26px] border border-dashed border-foreground/25 bg-background/85"
+              className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-[28px] border border-dashed border-foreground/25 bg-background/85"
             >
               <span className="text-sm font-medium text-foreground">Drop to attach</span>
             </div>
@@ -243,12 +265,16 @@ export function PromptInput({
             placeholder={placeholder ?? "What would you like to know?"}
             aria-label="Message"
             className={cn(
-              // 16px on touch, 15px on a pointer device. Safari zooms the
-              // page when a focused field is under 16px, and never zooms
-              // back — the page stays magnified for the whole conversation.
-              "min-h-[52px] px-4 pt-4 pb-2 text-base leading-relaxed sm:px-5 sm:text-[15px]",
+              // 16px on touch, 15.5px on a pointer device with roomier
+              // padding. Safari zooms the page when a focused field is under
+              // 16px, and never zooms back — the page stays magnified for the
+              // whole conversation. The `max-h` comes from
+              // MAX_COMPOSER_HEIGHT_PX below, the same ceiling the autosize
+              // effect uses; one number, two readers.
+              "min-h-[64px] px-5 pt-4 pb-2.5 text-base leading-relaxed sm:px-6 sm:text-[15.5px]",
               "placeholder:text-muted-foreground/70",
             )}
+            style={{ maxHeight: MAX_COMPOSER_HEIGHT_PX }}
           />
 
           {attachments}
@@ -258,7 +284,7 @@ export function PromptInput({
             `items-center` (not `items-end`) keeps every control on one
             optical line whether or not the textarea has grown.
           */}
-          <div className="flex items-center gap-2 px-2.5 pb-2.5">
+          <div className="flex items-center gap-2.5 px-3 pb-3">
             {/*
               WRAPS ON A PHONE, scrolls on a desk. A single non-wrapping row
               at 360px ran the model picker past the edge, and a horizontal
@@ -266,7 +292,7 @@ export function PromptInput({
               there — the picker was simply cut mid-word. Wrapping costs one
               extra toolbar line on a narrow screen and nothing on a wide one.
             */}
-            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1 sm:flex-nowrap sm:overflow-x-auto sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 sm:flex-nowrap sm:overflow-x-auto sm:[scrollbar-width:none] sm:[&::-webkit-scrollbar]:hidden">
               {attach}
               {tools}
             </div>
@@ -297,9 +323,9 @@ export function PromptInput({
                     variant="outline"
                     aria-label="Send after this reply"
                     title="Send after this reply"
-                    className="shrink-0 rounded-full"
+                    className="size-9 shrink-0 rounded-full"
                   >
-                    <ArrowUp className="size-4" strokeWidth={2.5} />
+                    <ArrowUp className="size-4.5" strokeWidth={2.5} />
                   </Button>
                 ) : null}
                 <Button
@@ -307,9 +333,9 @@ export function PromptInput({
                   size="icon"
                   onClick={onStop}
                   aria-label="Stop generating"
-                  className="shrink-0 rounded-full"
+                  className="size-9 shrink-0 rounded-full"
                 >
-                  <Square className="size-3 fill-current" />
+                  <Square className="size-3.5 fill-current" />
                 </Button>
               </>
             ) : (
@@ -320,9 +346,9 @@ export function PromptInput({
                 aria-label="Send message"
                 // Empty field: the control recedes to a hint rather than
                 // sitting there as a dead filled circle.
-                className="shrink-0 rounded-full disabled:bg-muted disabled:text-muted-foreground/50"
+                className="size-9 shrink-0 rounded-full disabled:bg-muted disabled:text-muted-foreground/50"
               >
-                <ArrowUp className="size-4" strokeWidth={2.5} />
+                <ArrowUp className="size-4.5" strokeWidth={2.5} />
               </Button>
             )}
           </div>
@@ -400,9 +426,11 @@ export function AttachControl({
         onClick={() => inputRef.current?.click()}
         title={remaining <= 0 ? `Up to ${max} files per message` : "Attach files"}
         aria-label="Attach files"
-        className="rounded-full text-muted-foreground"
+        // 36px, not the primitive's 28px: the "+" is the smallest target in
+        // the composer and sat below the 44px touch minimum on every phone.
+        className="size-9 rounded-full text-muted-foreground"
       >
-        <Plus className="size-4" />
+        <Plus className="size-4.5" />
       </Button>
     </div>
   )

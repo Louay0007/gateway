@@ -54,7 +54,7 @@ export function MessageAvatar({ className, ...props }: React.ComponentProps<"div
   return (
     <div
       data-slot="message-avatar"
-      className={cn("flex size-7 shrink-0 items-center justify-center rounded-full", className)}
+      className={cn("flex size-8 shrink-0 items-center justify-center rounded-full", className)}
       {...props}
     />
   )
@@ -64,7 +64,7 @@ export function MessageHeader({ className, ...props }: React.ComponentProps<"div
   return (
     <div
       data-slot="message-header"
-      className={cn("mb-1.5 flex items-center gap-2 text-xs text-muted-foreground", className)}
+      className={cn("mb-2 flex items-center gap-2 text-[13px] text-muted-foreground", className)}
       {...props}
     />
   )
@@ -83,8 +83,15 @@ export function MessageActions({ className, ...props }: React.ComponentProps<"di
     <div
       data-slot="message-actions"
       className={cn(
-        "mt-2 flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground",
-        "opacity-60 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100",
+        // 12px, one step up from the 11px this shipped with: the toolbar is
+        // the only place a turn reports its tokens and cost, and 11px made
+        // those numbers feel like a footnote rather than a reading.
+        "mt-2.5 flex flex-wrap items-center gap-3.5 text-[12px] text-muted-foreground",
+        // 75%, not 60%. These are real numbers a reader may want (tokens,
+        // cost, a truncation notice), and `muted-foreground` at 60% opacity
+        // lands near 2.5:1 on the canvas. 75% keeps the row quiet at rest
+        // and readable when it is actually being read.
+        "opacity-75 transition-opacity duration-150 group-hover/message:opacity-100 focus-within:opacity-100",
         className,
       )}
       {...props}

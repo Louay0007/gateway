@@ -82,7 +82,7 @@ export function PreviewFrame({
         <div
           role="status"
           aria-live="polite"
-          className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-muted/40 px-3 py-1.5 text-[11px] text-muted-foreground"
+          className="flex shrink-0 items-center gap-2 border-b border-border/60 bg-muted/40 px-3.5 py-2 text-[12px] text-muted-foreground"
         >
           <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden />
           Building…

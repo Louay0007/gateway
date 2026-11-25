@@ -116,7 +116,7 @@ export function ShareControl() {
   if (temporary) {
     return (
       <span
-        className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
+        className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground"
         title="Temporary chats cannot be shared"
       >
         <Lock className="size-3" aria-hidden />
@@ -199,9 +199,9 @@ export function ShareControl() {
         // with no accessible name on exactly the devices that have no room
         // for one. `aria-label` is what a screen reader reads there.
         aria-label="Share this conversation"
-        className="h-9 shrink-0 gap-1.5 text-muted-foreground hover:text-foreground sm:h-7"
+        className="h-9 shrink-0 gap-2 px-2 text-[13px] text-muted-foreground hover:text-foreground sm:h-8"
       >
-        <Share2 className="size-3.5" />
+        <Share2 className="size-4" />
         <span className="hidden sm:inline">Share</span>
       </Button>
 
@@ -231,9 +231,9 @@ export function ShareControl() {
                     value={url}
                     onFocus={(e) => e.currentTarget.select()}
                     aria-label="Share link"
-                    className="h-8 min-w-0 flex-1 rounded-md border border-border bg-muted/40 px-2 font-mono text-[11px] outline-none"
+                    className="h-9 min-w-0 flex-1 rounded-md border border-border bg-muted/40 px-2.5 font-mono text-[12px] outline-none"
                   />
-                  <Button size="sm" className="h-8 gap-1 px-2" onClick={copy}>
+                  <Button size="sm" className="h-9 gap-1.5 px-3" onClick={copy}>
                     {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
                     {copied ? "Copied" : "Copy"}
                   </Button>
@@ -246,21 +246,21 @@ export function ShareControl() {
                   components/docs/docs-codex.tsx.
                 */}
                 {createdLive ? (
-                  <p className="flex items-start gap-1.5 rounded-md border border-success/30 bg-success/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
-                    <Eye className="mt-px size-3 shrink-0 text-success" aria-hidden />
+                  <p className="flex items-start gap-2 rounded-lg border border-success/30 bg-success/10 px-3 py-2.5 text-[12px] leading-relaxed text-foreground/85">
+                    <Eye className="mt-px size-3.5 shrink-0 text-success" aria-hidden />
                     <span>
                       Live. New messages in this chat appear to whoever opens the link, until
                       you stop sharing or it expires.
                     </span>
                   </p>
                 ) : (
-                  <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-foreground/85">
-                    <AlertTriangle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+                  <p className="flex items-start gap-2 text-[12px] leading-relaxed text-foreground/85">
+                    <AlertTriangle className="mt-px size-3.5 shrink-0 text-warning" aria-hidden />
                     <span>Snapshot. Replies you send from now on are NOT included.</span>
                   </p>
                 )}
-                <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-foreground/85">
-                  <AlertTriangle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+                <p className="flex items-start gap-2 text-[12px] leading-relaxed text-foreground/85">
+                  <AlertTriangle className="mt-px size-3.5 shrink-0 text-warning" aria-hidden />
                   <span>
                     Copy it now. This link is stored only as a hash, so it cannot be shown
                     again — if you lose it, revoke and make a new one.
@@ -277,7 +277,7 @@ export function ShareControl() {
                  cannot be shown, but the link working — and stopping it — is
                  the part that matters. */
               <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
                   This conversation is public
                   {existing.expiresAt
                     ? ` until ${new Date(existing.expiresAt).toLocaleString(undefined, {
@@ -296,7 +296,7 @@ export function ShareControl() {
                     {busy ? "Creating…" : "Replace link"}
                   </Button>
                 </div>
-                <p className="text-[11px] leading-relaxed text-muted-foreground">
+                <p className="text-[12px] leading-relaxed text-muted-foreground">
                   Replacing revokes the current link and makes a new one you can copy.
                 </p>
               </div>
@@ -309,18 +309,18 @@ export function ShareControl() {
                   Choosing afterwards would mean revoking a link someone has
                   already been sent.
                 */}
-                <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border/60 p-2.5">
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 p-3">
                   <input
                     type="checkbox"
                     checked={wantLive}
                     onChange={(e) => setWantLive(e.target.checked)}
-                    className="mt-0.5 size-3.5 shrink-0"
+                    className="mt-0.5 size-4 shrink-0"
                   />
                   <span className="min-w-0">
-                    <span className="block text-xs font-medium text-foreground">
+                    <span className="block text-[13px] font-medium text-foreground">
                       Follow the conversation live
                     </span>
-                    <span className="mt-0.5 block text-[11px] leading-relaxed text-muted-foreground">
+                    <span className="mt-1 block text-[12px] leading-relaxed text-muted-foreground">
                       {wantLive
                         ? "Every message you send while this link is active appears to whoever holds it. Stop sharing to end it."
                         : "Freezes at the newest message. Replies you send after creating it stay private."}
@@ -329,8 +329,8 @@ export function ShareControl() {
                 </label>
 
                 {wantLive ? (
-                  <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
-                    <AlertTriangle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+                  <p className="flex items-start gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2.5 text-[12px] leading-relaxed text-foreground/85">
+                    <AlertTriangle className="mt-px size-3.5 shrink-0 text-warning" aria-hidden />
                     <span>
                       A live link keeps publishing until you stop it. If you forget it,
                       everything you say in this chat is readable by anyone holding the URL

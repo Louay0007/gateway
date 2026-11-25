@@ -23,7 +23,12 @@ export function Bubble({
       data-slot="bubble"
       data-variant={variant}
       className={cn(
-        "w-fit max-w-[95%] rounded-xl px-4 py-2.5 text-sm leading-relaxed",
+        // 15px at a 1.65 line height. The old `text-sm`/`leading-relaxed`
+        // pair was 14px on 21px lines, which is dashboard density, not
+        // reading density — a pasted stack trace in 14px is the one place
+        // the transcript felt cramped. The radius steps with it so the
+        // bubble still reads as a pill rather than a stadium.
+        "w-fit max-w-[95%] rounded-2xl px-4.5 py-3 text-[15px] leading-[1.65]",
         variant === "muted" && "bg-chat-bubble text-chat-bubble-foreground",
         variant === "ghost" && "bg-transparent px-0 py-0",
         variant === "outline" && "border border-border bg-background",

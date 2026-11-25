@@ -119,7 +119,7 @@ export function SharedLive({
         <p
           role="status"
           className={cn(
-            "mb-6 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px]",
+            "mb-6 inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[12px]",
             ended === "gone"
               ? "border-border bg-muted text-muted-foreground"
               : "border-success/30 bg-success/10 text-success",
@@ -137,11 +137,11 @@ export function SharedLive({
         </p>
       ) : null}
 
-      <div className="flex flex-col gap-8">
+      <div className="flex flex-col gap-9">
         {messages.map((message) =>
           message.role === "user" ? (
             <div key={message.id} className="flex w-full flex-col items-end">
-              <div className="max-w-[95%] rounded-lg bg-secondary px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
+              <div className="max-w-[95%] rounded-2xl bg-secondary px-4.5 py-3 text-[15px] leading-[1.65] whitespace-pre-wrap">
                 {message.content}
               </div>
             </div>

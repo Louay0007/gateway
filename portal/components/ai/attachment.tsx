@@ -59,14 +59,20 @@ export function AttachmentRow({
     <ul
       data-slot="attachment-row"
       aria-label="Attached files"
-      className={cn("flex flex-wrap gap-1.5 px-3 pb-1.5", className)}
+      // `px-5` matches the textarea's own horizontal padding, so a chip's
+      // icon sits on the same optical line as the first character of the
+      // message it belongs to. `px-4` left it 4px short of that line.
+      className={cn("flex flex-wrap gap-2 px-5 pt-1 pb-2.5", className)}
       {...props}
     >
       {chips.map((chip) => (
         <li key={chip.localId}>
           <div
             className={cn(
-              "group flex max-w-[240px] items-center gap-1.5 rounded-lg border px-2 py-1 text-xs",
+              // 13px, `px-2.5 py-1.5`: the chip is a removable object, so it
+              // needs to be big enough to aim at, and the old 12px on
+              // `py-1` put the dismiss target at 18px tall.
+              "group flex max-w-[260px] items-center gap-2 rounded-lg border px-2.5 py-1.5 text-[13px]",
               chip.status === "error"
                 ? "border-destructive/40 bg-destructive/5 text-destructive"
                 : "border-border bg-muted/50",
@@ -76,7 +82,7 @@ export function AttachmentRow({
             <KindIcon kind={chip.kind} filename={chip.filename} />
             <span className="truncate font-medium">{chip.filename}</span>
             {chip.status === "uploading" && (
-              <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" aria-label="Uploading" />
+              <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" aria-label="Uploading" />
             )}
             {chip.status === "ready" && chip.chars !== undefined && (
               <span className="shrink-0 tabular-nums text-muted-foreground">
@@ -103,7 +109,7 @@ export function AttachmentRow({
 
 function KindIcon({ kind, filename }: { kind?: string; filename: string }) {
   const resolved = kind ?? guessKind(filename)
-  const cls = "size-3.5 shrink-0 text-muted-foreground"
+  const cls = "size-4 shrink-0 text-muted-foreground"
   if (resolved === "image") return <ImageIcon className={cls} aria-hidden />
   if (resolved === "sheet") return <Table2 className={cls} aria-hidden />
   return <FileText className={cls} aria-hidden />

@@ -41,7 +41,7 @@ export function Suggestion({
   if (!suggestions.length) return null
 
   return (
-    <div data-slot="suggestion" className={cn("w-full px-4", className)} {...props}>
+    <div data-slot="suggestion" className={cn("w-full px-5", className)} {...props}>
       <div
         role="group"
         aria-label="Suggested prompts"
@@ -52,10 +52,12 @@ export function Suggestion({
             key={s}
             type="button"
             variant="outline"
-            size="xs"
+            size="sm"
             onClick={() => onPick(s)}
             title={s}
-            className="max-w-full shrink-0 rounded-full px-3.5 py-1.5 text-left text-xs font-medium whitespace-normal"
+            // `h-auto` because a two-line pill must grow with its own text
+            // instead of being clipped to the primitive's fixed `h-7`.
+            className="h-auto max-w-full shrink-0 rounded-full px-4 py-2 text-left text-[13px] font-medium whitespace-normal"
           >
             {s}
           </Button>

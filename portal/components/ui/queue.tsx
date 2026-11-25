@@ -40,7 +40,9 @@ function QueueList({
       className={cn("mt-2 -mb-1", className)}
       {...props}
     >
-      <div className="max-h-40 pr-4">
+      {/* 8rem fitted three rows of `py-1`; at the row height below it fits
+          two and a half, which is the cue that the list scrolls. */}
+      <div className="max-h-44 pr-4">
         <ul>{children}</ul>
       </div>
     </ScrollArea>
@@ -52,7 +54,7 @@ function QueueItem({ className, ...props }: React.ComponentProps<"li">) {
     <li
       data-slot="queue-item"
       className={cn(
-        "group flex flex-col gap-1 rounded-md px-3 py-1 text-sm transition-colors hover:bg-muted",
+        "group flex flex-col gap-1 rounded-md px-3 py-1.5 text-[14px] transition-colors hover:bg-muted",
         className,
       )}
       {...props}
@@ -70,7 +72,7 @@ function QueueItemIndicator({ className, ...props }: React.ComponentProps<"span"
     <span
       data-slot="queue-item-indicator"
       className={cn(
-        "mt-0.5 inline-block size-2.5 rounded-full border border-muted-foreground/50",
+        "mt-1 inline-block size-2.5 rounded-full border border-muted-foreground/50",
         className,
       )}
       {...props}

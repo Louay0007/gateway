@@ -93,12 +93,12 @@ export function ModelPicker({
             variant="ghost"
             size="sm"
             disabled={disabled || options.length === 0}
-            className="px-1.5 text-xs font-medium text-muted-foreground"
+            className="h-8 gap-1.5 px-2 text-[13px] font-medium text-muted-foreground"
             aria-label={meta ? `Model: ${meta.label}. Change model` : "Choose a model"}
           >
-            {current ? <ZainoMark /> : null}
+            {current ? <ZainoMark className="size-[15px]" /> : null}
             <span className="text-foreground">{meta?.label ?? "No model"}</span>
-            <ChevronDown className="size-3 opacity-60" aria-hidden />
+            <ChevronDown className="size-3.5 opacity-60" aria-hidden />
           </Button>
         }
       />
@@ -117,7 +117,7 @@ export function ModelPicker({
           switch broke the chat".
         */}
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-1.5 pt-1 pb-1.5 text-[11px] font-normal tracking-wide text-muted-foreground uppercase">
+          <DropdownMenuLabel className="px-2 pt-1 pb-1.5 text-[12px] font-normal tracking-wide text-muted-foreground uppercase">
             Model
           </DropdownMenuLabel>
         </DropdownMenuGroup>
@@ -139,21 +139,21 @@ export function ModelPicker({
                   spent && "opacity-50",
                 )}
               >
-                <ZainoMark className="mt-0.5" />
+                <ZainoMark className="mt-1 size-[15px]" />
                 <span className="min-w-0 flex-1">
-                  <span className="flex items-center gap-1.5 text-[13px] font-medium">
+                  <span className="flex items-center gap-1.5 text-[14px] font-medium">
                     {m.label}
                     {active ? (
-                      <Check className="size-3 text-muted-foreground" aria-label="Current" />
+                      <Check className="size-3.5 text-muted-foreground" aria-label="Current" />
                     ) : null}
                   </span>
                   {/* "provided by" — the Zaino tier serving this alias.
                       Deliberately not the upstream model id: the alias is a
                       promise that survives a model swap. */}
-                  <span className="mt-0.5 block text-[11px] text-muted-foreground/80">
+                  <span className="mt-1 block text-[12px] text-muted-foreground/80">
                     {m.provider}
                   </span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+                  <span className="mt-1 block text-[13px] leading-relaxed text-muted-foreground">
                     {spent ? "Out of tokens — resets at plan renewal" : m.blurb}
                   </span>
                 </span>

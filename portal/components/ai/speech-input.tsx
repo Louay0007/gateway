@@ -136,7 +136,10 @@ export function SpeechInput({
         }
       }}
       className={cn(
-        "rounded-full",
+        // 36px, matching the send and attach targets either side of it: a
+        // 28px mic sat in a row of 36px controls and read as a different
+        // class of control rather than a peer.
+        "size-9 rounded-full",
         listening
           ? "text-destructive hover:text-destructive"
           : "text-muted-foreground",
@@ -144,9 +147,9 @@ export function SpeechInput({
       )}
     >
       {listening ? (
-        <Square className="size-3 fill-current" />
+        <Square className="size-3.5 fill-current" />
       ) : (
-        <Mic className="size-4" />
+        <Mic className="size-4.5" />
       )}
     </Button>
   )

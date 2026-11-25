@@ -216,21 +216,21 @@ export function PreviewPanel({
         className,
       )}
     >
-      <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2">
-        <span className="truncate text-xs font-medium text-foreground" title={selected.filename}>
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-4 py-2.5">
+        <span className="truncate text-[13px] font-medium text-foreground" title={selected.filename}>
           {selected.filename}
         </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">
+        <span className="shrink-0 text-[12px] text-muted-foreground">
           {error ? "Error" : state === "streaming" ? "Building…" : "Ready"}
         </span>
 
-        <div className="ml-auto flex shrink-0 items-center gap-0.5">
+        <div className="ml-auto flex shrink-0 items-center gap-1">
           {error && onFixWithClaude ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 gap-1.5 px-2 text-[11px]"
+              className="h-8 gap-1.5 px-2 text-[12px]"
               onClick={() => onFixWithClaude(error)}
             >
               <Wrench className="size-3.5" aria-hidden />
@@ -240,22 +240,20 @@ export function PreviewPanel({
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="size-7"
+            size="icon-sm"
             onClick={openInTab}
             aria-label="Open preview in a new tab"
           >
-            <ExternalLink className="size-3.5" aria-hidden />
+            <ExternalLink className="size-4" aria-hidden />
           </Button>
           <Button
             type="button"
             variant="ghost"
-            size="icon"
-            className="size-7"
+            size="icon-sm"
             onClick={onClose}
             aria-label="Close preview"
           >
-            <X className="size-3.5" aria-hidden />
+            <X className="size-4" aria-hidden />
           </Button>
         </div>
       </div>
@@ -264,7 +262,7 @@ export function PreviewPanel({
         <div
           role="tablist"
           aria-label="Preview blocks"
-          className="flex shrink-0 gap-1 overflow-x-auto border-b border-border/60 px-2 py-1.5"
+          className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-border/60 px-3 py-2"
         >
           {blocks.map((b) => (
             <Button
@@ -276,7 +274,7 @@ export function PreviewPanel({
               aria-selected={b.id === selected.id}
               onClick={() => setActiveId(b.id)}
               className={cn(
-                "h-7 shrink-0 rounded-md px-2 text-[11px]",
+                "h-8 shrink-0 rounded-md px-2.5 text-[12px]",
                 b.id === selected.id
                   ? "bg-muted font-medium text-foreground"
                   : "text-muted-foreground hover:bg-muted/60",

@@ -68,7 +68,7 @@ export function ContextMeter({
               className,
             )}
           >
-            <Progress value={pct} size="sm" className="w-10 shrink-0 sm:w-12" />
+            <Progress value={pct} size="sm" className="w-11 shrink-0 sm:w-14" />
             <span className="tabular">{pct}%</span>
           </span>
         }

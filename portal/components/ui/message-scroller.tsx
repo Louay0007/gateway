@@ -273,7 +273,13 @@ export function MessageScrollerContent({
       role="log"
       aria-relevant="additions"
       aria-busy={busy || undefined}
-      className={cn("mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-6", className)}
+      // `gap-9 px-5 py-7`: the transcript was the tightest reading surface in
+      // the product at `gap-8 px-4 py-6`, so a long answer had 16px of air on
+      // each side while the composer above it sat on 24px. The two now share
+      // an optical gutter, and the extra row gap is what keeps two turns from
+      // reading as one block once the answer's own paragraph rhythm (my-3)
+      // is added to it.
+      className={cn("mx-auto flex w-full max-w-3xl flex-col gap-9 px-5 py-7", className)}
       {...props}
     >
       {children}
@@ -349,7 +355,10 @@ export function MessageScrollerButton({
         else ctx.scrollToStart({ behavior: "smooth" })
       }}
       className={cn(
-        "absolute bottom-4 left-1/2 z-10 inline-flex size-8 -translate-x-1/2 items-center justify-center",
+        // 36px, matching the composer's controls: this button floats over the
+        // transcript directly above them, and a 32px circle beside a 36px
+        // send read as two different design systems.
+        "absolute bottom-4 left-1/2 z-10 inline-flex size-9 -translate-x-1/2 items-center justify-center",
         "rounded-full border border-border bg-background/95 text-muted-foreground shadow-md backdrop-blur-sm",
         "transition-opacity duration-150 hover:text-foreground",
         "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
@@ -359,9 +368,9 @@ export function MessageScrollerButton({
       {...props}
     >
       {direction === "end" ? (
-        <ArrowDown className="size-4" aria-hidden />
+        <ArrowDown className="size-4.5" aria-hidden />
       ) : (
-        <ArrowUp className="size-4" aria-hidden />
+        <ArrowUp className="size-4.5" aria-hidden />
       )}
       <span className="sr-only">
         {direction === "end" ? "Scroll to end" : "Scroll to start"}
