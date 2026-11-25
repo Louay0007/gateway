@@ -188,28 +188,40 @@ def _d(days_ago: int) -> str:
 TODAY = _d(0)
 STALE = _d(9)   # comfortably beyond the 48h window
 
+# THE MERCHANT NUMBER, and it has to be the REAL one.
+#
+# `71 999 999` was a placeholder. Against a deployment whose
+# D17_RECEIVER_PHONE is the live number, every fixture receipt then scores
+# `receiver_mismatch` and the honest case can never pass — a fixture that
+# describes a different merchant than the one being paid is testing the wrong
+# thing. Keep this in step with D17_RECEIVER_PHONE; the e2e run asserts the
+# honest case passes, which fails loudly if they drift.
+MERCHANT = "51 803 706"
+# Somewhere the money must NOT go.
+OTHER_MERCHANT = "71 000 000"
+
 # 1. The honest payment — must pass.
-receipt("90.000", "A1B2C3D4", "20 123 456", "71 999 999",
+receipt("90.000", "A1B2C3D4", "20 123 456", MERCHANT,
         TODAY).save(f"{OUT}/clean_match.png")
 CASES["clean_match.png"] = {"expect": "pass", "amount": "90.000", "auth": "A1B2C3D4"}
 
 # 2. Underpayment — the Solo price against a Pro invoice. Must fail.
-receipt("39.000", "A1B2C3D4", "20 123 456", "71 999 999",
+receipt("39.000", "A1B2C3D4", "20 123 456", MERCHANT,
         TODAY).save(f"{OUT}/wrong_amount.png")
 CASES["wrong_amount.png"] = {"expect": "fail", "amount": "39.000", "auth": "A1B2C3D4"}
 
 # 3. Wrong authorization number. Must fail.
-receipt("90.000", "ZZ99XX77", "20 123 456", "71 999 999",
+receipt("90.000", "ZZ99XX77", "20 123 456", MERCHANT,
         TODAY).save(f"{OUT}/wrong_auth.png")
 CASES["wrong_auth.png"] = {"expect": "fail", "amount": "90.000", "auth": "ZZ99XX77"}
 
 # 4. Paid to a different merchant. Review, not fail.
-receipt("90.000", "A1B2C3D4", "20 123 456", "71 000 000",
+receipt("90.000", "A1B2C3D4", "20 123 456", OTHER_MERCHANT,
         TODAY).save(f"{OUT}/wrong_receiver.png")
 CASES["wrong_receiver.png"] = {"expect": "review", "amount": "90.000", "auth": "A1B2C3D4"}
 
 # 5. A stale receipt reused a week later. Review.
-receipt("90.000", "A1B2C3D4", "20 123 456", "71 999 999",
+receipt("90.000", "A1B2C3D4", "20 123 456", MERCHANT,
         STALE).save(f"{OUT}/stale_date.png")
 CASES["stale_date.png"] = {"expect": "review", "amount": "90.000", "auth": "A1B2C3D4"}
 
