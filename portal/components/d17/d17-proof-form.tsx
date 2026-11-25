@@ -191,7 +191,7 @@ export function D17ProofForm({
         <Label htmlFor="d17-screenshot" className="text-sm font-medium text-foreground">
           {t("d17.field_screenshot")}
         </Label>
-        <div className="rounded-lg border border-dashed border-border bg-muted/50 p-1 transition-colors hover:border-border dark:hover:border-border focus-within:border-black dark:focus-within:border-border focus-within:ring-1 focus-within:ring-black/20 dark:focus-within:ring-border/20">
+        <div className="rounded-lg border border-dashed border-border bg-muted/50 p-1 transition-colors hover:border-border focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/30">
           <Input
             id="d17-screenshot"
             name="screenshot"
@@ -199,7 +199,14 @@ export function D17ProofForm({
             accept="image/png,image/jpeg,image/webp"
             aria-describedby="d17-screenshot-hint"
             onChange={() => clearFieldError("screenshot")}
-            className="border-0 bg-transparent file:mr-3 file:rounded-md file:border-0 file:bg-white dark:file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground dark:file:text-muted-foreground file:shadow-sm file:transition-colors hover:file:bg-muted dark:hover:file:bg-muted"
+            // `file:bg-muted file:text-foreground`, NOT
+            // `file:bg-white file:text-foreground`. The file picker button is a
+            // CONTROL, so it must read on both canvases. A fixed white button
+            // with the themed ink token on it is white-on-white in the light
+            // theme — the same class of bug as the transfer number, on the form
+            // the customer is about to submit. A muted fill follows the theme
+            // and keeps the ink legible either way.
+            className="border-0 bg-transparent file:mr-3 file:rounded-md file:border file:border-border file:bg-muted file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-foreground file:shadow-sm file:transition-colors hover:file:bg-muted/70"
           />
         </div>
         <p id="d17-screenshot-hint" className="text-xs leading-relaxed text-muted-foreground">
@@ -225,7 +232,7 @@ export function D17ProofForm({
               setConfirmed(e.target.checked);
               if (e.target.checked) clearFieldError("confirm");
             }}
-            className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-border accent-black"
+            className="mt-0.5 size-4 shrink-0 cursor-pointer rounded border-border accent-foreground"
             aria-invalid={!!fieldErrors.confirm}
           />
           <Label

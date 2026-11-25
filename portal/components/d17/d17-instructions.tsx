@@ -4,16 +4,26 @@ import { t17, type D17Lang } from "@/lib/i18n/d17";
 import { Check } from "lucide-react";
 
 /**
- * D17 transfer instructions with visual step tracker.
+ * D17 transfer instructions.
  *
- * Each step is one action in the D17 banking app. The amount and receiver
- * number are copyable because a typo in either produces a transfer nobody
- * can match to a payment — the single most common failure mode.
+ * WHAT WAS WRONG. The component opened with its own five-node step tracker —
+ * `aria-hidden` decoration that duplicated the page's real three-step
+ * stepper 200px above it. Below that sat five numbered rows of prose, and the
+ * two values a customer must actually type into their banking app (the exact
+ * amount and the receiver number) were buried at rows 3 and 4 of 5.
  *
- * The visual stepper (numbered circles with connector lines) gives users
- * orientation in what is otherwise a wall of text. Completed-style styling
- * is not used here because these are instructions, not progress indicators;
- * the stepper on the checkout page tracks actual flow state.
+ * On a page whose whole job is "make this transfer", the two values are the
+ * content and the five steps are the instruction. So:
+ *
+ *   1. The values lead, in a two-up panel, set large in mono, each with its
+ *      own copy control.
+ *   2. The steps follow as a plain ordered list, three of them, because two
+ *      of the original five were the values themselves.
+ *   3. The decorative tracker is gone. The page's stepper already orients.
+ *
+ * A typo in the amount or the number produces a transfer nobody can match to
+ * a payment, which is the single most common D17 failure — which is why every
+ * value here is selectable and copyable.
  */
 export function D17Instructions({
   lang,
@@ -29,70 +39,94 @@ export function D17Instructions({
   const t = (key: string, vars?: Record<string, string>) => t17(lang, key, vars);
   const amount = formatTndMillimes(amountMillimes);
 
-  const steps: { label: string; value?: string; copyable?: boolean; highlight?: boolean }[] = [
-    { label: t("d17.step1") },
-    { label: t("d17.step2") },
-    { label: t("d17.step3"), value: amount, copyable: true, highlight: true },
-    { label: t("d17.step4"), value: receiverPhone, copyable: true, highlight: true },
-    { label: t("d17.step5") },
-  ];
+  /**
+   * Three steps, not five. The originals interleaved the two VALUES with
+   * three actions ("open the app", "go to Transfer", "confirm with your PIN,
+   * then note the authorisation number"). The values are now a panel above,
+   * so the list is only the actions.
+   */
+  const steps: string[] = [t("d17.step1"), t("d17.step2"), t("d17.step5")];
 
   return (
-    <div className="grid gap-5">
-      {/* Visual step tracker — decorative only, detailed list carries semantics */}
-      <div className="flex items-center justify-between px-1" aria-hidden="true">
-        {steps.map((_, i) => (
-          <div key={i} className="flex items-center">
-            <div className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-bold transition-colors ${ steps[i]?.highlight ? "border-success/50 bg-success/10 text-success " : "border-border bg-card text-muted-foreground" }`}>
-              {i + 1}
-            </div>
-            {i < steps.length - 1 && (
-              <div className={`h-px w-5 sm:w-8 md:w-12 ${ steps[i]?.highlight ? "bg-success/30 dark:bg-success/90" : "bg-muted " }`} />
-            )}
-          </div>
-        ))}
+    <div className="grid gap-6">
+      {/* ── The two values, first ─────────────────────────────────────── */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Value
+          label={t("d17.step3")}
+          value={amount}
+          copyLabel={t("d17.copy")}
+          copiedLabel={t("d17.copied")}
+        />
+        <Value
+          label={t("d17.step4")}
+          value={receiverPhone}
+          copyLabel={t("d17.copy")}
+          copiedLabel={t("d17.copied")}
+        />
       </div>
 
-      {/* Detailed steps */}
-      <ol className="grid gap-3">
+      {/* ── Then the actions ─────────────────────────────────────────── */}
+      <ol className="grid gap-2.5">
         {steps.map((step, i) => (
-          <li key={i} className={`flex gap-3.5 rounded-lg p-2.5 transition-colors ${ step.highlight ? "bg-success/10 bg-success/10" : "" }`}>
+          <li key={step} className="flex gap-3">
             <span
               aria-hidden
-              className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${ step.highlight ? "bg-success dark:bg-success text-white" : "bg-muted text-muted-foreground" }`}
+              className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-muted text-[11px] font-semibold tabular-nums text-muted-foreground"
             >
-              {step.highlight ? (
-                <Check className="size-3.5" strokeWidth={3} />
-              ) : (
-                i + 1
-              )}
+              {i + 1}
             </span>
-            <div className="min-w-0 flex-1">
-              <p className={`text-sm leading-relaxed ${ step.highlight ? "font-medium text-foreground" : "text-foreground" }`}>{step.label}</p>
-              {step.value ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <code
-                    className={`min-w-0 flex-1 select-all rounded-lg border px-3 py-2.5 font-mono text-sm tabular-nums tracking-tight ${ step.highlight ? "border-success/30 bg-card text-base font-semibold text-success-foreground text-success shadow-sm" : "border-border bg-muted/80 text-foreground" }`}
-                  >
-                    {step.value}
-                  </code>
-                  {step.copyable ? (
-                    <CopyButton
-                      value={step.value}
-                      label={t("d17.copy")}
-                      copiedLabel={t("d17.copied")}
-                    />
-                  ) : null}
-                </div>
-              ) : null}
-            </div>
+            <p className="min-w-0 text-sm leading-relaxed text-foreground">
+              {step}
+            </p>
           </li>
         ))}
-
-        <li className="sr-only" aria-hidden>
-          {t("d17.summary_reference")}: {reference}
-        </li>
       </ol>
+
+      <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+        <Check className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
+        {t("d17.summary_reference")}: <span className="font-mono">{reference}</span>
+      </p>
+    </div>
+  );
+}
+
+/**
+ * One copyable value.
+ *
+ * THE VALUE IS ALWAYS INK, never a semantic foreground. This previously
+ * carried `text-success-foreground text-success` — two contradictory colour
+ * classes. The compiled sheet emits `.text-success-foreground` last, so it
+ * won and painted the amount `oklch(0.99 0 0)` — near-white — on a `bg-card`
+ * that is pure white in the light theme: 1.03:1. The one number the customer
+ * has to retype into a bank app was invisible.
+ *
+ * The success semantic now lives on the border and the label tick, where it
+ * cannot fight the text colour, and the value itself is ink in both themes by
+ * construction (19.79:1 on white, 20.36:1 on near-black).
+ */
+function Value({
+  label,
+  value,
+  copyLabel,
+  copiedLabel,
+}: {
+  label: string;
+  value: string;
+  copyLabel: string;
+  copiedLabel: string;
+}) {
+  return (
+    <div className="min-w-0 rounded-xl border border-success/40 bg-success/[0.06] p-3">
+      <p className="flex items-center gap-1.5 text-[11px] font-medium tracking-[0.06em] text-muted-foreground uppercase">
+        <Check className="size-3 text-success" strokeWidth={3} aria-hidden />
+        {label}
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <code className="min-w-0 flex-1 select-all truncate font-mono text-lg font-semibold tabular-nums tracking-tight text-foreground">
+          {value}
+        </code>
+        <CopyButton value={value} label={copyLabel} copiedLabel={copiedLabel} />
+      </div>
     </div>
   );
 }

@@ -109,7 +109,7 @@ export function D17StatusCard({
       aria-live="polite"
     >
       <div className="flex items-start gap-3.5">
-        <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted dark:bg-primary/60`}>
+        <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted`}>
           <Icon
             className={`size-4.5 ${config.colorClass} ${ config.pulse ? 'd17-status-pulse' : '' }`}
             aria-hidden="true"
@@ -121,12 +121,16 @@ export function D17StatusCard({
           </p>
           <p className="text-sm leading-relaxed text-foreground">{t(config.explainKey)}</p>
           {status === 'rejected' && rejectReason && (
-            <p className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-destructive/30 border-destructive/40 bg-card px-2.5 py-1.5 text-xs font-medium text-destructive text-destructive">
+            <p className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-card px-2.5 py-1.5 text-xs font-medium text-destructive">
               {t('d17.rejected_banner', { reason: rejectReason })}
             </p>
           )}
           {status === 'proof_submitted' && flaggedReview && (
-            <p className="mt-0.5 text-xs font-medium text-warning">{t('d17.waiting_review')}</p>
+            /* Ink, not `text-warning`: --warning as text on a `bg-warning/10`
+               tint measures 3.0:1, and this is the line that tells a customer
+               a human is looking at their payment. The amber already reads in
+               the card's border and icon. */
+            <p className="mt-0.5 text-xs font-medium text-foreground">{t('d17.waiting_review')}</p>
           )}
         </div>
       </div>

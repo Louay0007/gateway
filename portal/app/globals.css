@@ -602,7 +602,10 @@ html.light,
 }
 
 .d17-stepper-step[data-state="completed"]:not(:last-child)::after {
-  background: oklch(0.6 0.2 145); /* emerald-500 approx */
+  /* `var(--success)`, not a hard-coded emerald. The raw value ignored the
+     theme's own success token and stayed a light-mode green on a dark
+     canvas. */
+  background: var(--success);
 }
 
 .d17-stepper-circle {
@@ -632,9 +635,9 @@ html.light,
 }
 
 .d17-stepper-circle[data-state="completed"] {
-  background: oklch(0.6 0.2 145);
-  color: white;
-  border: 2px solid oklch(0.6 0.2 145);
+  background: var(--success);
+  color: var(--success-foreground);
+  border: 2px solid var(--success);
 }
 
 .d17-status-pulse {

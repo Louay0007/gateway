@@ -163,7 +163,7 @@ export default async function D17CheckoutPage({
               a page that said nothing about their payment having worked. */}
           <Link
             href={paidReturnTo}
-            className="mt-8 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary hover:bg-primary/80"
+            className="mt-8 inline-flex items-center justify-center rounded-lg bg-primary px-6 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80"
           >
             {t("d17.back_dashboard")}
           </Link>
@@ -277,7 +277,10 @@ export default async function D17CheckoutPage({
                 <div className="border-b border-border bg-muted/50 px-5 py-3">
                   <h2 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{t("d17.summary_reference")}</h2>
                 </div>
-                <dl className="divide-y divide-gray-50 px-5">
+                {/* `divide-border`, NOT `divide-gray-50`. gray-50 is #f9fafb —
+                    a 3-point step from the white card, i.e. an invisible
+                    divider, and it ignores the theme entirely. */}
+                <dl className="divide-y divide-border px-5">
                   <SummaryRow label={t("d17.summary_plan")} value={plan?.name ?? "—"} />
                   <SummaryRow label={t("d17.summary_amount")} value={formatTndMillimes(payment.amountMillimes)} mono highlight />
                   {promo ? (
@@ -304,9 +307,14 @@ export default async function D17CheckoutPage({
                     receiverPhone={phone}
                     reference={`d17-${payment.id}`}
                   />
-                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 bg-warning/10 px-4 py-3">
+                  <div className="mt-5 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3">
                     <ShieldCheck className="mt-0.5 size-4 shrink-0 text-warning" aria-hidden />
-                    <p className="text-sm leading-relaxed text-warning text-warning">
+                    {/* Ink, not `text-warning`. --warning is a FILL colour:
+                        oklch(0.72 0.17 70) as text on its own 10% tint is
+                        3.0:1, under the 4.5 body floor, and this sentence is
+                        the one that tells a customer their plan is not active
+                        yet. The amber stays on the border and the icon. */}
+                    <p className="text-sm leading-relaxed text-foreground">
                       {t("d17.notice", { hours: String(hours) })}
                     </p>
                   </div>
@@ -340,7 +348,7 @@ export default async function D17CheckoutPage({
           <div className="flex justify-center pt-4">
             <Link
               href={returnTo}
-              className="inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3 text-sm font-medium text-white transition-colors hover:bg-primary hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black/40 dark:focus-visible:ring-border"
+              className="inline-flex items-center justify-center rounded-lg bg-primary px-8 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t("d17.continue")}
             </Link>
@@ -354,7 +362,7 @@ export default async function D17CheckoutPage({
             <span>{t("d17.no_pin_notice")}</span>
           </div>
           <LangSwitch links={langLinks(base)} />
-          <Link href={returnTo} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-black dark:hover:text-white hover:underline">
+          <Link href={returnTo} className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
             <ArrowLeft className="size-3" />
             {t("d17.back_dashboard")}
           </Link>
@@ -381,7 +389,7 @@ function CheckoutShell({
         <Link
           href="/"
           aria-label="Zaino AI home"
-          className="mb-10 flex justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-black/40 focus-visible:outline-none"
+          className="mb-10 flex justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         >
           <Logo tone="light" />
         </Link>
