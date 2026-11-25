@@ -8,6 +8,7 @@ import {
   Check,
   Copy,
   Globe,
+  Pencil,
   Pin,
   RotateCcw,
   Undo2,
@@ -37,8 +38,19 @@ import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Loader } from "@/components/ui/loader";
 import { Reasoning } from "@/components/ai/reasoning";
 import { Sources, type SourceItem } from "@/components/ai/sources";
+import { ContextMeter } from "@/components/ai/context-meter";
 import { Suggestion } from "@/components/ai/suggestion";
 import { PromptInput, AttachControl } from "@/components/ai/prompt-input";
+import { SpeechInput } from "@/components/ai/speech-input";
+import {
+  Queue,
+  QueueItem,
+  QueueItemAction,
+  QueueItemActions,
+  QueueItemContent,
+  QueueItemIndicator,
+  QueueList,
+} from "@/components/ui/queue";
 import {
   AttachmentRow,
   type AttachmentChip,
@@ -49,7 +61,7 @@ import { ModelPicker, type ModelOption } from "@/components/chat/model-picker";
 import { QuotaHint } from "@/components/chat/quota-hint";
 import { aliasMeta } from "@/components/chat/aliases";
 import { MAX_ATTACHMENTS } from "@/lib/chat/attachments";
-import { usdPrecise } from "@/lib/dashboard/format";
+import { usdPrecise, compact } from "@/lib/dashboard/format";
 import { splitPayloads } from "@/lib/chat/sse";
 import { previewableBlocks } from "@/lib/chat/artifacts";
 import { PreviewPanel } from "@/components/chat/preview-panel";
@@ -71,8 +83,16 @@ export interface ChatMessage {
    * truncated answer apart from a complete one.
    */
   finishReason?: string;
-  /** Per-turn numbers, from the `usage` frame or the stored row. */
+  /**
+   * Per-turn numbers, from the `usage` frame or the stored row.
+   *
+   * `inputTokens` is FRESH input, exclusive of the cached prefix, because
+   * that is what the quota wall charges. The prompt the model actually read
+   * is `inputTokens + cachedTokens`, and on a cached conversation the first
+   * is a tiny fraction of the second.
+   */
   inputTokens?: number | null;
+  cachedTokens?: number | null;
   outputTokens?: number | null;
   costUsd?: number | null;
   latencyMs?: number | null;
@@ -163,6 +183,42 @@ export function ChatView({
 
   const abortRef = React.useRef<AbortController | null>(null);
   const activeId = React.useRef<string | null>(conversationId ?? null);
+
+  /**
+   * QUEUE. A turn typed while a reply is streaming. The composer used to
+   * refuse it outright (`if (streaming) return`), so the sentence was lost
+   * unless the person held it in their head until the answer finished.
+   *
+   * Text only, no attachments: the chips belong to the turn that carried
+   * them and are cleared on send, so a queued entry that kept them would
+   * attach the previous turn's files to a new question.
+   *
+   * The ref mirrors the state because the drain reads it from an effect that
+   * must not re-run on every keystroke of an unrelated draft.
+   */
+  const [queued, setQueued] = React.useState<string[]>([]);
+  const queueRef = React.useRef<string[]>([]);
+
+  function enqueue(text: string) {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    queueRef.current = [...queueRef.current, trimmed];
+    setQueued(queueRef.current);
+  }
+
+  function dropQueued(index: number) {
+    queueRef.current = queueRef.current.filter((_, i) => i !== index);
+    setQueued(queueRef.current);
+  }
+
+  // Editing takes the entry back out and puts it in the composer: two places
+  // holding the same sentence is how a person sends it twice.
+  function editQueued(index: number) {
+    const text = queueRef.current[index];
+    if (text === undefined) return;
+    dropQueued(index);
+    setDraft(text);
+  }
 
   /**
    * REVERT. Rewind the thread to one of the person's own turns: that turn and
@@ -531,6 +587,7 @@ export function ChatView({
               finish?: ChatMessage["finish"];
               usage?: {
                 inputTokens?: number | null;
+                cachedTokens?: number;
                 outputTokens?: number | null;
                 costUsd?: number | null;
               };
@@ -545,6 +602,11 @@ export function ChatView({
             if (event.usage) {
               patch({
                 inputTokens: event.usage.inputTokens ?? null,
+                // Absent means "no cache reported", not "zero cached", so
+                // it must not overwrite a figure an earlier frame carried.
+                ...(event.usage.cachedTokens !== undefined
+                  ? { cachedTokens: event.usage.cachedTokens }
+                  : {}),
                 outputTokens: event.usage.outputTokens ?? null,
                 costUsd: event.usage.costUsd ?? null,
               });
@@ -590,6 +652,28 @@ export function ChatView({
       setStreaming(false);
     }
   }
+
+  /**
+   * The drain. Fires the moment a stream closes, not on a timer, so the next
+   * question goes out as soon as the answer that blocked it has landed.
+   *
+   * The entry is taken off the ref BEFORE `send` runs. `send` sets
+   * `streaming`, which re-renders, which would otherwise find the same entry
+   * still at the head and send it twice.
+   *
+   * `failure` is a stop, not a pause. A refused turn (no plan, server down)
+   * leaves `streaming` false again, so without this guard the queue would
+   * empty itself into a server that keeps refusing — five requests and five
+   * error banners for one cause. The rest wait until the person acts.
+   */
+  React.useEffect(() => {
+    if (streaming || failure) return;
+    const next = queueRef.current[0];
+    if (next === undefined) return;
+    queueRef.current = queueRef.current.slice(1);
+    setQueued(queueRef.current);
+    void send(next);
+  }, [streaming, failure]);
 
   const empty = messages.length === 0;
 
@@ -814,9 +898,72 @@ export function ChatView({
             </div>
           ) : null}
 
+          {/* Waiting turns, above the composer they came from. Rendered only
+              when something is waiting: an empty queue box is furniture that
+              costs a row of the transcript for no information. */}
+          {queued.length > 0 ? (
+            <Queue>
+              <div className="flex items-center justify-between px-1 text-[11px] font-medium text-muted-foreground">
+                <span>
+                  {queued.length} {queued.length === 1 ? "message" : "messages"} waiting
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  onClick={() => {
+                    queueRef.current = [];
+                    setQueued([]);
+                  }}
+                  className="px-1.5 text-[11px]"
+                >
+                  Clear
+                </Button>
+              </div>
+              <QueueList>
+                {queued.map((text, index) => (
+                  <QueueItem key={`${index}-${text.slice(0, 24)}`}>
+                    <div className="flex items-start gap-2">
+                      <QueueItemIndicator />
+                      <QueueItemContent>{text}</QueueItemContent>
+                      <QueueItemActions>
+                        <QueueItemAction
+                          onClick={() => editQueued(index)}
+                          aria-label="Edit this message"
+                          title="Edit"
+                        >
+                          <Pencil className="size-3" aria-hidden />
+                        </QueueItemAction>
+                        <QueueItemAction
+                          onClick={() => dropQueued(index)}
+                          aria-label="Remove from the queue"
+                          title="Remove"
+                        >
+                          <X className="size-3" aria-hidden />
+                        </QueueItemAction>
+                      </QueueItemActions>
+                    </div>
+                  </QueueItem>
+                ))}
+              </QueueList>
+            </Queue>
+          ) : null}
+
           <PromptInput
             onSend={send}
             onStop={() => abortRef.current?.abort()}
+            onQueue={enqueue}
+            dictate={
+              <SpeechInput
+                disabled={uploading}
+                onTranscript={(text) => {
+                  // Appended, never submitted: recognition ends a phrase on
+                  // every pause, and sending there would fire a turn each
+                  // time the speaker drew breath.
+                  setDraft((prev) => (prev ? `${prev} ${text}` : text));
+                }}
+              />
+            }
             onAttach={upload}
             streaming={streaming}
             draft={draft}
@@ -1119,7 +1266,9 @@ function Turn({
               // dropped rather than injected. `Markdown` also supplies the
               // plugins core does not bundle — KaTeX for maths, mermaid for
               // diagrams — and themes a diagram to match the app.
-              <Markdown streaming={streaming}>{message.content}</Markdown>
+              <Markdown streaming={streaming} sources={message.sources}>
+                {message.content}
+              </Markdown>
             ) : null}
 
             {/* `text-warning` is a FILL, not ink: at 11px on the canvas it
@@ -1141,8 +1290,18 @@ function Turn({
           ) : null}
           {message.outputTokens ? (
             <span className="tabular">
-              {message.inputTokens ?? 0} in · {message.outputTokens} out
+              {compact((message.inputTokens ?? 0) + (message.cachedTokens ?? 0))} in ·{" "}
+              {compact(message.outputTokens)} out
             </span>
+          ) : null}
+          {/* How full this conversation's window is. Kept on the answer, not
+              the composer, so it cannot be read as the plan's remaining
+              budget — QuotaHint owns that and counts a different thing. */}
+          {message.inputTokens ? (
+            <ContextMeter
+              promptTokens={message.inputTokens}
+              cachedTokens={message.cachedTokens}
+            />
           ) : null}
           {/* The gateway's own USD cost, not what the plan charges: the plan
               is priced in DT and its meter counts blended tokens, so this

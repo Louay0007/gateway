@@ -28,8 +28,20 @@ export interface ChatSseEvent {
 }
 
 export interface SseUsage {
+  /**
+   * FRESH input only — exclusive of cache reads, so it matches what the
+   * quota wall charges. The full prompt is `inputTokens + cachedTokens`.
+   */
   inputTokens: number | null;
   outputTokens: number | null;
+  /**
+   * The cached prefix of this turn's prompt, when the provider reported one.
+   * Absent rather than 0 when there was no cache hit, so a consumer can tell
+   * "no cache" from "cache not reported". Without this the prompt size is
+   * unrecoverable: OpenAI caches automatically, so a long conversation can
+   * report 518 fresh tokens against a 297k prompt.
+   */
+  cachedTokens?: number;
   /** Upstream's own dollar figure when the provider reports one. */
   costUsd: number | null;
 }
@@ -174,6 +186,11 @@ function parseOpenAiFrame(payload: string): ChatSseEvent[] {
       usage: {
         inputTokens: fresh,
         outputTokens: raw.usage.completion_tokens ?? null,
+        // Carried out rather than dropped: the cached prefix is the only
+        // way a consumer can recover the prompt size, and OpenAI caches
+        // automatically, so the fresh figure alone understates a long
+        // conversation by orders of magnitude.
+        ...(cached > 0 ? { cachedTokens: cached } : {}),
         costUsd: typeof cost === 'number' && Number.isFinite(cost) ? cost : null,
       },
     });
@@ -303,6 +320,7 @@ function usageFromAnthropic(usage: AnthropicUsage): SseUsage {
   return {
     inputTokens: prompt === null ? null : Math.max(prompt - cached, 0),
     outputTokens: usage.output_tokens ?? null,
+    ...(cached > 0 ? { cachedTokens: cached } : {}),
     // The upstream reports no dollar figure on this wire format; the
     // gateway header and the ledger collector supply cost instead.
     costUsd: null,

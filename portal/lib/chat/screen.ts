@@ -98,6 +98,7 @@ export function toChatMessages(
     status: string;
     reasoning?: string | null;
     inputTokens?: number | null;
+    cachedTokens?: number | null;
     outputTokens?: number | null;
     costUsd?: number | null;
     latencyMs?: number | null;
@@ -129,6 +130,9 @@ export function toChatMessages(
       // truncated reply exactly like a finished one.
       finishReason: r.finishReason ?? undefined,
       inputTokens: r.inputTokens ?? null,
+      // Read back beside the fresh figure, or a reloaded turn loses the
+      // cached prefix and its context reading drops by orders of magnitude.
+      cachedTokens: r.cachedTokens ?? null,
       outputTokens: r.outputTokens ?? null,
       costUsd: r.costUsd ?? null,
       latencyMs: r.latencyMs ?? null,

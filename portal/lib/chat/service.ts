@@ -77,8 +77,16 @@ export interface MessageRow {
   model: string | null;
   status: 'pending' | 'streaming' | 'complete' | 'error' | 'aborted';
   costUsd: number | null;
+  /** FRESH input, exclusive of the cached prefix (see `cachedTokens`). */
   inputTokens: number | null;
   outputTokens: number | null;
+  /**
+   * The cached prefix of this turn's prompt (`meta.cachedTokens`). The
+   * prompt the model actually read is `inputTokens + cachedTokens`; on a
+   * long cached conversation the fresh figure alone is a tiny fraction of
+   * it, so anything measuring prompt size must add the two.
+   */
+  cachedTokens: number | null;
   latencyMs: number | null;
   createdAt: string;
   /**
@@ -221,19 +229,25 @@ export async function listMessages(conversationId: string): Promise<MessageRow[]
     attachments: { id: string; filename: string; kind: string; chars: number }[];
   }[];
 
-  // Sources live in `meta`, which is not selected above because the whole
-  // column is telemetry the UI must not render blindly. Read it separately
-  // and shape it here, so a malformed blob is dropped rather than spread
-  // into the transcript.
+  // Sources and the cached-token count live in `meta`, which is not selected
+  // above because the whole column is telemetry the UI must not render
+  // blindly. Read it separately and shape it here, so a malformed blob is
+  // dropped rather than spread into the transcript.
   const metaRows = (await db.execute(sql`
-    SELECT id, meta->'sources' AS sources
+    SELECT id, meta->'sources' AS sources, meta->'cachedTokens' AS cached_tokens
       FROM messages
      WHERE conversation_id = ${conversationId}::uuid
-       AND meta ? 'sources'
-  `)) as unknown as { id: string; sources: unknown }[];
-  const sourcesById = new Map<string, MessageRow['sources']>();
+       AND (meta ? 'sources' OR meta ? 'cachedTokens')
+  `)) as unknown as { id: string; sources: unknown; cached_tokens: unknown }[];
+  const metaById = new Map<
+    string,
+    { sources: MessageRow['sources']; cachedTokens: number | null }
+  >();
   for (const r of metaRows) {
-    sourcesById.set(r.id, parseSources(r.sources));
+    metaById.set(r.id, {
+      sources: parseSources(r.sources),
+      cachedTokens: parseCount(r.cached_tokens),
+    });
   }
 
   return rows.map((r) => ({
@@ -249,12 +263,31 @@ export async function listMessages(conversationId: string): Promise<MessageRow[]
     costUsd: r.cost_usd === null ? null : Number(r.cost_usd),
     inputTokens: r.input_tokens,
     outputTokens: r.output_tokens,
+    cachedTokens: metaById.get(r.id)?.cachedTokens ?? null,
     latencyMs: r.latency_ms,
     createdAt: toIsoRequired(r.created_at),
     finishReason: r.finish_reason ?? null,
-    sources: sourcesById.get(r.id) ?? [],
+    sources: metaById.get(r.id)?.sources ?? [],
     attachments: Array.isArray(r.attachments) ? r.attachments : [],
   }));
+}
+
+/**
+ * A non-negative integer out of a jsonb value, or null.
+ *
+ * Same reasoning as `parseSources`: the column is jsonb, so a number can
+ * arrive as a string, a float, or something a hand-edit left behind. A
+ * count that is not a finite non-negative number is absent, never zero —
+ * zero would claim "nothing was cached" for a turn that simply predates
+ * this key.
+ */
+function parseCount(raw: unknown): number | null {
+  if (typeof raw === 'number') return Number.isFinite(raw) && raw >= 0 ? raw : null;
+  if (typeof raw === 'string' && raw.length > 0) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  }
+  return null;
 }
 
 /**

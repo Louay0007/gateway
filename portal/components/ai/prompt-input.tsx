@@ -35,11 +35,13 @@ export function PromptInput({
   onSend,
   onStop,
   onAttach,
+  onQueue,
   streaming,
   disabled,
   placeholder,
   tools,
   attach,
+  dictate,
   attachments,
   draft,
   onDraftChange,
@@ -48,6 +50,11 @@ export function PromptInput({
 }: {
   onSend: (text: string) => void
   onStop: () => void
+  /**
+   * Holds a message typed while a reply is still streaming. Absent means the
+   * composer is read-only mid-stream, which is what it used to be.
+   */
+  onQueue?: (text: string) => void
   /** Files pasted from the clipboard, routed to the same intake as a drop. */
   onAttach?: (files: File[]) => void
   streaming: boolean
@@ -56,6 +63,12 @@ export function PromptInput({
   tools?: React.ReactNode
   /** The quiet "+" affordance. Rendered as a ghost control, never filled. */
   attach?: React.ReactNode
+  /**
+   * Dictation. Sits beside Send rather than in the tools row: that row
+   * scrolls sideways on a phone, and a mic that scrolls out of reach is not
+   * a control the user can find.
+   */
+  dictate?: React.ReactNode
   attachments?: React.ReactNode
   draft?: string
   onDraftChange?: (text: string) => void
@@ -117,12 +130,22 @@ export function PromptInput({
 
   function submit() {
     const text = value.trim()
-    if (!text || streaming || disabled) return
+    if (!text || disabled) return
+    // Mid-stream the send becomes a queue: the reply in flight is not
+    // interrupted, and the sentence is not lost. Without a queue handler the
+    // composer keeps its old behaviour and refuses.
+    if (streaming) {
+      if (!onQueue) return
+      onQueue(text)
+      setValue("")
+      return
+    }
     onSend(text)
     setValue("")
   }
 
-  const canSend = value.trim().length > 0 && !streaming && !disabled
+  // Enter still submits while streaming when there is somewhere to put it.
+  const canSend = value.trim().length > 0 && !disabled && (!streaming || Boolean(onQueue))
 
   return (
     <div
@@ -257,16 +280,38 @@ export function PromptInput({
               </span>
             ) : null}
 
+            {dictate}
+
             {streaming ? (
-              <Button
-                type="button"
-                size="icon"
-                onClick={onStop}
-                aria-label="Stop generating"
-                className="shrink-0 rounded-full"
-              >
-                <Square className="size-3 fill-current" />
-              </Button>
+              <>
+                {/* Mid-stream there are two things the user can want, so both
+                    are offered — but only Stop keeps the filled slot. The
+                    queue-send is outlined: it acts later, and a second filled
+                    circle beside Stop would make the one control that
+                    interrupts an answer ambiguous. Rendered only when there
+                    is something to hold. */}
+                {canSend ? (
+                  <Button
+                    type="submit"
+                    size="icon"
+                    variant="outline"
+                    aria-label="Send after this reply"
+                    title="Send after this reply"
+                    className="shrink-0 rounded-full"
+                  >
+                    <ArrowUp className="size-4" strokeWidth={2.5} />
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  size="icon"
+                  onClick={onStop}
+                  aria-label="Stop generating"
+                  className="shrink-0 rounded-full"
+                >
+                  <Square className="size-3 fill-current" />
+                </Button>
+              </>
             ) : (
               <Button
                 type="submit"

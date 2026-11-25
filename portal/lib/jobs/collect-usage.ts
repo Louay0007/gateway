@@ -281,13 +281,27 @@ export async function collectUsage(opts?: {
     // UPSTREAM provider's id (`chatcmpl-…`), a different value entirely.
     // Joining on it matched nothing, so every chat turn kept cost_usd NULL
     // while the spend sat in the ledger under a key no row referenced.
+    //
+    // `input_tokens` is written as FRESH input, the same meaning the stream
+    // path writes (lib/chat/sse.ts). It used to be the raw inclusive
+    // `prompt_tokens`, so the column silently changed meaning minutes after
+    // a turn: a cache-heavy 297k prompt read as 518 while the stream was
+    // open and as 297807 once this ran, and a reader could not tell which.
+    // The cached prefix goes to `meta.cachedTokens`, where the stream puts
+    // it, so the full prompt stays recoverable as input + cached.
     const joinId = row.litellm_call_id ?? null;
     if (inserted.length > 0 && joinId) {
       await db.execute(sql`
         UPDATE messages
-           SET input_tokens  = ${u.inputTokens},
+           SET input_tokens  = ${u.freshInput},
                output_tokens = ${u.outputTokens},
-               cost_usd      = ${customer}
+               cost_usd      = ${customer},
+               meta          = CASE
+                 WHEN ${u.cacheRead} > 0
+                   THEN COALESCE(meta, '{}'::jsonb)
+                        || jsonb_build_object('cachedTokens', ${u.cacheRead})
+                 ELSE meta
+               END
          WHERE gateway_request_id = ${joinId}
            AND cost_usd IS NULL
       `).catch((e: unknown) => {

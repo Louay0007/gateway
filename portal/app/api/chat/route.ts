@@ -666,6 +666,7 @@ function relayStream(input: {
   let finishReason: string | null = null;
   let inputTokens: number | null = null;
   let outputTokens: number | null = null;
+  let cachedTokens: number | null = null;
   let streamCostUsd: number | null = null;
   let buffer = '';
   let closed = false;
@@ -693,6 +694,11 @@ function relayStream(input: {
       meta: {
         ...(finishReason ? { finishReason } : {}),
         ...(streamCostUsd !== null ? { upstreamCostUsd: streamCostUsd } : {}),
+        // `input_tokens` holds FRESH input, which on a cached conversation
+        // is a fraction of the prompt. The cached prefix is stored beside
+        // it so the prompt size stays recoverable after a reload; without
+        // it a 297k-token turn reads back as 518 tokens.
+        ...(cachedTokens !== null ? { cachedTokens } : {}),
         ...(input.headerCostUsd !== null ? { headerCostUsd: input.headerCostUsd } : {}),
         ...(reasoning ? { reasoningChars: reasoning.length } : {}),
         // The Sources panel reads these back on reload. `sources` lives in
@@ -716,6 +722,7 @@ function relayStream(input: {
       usage: {
         inputTokens,
         outputTokens,
+        ...(cachedTokens !== null ? { cachedTokens } : {}),
         costUsd: cost,
       },
     });
@@ -780,6 +787,7 @@ function relayStream(input: {
             if (event.usage) {
               if (event.usage.inputTokens !== null) inputTokens = event.usage.inputTokens;
               if (event.usage.outputTokens !== null) outputTokens = event.usage.outputTokens;
+              if (event.usage.cachedTokens !== undefined) cachedTokens = event.usage.cachedTokens;
               if (event.usage.costUsd !== null) streamCostUsd = event.usage.costUsd;
             }
           }

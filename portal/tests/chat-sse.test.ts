@@ -166,6 +166,25 @@ describe('splitFrames — reasoning, usage, finish reason', () => {
     expect(events).toEqual([{ usage: { inputTokens: 4, outputTokens: 2, costUsd: null } }]);
   });
 
+  it('carries the cached prefix out beside the fresh figure', () => {
+    // The production shape of a long conversation: almost the whole prompt
+    // was served from cache. Reporting 518 fresh tokens without the cached
+    // prefix would understate what the model read by 575x.
+    const { events } = splitFrames(
+      frame({
+        choices: [{ delta: {} }],
+        usage: {
+          prompt_tokens: 297807,
+          completion_tokens: 830,
+          prompt_tokens_details: { cached_tokens: 297289 },
+        },
+      }),
+    );
+    expect(events).toEqual([
+      { usage: { inputTokens: 518, outputTokens: 830, cachedTokens: 297289, costUsd: null } },
+    ]);
+  });
+
   it('ignores a usage block that is present but null', () => {
     const { events } = splitFrames(
       frame({ choices: [{ delta: { content: 'x' } }], usage: null }),
@@ -231,6 +250,9 @@ describe('splitAnthropicFrames', () => {
       }),
     );
     expect(events[0]?.usage?.inputTokens).toBe(10);
+    // Subtracting alone loses the prompt size: a cached turn would report
+    // 10 tokens read when the model actually read 100.
+    expect(events[0]?.usage?.cachedTokens).toBe(90);
   });
 
   it('completes a frame split across two reads', () => {

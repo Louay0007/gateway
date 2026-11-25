@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import { useTheme } from "next-themes";
-import { Streamdown } from "streamdown";
+import { defaultComponents, Streamdown, type Components } from "streamdown";
 
+import { InlineCitation } from "@/components/ai/inline-citation";
 import { markdownPlugins } from "@/components/ai/markdown-plugins";
+import type { SourceItem } from "@/components/ai/sources";
 import { cn } from "@/lib/utils";
 
 /**
@@ -76,6 +78,13 @@ const PROSE = cn(
   "[&_*]:break-words",
   "[&_strong]:font-semibold [&_em]:italic",
   "[&_a]:font-medium [&_a]:text-foreground [&_a]:underline [&_a]:decoration-border [&_a]:underline-offset-2",
+  // A citation marker is an `<a>` too, so the rules above reach it: they are
+  // descendant selectors at (0,1,1) and outrank the marker's own bare
+  // `no-underline` (0,1,0) whichever order Tailwind emits them in. Repeating
+  // the attribute in the selector takes these to (0,2,1), so the badge reads
+  // as a badge rather than as underlined superscript text without depending
+  // on stylesheet order.
+  "[&_a[data-slot=inline-citation]]:no-underline [&_a[data-slot=inline-citation]]:text-muted-foreground",
   "[&_h1]:mt-6 [&_h1]:mb-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:tracking-tight",
   "[&_h2]:mt-5 [&_h2]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:tracking-tight",
   "[&_h3]:mt-4 [&_h3]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold",
@@ -128,14 +137,42 @@ const PROSE = cn(
   "[&_.katex-display]:my-3 [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1",
 );
 
+/**
+ * A URL reduced to the part two spellings of the same page agree on.
+ *
+ * The model is asked to cite "the source URL", and it copies them by hand:
+ * a trailing slash appears or not, `www.` appears or not. Those two
+ * variations are the whole distance between a cited claim and an
+ * uncited-looking one, so they are normalised away. Query strings are KEPT —
+ * on a search result they are often what distinguishes one page from
+ * another, and matching two different pages would put the wrong snippet
+ * under a claim.
+ */
+function urlKey(raw: string): string | null {
+  try {
+    const u = new URL(raw);
+    // Only a web page can be a search source. This also skips Streamdown's
+    // own `streamdown:incomplete-link` sentinel for a link the model was
+    // still writing when the frame arrived.
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    const host = u.host.replace(/^www\./, "").toLowerCase();
+    return `${host}${u.pathname.replace(/\/+$/, "")}${u.search}`;
+  } catch {
+    return null;
+  }
+}
+
 export function Markdown({
   children,
   streaming,
   className,
+  sources,
 }: {
   children: string;
   streaming?: boolean;
   className?: string;
+  /** The pages this turn consulted, as the turn's Sources list shows them. */
+  sources?: SourceItem[];
 }) {
   const { resolvedTheme } = useTheme();
   const dark = resolvedTheme === "dark";
@@ -147,6 +184,49 @@ export function Markdown({
     [dark],
   );
 
+  // Numbering a cited link the same way the Sources list numbers it is the
+  // whole point: "where did this sentence come from" becomes answerable
+  // without scanning the list. The marker is ADDED BESIDE the anchor, never
+  // substituted for it — the model's own link text is part of its sentence,
+  // and replacing `[OpenAI docs](…)` with a bare `[1]` would delete words
+  // the reader is in the middle of.
+  //
+  // The anchor itself stays `defaultComponents.a`. Streamdown merges this
+  // object over its defaults, so overriding `a` wholesale would drop the
+  // component that reads `linkSafety` and shows the interstitial before
+  // opening a link the model invented — the exact guard this file's header
+  // promises. Composing the default keeps that guard on every link,
+  // matched or not.
+  const components = React.useMemo<Components | undefined>(() => {
+    if (!sources || sources.length === 0) return undefined;
+
+    const cited = new Map<string, { index: number; source: SourceItem }>();
+    sources.forEach((source, i) => {
+      const key = urlKey(source.url);
+      // First occurrence wins: the list is already deduped upstream, and a
+      // second entry for the same page would give one page two numbers.
+      if (key && !cited.has(key)) cited.set(key, { index: i + 1, source });
+    });
+    if (cited.size === 0) return undefined;
+
+    const DefaultAnchor = defaultComponents.a;
+
+    return {
+      a: ({ href, children: text, ...rest }: React.ComponentProps<typeof DefaultAnchor>) => {
+        const key = href ? urlKey(href) : null;
+        const match = key ? cited.get(key) : undefined;
+        return (
+          <>
+            <DefaultAnchor href={href} {...rest}>
+              {text}
+            </DefaultAnchor>
+            {match ? <InlineCitation index={match.index} source={match.source} /> : null}
+          </>
+        );
+      },
+    };
+  }, [sources]);
+
   return (
     <Streamdown
       className={cn(PROSE, className)}
@@ -156,6 +236,7 @@ export function Markdown({
       plugins={markdownPlugins}
       mermaid={{ config: mermaidConfig }}
       linkSafety={{ enabled: true }}
+      components={components}
       // Copy/download on code, copy/download on tables. Fullscreen and
       // pan-zoom on diagrams, because a wide chart is unreadable inline.
       controls={{
