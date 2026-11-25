@@ -21,6 +21,25 @@
  * paints over it, and the product chrome should stay quiet.
  */
 
+/*
+ * CASCADE LAYER ORDER — must be the FIRST rule in this file, above every
+ * @import.
+ *
+ * `@layer` orders only the layer names the page has not seen yet, and the
+ * Tailwind import below names `theme`, `base`, `components` and `utilities`
+ * as it loads. Placed after it, this statement could only append `reset`,
+ * `astryx-base` and `astryx-theme` AFTER `utilities` — which inverts the
+ * cascade so the Astryx reset outranks every utility class in the app and
+ * strips the borders and padding our own classes give controls. Nothing
+ * reports that: the build and the console stay clean and the line still
+ * looks right. Only the rendered page shows it.
+ *
+ * Astryx's reset is lowest, Tailwind preflight above it, component/theme
+ * styles in the middle, and Tailwind utilities last so a class on an
+ * element can still intentionally override a component default.
+ */
+@layer reset, theme, base, astryx-base, astryx-theme, components, utilities;
+
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "../node_modules/streamdown/styles.css";
@@ -28,6 +47,33 @@
    output is a row of tofu boxes. Imported here rather than injected at
    runtime so it is fingerprinted and cached like the rest of the CSS. */
 @import "../node_modules/katex/dist/katex.min.css";
+
+/*
+ * Astryx design system — the borrowable primitives (Button, Dialog, Table …).
+ *
+ * WHY THESE THREE AND NOT `tailwind-theme.css`: that bridge maps Tailwind
+ * theme names (rounded-lg, shadow-md, text-primary) onto Astryx tokens, and
+ * this app already uses those names through its own `@theme inline`. Adding
+ * it would change what our existing classes paint. The three below only add
+ * Astryx's own component styles inside `astryx-base` / `astryx-theme`, which
+ * no app class targets.
+ *
+ * The theme's own stylesheet is imported here too, NOT left to the
+ * generated `astryx-themes.ts` module: that module imports CSS at module
+ * scope, and a stylesheet loaded before this file would claim the layers
+ * first and invert the order described at the top.
+ *
+ * TOKEN SAFETY, verified rather than assumed: Astryx sets 268 tokens on
+ * `:root` and four names overlap our aliases (`--color-accent`,
+ * `--color-border`, `--color-success`, `--color-warning`). Those are
+ * `@theme inline` aliases here — our utilities compile to `var(--border)`,
+ * `var(--warning)`, `var(--success)`, `var(--accent)` (checked in the built
+ * CSS), so Astryx's values cannot reach them. Zero collisions on the names
+ * our utilities resolve.
+ */
+@import "@astryxdesign/core/reset.css";
+@import "@astryxdesign/core/astryx.css";
+@import "@astryxdesign/theme-neutral/theme.css";
 
 /* Streamdown paints its own utility classes; Tailwind must scan them. */
 @source "../node_modules/streamdown/dist/*.js";
