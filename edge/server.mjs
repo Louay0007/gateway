@@ -624,6 +624,31 @@ const server = http.createServer((req, res) => {
   // the history for the rest of the conversation, so one attachment would
   // wedge the session permanently. Rewrite those blocks to a text note;
   // everything else is forwarded byte-for-byte. See upstream-guard.mjs.
+  // `count_tokens` carries the same `claude-*` names and must be rewritten
+  // the same way. It is not the chat path — no block sanitizing, no model
+  // validation — but it IS a path Claude Desktop calls on every turn to
+  // draw its context meter, and it 403s on a `claude-*` name because keys
+  // are allowlisted by TIER alias. Measured: `count_tokens` answered 403
+  // for `claude-smart` while `smart` answered 200, so the meter would read
+  // "unknown" and a client could silently fall back to a small context.
+  if (req.method === 'POST' && pathname === '/v1/messages/count_tokens') {
+    const raw = await readBody(req);
+    const parsed = tryParseJson(raw);
+    bodyBuf = raw;
+    if (parsed) {
+      const original = typeof parsed.model === 'string' ? parsed.model : null;
+      requestedModel = original;
+      const alias = requestAlias(original);
+      if (alias) {
+        parsed.model = alias;
+        requestedModel = alias;
+        bodyBuf = Buffer.from(JSON.stringify(parsed), 'utf8');
+        log(req, started, 200, rewritten, null, 'count_tokens:alias', alias, keyPrefix);
+      }
+    }
+    headers['content-length'] = bodyBuf.length;
+  }
+
   if (req.method === 'POST' && pathname === '/v1/messages') {
     const raw = await readBody(req);
     const parsed = tryParseJson(raw);

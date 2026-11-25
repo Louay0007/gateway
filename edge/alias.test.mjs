@@ -194,3 +194,17 @@ test('an upstream-supplied architecture is respected, not overwritten', async ()
   const out = advertiseModelSizes({ data: [{ id: 'smart', architecture: given }] });
   assert.deepEqual(out.data[0].architecture, given);
 });
+
+// ── count_tokens carries claude-* too ────────────────────────────────────
+// Claude Desktop calls this on every turn to draw its context meter. Keys are
+// allowlisted by TIER alias, so a `claude-*` name 403s here unless the edge
+// rewrites it — measured on production before this was fixed.
+
+test('requestAlias is the one-step map count_tokens relies on', async () => {
+  const { requestAlias } = await import('./server.mjs');
+  assert.equal(requestAlias('claude-smart'), 'smart');
+  assert.equal(requestAlias('claude-fable'), 'fable');
+  assert.equal(requestAlias('smart'), undefined);
+  assert.equal(requestAlias('gpt-6-astra'), undefined);
+  assert.equal(requestAlias(undefined), undefined);
+});
