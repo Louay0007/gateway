@@ -79,6 +79,24 @@ model_list:
       # /v1/messages forwards the body verbatim (DESIGN §4.3) and the
       # model answers "Red". Text works on both; only this one sees.
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000001
       output_cost_per_token: 0.000005
       cache_creation_input_token_cost: 0.000002
@@ -106,6 +124,24 @@ model_list:
       # /v1/messages forwards the body verbatim (DESIGN §4.3) and the
       # model answers "Red". Text works on both; only this one sees.
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000003
       output_cost_per_token: 0.000015
       cache_creation_input_token_cost: 0.000006
@@ -133,6 +169,24 @@ model_list:
       # /v1/messages forwards the body verbatim (DESIGN §4.3) and the
       # model answers "Red". Text works on both; only this one sees.
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000015
       output_cost_per_token: 0.000075
       cache_creation_input_token_cost: 0.00003
@@ -159,6 +213,24 @@ model_list:
       top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000015
       output_cost_per_token: 0.000075
       cache_creation_input_token_cost: 0.00003
@@ -186,6 +258,24 @@ model_list:
       top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000001
       output_cost_per_token: 0.000005
       cache_creation_input_token_cost: 0.000002
@@ -207,6 +297,24 @@ model_list:
       top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000003
       output_cost_per_token: 0.000015
       cache_creation_input_token_cost: 0.000006
@@ -228,6 +336,24 @@ model_list:
       top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000015
       output_cost_per_token: 0.000075
       cache_creation_input_token_cost: 0.00003
@@ -249,6 +375,24 @@ model_list:
       top_p: 0.9
     model_info:
       supported_endpoints: ["/v1/chat/completions", "/v1/messages"]
+      # CAPABILITIES, measured on the live upstream (2026-11-25) — the same
+      # block on every alias, because all four deployments are the same
+      # provider and the same wire. Written explicitly rather than left to
+      # LiteLLM's per-model defaults: three of the four reported
+      # `supports_function_calling: null` while `gpt-6-astra` reported
+      # `true`, so a client asking "can this model call tools?" got a
+      # different answer depending on which alias it happened to read.
+      #
+      # NOT `supports_reasoning: true`. gpt-6-astra defaulted to true, but
+      # every reasoning structure was measured returning reasoning_tokens 0
+      # (reasoning_effort none..max, reasoning:{effort}, thinking:{budget}),
+      # so the honest value is false for all four.
+      supports_function_calling: true
+      supports_tool_choice: true
+      supports_parallel_function_calling: true
+      supports_vision: true
+      supports_reasoning: false
+      supports_response_schema: true
       input_cost_per_token: 0.000015
       output_cost_per_token: 0.000075
       cache_creation_input_token_cost: 0.00003

@@ -572,3 +572,54 @@ describe('0045 single launch trial code', () => {
     expect(sql).toMatch(/RAISE EXCEPTION/);
   });
 });
+
+/**
+ * Every alias must declare the same capabilities.
+ *
+ * WHY THIS IS A TEST AND NOT A CONVENTION. Measured on the live box: three of
+ * the four deployments reported `supports_function_calling: null` and the
+ * fourth reported `true`, because LiteLLM's per-model defaults differ and the
+ * config said nothing. A client asking "can this model call tools?" therefore
+ * got a different answer depending on which alias it read — the same failure
+ * class as the missing `context_window`.
+ *
+ * The values are the ones measured against the provider (tools, parallel
+ * tools, vision all confirmed working; reasoning confirmed absent), so this
+ * asserts both the presence and the honest value.
+ */
+describe('model capability parity', () => {
+  const raw = readFileSync(LITELLM_YAML, 'utf8');
+  const NAMES = ['fast', 'smart', 'frontier', 'fable', 'claude-fast', 'claude-smart', 'claude-frontier', 'claude-fable'];
+
+  /** Read one model_info block by its `- model_name:` header. */
+  function infoFor(name: string): string {
+    const start = raw.indexOf(`- model_name: ${name}`);
+    expect(start, `${name} is in config/litellm.yaml`).toBeGreaterThan(-1);
+    const block = raw.slice(start);
+    const mi = block.indexOf('model_info:');
+    expect(mi, `${name} has model_info`).toBeGreaterThan(-1);
+    // The next model entry (or EOF) ends this block.
+    const next = block.indexOf('- model_name:', mi);
+    return next === -1 ? block.slice(mi) : block.slice(mi, next);
+  }
+
+  it.each(NAMES)('%s declares function calling, tool choice and vision', (name) => {
+    const mi = infoFor(name);
+    expect(mi, `${name} function calling`).toMatch(/supports_function_calling:\s*true/);
+    expect(mi, `${name} tool choice`).toMatch(/supports_tool_choice:\s*true/);
+    expect(mi, `${name} parallel calls`).toMatch(/supports_parallel_function_calling:\s*true/);
+    expect(mi, `${name} vision`).toMatch(/supports_vision:\s*true/);
+  });
+
+  it.each(NAMES)('%s does not claim reasoning it does not have', (name) => {
+    // Every reasoning structure returned reasoning_tokens 0 on this provider.
+    expect(infoFor(name)).toMatch(/supports_reasoning:\s*false/);
+  });
+
+  it('no alias is left with an unset capability flag', () => {
+    // `null` here is what made the four aliases disagree before.
+    for (const name of NAMES) {
+      expect(infoFor(name), `${name} must state its capabilities`).toContain('supports_function_calling:');
+    }
+  });
+});
