@@ -76,7 +76,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
             {!verified ? (
               <div
                 role="status"
-                className="flex flex-col gap-3 border-b border-warning/30 bg-warning/10 px-4 py-3 bg-warning/10 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-3 border-b border-warning/30 bg-warning/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div className="flex items-start gap-3">
                   <MailWarning className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />

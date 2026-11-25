@@ -49,6 +49,7 @@ import { ModelPicker, type ModelOption } from "@/components/chat/model-picker";
 import { QuotaHint } from "@/components/chat/quota-hint";
 import { aliasMeta } from "@/components/chat/aliases";
 import { MAX_ATTACHMENTS } from "@/lib/chat/attachments";
+import { usdPrecise } from "@/lib/dashboard/format";
 import { splitPayloads } from "@/lib/chat/sse";
 import { previewableBlocks } from "@/lib/chat/artifacts";
 import { PreviewPanel } from "@/components/chat/preview-panel";
@@ -1121,8 +1122,13 @@ function Turn({
               <Markdown streaming={streaming}>{message.content}</Markdown>
             ) : null}
 
+            {/* `text-warning` is a FILL, not ink: at 11px on the canvas it
+                measures 2.5:1 in light mode. The amber stays on the icon,
+                the sentence is foreground — the same rule as
+                components/docs/docs-codex.tsx. */}
             {truncated && !streaming ? (
-              <p className="text-[11px] text-warning text-warning">
+              <p className="flex items-start gap-1.5 text-[11px] text-foreground/85">
+                <AlertCircle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
                 This answer hit the length limit and was cut off. Ask it to continue.
               </p>
             ) : null}
@@ -1138,8 +1144,15 @@ function Turn({
               {message.inputTokens ?? 0} in · {message.outputTokens} out
             </span>
           ) : null}
+          {/* The gateway's own USD cost, not what the plan charges: the plan
+              is priced in DT and its meter counts blended tokens, so this
+              number is a metering detail rather than a price. Labelled so it
+              cannot be read as the dinar figure the rest of the product
+              quotes. */}
           {typeof message.costUsd === "number" && message.costUsd > 0 ? (
-            <span className="tabular">{formatUsd(message.costUsd)}</span>
+            <span className="tabular" title="Gateway cost in USD, not your plan price">
+              {usdPrecise(message.costUsd)}
+            </span>
           ) : null}
           {message.content && !streaming ? (
             <>
@@ -1189,9 +1202,4 @@ function CopyButton({ text }: { text: string }) {
       {copied ? "Copied" : "Copy"}
     </Button>
   );
-}
-
-function formatUsd(value: number): string {
-  if (value < 0.01) return `${(value * 100).toFixed(2)}¢`;
-  return `$${value.toFixed(2)}`;
 }

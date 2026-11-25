@@ -39,6 +39,10 @@ export default async function ConversationPage({
 
   return (
     <ChatView
+      // The transcript is seeded from `initialMessages` once, so a client-side
+      // move to another conversation must mount a new view. Without this the
+      // previous chat's messages stay on screen under the new title.
+      key={conversation.id}
       options={screen.options}
       allowed={screen.allowed}
       resetsAt={screen.resetsAt}

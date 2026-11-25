@@ -7,6 +7,7 @@ import type { ModelOption } from "@/components/chat/model-picker";
 import { aliasMeta } from "@/components/chat/aliases";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { quotaPercent } from "@/lib/chat/quota";
+import { usdPrecise } from "@/lib/dashboard/format";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -135,7 +136,7 @@ export function QuotaHint({
               </p>
               <p className="text-[12px] text-muted-foreground">
                 {formatTokens(usage.inputTokens)} in · {formatTokens(usage.outputTokens)} out ·{" "}
-                {formatUsd(usage.costUsd)}
+                {usdPrecise(usage.costUsd)} gateway cost
               </p>
               {/* This is the raw wire count for THIS conversation, not the
                   quota: the message row stores input/output only, and the
@@ -229,10 +230,4 @@ export function formatCompact(n: number): string {
   if (n < 1_000) return String(Math.round(n));
   if (n < 1_000_000) return `${Math.round(n / 1_000)}k`;
   return `${(n / 1_000_000).toFixed(2).replace(/\.?0+$/, "")}M`;
-}
-
-function formatUsd(value: number): string {
-  if (!Number.isFinite(value) || value <= 0) return "$0";
-  if (value < 0.01) return `${(value * 100).toFixed(2)}¢`;
-  return `$${value.toFixed(2)}`;
 }

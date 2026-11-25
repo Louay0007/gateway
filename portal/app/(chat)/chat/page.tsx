@@ -26,8 +26,14 @@ export default async function ChatPage({
 }) {
   const screen = await loadChatScreen();
   const { temporary, project } = await searchParams;
+  const isTemporary = temporary === "1";
   return (
     <ChatView
+      // A new chat is a different conversation from whatever was on screen,
+      // and the view seeds its transcript once. Keying on the mode and the
+      // project remounts it when the sidebar moves between "New chat" and
+      // "Temporary chat", which are the same route with different params.
+      key={`new:${isTemporary ? "temporary" : "saved"}:${project ?? ""}`}
       options={screen.options}
       allowed={screen.allowed}
       resetsAt={screen.resetsAt}
@@ -36,7 +42,7 @@ export default async function ChatPage({
       // A temporary chat is created by the first send, not by this page:
       // `?temporary=1` is a mode for the composer, and the server reads the
       // same flag on the turn that actually creates the row.
-      temporary={temporary === "1"}
+      temporary={isTemporary}
       // The project the first send files the new chat under. Sent with that
       // turn because the row does not exist yet — the server creates it with
       // the project already set, so its instructions apply from turn one.

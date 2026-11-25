@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
-import { Check, Copy, Link2, Lock, Share2 } from "lucide-react";
+import { AlertTriangle, Check, Copy, Eye, Link2, Lock, Share2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -238,19 +238,33 @@ export function ShareControl() {
                     {copied ? "Copied" : "Copy"}
                   </Button>
                 </div>
+                {/*
+                  `text-success` / `text-warning` are FILL colours. On their own
+                  10% tint at 11px they measure 3.0:1 and 2.4:1 — under the
+                  4.5:1 floor for small text. The tint and the border keep the
+                  status colour; the sentence is ink. Same rule as
+                  components/docs/docs-codex.tsx.
+                */}
                 {createdLive ? (
-                  <p className="rounded-md border border-success/30 bg-success/10 px-2.5 py-2 text-[11px] leading-relaxed text-success">
-                    Live. New messages in this chat appear to whoever opens the link, until
-                    you stop sharing or it expires.
+                  <p className="flex items-start gap-1.5 rounded-md border border-success/30 bg-success/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
+                    <Eye className="mt-px size-3 shrink-0 text-success" aria-hidden />
+                    <span>
+                      Live. New messages in this chat appear to whoever opens the link, until
+                      you stop sharing or it expires.
+                    </span>
                   </p>
                 ) : (
-                  <p className="text-[11px] leading-relaxed text-warning">
-                    Snapshot. Replies you send from now on are NOT included.
+                  <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-foreground/85">
+                    <AlertTriangle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+                    <span>Snapshot. Replies you send from now on are NOT included.</span>
                   </p>
                 )}
-                <p className="text-[11px] leading-relaxed text-warning">
-                  Copy it now. This link is stored only as a hash, so it cannot be shown
-                  again — if you lose it, revoke and make a new one.
+                <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-foreground/85">
+                  <AlertTriangle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+                  <span>
+                    Copy it now. This link is stored only as a hash, so it cannot be shown
+                    again — if you lose it, revoke and make a new one.
+                  </span>
                 </p>
                 <div className="flex justify-end">
                   <Button variant="outline" size="sm" onClick={() => revoke(liveId)}>
@@ -315,10 +329,13 @@ export function ShareControl() {
                 </label>
 
                 {wantLive ? (
-                  <p className="rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-[11px] leading-relaxed text-warning">
-                    A live link keeps publishing until you stop it. If you forget it,
-                    everything you say in this chat is readable by anyone holding the URL
-                    until it expires.
+                  <p className="flex items-start gap-1.5 rounded-md border border-warning/30 bg-warning/10 px-2.5 py-2 text-[11px] leading-relaxed text-foreground/85">
+                    <AlertTriangle className="mt-px size-3 shrink-0 text-warning" aria-hidden />
+                    <span>
+                      A live link keeps publishing until you stop it. If you forget it,
+                      everything you say in this chat is readable by anyone holding the URL
+                      until it expires.
+                    </span>
                   </p>
                 ) : null}
 
