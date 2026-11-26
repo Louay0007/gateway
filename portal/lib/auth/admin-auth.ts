@@ -77,6 +77,18 @@ const credentialsSchema = z.object({
 });
 
 export const adminAuthConfig = {
+  /**
+   * THE MOUNT THIS INSTANCE IS SERVED FROM, and it is NOT optional.
+   *
+   * `next-auth` defaults `basePath` to `/api/auth` — the CUSTOMER mount. Every
+   * action is derived by stripping that prefix from the request path, so a
+   * request to `/api/admin-auth/csrf` had no matching action and @auth/core
+   * threw `UnknownAction`, answered 400 "Bad request", and the console login
+   * could never have worked. Found by driving the deployed endpoint; every
+   * static check passed because the route resolves, it just resolves to a 400.
+   */
+  basePath: '/api/admin-auth',
+
   // No adapter, for the same reason auth.ts documents: Credentials + JWT
   // means an adapter has nothing to persist except OAuth accounts we have.
   session: {
