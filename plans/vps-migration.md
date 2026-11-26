@@ -1,5 +1,15 @@
 # VPS performance review + migration plan
 
+> [!NOTE]
+> **PARTIALLY SUPERSEDED (26 Nov 2026).** The console access model this document
+> describes — a shared `ADMIN_GATE_SECRET` code as the sole control — no longer
+> exists. Migration `0053` replaced it with a username + password login
+> (`staff_credentials`) and a separate console session cookie, which resolves
+> finding 2 below (a single 43-character secret on a public URL, with no
+> per-operator revocation and an audit trail that named nobody). Everything else
+> here — host sizing, the zstd/SSE directive, the dead `code.` vhost — is still
+> accurate as written.
+
 **Date:** 3 November 2026
 **Host inspected:** `gateway` (15.224.52.176) — AWS Lightsail, eu-west-3a Paris, `i-0e3b0d51764aac305`
 **Method:** live read-only reconnaissance over SSH. No changes were made to production.

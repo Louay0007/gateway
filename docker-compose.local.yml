@@ -32,8 +32,9 @@
 #   loopback, and there is nothing to run there. Left as an honest 502
 #   rather than a fake stub, so the failure is visible and correct.
 #
-#   The admin console still needs ADMIN_GATE_SECRET from .env — that is
-#   app-level auth, not networking, and it is deliberately not weakened.
+#   The operations console needs a staff login seeded in the database
+#   (`make accounts`), not an env secret — console auth is app-level state
+#   and it is deliberately not weakened for local runs.
 
 services:
   caddy:

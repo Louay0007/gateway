@@ -37,9 +37,47 @@ export function sessionCookieName(): string {
   return secure ? '__Secure-authjs.session-token' : 'authjs.session-token';
 }
 
-/** The session cookie's value, including Auth.js's `.0`, `.1`… chunks. */
-export function readSessionToken(headers: Headers): string | null {
-  const name = sessionCookieName();
+/**
+ * The console's cookies (lib/auth/admin-auth.ts).
+ *
+ * A DIFFERENT NAME, and that is the entire isolation. `derivedKey` below is
+ * HKDF over the cookie name, so the session token decrypts under a different
+ * key than the portal's for the same AUTH_SECRET. `proxy.ts` reads only the
+ * portal name, so a console session structurally cannot reach a tenant route
+ * — and `currentStaffSession()` reads only this one, so a customer session
+ * cannot open the console.
+ *
+ * DEFINED HERE, not in admin-auth.ts, because this module is what READS the
+ * cookie and admin-auth.ts is what WRITES it: two copies of a cookie name is
+ * how a session silently stops being found. admin-auth.ts imports these.
+ */
+export type StaffCookieKind = 'session-token' | 'csrf-token' | 'callback-url';
+
+export function staffCookieName(kind: StaffCookieKind = 'session-token'): string {
+  const authUrl = process.env.AUTH_URL;
+  const secure = authUrl ? authUrl.startsWith('https://') : false;
+  // `__Host-` for CSRF because that is @auth/core's own default: it is
+  // STRICTER than `__Secure-` (Secure + Path=/ + no Domain), and widening a
+  // security prefix to make a rename tidy would be the wrong trade.
+  const prefix = secure ? (kind === 'csrf-token' ? '__Host-' : '__Secure-') : '';
+  return `${prefix}authjs.staff-${kind}`;
+}
+
+/** The session cookie's full name — what the readers below use. */
+export function staffSessionCookieName(): string {
+  return staffCookieName('session-token');
+}
+
+/**
+ * The session cookie's value, including Auth.js's `.0`, `.1`… chunks.
+ *
+ * `name` defaults to the PORTAL cookie so every existing caller is
+ * unchanged; the console passes its own name (staffSessionFromHeaders).
+ */
+export function readSessionToken(
+  headers: Headers,
+  name: string = sessionCookieName(),
+): string | null {
   const cookie = headers.get('cookie');
   if (!cookie) return null;
 
@@ -92,11 +130,13 @@ export interface SessionToken {
  * error. `sub` must be a non-empty string — a decryptable token without one
  * is not an identity this deployment issues.
  */
-export async function decodeSessionToken(token: string): Promise<SessionToken | null> {
+export async function decodeSessionToken(
+  token: string,
+  name: string = sessionCookieName(),
+): Promise<SessionToken | null> {
   const secret = process.env.AUTH_SECRET;
   if (!secret) return null;
 
-  const name = sessionCookieName();
   try {
     const derived = await derivedKey(secret, name);
     const { payload } = await jwtDecrypt(token, derived, {
@@ -119,4 +159,17 @@ export async function decodeSessionToken(token: string): Promise<SessionToken | 
 export async function sessionFromHeaders(headers: Headers): Promise<SessionToken | null> {
   const token = readSessionToken(headers);
   return token ? decodeSessionToken(token) : null;
+}
+
+/**
+ * The console session for this request, or null.
+ *
+ * Same decode, other cookie name — and therefore a different derived key, so
+ * this cannot return a portal identity and `sessionFromHeaders` above cannot
+ * return a staff one. Proved in tests/admin-login.test.ts.
+ */
+export async function staffSessionFromHeaders(headers: Headers): Promise<SessionToken | null> {
+  const name = staffCookieName();
+  const token = readSessionToken(headers, name);
+  return token ? decodeSessionToken(token, name) : null;
 }

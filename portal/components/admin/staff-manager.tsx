@@ -136,6 +136,11 @@ export function StaffManager({
                   <TableCell className="pl-4 font-medium">
                     {s.name ?? s.email}
                     <span className="block text-xs text-muted-foreground">{s.email}</span>
+                    {/* The CONSOLE login (0053) — what they type at
+                        /admin/login, which is not their email. */}
+                    <span className="mt-0.5 block font-mono text-xs text-muted-foreground">
+                      {s.username ? `@${s.username}` : "no username"}
+                    </span>
                   </TableCell>
                   <TableCell>
                     {canManage && !isSelf && !s.revokedAt ? (
@@ -173,8 +178,8 @@ export function StaffManager({
                       {s.revokedAt ? "revoked" : "active"}
                     </Badge>
                     {!s.hasCredential && !s.revokedAt ? (
-                      <p className="mt-1 max-w-40 truncate text-xs text-warning">
-                        no sign-in account yet
+                      <p className="mt-1 max-w-44 text-xs text-warning">
+                        cannot sign in — no console password
                       </p>
                     ) : null}
                   </TableCell>

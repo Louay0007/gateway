@@ -9,7 +9,10 @@ import {
   AdminSection,
   AdminStat,
 } from "@/components/admin/stat-card";
+import { AccountNotes } from "@/components/admin/account-notes";
+import { KeyRevoke } from "@/components/admin/key-revoke";
 import { AdminOrgs } from "@/components/admin/admin-orgs";
+import { SubscriptionLifecycle } from "@/components/admin/subscription-lifecycle";
 import { amountTone, paymentTone, subStatusTone } from "@/components/admin/badge-tones";
 import { adminOrgDetail } from "@/lib/admin/orgs";
 import { listPlansAdmin } from "@/lib/admin/plans";
@@ -62,8 +65,14 @@ export default async function AdminOrgPage({
   ]);
   if (!detail) notFound();
 
-  const { org, members, keys, subscriptions, credits, payments, recentAudit } = detail;
+  const { org, members, keys, subscriptions, credits, payments, recentAudit, notes, devices, removal } =
+    detail;
   const canManage = role !== null && staffAtLeast(role, "admin");
+  const canOwner = role !== null && staffAtLeast(role, "owner");
+  // The row the lifecycle controls act on: the same one the entitlement sync
+  // would pick (live first, then newest), so the buttons and the gateway
+  // cannot disagree about "the subscription".
+  const currentSub = subscriptions[0] ?? null;
   const marginPct =
     org.periodCostUsd > 0
       ? ((org.periodCostUsd - org.periodCostUpstreamUsd) / org.periodCostUsd) * 100
@@ -123,6 +132,29 @@ export default async function AdminOrgPage({
           description="Suspension is enforced through the entitlement sync, so it is a real gateway cut rather than a flag."
         >
           <AdminOrgs orgs={[org]} canManage={canManage} plans={plans} showDetail={false} />
+
+          {currentSub ? (
+            <div className="mt-3 border-t border-border pt-3">
+              <p className="mb-2 text-xs text-muted-foreground">
+                Subscription — {currentSub.planCode ?? "no plan"} · {currentSub.status}
+                {currentSub.currentPeriodEnd ? ` · ends ${dateTime(currentSub.currentPeriodEnd)}` : ""}
+              </p>
+              <SubscriptionLifecycle
+                orgId={org.id}
+                status={currentSub.status}
+                cancelAtPeriodEnd={currentSub.cancelAtPeriodEnd}
+                canAdmin={canManage}
+                canOwner={canOwner}
+              />
+              {removal ? (
+                <p className="mt-2 rounded-md bg-muted px-2 py-1.5 text-xs text-muted-foreground">
+                  Removed by an operator on {dateTime(removal.at)}
+                  {removal.reason ? ` — “${removal.reason}”` : ""}. The row and its payment history
+                  are kept.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </AdminSection>
       </div>
 
@@ -141,7 +173,8 @@ export default async function AdminOrgPage({
                     <TableHead>Kind</TableHead>
                     <TableHead>Last used</TableHead>
                     <TableHead>Created</TableHead>
-                    <TableHead className="pr-4">State</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead className="pr-4 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -156,10 +189,19 @@ export default async function AdminOrgPage({
                         {k.lastUsedAt ? relativeTime(k.lastUsedAt) : "never"}
                       </TableCell>
                       <TableCell className="text-muted-foreground">{dateTime(k.createdAt)}</TableCell>
-                      <TableCell className="pr-4">
+                      <TableCell>
                         <Badge variant={k.revokedAt ? "destructive" : "default"}>
                           {k.revokedAt ? "revoked" : "active"}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="pr-4 text-right">
+                        <KeyRevoke
+                          orgId={org.id}
+                          keyId={k.id}
+                          keyName={k.name}
+                          keyPrefix={k.keyPrefix}
+                          disabled={canManage === false || k.revokedAt !== null}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -185,8 +227,15 @@ export default async function AdminOrgPage({
                 {members.map((m) => (
                   <TableRow key={m.userId}>
                     <TableCell className="pl-4">
-                      {m.name ?? m.email}
+                      <Link href={`/admin/customers/${m.userId}`} className="font-medium hover:underline">
+                        {m.name ?? m.email}
+                      </Link>
                       <span className="block text-xs text-muted-foreground">{m.email}</span>
+                      {!m.emailVerifiedAt ? (
+                        <Badge variant="outline" className="mt-1 text-[10px]">
+                          unverified
+                        </Badge>
+                      ) : null}
                     </TableCell>
                     <TableCell className="pr-4">
                       <Badge variant="secondary">{m.role}</Badge>
@@ -234,6 +283,85 @@ export default async function AdminOrgPage({
               </TableBody>
             </Table>
           </div>
+        </AdminSection>
+      </div>
+
+      {/* ── Operator notes ──────────────────────────────────────────── */}
+      <div className="mt-8">
+        <AdminSection
+          title="Notes"
+          description="What the last operator learned. Append-and-pin only — a wrong note is corrected by a later one, never edited."
+        >
+          <AccountNotes
+            orgId={org.id}
+            notes={notes.map((n) => ({
+              id: n.id,
+              authorUsername: n.authorUsername,
+              body: n.body,
+              kind: n.kind,
+              pinned: n.pinned,
+              createdAt: n.createdAt,
+            }))}
+            canWrite={role !== null && staffAtLeast(role, "support")}
+          />
+        </AdminSection>
+      </div>
+
+      {/* ── Desktop sign-ins ────────────────────────────────────────── */}
+      <div className="mt-8">
+        <AdminSection
+          title="Devices"
+          description="Machines that signed in through the desktop flow. Revoking one revokes the key it was issued — the key is what authenticates."
+        >
+          {devices.length === 0 ? (
+            <AdminEmptyState>No desktop sign-ins for this account.</AdminEmptyState>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-border bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-4">Machine</TableHead>
+                    <TableHead>Person</TableHead>
+                    <TableHead>Code</TableHead>
+                    <TableHead>State</TableHead>
+                    <TableHead className="pr-4 text-right">Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {devices.map((d) => (
+                    <TableRow key={d.id}>
+                      <TableCell className="pl-4 font-medium">
+                        {d.deviceName ?? "unnamed"}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {d.userEmail ?? <span className="text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs">{d.userCode}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            d.status === "consumed"
+                              ? "default"
+                              : d.status === "revoked" || d.status === "expired"
+                                ? "destructive"
+                                : "secondary"
+                          }
+                        >
+                          {d.status}
+                        </Badge>
+                        {d.keyRevoked ? (
+                          <span className="mt-1 block text-[10px] text-muted-foreground">key revoked</span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="pr-4 text-right text-xs text-muted-foreground">
+                        {dateTime(d.createdAt)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </AdminSection>
       </div>
 

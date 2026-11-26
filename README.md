@@ -314,23 +314,35 @@ overrides it per session.
 ## Operations console
 
 The staff console is the portal's `/admin`, on its own host
-(`CONSOLE_DOMAIN`). It is not IP-gated: the gate page and `/api/admin/gate`
-answer from any address, and the HMAC-signed cookie minted by the correct
-`ADMIN_GATE_SECRET` is the sole access control. Four tiers —
+(`CONSOLE_DOMAIN`). It is not IP-gated and has **no shared access code**: sign-in
+is a username and password held in `staff_credentials`, and the console cookie
+is a different cookie from the customer session (`authjs.staff-session-token`),
+so neither credential can act as the other. Four tiers —
 `read_only < support < admin < owner` — resolved from `staff_users` on every
-request, never from a customer's org.
+request, never from a customer's org. Staff are never org members, and there is
+no impersonation.
 
 | Page | What it answers |
 |---|---|
+| `/admin/ops` | Job health and ledger freshness |
+| `/admin/customers` | Search a **person**, every org they belong to |
+| `/admin/customers/[id]` | One human: orgs, verification, login state, unlock / re-send |
 | `/admin/orgs` | Account roster: retry sync, grant plan, record credit, suspend, reactivate |
-| `/admin/orgs/[id]` | One account: actions, keys, members, subscriptions, credit notes, D17 payments, history |
+| `/admin/orgs/[id]` | One account: actions, subscription lifecycle, keys (revoke), devices, notes, members, D17 payments, history |
+| `/admin/subscriptions` | What expires next: cancel, resume, remove, extend |
+| `/admin/payments` | Cross-org D17 ledger + the webhooks that never completed |
+| `/admin/payments/[id]` | One payment: transfer, decision, automatic-verifier readings |
 | `/admin/d17` | Approve or reject a payment proof |
 | `/admin/usage` | Per-account revenue, upstream cost, margin |
 | `/admin/credits` | The refund ledger, read back |
+| `/admin/trials` | Campaign codes: create, cap, deactivate, redemptions |
+| `/admin/system` | Locked-out logins and unverified accounts |
 | `/admin/plans` | Plan CRUD (owner only) |
 | `/admin/audit` | Who changed what |
-| `/admin/ops` | Job health and ledger freshness |
 | `/admin/staff` | Grant, change, revoke staff access (owner only) |
+
+Removing a subscription is a **status change, not a DELETE**: `payments_d17`
+cascades from it, so a delete would take the evidence that money arrived.
 
 LiteLLM's own Admin UI has **no public vhost**. Reach it over SSH:
 

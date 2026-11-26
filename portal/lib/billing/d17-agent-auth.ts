@@ -1,19 +1,18 @@
 /**
  * Service-token auth for the D17 agent surface.
  *
- * WHY NOT THE ADMIN GATE. Every other admin route authenticates a BROWSER:
- * an `admin_gate` cookie proves someone knows a shared code, and a staff row
- * supplies the rank. Neither works for n8n — it has no cookie jar, and the
- * gate "names nobody", so it cannot carry the attribution a money-moving
- * action needs.
+ * WHY NOT THE CONSOLE SESSION. Every other admin route authenticates a
+ * BROWSER: a console login (username + password, 0053) proves a person, and
+ * their `staff_users` row supplies the rank. Neither works for n8n — it has
+ * no cookie jar, and it is not a person, so it cannot carry the attribution
+ * a money-moving action needs in the same way.
  *
- * WHY IT FAILS CLOSED, UNLIKE THE GATE. `gateCookieValid()` returns true
- * when `ADMIN_GATE_SECRET` is unset, which is right for a gate: no secret
- * means no gate installed, and the cookie only ever admits someone to a
- * login form. This token is different in kind — it IS the authority, not a
- * door to it. An unset `D17_AGENT_TOKEN` must mean "this surface does not
- * exist", because the alternative is an unauthenticated endpoint that
- * approves payments on any deployment that forgot one env var.
+ * WHY IT FAILS CLOSED. This token IS the authority, not a door to it. An
+ * unset `D17_AGENT_TOKEN` must mean "this surface does not exist", because
+ * the alternative is an unauthenticated endpoint that approves payments on
+ * any deployment that forgot one env var. (The shared admin gate this
+ * replaced did the opposite — an unset secret disabled it — which is one of
+ * the reasons it was removed rather than kept alongside a real login.)
  *
  * WHY A SEPARATE TOKEN AND NOT A STAFF ROW. The agent is denied at exactly
  * the point a staff row would grant it too much: `approveD17Payment()` takes

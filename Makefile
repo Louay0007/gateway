@@ -13,7 +13,7 @@ LOCAL := http://127.0.0.1:4000
 .PHONY: help init probe up up-local down down-local restart logs ps health key \
         report reconcile smoke latency backup restore pull deploy verify-config \
         check-format verify-caddy db-init db-migrate jobs jobs-once accounts \
-        health-local test-local e2e plan pro-accounts \
+        staff-username health-local test-local e2e plan pro-accounts \
         verify-metering verify-d17 verify-dodo verify-grant verify-oauth backup-drill verify-engine
 
 help: ## Show this help
@@ -142,6 +142,10 @@ jobs-once: jobs ## Alias
 # password hash.
 LOCAL_CUSTOMER_EMAIL ?= customer@example.test
 LOCAL_STAFF_EMAIL    ?= staff@example.test
+# The console login (0053). A default is safe here because this SEEDS a local
+# account — unlike the ADMIN_GATE_SECRET this replaced, which shipped a value
+# that worked on every deployment that kept the example file.
+LOCAL_STAFF_USERNAME ?= admin
 LOCAL_PASSWORD       ?= local-dev-password-1
 PLAN                 ?= starter
 
@@ -154,13 +158,31 @@ accounts: ## Seed a customer + staff login for local testing (idempotent, resets
 	  -e STAFF_PASSWORD="$(LOCAL_PASSWORD)" \
 	  -e STAFF_NAME="Local Staff" \
 	  -e STAFF_ROLE="admin" \
+	  -e STAFF_USERNAME="$(LOCAL_STAFF_USERNAME)" \
 	  jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/create-accounts.ts
 	@echo ""
-	@echo "  sign in at http://$$(grep '^PORTAL_DOMAIN=' .env | cut -d= -f2-)/sign-in"
-	@echo "    customer  $(LOCAL_CUSTOMER_EMAIL)"
-	@echo "    staff     $(LOCAL_STAFF_EMAIL)   (admin — for /admin)"
-	@echo "    password  $(LOCAL_PASSWORD)"
+	@echo "  customer portal  http://$$(grep '^PORTAL_DOMAIN=' .env | cut -d= -f2-)/sign-in"
+	@echo "    $(LOCAL_CUSTOMER_EMAIL)  /  $(LOCAL_PASSWORD)"
+	@echo "  operations console  http://$$(grep '^CONSOLE_DOMAIN=' .env | cut -d= -f2-)/admin/login"
+	@echo "    username $(LOCAL_STAFF_USERNAME)  role admin  /  $(LOCAL_PASSWORD)"
+
+staff-username: ## Give an existing staff row a console login (EMAIL=… USERNAME=… PASSWORD=…)
+	@test -n "$(EMAIL)" || (echo "  EMAIL is required: make staff-username EMAIL=ops@example.test USERNAME=ops PASSWORD=…" && exit 1)
+	@test -n "$(USERNAME)" || (echo "  USERNAME is required." && exit 1)
+	@test -n "$(PASSWORD)" || (echo "  PASSWORD is required (12+ characters)." && exit 1)
+	@$(COMPOSE) run --rm --no-deps \
+	  -e CUSTOMER_EMAIL="$(EMAIL)" \
+	  -e CUSTOMER_PASSWORD="$(PASSWORD)" \
+	  -e CUSTOMER_NAME="$(USERNAME)" \
+	  -e STAFF_EMAIL="$(EMAIL)" \
+	  -e STAFF_PASSWORD="$(PASSWORD)" \
+	  -e STAFF_NAME="$(USERNAME)" \
+	  -e STAFF_USERNAME="$(USERNAME)" \
+	  -e STAFF_ROLE="$(or $(ROLE),read_only)" \
+	  jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/create-accounts.ts
+	@echo "  console login set: $(USERNAME) -> http://$$(grep '^CONSOLE_DOMAIN=' .env | cut -d= -f2-)/admin/login"
 
 health: ## Check gateway, portal, jobs, Postgres and pricing wiring
 	@echo -n "  gateway health : "; \
@@ -457,7 +479,7 @@ verify-grant: ## Prove the manual plan grant (one row, one-live-row, idempotent 
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-grant.ts
 
-verify-oauth: ## Check Google/GitHub sign-in wiring (offline; no provider contacted)
+verify-oauth: ## Check Google/GitHub/Apple sign-in wiring (offline; no provider contacted)
 	@$(COMPOSE) build jobs
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-oauth.ts
@@ -542,9 +564,9 @@ e2e: ## Run the Playwright suite against the local stack
 	  E2E_EMAIL="$(LOCAL_CUSTOMER_EMAIL)" \
 	  E2E_PASSWORD="$(LOCAL_PASSWORD)" \
 	  E2E_STAFF_EMAIL="$(LOCAL_STAFF_EMAIL)" \
+	  E2E_STAFF_USERNAME="$(LOCAL_STAFF_USERNAME)" \
 	  E2E_STAFF_PASSWORD="$(LOCAL_PASSWORD)" \
 	  E2E_ADMIN_ORIGIN=http://$$(grep '^CONSOLE_DOMAIN=' ../.env | cut -d= -f2-) \
-	  ADMIN_GATE_SECRET=$$(grep '^ADMIN_GATE_SECRET=' ../.env | cut -d= -f2-) \
 	  npx playwright test
 
 plan: ## Put the local customer account on a plan so models and chat work

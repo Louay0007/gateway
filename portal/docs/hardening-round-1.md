@@ -1,5 +1,14 @@
 # Gaps fixed (round 1)
 
+> [!NOTE]
+> **HISTORICAL (26 Nov 2026).** This records a hardening round that predates the
+> console login. Several items below describe the `ADMIN_GATE_SECRET` gate that
+> migration `0053` removed entirely — `requireGateOrStaff`, `gateCookieValid` and
+> the static `config/admin-gate.html` no longer exist. The RANK conclusions still
+> hold (`requireStaff`/`requireOperator` are unchanged in intent); the credential
+> that fronts them is now a username + password instead of a shared code. Read the
+> gate-specific sections as history.
+
 All eight items from the audit, plus the tests that pin them.
 
 ## 1. D17 writes now rank-check staff

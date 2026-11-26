@@ -1,29 +1,24 @@
 /**
  * GET /api/admin/d17/[id]/screenshot — stream a proof screenshot.
  *
- * STAFF OR GATE. The filename comes from the database row, never from
- * the URL: a path parameter that reached the filesystem would be a
- * directory-traversal primitive. The row's own path is validated for
- * separators before use, the file is read from the uploads directory
- * (outside the web root), and the response is marked no-store.
+ * STAFF ONLY. The filename comes from the database row, never from the URL:
+ * a path parameter that reached the filesystem would be a directory-traversal
+ * primitive. The row's own path is validated for separators before use, the
+ * file is read from the uploads directory (outside the web root), and the
+ * response is marked no-store.
  *
- * Why the gate counts here: viewing a screenshot is read-only evidence,
- * and the gate code is the operator's credential on this deployment —
- * there is no staff login session to present. The state-changing D17
- * routes (approve, reject) call `requireOperator(rank)` instead, so a
- * signed-in staff member is held to their role there; the gate alone
- * carries no rank. This route must never grow a write.
+ * This route must never grow a write. Approve and reject call
+ * `requireOperator(rank)` instead, so a `read_only` operator can look at
+ * evidence and cannot act on it.
  */
 
 import { readFile } from 'node:fs/promises';
-import { gateCookieValid } from '@/lib/admin/gate';
 import { requireStaff } from '@/lib/auth/authorize';
 import { db } from '@/db';
 import { paymentsD17 } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { d17UploadsDir } from '@/lib/billing/d17-config';
 import { errorResponse, jsonError } from '@/lib/api/errors';
-import { AuthzError } from '@/lib/auth/errors';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,19 +30,15 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ): Promise<Response> {
   try {
-    // Gate-first, staff-second. A gate-only operator (valid cookie, no
-    // staff session) may VIEW evidence — that is the whole point of the
-    // gate on this deployment. Support staff pass either way. Anyone with
-    // neither gets the same 401 the staff path has always answered.
-    const gateOk = await gateCookieValid();
-    if (!gateOk) {
-      try {
-        // Support is enough to view evidence; approving needs more.
-        await requireStaff('read_only');
-      } catch {
-        throw new AuthzError('Not signed in', 'unauthorized', 401);
-      }
-    }
+    // STAFF ONLY — one check, because there is one credential now.
+    //
+    // This used to try the shared gate cookie FIRST and fall back to the
+    // staff role only when it failed. `gateCookieValid()` returns true when
+    // ADMIN_GATE_SECRET is unset ("no gate installed"), so on any deployment
+    // that had not set the secret, an ANONYMOUS caller could pull payment
+    // proof images. The gate is gone with the console login (0053) and this
+    // is a plain rank check.
+    await requireStaff('read_only');
 
     const { id } = await params;
     // A malformed id is 404, matching every other route: it must never

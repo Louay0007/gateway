@@ -100,16 +100,20 @@ describe('design system — shared primitives', () => {
     expect(() => readFileSync(join(PORTAL, 'components/marketing/zaino-footer.tsx'))).not.toThrow();
   });
 
-  it('has no raw <button> outside the three cases that require one', () => {
-    // THE PLAN'S TARGET WAS ZERO. It is three, and each is a native
+  it('has no raw <button> outside the two cases that require one', () => {
+    // THE PLAN'S TARGET WAS ZERO. It was three, and each was a native
     // requirement rather than an oversight:
     //
     //   1. components/dashboard/app-sidebar.tsx — a DropdownMenuTrigger
     //      `render` slot. Base UI composes its own props onto the element it
     //      is handed, so it must be a real <button>.
     //   2. components/chat/chat-sidebar.tsx — the same trigger slot.
-    //   3. app/admin/page.tsx — the access-code gate is static HTML with
-    //      inline CSS and a raw <script>; it never mounts React.
+    //
+    // The third was app/admin/page.tsx: the access-code gate was static HTML
+    // with inline CSS and a raw <script>, and never mounted React. Both it
+    // and the shared secret behind it are gone (0053) — /admin is now a
+    // redirect and the console signs in through a real form with a real
+    // Button, so the allowance is down to two.
     //
     // Everything else was converted, including the five that looked
     // structural (conversation rows, project rows, search hits, suggestion
@@ -121,7 +125,6 @@ describe('design system — shared primitives', () => {
       .map((f) => f.path.replace(PORTAL, ''))
       .sort();
     expect(names).toEqual([
-      'app/admin/page.tsx',
       'components/chat/chat-sidebar.tsx',
       'components/dashboard/app-sidebar.tsx',
     ]);

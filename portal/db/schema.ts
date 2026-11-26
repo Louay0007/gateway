@@ -143,6 +143,12 @@ export const organizationMembers = pgTable('organization_members', {
 export const staffUsers = pgTable('staff_users', {
   id:        uuid('id').primaryKey().defaultRandom(),
   email:     text('email').notNull().unique(),
+  /**
+   * Console login name (0053). NULL means this operator has no console
+   * login yet — they cannot sign in until an owner grants one, which is a
+   * recoverable state and not a migration that fails on deploy.
+   */
+  username:  text('username'),
   name:      text('name'),
   role:      text('role').notNull().default('support'),
   /** staff_users.id of the operator who granted this account. NULL = seeded. */
@@ -152,7 +158,27 @@ export const staffUsers = pgTable('staff_users', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   activeIdx: index('staff_users_active_idx').on(t.revokedAt, t.createdAt),
+  // Case-insensitive uniqueness, matching the index in 0053. A UNIQUE on the
+  // raw column would let "Zaino" and "zaino" coexist.
+  usernameIdx: uniqueIndex('staff_users_username_lower_idx').on(sql`lower(${t.username})`),
 }));
+
+/**
+ * Console password material (0053) — the second half of a staff login.
+ *
+ * Deliberately a SEPARATE table from `staffUsers`: that row is read on every
+ * authenticated request to resolve a rank, and a scrypt hash has no business
+ * being in that read. Same split, and same reasoning, as
+ * `users` / `auth_credentials` on the customer side.
+ */
+export const staffCredentials = pgTable('staff_credentials', {
+  staffUserId:       uuid('staff_user_id').primaryKey().references(() => staffUsers.id),
+  /** scrypt$N$r$p$keylen$salt$hash — lib/auth/password.ts format. */
+  password:          text('password').notNull(),
+  /** Copied into the session JWT; a mismatch revokes the cookie. */
+  passwordChangedAt: timestamp('password_changed_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:         timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ───────────────────────────────────────────────────────────────────────
 //  plans — the catalog. These rows are the ONLY entitlement truth.
@@ -227,11 +253,50 @@ export const subscriptions = pgTable('subscriptions', {
   dailyQuota:           boolean('daily_quota').notNull().default(false),
   lastProviderEventId:  text('last_provider_event_id'),
   lastProviderEventAt:  timestamp('last_provider_event_at', { withTimezone: true }),
+  /**
+   * Operator removal (0055). NEVER a delete: `payments_d17` and
+   * `trial_redemptions` cascade from this row, so deleting it would take the
+   * evidence that money arrived with it. An operator "removes" a
+   * subscription by moving `status`, and these three columns say who did it,
+   * when, and why — which is what distinguishes an operator removal from a
+   * customer cancellation at reconciliation time.
+   */
+  removedAt:            timestamp('removed_at', { withTimezone: true }),
+  /** staff_users.id. Only ever written from the console. */
+  removedBy:            text('removed_by'),
+  removalReason:        text('removal_reason'),
   createdAt:            timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   updatedAt:            timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => ({
   orgIdx:    index('subscriptions_org_idx').on(t.organizationId),
   statusIdx: index('subscriptions_status_idx').on(t.status),
+}));
+
+/**
+ * Operator notes on an account (0056).
+ *
+ * NOT the audit trail. `audit_log` is structured and machine-read through
+ * prefix filters; it cannot hold "called the customer, they paid cash at the
+ * post office" without degrading into a free-text log. This is the note the
+ * NEXT operator needs; that is the record of what happened.
+ *
+ * Append-and-pin only: nothing edits or deletes a note, so a wrong note is
+ * corrected by a later one — the same discipline `credit_notes` follows.
+ */
+export const adminNotes = pgTable('admin_notes', {
+  id:             uuid('id').primaryKey().defaultRandom(),
+  organizationId: uuid('organization_id').notNull().references(() => organizations.id, { onDelete: 'cascade' }),
+  authorId:       uuid('author_id').notNull().references(() => staffUsers.id, { onDelete: 'restrict' }),
+  /** Denormalised: the note reads correctly even if a username later changes. */
+  authorUsername: text('author_username').notNull(),
+  body:           text('body').notNull(),
+  /** 'note' | 'payment' | 'subscription' | 'abuse' — a filter, not a taxonomy. */
+  kind:           text('kind').notNull().default('note'),
+  pinned:         boolean('pinned').notNull().default(false),
+  createdAt:      timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt:      timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => ({
+  orgIdx: index('admin_notes_org_idx').on(t.organizationId, t.createdAt),
 }));
 
 // Derived cache. Only syncOrganizationEntitlements() ever writes this.

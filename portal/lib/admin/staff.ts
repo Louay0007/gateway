@@ -38,25 +38,45 @@ export interface StaffRow {
   id: string;
   email: string;
   name: string | null;
+  /**
+   * Console login name (0053). NULL means this operator cannot sign in to the
+   * console at all — the state the roster has to make visible, because the
+   * person affected cannot discover it themselves.
+   */
+  username: string | null;
   role: string;
   revokedAt: string | null;
   createdAt: string;
   createdBy: string | null;
-  /** Whether this account has a usable credential (a `users` mirror row). */
+  /**
+   * Whether this account can SIGN IN — i.e. it has a `staff_credentials` row
+   * AND a username.
+   *
+   * 0053 CHANGED WHAT THIS MEANS. It used to test for a `users` row, which was
+   * the PORTAL credential; the console has authenticated against
+   * `staff_credentials` since the console login landed. Testing the old thing
+   * reported the wrong answer in both directions: "no sign-in account yet" for
+   * an operator who could sign in fine, and silence for one who could not.
+   */
   hasCredential: boolean;
 }
 
 export async function listStaff(): Promise<StaffRow[]> {
   const rows = (await db.execute(sql`
-    SELECT s.id::text, s.email, s.name, s.role, s.revoked_at,
+    SELECT s.id::text, s.email, s.name, s.username, s.role, s.revoked_at,
            s.created_at, s.created_by,
-           EXISTS (SELECT 1 FROM users u WHERE u.email = s.email) AS has_credential
+           -- The CONSOLE credential (0053), not the portal one: a staff row
+           -- with a username but no password still cannot sign in.
+           (s.username IS NOT NULL AND EXISTS (
+              SELECT 1 FROM staff_credentials c WHERE c.staff_user_id = s.id
+            )) AS has_credential
       FROM staff_users s
      ORDER BY s.revoked_at NULLS FIRST, s.created_at DESC
   `)) as unknown as {
     id: string;
     email: string;
     name: string | null;
+    username: string | null;
     role: string;
     revoked_at: Date | string | null;
     created_at: Date | string;
@@ -68,6 +88,7 @@ export async function listStaff(): Promise<StaffRow[]> {
     id: r.id,
     email: r.email,
     name: r.name,
+    username: r.username,
     role: r.role,
     revokedAt: r.revoked_at == null ? null : new Date(r.revoked_at).toISOString(),
     createdAt: new Date(r.created_at).toISOString(),
@@ -93,9 +114,35 @@ export type StaffActionResult =
  */
 export async function grantStaffAccess(
   actorId: string,
-  input: { email: string; name?: string | null; role: StaffRole },
+  input: { email: string; username?: string | null; name?: string | null; role: StaffRole },
 ): Promise<StaffActionResult> {
   const email = input.email.trim().toLowerCase();
+  const username = input.username?.trim().toLowerCase() || null;
+
+  // A username is optional — granting ACCESS and issuing a CONSOLE CREDENTIAL
+  // are two different actions (the password is written by
+  // scripts/create-accounts.ts, because the KDF must match
+  // lib/auth/password.ts exactly). But if one is supplied it must be unique,
+  // or two operators would answer to the same name.
+  if (username) {
+    if (!/^\S{1,64}$/.test(username)) {
+      return {
+        ok: false,
+        error: 'bad_username',
+        message: 'A username must be 1–64 characters with no spaces.',
+      };
+    }
+    const taken = (await db.execute(sql`
+      SELECT 1 FROM staff_users WHERE lower(username) = ${username} LIMIT 1
+    `)) as unknown as unknown[];
+    if (taken.length) {
+      return {
+        ok: false,
+        error: 'username_taken',
+        message: 'That username belongs to another operator.',
+      };
+    }
+  }
 
   const mirror = await db.execute(sql`
     SELECT 1 FROM users WHERE lower(email) = ${email} LIMIT 1
@@ -121,13 +168,22 @@ export async function grantStaffAccess(
   const [row] = existing
     ? await db
         .update(staffUsers)
-        .set({ role: input.role, revokedAt: null, createdBy: actorId })
+        .set({
+          role: input.role,
+          revokedAt: null,
+          createdBy: actorId,
+          // Only overwrite a username when one was supplied: re-granting a
+          // revoked operator must not silently erase the login they already
+          // have.
+          ...(username ? { username } : {}),
+        })
         .where(eq(staffUsers.id, existing.id))
         .returning({ id: staffUsers.id })
     : await db
         .insert(staffUsers)
         .values({
           email,
+          username,
           name: input.name?.trim() || null,
           role: input.role,
           createdBy: actorId,
@@ -142,7 +198,7 @@ export async function grantStaffAccess(
     targetId: row?.id ?? null,
     organizationId: null,
     before: existing ? { role: existing.role, revoked: true } : null,
-    after: { email, role: input.role },
+    after: { email, username, role: input.role },
   });
 
   return { ok: true, id: row?.id ?? '' };

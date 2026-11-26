@@ -110,12 +110,50 @@ export const PUBLIC_API: readonly PublicRoute[] = [
  * list is deliberate rather than long.
  */
 export const PRIVATE_NOTES: readonly { path: string; why: string }[] = [
-  { path: '/api/admin/*', why: 'staff only: requireStaff() role-gated per route, gate cookie per session' },
+  {
+    path: '/api/admin/*',
+    // NOT "private" in the session sense: it is authenticated by the CONSOLE
+    // cookie (see isStaffApi below), not by the portal one. Listing it here
+    // as well would hide that difference, which is the bug this bucket
+    // exists to prevent.
+    why: 'staff only: console session (isStaffApi) + requireStaff() role-gated per route',
+  },
   { path: '/api/chat/*', why: 'tenant data: requireActiveOrg() + conversation ownership' },
   { path: '/api/keys/*', why: 'credentials: requireActiveOrg() + owner role' },
   { path: '/api/account/delete', why: 'irreversible: requireActiveOrg() + owner role + slug confirmation' },
   { path: '/api/usage/*', why: 'tenant ledger: requireActiveOrg()' },
 ];
+
+/**
+ * The console's own auth surface — sign-in cannot require a session.
+ *
+ * A separate prefix from `/api/auth/*` so the console's CSRF/session surface
+ * is never reachable under the customer auth namespace, and so this list can
+ * say why it is narrow rather than inheriting "sign-in must be public".
+ */
+export const STAFF_AUTH_API = '/api/admin-auth';
+
+export function isStaffAuthApi(pathname: string): boolean {
+  return pathname === STAFF_AUTH_API || pathname.startsWith(`${STAFF_AUTH_API}/`);
+}
+
+/**
+ * The console's API — authenticated by the STAFF cookie, not the portal one.
+ *
+ * WHY THIS IS ITS OWN BUCKET AND NOT FOLDED INTO "PRIVATE". Until 0053 this
+ * prefix was private, so `proxy.ts` demanded a PORTAL session for it. The
+ * console's pages call their services in-process and rendered fine, but every
+ * mutating `fetch('/api/admin/…')` behind a button was answered 401 — an
+ * operator clicked Suspend, the row did not change, and the only clue was an
+ * envelope in devtools. The two credentials are different cookies that
+ * decrypt under different keys (`lib/auth/session-token.ts`), so they have to
+ * be different decisions here.
+ */
+export const STAFF_API = '/api/admin';
+
+export function isStaffApi(pathname: string): boolean {
+  return pathname === STAFF_API || pathname.startsWith(`${STAFF_API}/`);
+}
 
 /** True when `pathname` is on the published list. */
 export function isPublicApi(pathname: string): boolean {
@@ -162,6 +200,12 @@ export const PUBLIC_PAGES: readonly string[] = [
   '/share',
   '/billing',
   '/checkout',
+  // The console. Public AT THIS LAYER on purpose: it has its own credential
+  // (the console session, lib/auth/staff-session.ts) and requiring a PORTAL
+  // session here would mean an operator had to hold two logins to reach a
+  // staff console. The proxy only decides whether the request reaches the
+  // layout; `app/admin/layout.tsx` redirects to /admin/login without a
+  // console session, and `/api/admin/*` is decided separately below.
   '/admin',
 ];
 

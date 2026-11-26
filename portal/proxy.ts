@@ -4,8 +4,9 @@
  * TWO JOBS, both here because this is the only code that runs before every
  * route is rendered:
  *
- *  1. ACCESS. Every `/api` request must carry a session token this
- *     deployment minted, unless its path is on the published list in
+ *  1. ACCESS. Every `/api` request must carry the credential that path is
+ *     defined to need — the PORTAL session for tenant routes, the CONSOLE
+ *     session for `/api/admin/*` — unless it is on the published list in
  *     `lib/security/route-policy.ts`. Unknown paths are refused, so a route
  *     added later is private until someone says otherwise. This is a front
  *     door, not authorization: the handler re-reads membership and role from
@@ -14,12 +15,13 @@
  *     were never meant to answer them — including the ones whose only guard
  *     was a shell layout, a `notFound()`, or nothing at all.
  *
- *  2. ONE FACT THE ADMIN LAYOUT CANNOT OBSERVE. `app/admin/layout.tsx`
- *     wraps both the gate form (`/admin`) and the console pages
- *     (`/admin/ops`, …) and has to treat them differently. A layout
- *     receives no pathname, so this stamps `x-admin-gate-path: 1` on
- *     requests whose pathname is exactly `/admin`, and nothing else: the
- *     header's ABSENCE is what marks a console page.
+ *  2. TWO CREDENTIALS, NEVER INTERCHANGEABLE. The portal cookie and the
+ *     console cookie are different names, and `session-token.ts` derives its
+ *     key by HKDF over the name — so they do not decrypt as each other. This
+ *     file reads the portal name on tenant routes and the staff name on
+ *     `/api/admin/*`; neither can stand in for the other, which is what makes
+ *     "an operator's console cookie is not a customer credential" a property
+ *     rather than a promise.
  *
  * WHY THE TOKEN IS DECRYPTED AND NOT LOOKED UP. It is an Auth.js JWE
  * (`A256CBC-HS512`, salt = the cookie name). Decrypting proves it was minted
@@ -45,8 +47,13 @@
 
 import { NextResponse, type NextRequest } from 'next/server';
 
-import { isPublicApi, isPublicPage } from '@/lib/security/route-policy';
-import { sessionFromHeaders } from '@/lib/auth/session-token';
+import {
+  isPublicApi,
+  isPublicPage,
+  isStaffApi,
+  isStaffAuthApi,
+} from '@/lib/security/route-policy';
+import { sessionFromHeaders, staffSessionFromHeaders } from '@/lib/auth/session-token';
 
 /** The shared error envelope (lib/api/errors.ts), built without importing
  *  the DB-backed error module into the request hot path. */
@@ -62,6 +69,41 @@ export async function proxy(request: NextRequest) {
 
   // ── 1. API access ────────────────────────────────────────────────────
   if (pathname === '/api' || pathname.startsWith('/api/')) {
+    // ── 1a. The console's auth surface ────────────────────────────────
+    // Sign-in cannot require a session — that is the whole point of it —
+    // and these handlers verify their own CSRF and session state. Narrow
+    // because the prefix is narrow: `/api/admin-auth/*` is the console's
+    // Auth.js mount, not a general escape hatch.
+    if (isStaffAuthApi(pathname)) return NextResponse.next();
+
+    // ── 1b. The console's API — the STAFF cookie, not the portal one ──
+    //
+    // THIS BRANCH IS A FIX, not a refactor. `/api/admin/*` used to fall
+    // through to the session check below, so the proxy demanded a PORTAL
+    // session for it. The console's pages call their services in-process and
+    // rendered fine, but every mutating `fetch('/api/admin/…')` behind a
+    // button was answered 401: an operator clicked Suspend, the row did not
+    // change, and the only clue was an envelope in devtools.
+    //
+    // The two credentials are different cookies that decrypt under different
+    // HKDF keys (lib/auth/session-token.ts), so this is a real separation
+    // and not a naming convention — a portal session cannot pass here, and a
+    // console session cannot pass below.
+    //
+    // This layer still decides only whether the request REACHES the handler.
+    // The rank is `requireStaff()`'s job on every route.
+    if (isStaffApi(pathname)) {
+      if (!process.env.AUTH_SECRET) {
+        console.error('[proxy] AUTH_SECRET is not set — refusing every console API route');
+        return deny(500, 'internal', 'Something went wrong. Please try again.');
+      }
+      const staff = await staffSessionFromHeaders(request.headers);
+      if (!staff) {
+        return deny(401, 'unauthorized', 'Sign in to the operations console to continue.');
+      }
+      return NextResponse.next();
+    }
+
     if (isPublicApi(pathname)) return NextResponse.next();
 
     if (!process.env.AUTH_SECRET) {
@@ -81,9 +123,10 @@ export async function proxy(request: NextRequest) {
   // ── 2. Private pages ─────────────────────────────────────────────────
   // `/chat`, `/dashboard/*` — the session, here, instead of a redirect
   // rendered 40 KB of chat shell. `/admin` is deliberately public at THIS
-  // layer: its gate form has to be reachable, and the console behind it is
-  // protected by the gate cookie plus `requireStaff` (app/admin/layout.tsx).
-  // The API under /admin is NOT public, so the gate opens a form and no data.
+  // layer because it has its own credential: requiring a PORTAL session
+  // would mean an operator holds two logins to reach a staff console. The
+  // console pages are gated by `currentStaffSession()` in
+  // `app/admin/layout.tsx`, and `/api/admin/*` is decided separately in 1b.
   if (!isPublicPage(pathname)) {
     const session = process.env.AUTH_SECRET
       ? await sessionFromHeaders(request.headers)
@@ -98,29 +141,16 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ── 3. The admin gate-page stamp (app/admin/layout.tsx contract) ──────
-  // Exact match. A trailing slash is normalised by Next before this runs
-  // (`/admin/` arrives as `/admin`), and `/admin/ops` must NOT match: the
-  // header's ABSENCE is what marks a console page.
-  if (pathname === '/admin') {
-    const headers = new Headers(request.headers);
-    headers.set('x-admin-gate-path', '1');
-    // `request: { headers }` forwards them to the render tree. The bare
-    // `{ headers }` form would send them to the CLIENT instead.
-    return NextResponse.next({ request: { headers } });
-  }
-
   return NextResponse.next();
 }
 
 export const config = {
   // Pass-through ONLY for assets that carry no data and must load without a
-  // session: Next's build output, the favicon/icon, the public document that
-  // serves the gate form, and the image/logo directories. Everything else —
-  // every page, every API route, `robots.txt` and the sitemap — goes through
-  // the checks above. Keep this list minimal: a matcher exclusion is an
-  // access-control decision, and `tests/route-auth.test.ts` asserts `/api`
-  // is not one of them.
+  // session: Next's build output, the favicon/icon, and the image/logo
+  // directories. Everything else — every page, every API route, `robots.txt`
+  // and the sitemap — goes through the checks above. Keep this list minimal:
+  // a matcher exclusion is an access-control decision, and
+  // `tests/route-auth.test.ts` asserts `/api` is not one of them.
   matcher: [
     '/((?!_next/static|_next/image|favicon\\.ico|icon\\.png|apple-icon\\.png|partnership\\.html|partnership-email\\.html|images/|logo/|logos/|hero/).*)',
   ],

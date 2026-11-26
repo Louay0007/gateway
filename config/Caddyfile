@@ -337,11 +337,13 @@
 #
 # Replace 203.0.113.4/32 102.159.152.165/32 with YOUR public IP (curl -s ifconfig.me).
 {$CADDY_SCHEME:}{$CONSOLE_DOMAIN} {
-	# IP allowlist REMOVED: the admin gate secret (ADMIN_GATE_SECRET) is now
-	# the sole access control. The gate page and /api/admin/gate route are
-	# reachable from any IP; the HMAC-signed cookie minted by the correct
-	# secret is what grants entry. This avoids the recurring 403 problem
-	# when the operator's IP changes.
+	# NO IP ALLOWLIST, AND NO SHARED CODE. Access control is the console
+	# login at /admin/login plus the staff role re-read from `staff_users` on
+	# every request. The shared ADMIN_GATE_SECRET this block used to lean on
+	# was removed with migration 0053: it named nobody, could not be revoked
+	# per operator, and one leaked string was the whole company's console.
+	# Removing the allowlist was what made that trade acceptable, so it is
+	# recorded here rather than left to be rediscovered.
 
 	# The same 2MB control-plane ceiling as the portal vhost, with the 4MB
 	# D17-proof carve-out: staff open payment screenshots here and a proof
@@ -361,20 +363,18 @@
 		max_size 4MB
 	}
 
-	# Redirect bare domain to the admin gate/console entry point.
+	# Redirect bare domain to the console entry point.
 	# Without this, / serves the portal's marketing landing page because
 	# the reverse_proxy forwards to Next.js at /, which is the customer site.
 	redir / /admin 302
 
-	# Serve the admin gate as a static HTML file, bypassing Next.js entirely.
-	# The Next.js root layout wraps /admin in theme CSS (bg-background) that
-	# renders white-on-white. This static file has its own complete styling.
-	# The gate JS checks the cookie client-side and redirects to /admin/ops.
-	handle /admin {
-		root * /etc/caddy
-		try_files /admin-gate.html
-		file_server
-	}
+	# /admin is served by Next.js now, not by a static file.
+	#
+	# It used to be `handle /admin { try_files /admin-gate.html }` — a second
+	# implementation of the same screen, needed only because the root layout's
+	# theme CSS rendered that form white-on-white. With the console login in
+	# place, /admin is a redirect and /admin/login styles itself, so there is
+	# nothing for Caddy to serve and one fewer place for the two to disagree.
 
 	reverse_proxy {$PORTAL_UPSTREAM:127.0.0.1:3000} {
 		flush_interval -1

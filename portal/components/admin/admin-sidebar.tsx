@@ -15,10 +15,9 @@
  * a disabled link is noise. The routes remain the authority; this only
  * decides what is offered.
  *
- * The role comes from the server layout (`currentStaffRole()`), which
+ * The role comes from the server layout (`currentStaffSession()`), which
  * re-reads `staff_users` on every request — so a revoked operator loses
- * the whole console on their next navigation, with no session to wait
- * out.
+ * the whole console on their next navigation, with no session to wait out.
  */
 
 "use client";
@@ -32,14 +31,19 @@ import {
   CreditCard,
   FileClock,
   LayoutDashboard,
+  LifeBuoy,
   LogOut,
   Layers,
   Receipt,
+  Repeat,
+  Ticket,
+  UserSearch,
   Users,
+  Wallet,
   type LucideIcon,
 } from "lucide-react";
 
-import { signOutAction } from "@/lib/auth/actions";
+import { adminSignOutAction } from "@/lib/auth/admin-actions";
 import { staffAtLeast, type StaffRole } from "@/lib/auth/staff-roles";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -90,22 +94,30 @@ interface AdminNavItem {
  */
 const NAV: AdminNavItem[] = [
   { title: "Pipeline", href: "/admin/ops", icon: Activity, minRole: "read_only" },
+  // People before accounts: a support call almost always starts with a person
+  // ("jane@acme.com"), and the org is only reachable once you know which one.
+  { title: "Customers", href: "/admin/customers", icon: UserSearch, minRole: "read_only" },
   { title: "Accounts", href: "/admin/orgs", icon: Building2, minRole: "read_only" },
+  { title: "Subscriptions", href: "/admin/subscriptions", icon: Repeat, minRole: "read_only" },
+  { title: "Payments", href: "/admin/payments", icon: Wallet, minRole: "read_only" },
   { title: "D17 queue", href: "/admin/d17", icon: Receipt, minRole: "read_only" },
   { title: "Usage & margin", href: "/admin/usage", icon: LayoutDashboard, minRole: "read_only" },
   { title: "Credits", href: "/admin/credits", icon: CreditCard, minRole: "read_only" },
+  { title: "Trials", href: "/admin/trials", icon: Ticket, minRole: "read_only" },
   { title: "Audit", href: "/admin/audit", icon: FileClock, minRole: "read_only" },
+  { title: "Recovery", href: "/admin/system", icon: LifeBuoy, minRole: "read_only" },
   { title: "Plans", href: "/admin/plans", icon: Layers, minRole: "read_only" },
   { title: "Staff", href: "/admin/staff", icon: Users, minRole: "read_only" },
 ];
 
 export function AdminSidebar({
   role,
-  email,
+  username,
   waitingCount = 0,
 }: {
   role: StaffRole;
-  email: string | null;
+  /** The console login name, not an email: this shell has no email concept. */
+  username: string | null;
   waitingCount?: number;
 }) {
   const pathname = usePathname();
@@ -163,9 +175,9 @@ export function AdminSidebar({
 
       <SidebarFooter className="border-t border-sidebar-border">
         <div className="flex flex-col gap-2 px-2 py-2">
-          {email ? (
+          {username ? (
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium">{email}</p>
+              <p className="truncate text-xs font-medium">{username}</p>
               <Badge variant="outline" className="mt-1">
                 staff: {role}
               </Badge>
@@ -179,7 +191,7 @@ export function AdminSidebar({
           >
             Customer view
           </Button>
-          <form action={signOutAction}>
+          <form action={adminSignOutAction}>
             <Button variant="ghost" size="sm" type="submit" className="w-full">
               <LogOut />
               Sign out

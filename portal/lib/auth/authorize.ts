@@ -18,7 +18,6 @@ import { db } from '@/db';
 import {
   organizationMembers,
   organizations,
-  staffUsers,
   users,
   type OrgRole,
 } from '@/db/schema';
@@ -192,14 +191,8 @@ export function roleAtLeast(role: OrgRole, required: OrgRole): boolean {
 
 // The rank table itself lives in `staff-roles.ts` so `lib/admin/staff.ts`
 // can validate a role without importing this module (which would be
-// circular). Imported AND re-exported: the gates below use the names in
-// their own bodies, and every existing caller — pages, nav, the admin
-// routes — already imports them from `authorize`.
-import {
-  staffAtLeast,
-  type StaffRole,
-} from '@/lib/auth/staff-roles';
-
+// circular). Re-exported: every existing caller — pages, nav, the admin
+// routes — imports these names from `authorize`.
 export {
   STAFF_ROLES,
   STAFF_ROLE_SUMMARY,
@@ -209,116 +202,22 @@ export {
 } from '@/lib/auth/staff-roles';
 
 /**
- * Is this staff session still fresh?
+ * Staff gates MOVED to `lib/auth/staff-session.ts` (0053).
  *
- * `requireStaff()` resolves the ROLE from `staff_users` alone, never from
- * the customer tables — a staff account must not become a customer by
- * virtue of a shared email. Freshness is the one thing that must cross
- * over: the token's `password_changed_at` was minted from
- * `users.password_changed_at` at sign-in (auth.ts), so a password change
- * has to invalidate a stolen staff cookie exactly as it invalidates a
- * customer's. Only the stamp is read from `users`, never a role or an org.
+ * They used to resolve from the customer session (`auth()` + `users.email`)
+ * because staff signed in through /sign-in, which meant the console session
+ * was byte-for-byte a customer session. The console now has its own login and
+ * its own cookie (lib/auth/admin-auth.ts), so the gates read that instead.
  *
- * A staff identity with no `users` row has no stamp to compare, and
- * `sessionIsFresh` accepts that case — there is nothing to invalidate.
+ * Re-exported here so all 21 admin routes and the console pages keep
+ * importing from `@/lib/auth/authorize` unchanged — the credential moved, the
+ * signature did not.
  */
-async function staffSessionIsFresh(
-  email: string,
-  tokenStamp: string | null | undefined,
-): Promise<boolean> {
-  const mirror = await db.query.users.findFirst({
-    where: eq(users.email, email),
-    columns: { passwordChangedAt: true },
-  });
-  return sessionIsFresh(tokenStamp, mirror?.passwordChangedAt);
-}
-
-/**
- * Staff access, resolved from `staff_users` — never from an org_role.
- *
- * A staff account must never be able to act as a customer. The two lookups
- * are deliberately independent: `currentUser()` reads `users`, this reads
- * `staff_users`, and nothing bridges them.
- */
-export async function requireStaff(required: StaffRole = 'read_only') {
-  const session = await auth();
-  if (!session?.user?.email) {
-    throw new AuthzError('Not signed in', 'unauthorized', 401);
-  }
-
-  // Freshness BEFORE the role lookup. A cookie minted before the account's
-  // last password change is an unauthenticated cookie, so this is 401
-  // (re-authenticate), not 403 (you are not staff).
-  if (!(await staffSessionIsFresh(session.user.email, session.user.passwordChangedAt))) {
-    log.warn('auth: staff session predates the last password change — rejected', {
-      identity: session.user.email,
-    });
-    throw new AuthzError('Session expired', 'unauthorized', 401);
-  }
-
-  const staff = await db.query.staffUsers.findFirst({
-    where: eq(staffUsers.email, session.user.email),
-  });
-  if (!staff) {
-    // Deliberately 403 rather than 404 — staff routes already announce
-    // their existence to authenticated users.
-    throw new AuthzError('Staff access required', 'forbidden', 403);
-  }
-
-  // Revocation (0015). Checked AFTER the row lookup so a revoked operator
-  // gets 403, not the 401 that means "log in again" — their password is
-  // fine, their ACCESS was withdrawn, and telling them to re-authenticate
-  // would loop them straight back to the same refusal.
-  //
-  // NULL means active, so every row written before 0015 keeps working.
-  if (staff.revokedAt) {
-    log.warn('auth: revoked staff account attempted access', {
-      identity: session.user.email,
-      revokedAt: staff.revokedAt.toISOString(),
-    });
-    throw new AuthzError('Staff access has been revoked', 'forbidden', 403);
-  }
-
-  const role = staff.role as StaffRole;
-  if (!staffAtLeast(role, required)) {
-    throw new AuthzError('Insufficient staff role', 'forbidden', 403);
-  }
-  return staff;
-}
-
-/**
- * The caller's staff role, or null.
- *
- * `requireStaff()` throws, which is right for a route and wrong for a
- * layout or a page that must render a decision instead of an error. This
- * is the same lookup, non-throwing, so a nav can hide `/admin/d17` from
- * customers instead of offering a link that answers 403.
- *
- * Still resolved from `staff_users` alone. It never falls back to an org
- * role, because a staff account must not be able to act as a customer.
- */
-export async function currentStaffRole(): Promise<StaffRole | null> {
-  const session = await auth();
-  if (!session?.user?.email) return null;
-
-  // Same freshness rule as requireStaff(): a stale cookie grants no role,
-  // so the admin nav simply does not appear rather than appearing and then
-  // answering 401 on the first action.
-  if (!(await staffSessionIsFresh(session.user.email, session.user.passwordChangedAt))) {
-    log.warn('auth: staff session predates the last password change — rejected', {
-      identity: session.user.email,
-    });
-    return null;
-  }
-
-  const staff = await db.query.staffUsers.findFirst({
-    where: eq(staffUsers.email, session.user.email),
-  });
-  // A revoked operator is not staff for navigation purposes either: the
-  // nav must disappear rather than offer links that answer 403.
-  if (!staff || staff.revokedAt) return null;
-  return staff.role as StaffRole;
-}
+export {
+  requireStaff,
+  currentStaffRole,
+  currentStaffSession,
+} from '@/lib/auth/staff-session';
 
 // ───────────────────────────────────────────────────────────────────────
 //  Page-level helpers — these redirect instead of throwing, because a page

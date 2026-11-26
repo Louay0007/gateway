@@ -19,6 +19,8 @@
 
 import { sql } from 'drizzle-orm';
 import { db } from '@/db';
+import { listNotes, type AdminNote } from '@/lib/admin/notes';
+import { listDevicesForOrg, type AdminDeviceRow } from '@/lib/admin/keys';
 
 // ───────────────────────────────────────────────────────────────────────
 //  Roster
@@ -269,6 +271,16 @@ export interface AdminOrgDetail {
   credits: AdminOrgCredit[];
   payments: AdminOrgPayment[];
   recentAudit: AdminAuditRow[];
+  /** Operator notes, pinned first (0056). */
+  notes: AdminNote[];
+  /** Desktop sign-ins — the table no screen read before. */
+  devices: AdminDeviceRow[];
+  /**
+   * The removal record on the org's CURRENT subscription, when an operator
+   * ended it. NULL means no operator removal (a customer cancel leaves it
+   * NULL on purpose — the two are different facts).
+   */
+  removal: { at: string; by: string; reason: string } | null;
 }
 
 export interface AdminOrgMember {
@@ -277,6 +289,8 @@ export interface AdminOrgMember {
   name: string | null;
   role: string;
   createdAt: string;
+  /** Links the member row to /admin/customers/[id]. */
+  emailVerifiedAt: string | null;
 }
 
 export interface AdminOrgKey {
@@ -297,6 +311,10 @@ export interface AdminOrgSubscription {
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
   trialEnd: string | null;
+  /** Operator removal (0055): who ended it and why. NULL = no operator removal. */
+  removedAt: string | null;
+  removedBy: string | null;
+  removalReason: string | null;
 }
 
 /**
@@ -311,7 +329,7 @@ export interface AdminOrgSubscription {
  * or "suspended" and "deleted" become indistinguishable to an operator.
  */
 export async function adminOrgDetail(orgId: string): Promise<AdminOrgDetail | null> {
-  const [orgPage, members, keys, subs, credits, payments, audit] = await Promise.all([
+  const [orgPage, members, keys, subs, credits, payments, audit, notes, devices] = await Promise.all([
     orgById(orgId),
     listOrgMembers(orgId),
     listOrgKeys(orgId),
@@ -319,9 +337,16 @@ export async function adminOrgDetail(orgId: string): Promise<AdminOrgDetail | nu
     listOrgCredits(orgId),
     listOrgPayments(orgId),
     listAudit({ organizationId: orgId, pageSize: 25 }),
+    listNotes(orgId),
+    listDevicesForOrg(orgId),
   ]);
 
   if (!orgPage) return null;
+
+  // The removal record is read from the CURRENT subscription row — the one the
+  // sync would pick. A removed row is `canceled`, so it is only "current" when
+  // nothing live supersedes it, which is exactly the case worth showing.
+  const removed = subs.find((s) => s.removedAt !== null);
 
   return {
     org: orgPage,
@@ -331,6 +356,16 @@ export async function adminOrgDetail(orgId: string): Promise<AdminOrgDetail | nu
     credits,
     payments,
     recentAudit: audit.rows,
+    notes,
+    devices,
+    removal:
+      removed && removed.removedAt
+        ? {
+            at: removed.removedAt,
+            by: removed.removedBy ?? 'unknown',
+            reason: removed.removalReason ?? '',
+          }
+        : null,
   };
 }
 
@@ -363,7 +398,8 @@ async function orgById(orgId: string): Promise<AdminOrgRow | null> {
 
 async function listOrgMembers(orgId: string): Promise<AdminOrgMember[]> {
   const rows = (await db.execute(sql`
-    SELECT m.user_id::text, u.email, u.name, m.role::text AS role, m.created_at
+    SELECT m.user_id::text, u.email, u.name, m.role::text AS role, m.created_at,
+           u.email_verified_at
       FROM organization_members m
       JOIN users u ON u.id = m.user_id
      WHERE m.organization_id = ${orgId}::uuid
@@ -374,6 +410,7 @@ async function listOrgMembers(orgId: string): Promise<AdminOrgMember[]> {
     name: string | null;
     role: string;
     created_at: Date | string;
+    email_verified_at: Date | string | null;
   }[];
 
   return rows.map((r) => ({
@@ -382,6 +419,7 @@ async function listOrgMembers(orgId: string): Promise<AdminOrgMember[]> {
     name: r.name,
     role: r.role,
     createdAt: new Date(r.created_at).toISOString(),
+    emailVerifiedAt: iso(r.email_verified_at),
   }));
 }
 
@@ -421,7 +459,8 @@ async function listOrgSubscriptions(orgId: string): Promise<AdminOrgSubscription
   const rows = (await db.execute(sql`
     SELECT s.id::text, p.code AS plan_code, s.status::text AS status,
            s.current_period_start, s.current_period_end,
-           s.cancel_at_period_end, s.trial_end
+           s.cancel_at_period_end, s.trial_end,
+           s.removed_at, s.removed_by, s.removal_reason
       FROM subscriptions s
       LEFT JOIN plans p ON p.id = s.plan_id
      WHERE s.organization_id = ${orgId}::uuid
@@ -434,6 +473,9 @@ async function listOrgSubscriptions(orgId: string): Promise<AdminOrgSubscription
     current_period_end: Date | string | null;
     cancel_at_period_end: boolean;
     trial_end: Date | string | null;
+    removed_at: Date | string | null;
+    removed_by: string | null;
+    removal_reason: string | null;
   }[];
 
   return rows.map((r) => ({
@@ -444,6 +486,9 @@ async function listOrgSubscriptions(orgId: string): Promise<AdminOrgSubscription
     currentPeriodEnd: iso(r.current_period_end),
     cancelAtPeriodEnd: r.cancel_at_period_end,
     trialEnd: iso(r.trial_end),
+    removedAt: iso(r.removed_at),
+    removedBy: r.removed_by,
+    removalReason: r.removal_reason,
   }));
 }
 

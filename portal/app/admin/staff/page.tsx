@@ -75,9 +75,12 @@ export default async function AdminStaffPage() {
           hint="Rows retained so the audit trail survives"
         />
         <AdminStat
-          label="No sign-in yet"
+          label="Cannot sign in"
           value={missingCredential.length}
-          hint="Granted access, but cannot authenticate"
+          // 0053: this counts rows with no CONSOLE credential (a username plus
+          // a staff_credentials row), not rows with no portal `users` mirror —
+          // which is what it counted before the console login existed.
+          hint="Granted access, but no console password yet"
           tone={missingCredential.length > 0 ? "warning" : "positive"}
         />
       </dl>

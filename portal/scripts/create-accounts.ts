@@ -34,11 +34,24 @@
  * This script deliberately does not call
  * ensurePersonalOrg for the staff account: it creates the identity so the
  * person can authenticate, and nothing else.
+ *
+ * TWO STAFF CREDENTIALS, since 0053, and they are not the same thing:
+ *
+ *   auth_users + auth_credentials   the PORTAL login (email + password),
+ *                                   unchanged, so /sign-in still works.
+ *   staff_users.username + staff_credentials
+ *                                   the CONSOLE login at /admin/login
+ *                                   (username + password).
+ *
+ * The console password is deliberately a separate secret. The console
+ * cookie is a different cookie under a different derived key
+ * (lib/auth/admin-auth.ts), and a portal session grants nothing on the
+ * console — so sharing one password would only mean sharing one weakness.
  */
 
 import { and, eq, or } from 'drizzle-orm';
 import { db } from '@/db';
-import { authCredentials, authUsers, staffUsers, users } from '@/db/schema';
+import { authCredentials, authUsers, staffCredentials, staffUsers, users } from '@/db/schema';
 import { createLocalUser } from '@/lib/auth/create-user';
 import { hashPassword, validatePassword } from '@/lib/auth/password';
 import type { StaffRole } from '@/lib/auth/authorize';
@@ -155,6 +168,14 @@ async function main() {
   const staffEmail = need('STAFF_EMAIL');
   const staffPassword = need('STAFF_PASSWORD');
   const staffRole = (process.env.STAFF_ROLE ?? 'admin') as StaffRole;
+  const staffUsername = (process.env.STAFF_USERNAME ?? 'admin').trim().toLowerCase();
+
+  // No spaces, no empty: it is typed into a form and compared on a lower()
+  // index, so anything else is a login nobody can reproduce.
+  if (!/^\S{1,64}$/.test(staffUsername)) {
+    console.error('FATAL: STAFF_USERNAME must be 1–64 characters with no spaces.');
+    process.exit(1);
+  }
 
   if (!ROLES.includes(staffRole)) {
     console.error(`FATAL: STAFF_ROLE must be one of ${ROLES.join(', ')}.`);
@@ -194,10 +215,12 @@ async function main() {
   // STAFF_ROLE must actually change the role, and a revoked row must come
   // back to active — otherwise a revoked operator silently stays revoked
   // and the console answers 403 with no explanation.
+  // Converge the roster row: role, revocation and the console username.
   const [row] = await db
     .insert(staffUsers)
     .values({
       email: staffEmail.toLowerCase(),
+      username: staffUsername,
       name: process.env.STAFF_NAME ?? 'Staff',
       role: staffRole,
     })
@@ -206,13 +229,42 @@ async function main() {
       set: {
         role: staffRole,
         revokedAt: null,
+        username: staffUsername,
         name: process.env.STAFF_NAME ?? 'Staff',
       },
     })
     .returning({ id: staffUsers.id, role: staffUsers.role });
 
-  console.log(`  staff row ${row?.id}  role=${row?.role}`);
-  console.log('  done — sign in at /sign-in; /admin and /admin/d17 need the staff role.');
+  if (!row) {
+    console.error('FATAL: staff row upsert returned no row.');
+    process.exit(1);
+  }
+
+  // ── The console credential (0053) ─────────────────────────────────
+  //
+  // CONVERGED, not created once, for the same reason the password above is:
+  // a re-run is the supported way to reset a console login without SQL. The
+  // KDF is lib/auth/password.ts — the same one the login verifies against,
+  // because a second hashing scheme is a second bug.
+  const consoleHash = await hashPassword(staffPassword);
+  const now = new Date();
+  await db
+    .insert(staffCredentials)
+    .values({
+      staffUserId: row.id,
+      password: consoleHash,
+      passwordChangedAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: staffCredentials.staffUserId,
+      set: { password: consoleHash, passwordChangedAt: now, updatedAt: now },
+    });
+
+  console.log(`  staff row ${row.id}  role=${row.role}  username=${staffUsername}`);
+  console.log(
+    '  done — portal sign-in at /sign-in (email); console sign-in at /admin/login (username).',
+  );
 }
 
 main().then(

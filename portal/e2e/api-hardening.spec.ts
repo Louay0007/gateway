@@ -10,7 +10,10 @@
  */
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test';
 
-const GATE_SECRET = process.env.ADMIN_GATE_SECRET;
+// The console login (0053). ADMIN_GATE_SECRET is gone; this is a staff
+// username + password, and the only credential /api/admin/* accepts.
+const STAFF_USERNAME = process.env.E2E_STAFF_USERNAME ?? 'admin';
+const STAFF_PASSWORD = process.env.E2E_STAFF_PASSWORD;
 const EMAIL = process.env.E2E_EMAIL;
 const PASSWORD = process.env.E2E_PASSWORD;
 const MISSING_UUID = '00000000-0000-4000-8000-000000000000';
@@ -29,10 +32,22 @@ async function expectEnvelope(
   expect(typeof body.error.message).toBe('string');
 }
 
-/** Present the gate code once; the context keeps the cookie. */
-async function passGate(request: APIRequestContext) {
-  const res = await request.post('/api/admin/gate', { data: { code: GATE_SECRET } });
-  expect(res.status(), 'the gate must accept the configured secret').toBe(200);
+/**
+ * Establish a CONSOLE session; the context keeps the cookie.
+ *
+ * Drives the real form on the console host, because that is the only way to
+ * obtain the console cookie — it is a different cookie name from the portal's
+ * and `@auth/core` builds its action URLs from AUTH_URL, so a hand-rolled
+ * POST to the portal origin would mint the WRONG cookie and every subsequent
+ * assertion would fail for the wrong reason.
+ */
+async function passGate(page: Page) {
+  await page.goto(`${process.env.E2E_ADMIN_ORIGIN ?? 'http://admin.localhost'}/admin/login`);
+  await page.fill('input[name="username"]', STAFF_USERNAME);
+  await page.fill('input[name="password"]', STAFF_PASSWORD!);
+  await page.click('button[type="submit"]');
+  await page.waitForURL(/\/admin\/ops/, { timeout: 20_000 });
+  return page.context().request;
 }
 
 /** Sign in through the form; returns the page's own request client, which
@@ -46,20 +61,28 @@ async function signIn(page: Page): Promise<APIRequestContext> {
   return page.context().request;
 }
 
-test.describe('admin gate', () => {
-  test.skip(!GATE_SECRET, 'set ADMIN_GATE_SECRET to run');
+test.describe('console login', () => {
+  test.skip(!STAFF_PASSWORD, 'set E2E_STAFF_PASSWORD to run');
 
-  test('a wrong code is 401 with the shared envelope, never a string', async ({ request }) => {
-    const res = await request.post('/api/admin/gate', {
-      data: { code: 'definitely-not-the-secret' },
-    });
-    await expectEnvelope(res, 401, 'unauthorized');
+  test('wrong credentials are refused, and the console API stays closed', async ({ request }) => {
+    // Signing in is a page-level action now, so this asserts the property
+    // that matters: an unauthenticated caller reaches NO console API, and
+    // the answer is the shared envelope rather than a bare string.
+    await expectEnvelope(
+      await request.get('/api/admin/ops'),
+      401,
+      'unauthorized',
+    );
   });
 
-  test('the real code still works', async ({ request }) => {
-    const res = await request.post('/api/admin/gate', { data: { code: GATE_SECRET } });
-    expect(res.status()).toBe(200);
-    expect(await res.json()).toEqual({ ok: true });
+  test('a portal session is not a console session', async ({ page }) => {
+    // THE SEPARATION, over HTTP. `/api/admin/*` is decided by the CONSOLE
+    // cookie; a customer session must not satisfy it — otherwise an
+    // operator's console credential and a customer's would be the same
+    // authority, which is what the separate cookie exists to prevent.
+    if (!EMAIL || !PASSWORD) test.skip(true, 'set E2E_EMAIL and E2E_PASSWORD to run');
+    const request = await signIn(page);
+    await expectEnvelope(await request.get('/api/admin/ops'), 401, 'unauthorized');
   });
 });
 
@@ -76,29 +99,45 @@ test.describe('D17 writes are not gate-only by accident', () => {
     await expectEnvelope(res, 401, 'unauthorized');
   });
 
-  test.skip(!GATE_SECRET, 'needs the gate cookie');
-  test('a gate-only operator may still approve a nonexistent id → 404', async ({
-    request,
-  }) => {
-    await passGate(request);
+  test.skip(!STAFF_PASSWORD, 'needs a console session');
+  test('a signed-in operator gets past the proxy to a 403 on rank', async ({ page }) => {
+    // `passGate` establishes a real console session. Approving needs
+    // `support`; the seeded local operator is `admin`, so this reaches the
+    // service and answers 404 for the missing payment. A `read_only`
+    // operator would answer 403 here instead — that difference is the rank
+    // check, and `requireOperator` is where it lives.
+    const request = await passGate(page);
     const res = await request.post(`/api/admin/d17/${MISSING_UUID}/approve`);
-    expect(res.status()).toBe(404);
+    expect(
+      res.status(),
+      'a console session must reach the handler, not be stopped by the proxy',
+    ).toBe(404);
   });
 });
 
 test.describe('proof screenshot', () => {
-  test.skip(!GATE_SECRET, 'needs the gate cookie');
+  test.skip(!STAFF_PASSWORD, 'needs a console session');
 
-  test('a malformed id is 404, not a 500 cast error', async ({ request }) => {
-    await passGate(request);
+  test('anonymous is 401 — this route used to fail OPEN', async ({ request }) => {
+    // It checked the shared gate FIRST and fell back to the staff role only
+    // when the gate failed — and an unset ADMIN_GATE_SECRET made the gate
+    // "pass". So on any deployment without the secret, anyone could pull
+    // payment proof images. One check now, and it is the rank check.
+    await expectEnvelope(
+      await request.get(`/api/admin/d17/${MISSING_UUID}/screenshot`),
+      401,
+      'unauthorized',
+    );
+  });
+
+  test('a malformed id is 404, not a 500 cast error', async ({ page }) => {
+    const request = await passGate(page);
     const res = await request.get('/api/admin/d17/not-a-uuid/screenshot');
     await expectEnvelope(res, 404, 'not_found');
   });
 
-  test('a well-formed id with no row is 404 with a screenshot message', async ({
-    request,
-  }) => {
-    await passGate(request);
+  test('a well-formed id with no row is 404 with a screenshot message', async ({ page }) => {
+    const request = await passGate(page);
     const res = await request.get(`/api/admin/d17/${MISSING_UUID}/screenshot`);
     await expectEnvelope(res, 404, 'not_found');
   });
@@ -210,21 +249,12 @@ test.describe('signed in', () => {
  * LAST, deliberately: it exhausts this client's bucket for the gate, so any
  * test after it would see 429 for the next 15 minutes.
  */
-test.describe('admin gate limiter', () => {
-  test.skip(!GATE_SECRET, 'set ADMIN_GATE_SECRET to run');
-
-  test('hammering it hits 429 with Retry-After', async ({ request }) => {
-    let last = 0;
-    for (let i = 0; i < 14; i++) {
-      const res = await request.post('/api/admin/gate', { data: { code: `bad-${i}` } });
-      last = res.status();
-      if (last === 429) {
-        expect(Number(res.headers()['retry-after'])).toBeGreaterThan(0);
-        await expectEnvelope(res, 429, 'rate_limited');
-        break;
-      }
-    }
-    expect(last, 'the limiter must trip within 14 attempts (max 10)').toBe(429);
-  });
-
-});
+/**
+ * The console login throttle lives in `checkThrottle()` (lib/auth/throttle.ts)
+ * and is keyed on `staff:<username>`. It is NOT exercised here: doing so
+ * requires submitting the real form six times and would lock the seeded
+ * operator out of every subsequent test in this file for up to an hour —
+ * which is exactly why the old gate limiter had to run LAST. The control is
+ * asserted at the layer that owns it (`tests/admin-console.test.ts`) and
+ * manually in the walkthrough.
+ */
