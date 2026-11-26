@@ -208,7 +208,7 @@ const Navbar = ({
             className="hidden h-6 my-auto lg:block transition-colors duration-300"
           />
           <div className="hidden items-center gap-1 lg:flex">
-            // One list for both the desktop row and the mobile sheet.
+            {/* One list for both the desktop row and the mobile sheet. */}
             {navLinks.map((link) => (
               <a
                 key={link.title}
@@ -287,9 +287,9 @@ const Navbar = ({
                 <X size={16} className="shrink-0" />
               </SheetClose>
             </SheetHeader>
+            {/* Same list as the desktop row. */}
             <div className="flex flex-col gap-1.5">
-              // One list for both the desktop row and the mobile sheet.
-            {navLinks.map((link) => (
+              {navLinks.map((link) => (
                 <SheetClose
                   key={link.title}
                   nativeButton={false}
