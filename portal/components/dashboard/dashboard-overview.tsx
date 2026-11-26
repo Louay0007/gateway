@@ -1,26 +1,15 @@
 "use client";
 
-import * as React from "react";
 import Link from "next/link";
 import {
   BarChart3,
-  CalendarClock,
-  Coins,
-  Flame,
-  Gauge,
   KeyRound,
   RefreshCw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { StatCard } from "@/components/dashboard/stat-card";
+import { PageHeader } from "@/components/ui/page-header";
+import { MetricRail } from "@/components/dashboard/metric-rail";
 import { StatusStrip } from "@/components/dashboard/status-strip";
 import { QuotaPoolMeter } from "@/components/dashboard/quota-meter";
 import {
@@ -41,7 +30,7 @@ import type {
   UsageSeriesResponse,
 } from "@/lib/api/types";
 import { compact, rangeLabel, relativeTime, usd } from "@/lib/dashboard/format";
-import { daysRemainingAtRate } from "@/lib/dashboard/quota-tone";
+import { daysRemainingAtRate, quotaTone } from "@/lib/dashboard/quota-tone";
 
 /**
  * /dashboard — the overview, live.
@@ -61,6 +50,21 @@ import { daysRemainingAtRate } from "@/lib/dashboard/quota-tone";
  * dense series. It used to bucket the first page of ledger rows client-side
  * and label that page's extent a "date range", which could never show more
  * than a page of days and hid quiet days entirely.
+ *
+ * READING ORDER, top to bottom, is the order a customer asks the questions:
+ *
+ *   1. "am I about to run out?"   → StatusStrip (one sentence, one action)
+ *   2. "what do I do next?"       → GettingStarted (until it is all done)
+ *   3. "what are the numbers?"    → MetricRail (one surface, four figures)
+ *   4. "where did it go?"         → Traffic chart
+ *   5. "what is wired up?"        → keys + recent activity, side by side
+ *
+ * The five stat cards that used to sit at step 3 are gone. Five bordered
+ * boxes with an icon each is the hero-metric template: it spent ~120px and
+ * five borders to say four numbers, and orphaned the fifth card on a second
+ * row at every desktop width. The rail says the same four numbers on one
+ * surface, and the budget bar — which used to be its own card repeating the
+ * same two figures — is now the rail's footer.
  */
 export function DashboardOverview() {
   // One bundle for the whole shell (header + page). `refresh()` re-reads it.
@@ -89,9 +93,8 @@ export function DashboardOverview() {
   const poolUsed = b?.poolUsedTokens ?? 0;
   const hasBudget = typeof poolTokens === "number" && poolTokens > 0;
   const remainingTokens = hasBudget ? Math.max(0, poolTokens - poolUsed) : null;
-  const periodEnd = b?.period.end ?? null;
-  // 0038: quotas are monthly, so b.period.end is the end of the billing
-  // period the budgets are measured over — not the end of a Tunis day.
+  const periodEnd = b?.subscription?.currentPeriodEnd ?? b?.period.end ?? null;
+  const periodStart = b?.period.start ?? b?.subscription?.currentPeriodStart ?? null;
   const periodEndLabel = periodEnd
     ? new Date(periodEnd).toLocaleDateString("en-US", {
         month: "long",
@@ -101,11 +104,8 @@ export function DashboardOverview() {
     : "—";
 
   // Days at the current average burn, derived from the bundle alone.
-  const daysLeft = daysRemainingAtRate(
-    poolTokens,
-    poolUsed,
-    b?.period.start ?? b?.subscription?.currentPeriodStart ?? null,
-  );
+  const daysLeft = daysRemainingAtRate(poolTokens, poolUsed, periodStart);
+  const tone = quotaTone(poolUsed, poolTokens);
 
   if (shellLoading || keysApi.loading) return <PanelSkeleton rows={4} />;
   if (keysApi.error) return <ErrorState error={keysApi.error} onRetry={keysApi.reload} />;
@@ -141,42 +141,40 @@ export function DashboardOverview() {
         />
       ) : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">Overview</h2>
-          <p className="text-sm text-muted-foreground">
-            Here is what your gateway has been doing this period.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={refresh}
-            aria-label="Refresh dashboard"
-            disabled={shellRefreshing}
-          >
-            <RefreshCw className={shellRefreshing ? "animate-spin" : undefined} />
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/usage" />}
-          >
-            <BarChart3 />
-            View usage
-          </Button>
-          <Button
-            size="sm"
-            nativeButton={false}
-            render={<Link href="/dashboard/keys" />}
-          >
-            <KeyRound />
-            Manage keys
-          </Button>
-        </div>
-      </div>
+      <PageHeader
+        size="console"
+        lede="What your gateway has done this period."
+        actions={
+          <>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={refresh}
+              aria-label="Refresh dashboard"
+              disabled={shellRefreshing}
+            >
+              <RefreshCw className={shellRefreshing ? "animate-spin" : undefined} />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/usage" />}
+            >
+              <BarChart3 />
+              View usage
+            </Button>
+            <Button
+              size="sm"
+              nativeButton={false}
+              render={<Link href="/dashboard/keys" />}
+            >
+              <KeyRound />
+              Manage keys
+            </Button>
+          </>
+        }
+      />
 
       {noPlan ? (
         <PaywallState
@@ -192,83 +190,61 @@ export function DashboardOverview() {
         />
       ) : null}
 
-      {/* FIVE cards, not four: a 4-column grid leaves the fifth alone on a
-          second row at desktop width. Three columns fills both rows (3 + 2)
-          and keeps the eye moving left-to-right. */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <StatCard
-          label="Tokens used"
-          value={compact(poolUsed)}
-          hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
-          icon={BarChart3}
-        />
-        <StatCard
-          label="Tokens remaining"
-          value={
-            remainingTokens === null ? "Unlimited" : compact(remainingTokens)
-          }
-          hint={
-            hasBudget
-              ? `of ${compact(poolTokens)} this period — resets ${periodEndLabel}`
-              : "No token budget on this plan"
-          }
-          icon={Gauge}
-        />
-        {/* WHEN, not just how much: the question the pool card raises. */}
-        <StatCard
-          label="Burn rate"
-          value={
-            daysLeft === null
-              ? "—"
-              : daysLeft <= 0
-                ? "Out now"
-                : `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`
-          }
-          hint={
-            hasBudget && poolUsed > 0
-              ? "at the current average rate"
-              : "no usage this period yet"
-          }
-          icon={Flame}
-        />
-        {/* The promise the FAQ makes: what this period cost. One card, not
-            a fourth headline — tokens remain the quota. */}
-        <StatCard
-          label="Cost this period"
-          value={usd(b.usage.costCustomerUsd)}
-          hint={`${(b.usage.requests ?? 0).toLocaleString()} requests`}
-          icon={Coins}
-        />
-        <StatCard
-          label={b.subscription?.cancelAtPeriodEnd ? "Access until" : "Resets"}
-          value={periodEndLabel}
-          hint={plan ? `${plan.name} · monthly` : "No plan"}
-          icon={CalendarClock}
-        />
-      </div>
-
-      {plan ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Token budget</CardTitle>
-            <CardDescription>
-              One shared allowance across the models your plan unlocks.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <QuotaPoolMeter
-              poolTokens={b.poolTokens}
-              poolUsedTokens={b.poolUsedTokens}
-              entitled={plan.models ?? []}
-              // 0043: the daily cap is enforced but was rendered only on
-              // Billing, so a customer at the cap learned about it from a
-              // 403. It belongs on the page they open.
-              dailyCap={b.dailyTokenCap ?? null}
-              dailyUsed={b.dailyUsedTokens ?? 0}
-            />
-          </CardContent>
-        </Card>
-      ) : null}
+      <MetricRail
+        items={[
+          {
+            label: "Tokens used",
+            value: compact(poolUsed),
+            hint: `${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`,
+            tone: tone === "blocked" ? "destructive" : "default",
+          },
+          {
+            label: "Remaining",
+            value: remainingTokens === null ? "Unlimited" : compact(remainingTokens),
+            hint: hasBudget ? `of ${compact(poolTokens)} this period` : "No token budget",
+            tone: tone === "warning" ? "warning" : "default",
+          },
+          {
+            label: "Burn rate",
+            value:
+              daysLeft === null
+                ? "—"
+                : daysLeft <= 0
+                  ? "Out now"
+                  : `${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+            hint:
+              hasBudget && poolUsed > 0
+                ? "left at the current average"
+                : "no usage this period yet",
+            tone: daysLeft !== null && daysLeft <= 3 ? "warning" : "default",
+          },
+          {
+            label: "Cost this period",
+            value: usd(b.usage.costCustomerUsd),
+            hint: `${(b.usage.requests ?? 0).toLocaleString()} requests`,
+          },
+        ]}
+        footer={
+          plan ? (
+            <div className="grid gap-3">
+              <QuotaPoolMeter
+                poolTokens={b.poolTokens}
+                poolUsedTokens={b.poolUsedTokens}
+                entitled={plan.models ?? []}
+                // 0043: the daily cap is enforced but was rendered only on
+                // Billing, so a customer at the cap learned about it from a
+                // 403. It belongs on the page they open.
+                dailyCap={b.dailyTokenCap ?? null}
+                dailyUsed={b.dailyUsedTokens ?? 0}
+              />
+              <p className="text-xs text-muted-foreground">
+                {b.subscription?.cancelAtPeriodEnd ? "Access until" : "Resets"}{" "}
+                {periodEndLabel} · {plan.name}
+              </p>
+            </div>
+          ) : null
+        }
+      />
 
       <UsageAreaChart
         points={series.data?.points ?? []}
@@ -290,13 +266,7 @@ export function DashboardOverview() {
         {b.entitlement?.syncedAt
           ? `Entitlements last synced ${relativeTime(b.entitlement.syncedAt)}`
           : "Entitlements have not synced yet"}
-        {b.period.end
-          ? ` · Monthly token budgets reset ${new Date(b.period.end).toLocaleDateString(
-              "en-US",
-              { month: "long", day: "numeric", timeZone: "UTC" },
-            )}`
-          : ""}
-        .
+        {periodEnd ? ` · Monthly token budgets reset ${periodEndLabel}` : ""}.
       </p>
     </>
   );

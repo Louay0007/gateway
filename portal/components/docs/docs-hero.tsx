@@ -28,16 +28,36 @@ import { PUBLIC_BASE_URL } from "@/components/docs/docs-data";
 export function DocsHero({ dashboard = false }: { dashboard?: boolean }) {
   return (
     <header className={cn("border-b border-border", dashboard ? "bg-background" : "bg-card")}>
-      <div className={cn(DOCS_WRAP, "py-16 sm:py-20 lg:py-24")}>
+      {/* CONSOLE SCALE. In the signed-in shell this hero sits under a sticky
+          header that already names the page, so a 68px marketing masthead
+          there is a second title at four times the size of every other
+          console heading. `dashboard` keeps the same structure — claim,
+          promise, three steps — at the scale the rest of the console uses. */}
+      <div className={cn(DOCS_WRAP, dashboard ? "py-8" : "py-16 sm:py-20 lg:py-24")}>
         {/* The claim and its promise, side by side on wide screens so the h1 is
             not fighting a narrow column on a 2560px monitor. `items-start`
             keeps the step list aligned with the first heading line. */}
         <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between xl:gap-16">
           <div className="min-w-0">
-            <h1 className="max-w-[22ch] text-balance text-[2.5rem] font-semibold leading-[0.98] tracking-[-0.035em] text-foreground sm:text-6xl lg:text-[4.25rem]">
+            <h1
+              className={cn(
+                "text-balance font-semibold text-foreground",
+                dashboard
+                  ? "max-w-[30ch] text-2xl leading-tight tracking-tight"
+                  : "max-w-[22ch] text-[2.5rem] leading-[0.98] tracking-[-0.035em] sm:text-6xl lg:text-[4.25rem]",
+              )}
+            >
               One API for every model.
             </h1>
-            <p className={cn(DOCS_PROSE, "mt-6 text-base leading-relaxed text-muted-foreground sm:text-lg")}>
+            <p
+              className={cn(
+                DOCS_PROSE,
+                "text-muted-foreground",
+                dashboard
+                  ? "mt-2 text-sm leading-normal"
+                  : "mt-6 text-base leading-relaxed sm:text-lg",
+              )}
+            >
               {dashboard ? (
                 <>
                   Your key, your plan&apos;s tiers, and the exact configs for

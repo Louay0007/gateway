@@ -28,6 +28,8 @@ interface PlanCardProps {
   isRecommended?: boolean;
   isCurrent?: boolean;
   ctaLabel: string;
+  /** Label for the recommended badge, resolved by the caller's i18n. */
+  recommendedLabel?: string;
   onChoose: () => void;
   disabled?: boolean;
 }
@@ -43,6 +45,7 @@ export function PlanCard({
   isRecommended = false,
   isCurrent = false,
   ctaLabel,
+  recommendedLabel = 'Recommended',
   onChoose,
   disabled = false,
 }: PlanCardProps) {
@@ -56,7 +59,7 @@ export function PlanCard({
     <div className={`grid h-full ${isRecommended ? 'grid-rows-[auto_1fr]' : 'grid-rows-[1fr]'}`}>
       {isRecommended && (
         <div className="relative z-10 flex justify-center">
-          <Badge className="translate-y-2 bg-success text-white hover:bg-success/90 dark:bg-success dark:hover:bg-success">{ctaLabel === 'Choisir ce plan' || ctaLabel === 'اختر هذه الخطة' ? 'Recommandé' : 'Recommended'}</Badge>
+          <Badge className="translate-y-2 bg-success text-white hover:bg-success/90">{recommendedLabel}</Badge>
         </div>
       )}
       <Card

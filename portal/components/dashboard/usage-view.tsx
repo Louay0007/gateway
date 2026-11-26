@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Activity, Boxes, Database, Download, RefreshCw, X } from "lucide-react";
+import { Download, RefreshCw, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Select,
   SelectContent,
@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
-import { StatCard } from "@/components/dashboard/stat-card";
+import { MetricRail } from "@/components/dashboard/metric-rail";
 import { QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
 import { UsageAreaChart } from "@/components/dashboard/usage-area-chart";
 import { RequestSpark } from "@/components/dashboard/request-spark";
@@ -218,27 +218,116 @@ export function UsageView() {
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <StatCard
-          label="Tokens"
-          value={compact(totals?.blendedTokens ?? 0)}
-          hint={`${compact(totals?.inputTokens ?? 0)} in · ${compact(totals?.outputTokens ?? 0)} out`}
-          icon={Boxes}
-        />
-        <StatCard
-          label="Requests"
-          value={(totals?.requests ?? 0).toLocaleString()}
-          hint={filtered ? "Matching these filters (incl. failures)" : "All gateway calls, incl. failures"}
-          icon={Activity}
-          footer={<RequestSpark points={lastDay.data?.points ?? []} />}
-        />
-        <StatCard
-          label="Cached tokens"
-          value={compact(totals?.cacheReadTokens ?? 0)}
-          hint="Tokens served from cache (cheaper)"
-          icon={Database}
-        />
-      </div>
+      <PageHeader
+        size="console"
+        lede="Every metered request against your account, aggregated from the ledger."
+        actions={
+          <>
+            <Select
+              value={range}
+              onValueChange={(v) => setParam("range", v ?? "30")}
+            >
+              <SelectTrigger size="sm" className="w-32" aria-label="Date range">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="7">Last 7 days</SelectItem>
+                <SelectItem value="30">Last 30 days</SelectItem>
+                <SelectItem value="90">Last 90 days</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={model}
+              onValueChange={(v) => setParam("model", v ?? "all")}
+            >
+              <SelectTrigger size="sm" className="w-28" aria-label="Model">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All models</SelectItem>
+                {(bundle.data?.plan?.models ?? []).map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {(keysApi.data?.keys.length ?? 0) > 0 ? (
+              <Select
+                value={keyId}
+                onValueChange={(v) => setParam("key", v ?? "all")}
+              >
+                <SelectTrigger size="sm" className="w-40" aria-label="API key">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All keys</SelectItem>
+                  {(keysApi.data?.keys ?? []).map((k) => (
+                    <SelectItem key={k.id} value={k.id}>
+                      {k.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
+
+            {filtered ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => router.replace(pathname, { scroll: false })}
+              >
+                <X />
+                Clear
+              </Button>
+            ) : null}
+
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={usage.reload}
+              aria-label="Refresh usage"
+              disabled={usage.refreshing}
+            >
+              <RefreshCw className={usage.refreshing ? "animate-spin" : undefined} />
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              nativeButton={false}
+              render={<a href={exportHref} download />}
+              title="Download these rows as CSV"
+            >
+              <Download />
+              CSV
+            </Button>
+          </>
+        }
+      />
+
+      <MetricRail
+        items={[
+          {
+            label: "Tokens",
+            value: compact(totals?.blendedTokens ?? 0),
+            hint: `${compact(totals?.inputTokens ?? 0)} in · ${compact(totals?.outputTokens ?? 0)} out`,
+          },
+          {
+            label: "Requests",
+            value: (totals?.requests ?? 0).toLocaleString(),
+            hint: filtered ? "matching these filters" : "all calls, incl. failures",
+            visual: <RequestSpark points={lastDay.data?.points ?? []} />,
+          },
+          {
+            label: "Cached tokens",
+            value: compact(totals?.cacheReadTokens ?? 0),
+            hint: "served from cache (cheaper)",
+          },
+        ]}
+      />
 
       <UsageAreaChart
         points={series.data?.points ?? []}
@@ -253,99 +342,10 @@ export function UsageView() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Gateway calls</CardTitle>
-              <CardDescription>
-                Every metered call, newest first — tokens are the only quota
-              </CardDescription>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Select
-                value={range}
-                onValueChange={(v) => setParam("range", v ?? "30")}
-              >
-                <SelectTrigger size="sm" className="w-32" aria-label="Date range">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="7">Last 7 days</SelectItem>
-                  <SelectItem value="30">Last 30 days</SelectItem>
-                  <SelectItem value="90">Last 90 days</SelectItem>
-                </SelectContent>
-              </Select>
-
-              <Select
-                value={model}
-                onValueChange={(v) => setParam("model", v ?? "all")}
-              >
-                <SelectTrigger size="sm" className="w-28" aria-label="Model">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All models</SelectItem>
-                  {(bundle.data?.plan?.models ?? []).map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {(keysApi.data?.keys.length ?? 0) > 0 ? (
-                <Select
-                  value={keyId}
-                  onValueChange={(v) => setParam("key", v ?? "all")}
-                >
-                  <SelectTrigger size="sm" className="w-40" aria-label="API key">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All keys</SelectItem>
-                    {(keysApi.data?.keys ?? []).map((k) => (
-                      <SelectItem key={k.id} value={k.id}>
-                        {k.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              ) : null}
-
-              {filtered ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    router.replace(pathname, { scroll: false })
-                  }
-                >
-                  <X />
-                  Clear
-                </Button>
-              ) : null}
-
-              <Button
-                variant="outline"
-                size="icon-sm"
-                onClick={usage.reload}
-                aria-label="Refresh usage"
-                disabled={usage.refreshing}
-              >
-                <RefreshCw className={usage.refreshing ? "animate-spin" : undefined} />
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                nativeButton={false}
-                render={<a href={exportHref} download />}
-                title="Download these rows as CSV"
-              >
-                <Download />
-                CSV
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Gateway calls</CardTitle>
+          <CardDescription>
+            Every metered call, newest first — tokens are the only quota
+          </CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           <Tabs defaultValue="table">

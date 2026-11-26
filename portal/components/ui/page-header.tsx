@@ -28,10 +28,16 @@ export function PageHeader({
   meta,
   className,
   as: Heading = "h1",
+  size = "display",
 }: {
   /** Small label above the title: "Pricing", "Connect", "Models". */
   eyebrow?: string;
-  title: ReactNode;
+  /**
+   * Omit inside the signed-in shell. The sticky header already renders the
+   * page's `h1` from `titleForPath`, so a title here is the same word twice
+   * on one screen, 64px apart. Console pages pass `lede` + `actions` only.
+   */
+  title?: ReactNode;
   /** One or two sentences. Kept to a readable measure. */
   lede?: ReactNode;
   /** Buttons on the right at ≥sm, below the title on mobile. */
@@ -41,11 +47,21 @@ export function PageHeader({
   className?: string;
   /** `h2` inside an already-titled shell. */
   as?: "h1" | "h2";
+  /**
+   * `display` is the marketing scale (3xl/4xl). `console` is the signed-in
+   * scale (xl) — a product page sits under a sticky header that already
+   * carries the page title, so a 4xl heading there is a second masthead on
+   * the same screen. Same component, same spacing logic, two sizes.
+   */
+  size?: "display" | "console";
 }) {
+  const console = size === "console";
+
   return (
     <header
       className={cn(
-        "flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between",
+        "flex flex-col sm:flex-row sm:justify-between",
+        console ? "gap-3 sm:items-end" : "gap-4 sm:items-start",
         className,
       )}
     >
@@ -53,21 +69,31 @@ export function PageHeader({
         {eyebrow ? (
           <p className="text-sm font-medium text-muted-foreground">{eyebrow}</p>
         ) : null}
-        <Heading
-          className={cn(
-            "text-balance font-semibold tracking-tight text-foreground",
-            eyeBrowSpacing(eyebrow),
-            "text-3xl sm:text-4xl",
-          )}
-        >
-          {title}
-        </Heading>
+        {title ? (
+          <Heading
+            className={cn(
+              "text-balance font-semibold tracking-tight text-foreground",
+              eyeBrowSpacing(eyebrow),
+              console ? "text-xl" : "text-3xl sm:text-4xl",
+            )}
+          >
+            {title}
+          </Heading>
+        ) : null}
         {lede ? (
-          <p className="mt-3 max-w-2xl text-base leading-relaxed text-muted-foreground">
+          <p
+            className={cn(
+              "max-w-2xl text-muted-foreground",
+              console ? "text-sm leading-normal" : "mt-3 text-base leading-relaxed",
+              // Without a title above it, the lede is the first line and
+              // needs no top margin; with one, it needs the gap.
+              console && !title ? "" : console ? "mt-1" : "",
+            )}
+          >
             {lede}
           </p>
         ) : null}
-        {meta ? <div className="mt-5">{meta}</div> : null}
+        {meta ? <div className={console ? "mt-3" : "mt-5"}>{meta}</div> : null}
       </div>
       {actions ? (
         <div className="flex shrink-0 flex-wrap gap-2">{actions}</div>

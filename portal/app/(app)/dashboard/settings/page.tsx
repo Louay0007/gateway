@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { SettingsPanel, resolveSettingsTab } from "@/components/settings/settings-panel";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata: Metadata = { title: "Account Settings" };
 export const dynamic = "force-dynamic";
@@ -44,13 +45,10 @@ export default async function DashboardSettingsPage({
       {/* `h2`: the shell's sticky header already owns the page's `h1`
           (site-header.tsx), so a second `h1` here would be a duplicate
           heading, not a bigger one. */}
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Settings</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Your account: profile, how the model remembers you, and closing
-          the account. Plan, usage, keys and billing each have their own page.
-        </p>
-      </div>
+      <PageHeader
+        size="console"
+        lede="Your account: profile, how the model remembers you, and closing the account. Plan, usage, keys and billing each have their own page."
+      />
       <SettingsPanel tab={tab} shell="console" />
     </div>
   );

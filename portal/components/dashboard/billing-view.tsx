@@ -19,6 +19,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import {
   Card,
   CardContent,
@@ -40,7 +41,7 @@ import { PaywallState } from "@/components/dashboard/paywall-state";
 import { PaymentMethodDialog } from "@/components/dashboard/payment-method-dialog";
 import type { PlanSummary } from "@/lib/billing/state";
 import { QuotaPoolMeter, QuotaExhaustedBanner } from "@/components/dashboard/quota-meter";
-import { StatCard } from "@/components/dashboard/stat-card";
+import { MetricRail } from "@/components/dashboard/metric-rail";
 import { apiSend, useApi } from "@/lib/api/use-api";
 import type {
   PlanListResponse,
@@ -273,6 +274,30 @@ export function BillingView() {
     <>
       <RefreshingBar show={bundle.refreshing} />
 
+      <PageHeader
+        size="console"
+        lede="Your plan, this period's spend, and the way you pay."
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={refresh}
+              aria-label="Refresh billing"
+              disabled={bundle.refreshing}
+            >
+              <RefreshCw className={bundle.refreshing ? "animate-spin" : undefined} />
+            </Button>
+            {plan ? (
+              <Button variant="outline" size="sm" onClick={() => setChangeOpen(true)}>
+                <ArrowLeftRight />
+                Change plan
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+
       {promo ? (
         <Card className="border-warning/40 bg-warning/5">
           <CardContent className="flex flex-wrap items-center gap-3 py-4">
@@ -372,24 +397,23 @@ export function BillingView() {
       {plan ? (
         <>
           {/* Token KPIs — the only quota */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <StatCard
-              label="Tokens used"
-              value={compact(poolUsed)}
-              hint={`${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`}
-              icon={ArrowLeftRight}
-            />
-            <StatCard
-              label="Tokens remaining"
-              value={remainingTokens === null ? "Unlimited" : compact(remainingTokens)}
-              hint={
-                remainingTokens === null
-                  ? "No token budget on this plan"
-                  : `of ${compact(poolTokens ?? 0)} this period — resets ${periodEndLabel}`
-              }
-              icon={Landmark}
-            />
-          </div>
+          <MetricRail
+            items={[
+              {
+                label: "Tokens used",
+                value: compact(poolUsed),
+                hint: `${compact(b.usage.inputTokens)} in · ${compact(b.usage.outputTokens)} out`,
+              },
+              {
+                label: "Tokens remaining",
+                value: remainingTokens === null ? "Unlimited" : compact(remainingTokens),
+                hint:
+                  remainingTokens === null
+                    ? "No token budget on this plan"
+                    : `of ${compact(poolTokens ?? 0)} · resets ${periodEndLabel}`,
+              },
+            ]}
+          />
 
           {/* D17 Payment Method Hero Card */}
           <Card className="overflow-hidden border-success/30 bg-gradient-to-br from-success/10 via-white to-muted dark:via-background dark:to-background">
@@ -479,33 +503,13 @@ export function BillingView() {
                 </div>
               </div>
 
-              {/* How it works strip — both rails, since the chooser may
-                  land a customer on either. */}
-              <div className="border-t border-success/30 bg-success/10 px-6 py-4">
-                <div className="grid gap-4 text-sm sm:grid-cols-3">
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">1</span>
-                    <div>
-                      <p className="font-medium text-foreground">Choose how to pay</p>
-                      <p className="text-xs text-muted-foreground">Card worldwide, or D17 in Tunisia</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">2</span>
-                    <div>
-                      <p className="font-medium text-foreground">Pay</p>
-                      <p className="text-xs text-muted-foreground">Card is instant; D17 by transfer via La Poste or the app</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-success text-xs font-bold text-white">3</span>
-                    <div>
-                      <p className="font-medium text-foreground">Your plan activates</p>
-                      <p className="text-xs text-muted-foreground">Cards immediately; D17 after staff confirmation, usually within hours</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              {/* The three-step strip that used to sit here is gone. It
+                  restated what the two rail tiles above already say
+                  ("Card worldwide, or D17 in Tunisia") in three numbered
+                  circles, and it pushed the actual action — the renew
+                  button — above a fold of explanation. The rail chooser
+                  dialog spells out the same steps at the moment they
+                  matter, which is the only place they are needed. */}
             </CardContent>
           </Card>
 
@@ -591,14 +595,6 @@ export function BillingView() {
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setChangeOpen(true)}
-                  >
-                    <ArrowLeftRight />
-                    Change plan
-                  </Button>
                   {b.subscription?.cancelAtPeriodEnd ? (
                     <Button
                       variant="outline"

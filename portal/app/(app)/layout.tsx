@@ -90,7 +90,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
               {!verified ? (
                 <div
                   role="status"
-                  className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 bg-warning/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="flex items-start gap-3">
                     <MailWarning className="mt-0.5 size-5 shrink-0 text-warning" aria-hidden />

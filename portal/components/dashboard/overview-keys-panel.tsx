@@ -98,7 +98,8 @@ export function OverviewKeysPanel({
         )}
 
         <p className="text-xs text-muted-foreground">
-          Each key draws from your plan&apos;s token budget for its model tier.
+          Every key draws from the same shared pool — chat, API and Claude
+          Desktop alike.
         </p>
       </CardContent>
     </Card>

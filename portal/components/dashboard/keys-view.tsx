@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PageHeader } from "@/components/ui/page-header";
 import { Progress } from "@/components/ui/progress";
 import {
   Table,
@@ -176,49 +177,63 @@ export function KeysView() {
     <>
       <RefreshingBar show={refreshing} />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card className="gap-3 py-4 sm:col-span-1">
-          <CardHeader className="gap-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Key slots
-            </CardTitle>
-            <p className="text-2xl font-semibold tabular-nums">
-              {activeCount} / {maxKeys ?? "—"}
-            </p>
-          </CardHeader>
-          <CardContent>
-            <Progress
-              value={maxKeys ? Math.min(100, (activeCount / maxKeys) * 100) : 0}
-              aria-label="Key slots used"
-              className="[&_[data-slot=progress-track]]:h-1.5"
-            />
-            <p className="mt-2 text-xs text-muted-foreground">
-              {plan
-                ? `${plan.name} allows ${plan.maxKeys} active keys.`
-                : "Your plan's key limit is loading."}
-            </p>
-          </CardContent>
-        </Card>
+      <PageHeader
+        size="console"
+        lede="Credentials for the OpenAI- and Anthropic-compatible endpoints."
+        actions={
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={refreshAll}
+              aria-label="Refresh keys"
+              disabled={refreshing}
+            >
+              <RefreshCw className={refreshing ? "animate-spin" : undefined} />
+            </Button>
+            <Button
+              size="sm"
+              disabled={atCeiling || creating}
+              title={
+                atCeiling
+                  ? `Your plan allows ${maxKeys} keys — revoke one to free a slot.`
+                  : undefined
+              }
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus />
+              Create key
+            </Button>
+          </>
+        }
+      />
 
-        <Card className="gap-3 py-4 sm:col-span-2">
-          <CardHeader className="gap-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Before you create a key
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-2 text-sm text-muted-foreground">
-            <p>
-              Keys authenticate against{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">/v1/chat/completions</code> and{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">/v1/messages</code>. Both wire
-              formats are served by the same key.
-            </p>
-            <p>
-              The full key is displayed <span className="font-medium text-foreground">once</span>, at
-              creation. Store it in your secret manager — we keep only a hash.
-            </p>
-          </CardContent>
-        </Card>
+      {/* ONE line of orientation, not two cards. The old layout spent a
+          three-column grid on a "Key slots" card and a "Before you create a
+          key" card that between them said four sentences — above a table
+          that already shows the same count in its own header. The slot
+          meter stays because it is a limit the customer can hit; the prose
+          collapses to the two facts that change a decision. */}
+      <div className="grid gap-2 rounded-xl border border-border bg-card px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <p className="text-sm">
+            <span className="font-medium tabular-nums">
+              {activeCount} / {maxKeys ?? "—"}
+            </span>{" "}
+            <span className="text-muted-foreground">
+              key slots used{plan ? ` on ${plan.name}` : ""}
+            </span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            The full key is shown once, at creation — we keep only a hash.
+          </p>
+        </div>
+        <Progress
+          value={maxKeys ? Math.min(100, (activeCount / maxKeys) * 100) : 0}
+          aria-label="Key slots used"
+          size="sm"
+          className="w-full"
+        />
       </div>
 
       {plaintext ? (
@@ -260,38 +275,8 @@ export function KeysView() {
 
       <Card>
         <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <CardTitle>Keys</CardTitle>
-              <CardDescription>
-                Active credentials for this account
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                onClick={refreshAll}
-                aria-label="Refresh keys"
-                disabled={refreshing}
-              >
-                <RefreshCw className={refreshing ? "animate-spin" : undefined} />
-              </Button>
-              <Button
-                size="sm"
-                disabled={atCeiling || creating}
-                title={
-                  atCeiling
-                    ? `Your plan allows ${maxKeys} keys — revoke one to free a slot.`
-                    : undefined
-                }
-                onClick={() => setCreateOpen(true)}
-              >
-                <Plus />
-                Create key
-              </Button>
-            </div>
-          </div>
+          <CardTitle>Keys</CardTitle>
+          <CardDescription>Active credentials for this account</CardDescription>
         </CardHeader>
         <CardContent className="px-0">
           {keys.length === 0 ? (

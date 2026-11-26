@@ -193,7 +193,8 @@ export function PaywallState({
               originalPriceLabel={
                 plan.promo ? usdPrice(plan.promo.originalPriceCents) : undefined
               }
-              promoLabel={plan.promo ? `${plan.promo.percentOff}% off — Halloween` : undefined}
+              promoLabel={plan.promo ? `${plan.promo.percentOff}% off — ${plan.promo.label}` : undefined}
+              recommendedLabel={t('d17.plan_recommended')}
               features={features}
               isRecommended={isPro}
               ctaLabel={t('d17.plan_choose')}
