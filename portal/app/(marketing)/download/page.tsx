@@ -28,8 +28,8 @@ export const metadata: Metadata = {
  */
 
 /** Served by Caddy (`handle_path /downloads/*`) from data/downloads. */
-const EXTENSION_FILE = '/downloads/zaino-1.0.0.vsix';
-const EXTENSION_VERSION = '1.0.0';
+const EXTENSION_FILE = '/downloads/zaino-1.0.1.vsix';
+const EXTENSION_VERSION = '1.0.1';
 const VS_CODE_VERSION = '1.101 or newer';
 
 /** The same directory /api/downloads lists, so both agree on what shipped. */
@@ -49,7 +49,7 @@ const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR || '/app/data/downloads';
  */
 async function extensionSize(): Promise<string | null> {
   try {
-    const { size } = await stat(join(DOWNLOADS_DIR, 'zaino-1.0.0.vsix'));
+    const { size } = await stat(join(DOWNLOADS_DIR, 'zaino-1.0.1.vsix'));
     return `${(size / 1_000_000).toFixed(1)} MB`;
   } catch {
     return null;
@@ -78,7 +78,7 @@ const REQUIREMENTS = [
   { label: 'Account', value: 'Any active Zaino plan (or the 3-day trial)' },
 ] as const;
 
-const INSTALL_COMMAND = `code --install-extension ~/Downloads/zaino-1.0.0.vsix`;
+const INSTALL_COMMAND = `code --install-extension ~/Downloads/zaino-1.0.1.vsix`;
 
 const verifyCommand = `code --list-extensions | grep zaino`;
 

@@ -11,7 +11,7 @@
  * what is published: the release version plus one row per artifact.
  *
  * Files live in DOWNLOADS_DIR (default `/app/data/downloads`), laid out flat
- * (`zaino-1.0.0.vsix`) or per version (`<version>/zaino-1.0.0.vsix`). Files
+ * (`zaino-1.0.1.vsix`) or per version (`<version>/zaino-1.0.1.vsix`). Files
  * are classified by extension; anything unrecognised is skipped, never
  * listed — the classifier is the serving policy.
  */
@@ -23,7 +23,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const DOWNLOADS_DIR = process.env.DOWNLOADS_DIR || "/app/data/downloads";
-const CURRENT_VERSION = "1.0.0";
+const CURRENT_VERSION = "1.0.1";
 
 interface DownloadFile {
   name: string;

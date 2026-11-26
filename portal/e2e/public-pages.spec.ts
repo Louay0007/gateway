@@ -169,7 +169,7 @@ test.describe('public pages', () => {
     // Claude Desktop integration are gone from this page, so assert the
     // extension title and the actual download link instead.
     await expect(page.getByText(/official Zaino AI extension for VS Code/i).first()).toBeVisible();
-    await expect(page.locator('a[href="/downloads/zaino-1.0.0.vsix"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/downloads/zaino-1.0.1.vsix"]').first()).toBeVisible();
   });
 
   test('/api/downloads answers JSON, empty directory included', async ({ request }) => {
