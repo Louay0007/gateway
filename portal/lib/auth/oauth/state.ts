@@ -9,7 +9,7 @@
  * the provider, and the nonce.
  *
  * WHY SameSite=Lax AND NOT Strict. The callback is a cross-site
- * top-level GET (or POST) coming FROM Google/GitHub/Apple. With Strict the
+ * top-level GET coming FROM Google or GitHub. With Strict the
  * browser does not send our cookie on that request, every callback looks
  * like "no pending flow", and the user loops between the provider and
  * /sign-in. Lax is the minimum that works, and it is still enough: Lax
@@ -59,9 +59,8 @@ export function createPendingFlow(provider: ProviderId, returnTo: string): Pendi
   return {
     state: randomToken(),
     codeVerifier: randomToken(),
-    // Both Apple and Google echo a nonce inside the id_token, which binds
-    // the token to this specific request. Requested for both; unused by
-    // GitHub, which has no id_token to bind.
+    // Google echoes a nonce inside the id_token, which binds the token to
+    // this specific request. GitHub has no id_token to bind, so it gets none.
     nonce: provider === 'github' ? null : randomToken(),
     provider,
     returnTo,
@@ -117,7 +116,7 @@ export async function readPendingCookie(): Promise<PendingFlow | null> {
 
   const p = parsed as Record<string, unknown>;
   const provider = p.provider;
-  if (provider !== 'google' && provider !== 'github' && provider !== 'apple') return null;
+  if (provider !== 'google' && provider !== 'github') return null;
 
   const state = typeof p.state === 'string' ? p.state : null;
   const codeVerifier = typeof p.codeVerifier === 'string' ? p.codeVerifier : null;

@@ -11,15 +11,28 @@
  * Read per call, not at module load: tests override `env` explicitly, and a
  * module-load snapshot would make every test share the first reading.
  */
-import { createAppleAdapter, readAppleCredentials } from './apple';
 import { githubAdapter } from './github';
 import { googleAdapter } from './google';
 import type { OAuthAdapter, ProviderId } from './types';
 
 export * from './types';
+export {
+  decideLinking,
+  isPlaceholderEmail,
+  normaliseEmail,
+  planIdentitySync,
+  storedEmailFor,
+  type CreateUnverifiedReason,
+  type DecideInput,
+  type EmailLookup,
+  type LinkingDecision,
+  type ProviderClaims,
+  type RefuseReason,
+  type StoredIdentity,
+  type SyncPatch,
+} from './policy';
 export { googleAdapter } from './google';
 export { githubAdapter } from './github';
-export { createAppleAdapter, mintAppleClientSecret, readAppleCredentials } from './apple';
 
 export interface ProviderConfig {
   adapter: OAuthAdapter;
@@ -27,13 +40,12 @@ export interface ProviderConfig {
   clientSecret: string;
 }
 
-const ORDER: ProviderId[] = ['google', 'github', 'apple'];
+const ORDER: ProviderId[] = ['google', 'github'];
 
 /** Display names, keyed by the id type so a new provider is a type error. */
 const PROVIDER_NAMES: Record<ProviderId, string> = {
   google: 'Google',
   github: 'GitHub',
-  apple: 'Apple',
 };
 
 export function isProviderId(value: string): value is ProviderId {
@@ -43,10 +55,6 @@ export function isProviderId(value: string): value is ProviderId {
 /**
  * Resolve one provider against the environment, or NULL when it is not
  * fully configured.
- *
- * Apple's "secret" is minted at exchange time (it expires), so the value
- * returned here is the Services ID and the secret is produced by
- * `clientSecretFor` below.
  */
 export function providerConfig(
   id: ProviderId,
@@ -59,43 +67,29 @@ export function providerConfig(
     return { adapter: googleAdapter, clientId, clientSecret };
   }
 
-  if (id === 'github') {
-    const clientId = env.GITHUB_CLIENT_ID?.trim();
-    const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
-    if (!clientId || !clientSecret) return null;
-    return { adapter: githubAdapter, clientId, clientSecret };
-  }
-
-  const creds = readAppleCredentials(env);
-  if (!creds) return null;
-  // The credential a caller passes as `clientSecret` for Apple is unused by
-  // the exchange: see `clientSecretFor` — Apple's secret must be minted per
-  // request, so it is deliberately NOT read from env here.
-  return { adapter: createAppleAdapter(creds), clientId: creds.servicesId, clientSecret: '' };
+  const clientId = env.GITHUB_CLIENT_ID?.trim();
+  const clientSecret = env.GITHUB_CLIENT_SECRET?.trim();
+  if (!clientId || !clientSecret) return null;
+  return { adapter: githubAdapter, clientId, clientSecret };
 }
 
 /**
  * The secret to send on the token exchange.
  *
- * Google and GitHub: the static env value. Apple: a JWT minted now. Every
- * caller goes through this, so no path can accidentally send Apple's empty
- * string and get `invalid_client`.
+ * A static env value for every remaining provider. Kept as a function
+ * (rather than reading `config.clientSecret` at the call site) because Apple
+ * needed a JWT minted per request, and that shape is what a re-added provider
+ * with an expiring secret will need again.
  */
-export async function clientSecretFor(id: ProviderId, config: ProviderConfig): Promise<string> {
-  if (id !== 'apple') return config.clientSecret;
-  const creds = readAppleCredentials();
-  if (!creds) {
-    throw new Error('apple: configuration disappeared between start and exchange');
-  }
-  const { mintAppleClientSecret } = await import('./apple');
-  return mintAppleClientSecret(creds);
+export async function clientSecretFor(_id: ProviderId, config: ProviderConfig): Promise<string> {
+  return config.clientSecret;
 }
 
 /**
  * Every provider the UI offers, in display order.
  *
- * ALWAYS ALL THREE, regardless of configuration. The buttons are shown so
- * the product looks complete while credentials are still being issued; a
+ * ALWAYS EVERY PROVIDER, regardless of configuration. The buttons are shown
+ * so the product looks complete while credentials are still being issued; a
  * click on an unconfigured one redirects to /sign-in?social=unavailable
  * with a readable sentence rather than a dead provider page.
  *

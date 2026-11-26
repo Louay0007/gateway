@@ -100,9 +100,8 @@ describe('createPendingFlow', () => {
     expect(f.nonce).not.toBe(f.codeVerifier);
   });
 
-  it('requests a nonce for Google and Apple, and none for GitHub', () => {
+  it('requests a nonce for Google, and none for GitHub', () => {
     expect(createPendingFlow('google', '/chat').nonce).toBeTruthy();
-    expect(createPendingFlow('apple', '/chat').nonce).toBeTruthy();
     // GitHub has no id_token, so there is nothing for a nonce to bind.
     expect(createPendingFlow('github', '/chat').nonce).toBeNull();
   });

@@ -14,7 +14,7 @@ LOCAL := http://127.0.0.1:4000
         report reconcile smoke latency backup restore pull deploy verify-config \
         check-format verify-caddy db-init db-migrate jobs jobs-once accounts \
         health-local test-local e2e plan pro-accounts \
-        verify-metering verify-d17 verify-dodo verify-grant backup-drill verify-engine
+        verify-metering verify-d17 verify-dodo verify-grant verify-oauth backup-drill verify-engine
 
 help: ## Show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) \
@@ -456,6 +456,11 @@ verify-grant: ## Prove the manual plan grant (one row, one-live-row, idempotent 
 	@$(COMPOSE) build jobs
 	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
 	  --import ./scripts/register-ts-resolve.mjs scripts/verify-grant.ts
+
+verify-oauth: ## Check Google/GitHub sign-in wiring (offline; no provider contacted)
+	@$(COMPOSE) build jobs
+	@$(COMPOSE) run --rm --no-deps jobs node --experimental-transform-types \
+	  --import ./scripts/register-ts-resolve.mjs scripts/verify-oauth.ts
 
 verify-metering: ## Prove metering end-to-end (usage_records, cost, dedupe, revoke)
 	@# Preflight, and it must be a hard STOP.

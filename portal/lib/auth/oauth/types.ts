@@ -2,20 +2,26 @@
  * The provider adapter contract — the only provider-specific code in the
  * OAuth implementation.
  *
- * WHY THIS EXISTS. Google, GitHub and Apple disagree about almost
- * everything: how many requests it takes to learn the email, whether
- * `email_verified` is a boolean or the string "true", whether the identity
- * is in a JSON body or inside a signed JWT. Everything ABOVE this interface
- * (state, PKCE, the linking rule, session minting) must never branch on
- * provider, or the linking rule has three implementations and one of them
- * will be wrong.
+ * WHY THIS EXISTS. Providers disagree about almost everything: how many
+ * requests it takes to learn the email, whether `email_verified` is a
+ * boolean or the string "true", whether the identity is in a JSON body or
+ * inside a signed JWT. Everything ABOVE this interface (state, PKCE, the
+ * linking rule, session minting) must never branch on provider, or the
+ * linking rule has one implementation per provider and one of them will be
+ * wrong.
  *
  * Nothing here performs a redirect or touches a cookie. Adapters are pure
  * request/response mapping so they can be tested against recorded fixtures
  * with no network (portal/tests/oauth-adapters.test.ts).
  */
 
-export type ProviderId = 'google' | 'github' | 'apple';
+/**
+ * Apple was removed: it needs a paid Developer Program membership, a `.p8`
+ * key and a per-request minted client secret, and the domain-association
+ * file made it production-only. Adding it back means a new adapter, a
+ * `providerConfig` branch, and its entry in `ORDER`.
+ */
+export type ProviderId = 'google' | 'github';
 
 /** Human label. Used in UI copy and logs — never in comparison. */
 export interface ProviderMeta {
@@ -30,12 +36,12 @@ export interface ProviderMeta {
 /**
  * One identity, normalised. This is the ONLY shape the linking rule sees.
  *
- * `emailVerified` is a boolean here even though Apple sends the string
- * "true" and GitHub sends nothing at all — normalisation at the edge means
- * `resolveIdentity` cannot get it wrong per-provider.
+ * `emailVerified` is a boolean here even though providers express it
+ * differently — GitHub sends nothing at all — so `resolveIdentity` cannot
+ * get it wrong per-provider.
  */
 export interface OAuthIdentity {
-  /** The provider's immutable id: Google `sub`, GitHub numeric `id`, Apple `sub`. */
+  /** The provider's immutable id: Google `sub`, GitHub numeric `id`. */
   providerAccountId: string;
   /** NULL when the provider will not disclose one (GitHub without user:email). */
   email: string | null;
@@ -45,7 +51,12 @@ export interface OAuthIdentity {
   image: string | null;
   /** Provider handle (GitHub login). NULL elsewhere. Never an identifier. */
   login: string | null;
-  /** Apple's relay address. Always false for Google and GitHub. */
+  /**
+   * ALWAYS FALSE since Apple was removed — it was the only provider issuing
+   * `@privaterelay.appleid.com` addresses. The field stays because
+   * `resolve.ts` writes it to `auth_users.email_is_private_relay`, and rows
+   * created while Apple was enabled still carry that flag.
+   */
   isPrivateRelay: boolean;
 }
 
@@ -74,30 +85,25 @@ export interface ExchangeCodeInput {
   codeVerifier: string;
   clientId: string;
   /**
-   * Google/GitHub: the static secret from env.
-   * Apple: a JWT minted per request (see apple.ts) — Apple gives out no
-   * static secret, and the one we sign expires.
+   * The static secret from env for every remaining provider.
+   *
+   * (Apple was the exception — it had no static secret and needed a JWT
+   * minted per request. If Apple is re-added, this field becomes the place
+   * to pass that minted value, exactly as it did before.)
    */
   clientSecret: string;
 }
 
 export interface FetchIdentityInput {
   accessToken: string;
-  /** Present for Apple always, and for Google when `openid` was granted. */
+  /** Present when the provider returned one (Google with `openid`). */
   idToken?: string;
   /**
-   * Apple sends the user's name ONCE, in the POST body of the callback, and
-   * never again. Passed through here so the adapter can merge it into the
-   * identity; NULL for the other providers.
-   */
-  initialName?: { firstName?: string; lastName?: string } | null;
-  /**
-   * The OIDC client id (= Services ID on Apple). Required whenever an
-   * id_token is verified, because `aud` is the ONLY claim that proves the
-   * token was minted for THIS application. Without it, a token issued to a
-   * different client of the same provider would verify, and an attacker
-   * who controls any OAuth client of that provider could present their own
-   * users' tokens to us.
+   * The OIDC client id. Required whenever an id_token is verified, because
+   * `aud` is the ONLY claim that proves the token was minted for THIS
+   * application. Without it, a token issued to a different client of the
+   * same provider would verify, and an attacker who controls any OAuth
+   * client of that provider could present their own users' tokens to us.
    */
   clientId: string;
   /** The nonce we sent on the authz request, when we sent one. */
@@ -161,10 +167,10 @@ export async function providerFetch(
 /**
  * Normalise `email_verified` across providers.
  *
- * Google sends a boolean. Apple sends the STRING "true". GitHub expresses it
- * per-address as `verified`. Anything else — missing, null, "false", a
- * number — is NOT verified, because the failure mode of guessing wrong is
- * account takeover (an unverified address auto-links to an existing user).
+ * Google sends a boolean; GitHub expresses it per-address as `verified`.
+ * Anything else — missing, null, "false", a number — is NOT verified,
+ * because the failure mode of guessing wrong is account takeover (an
+ * unverified address auto-links to an existing user).
  */
 export function isVerifiedClaim(value: unknown): boolean {
   if (value === true) return true;

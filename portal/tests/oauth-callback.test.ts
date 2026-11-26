@@ -35,7 +35,7 @@ describe('a valid callback proceeds', () => {
   });
 
   it('proceeds for each implemented provider', () => {
-    for (const p of ['google', 'github', 'apple'] as const) {
+    for (const p of ['google', 'github'] as const) {
       expect(evaluate({ providerParam: p, pendingProvider: p })).toEqual({ gate: 'proceed' });
     }
   });
@@ -121,9 +121,9 @@ describe('CSRF — the state and the cookie that scopes it', () => {
   });
 
   it('trusts the COOKIE over the URL when they disagree', () => {
-    // The URL says apple, the cookie says google. Rejected either way; the
+    // The URL says github, the cookie says google. Rejected either way; the
     // assertion is that the URL does not win.
-    expect(evaluate({ providerParam: 'apple', pendingProvider: 'google' }).gate).toBe('reject');
+    expect(evaluate({ providerParam: 'github', pendingProvider: 'google' }).gate).toBe('reject');
   });
 });
 

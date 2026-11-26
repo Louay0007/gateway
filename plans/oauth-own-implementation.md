@@ -1,5 +1,13 @@
 # Plan — own OAuth for Google, GitHub and Apple
 
+> **STATUS (2026-11-26): Apple was removed from the shipped product.**
+> Google and GitHub are live. Apple needed a paid Developer Program
+> membership, a `.p8` key that can be downloaded once, a client secret minted
+> per request, and a domain-association file that made it production-only.
+> The adapter, its tests, its four `APPLE_*` variables, its icon and its
+> `ProviderId` are all gone. Everything below about Apple is retained as the
+> design record for re-adding it; read `§1.3` before doing so.
+
 **Written:** 2026-11-15
 **Decision:** implement the OAuth 2.0 / OIDC authorization-code flow in this
 repository. No external identity service, no provider SDK, no third-party auth
@@ -337,7 +345,8 @@ and persist it there or lose it.
 | Provider says email unverified | account created, `email_verified_at` NULL, banner to verify | never auto-link |
 | Token exchange 4xx | log provider + status, show generic failure | the body can contain the code |
 | Network timeout | 15s per call, then fail fast | a hanging callback holds a slot |
-| Provider returns no email at all | create identity with NULL email, prompt for one | Apple relay users can do this |
+| Provider returns no email at all | create identity with a `.invalid` placeholder, prompt for one | Apple relay users can do this |
+| Verified address already held by an UNCONFIRMED account here | refuse with `/sign-in?social=email_taken`: confirm that account or reset it | a second identity on the same address is impossible (0041's unique index); linking would hand a password-protected account to whoever reads the inbox |
 
 **Never log:** `code`, `access_token`, `id_token`, `refresh_token`, the `.p8`,
 `codeVerifier`. Log `provider`, `status`, `providerAccountId` only.

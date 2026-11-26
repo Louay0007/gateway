@@ -70,15 +70,18 @@ describe('rule 2 — verified email links to a verified, uniquely-owned account'
     });
   });
 
-  it('does NOT link to an unverified account, and creates an unverified one instead', () => {
-    // Ownership is unproven on the target side, so linking inherits nothing.
+  it('REFUSES when exactly one account owns the address but has NOT confirmed it', () => {
+    // The 0041 unique index makes a second identity on this address
+    // impossible, so "create another one" would abort the INSERT and surface
+    // as a generic failure. Refusing is both safe (the existing account is
+    // password-protected) and actionable (confirm it, or reset the password).
     expect(decide({ lookup: { owners: 1, ownerEmailVerified: false } })).toEqual({
-      action: 'create_unverified',
-      reason: 'target_unverified',
+      action: 'refuse',
+      reason: 'email_unverified_elsewhere',
     });
     expect(decide({ lookup: { owners: 1, ownerEmailVerified: null } })).toEqual({
-      action: 'create_unverified',
-      reason: 'target_unverified',
+      action: 'refuse',
+      reason: 'email_unverified_elsewhere',
     });
   });
 });
@@ -87,7 +90,8 @@ describe('rule 3 — an unverified provider email NEVER links', () => {
   it('creates unverified even when a verified account owns the address', () => {
     // THE takeover case: attacker registers victim@company.com at GitHub,
     // GitHub does not verify addresses it does not own, victim has a
-    // verified account here.
+    // verified account here. The new identity is created with a placeholder
+    // (the address is taken), which resolve.ts enforces.
     expect(
       decide({
         providerVerifiedEmail: false,
@@ -220,6 +224,21 @@ describe('storedEmailFor — the placeholder that cannot be mailed', () => {
   it('falls back when the address has no @', () => {
     expect(storedEmailFor(identity({ email: 'garbage' }), 'google')).toBe(
       'no-email+google-12345@users.invalid',
+    );
+  });
+
+  it('falls back when the address is already stored on another identity', () => {
+    // 0041's unique lower(email) index rejects a second row on the same
+    // address. Forcing the placeholder keeps the INSERT legal; the real
+    // address is preserved on auth_accounts.provider_email.
+    expect(storedEmailFor(identity({ email: 'Taken@Example.com' }), 'github', true)).toBe(
+      'no-email+github-12345@users.invalid',
+    );
+  });
+
+  it('still uses the real address when it is free', () => {
+    expect(storedEmailFor(identity({ email: 'Free@Example.com' }), 'github', false)).toBe(
+      'free@example.com',
     );
   });
 });

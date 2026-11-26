@@ -11,7 +11,7 @@
  * `state`, which is useless without the cookie (§4).
  */
 import { NextResponse, type NextRequest } from 'next/server';
-import { clientSecretFor, providerConfig } from '@/lib/auth/oauth';
+import { isProviderId, providerConfig } from '@/lib/auth/oauth';
 import { codeChallengeFor, createPendingFlow, setPendingCookie } from '@/lib/auth/oauth/state';
 import { callbackUrlFor, canonicalOrigin } from '@/lib/auth/oauth/urls';
 import { log } from '@/lib/log';
@@ -42,12 +42,17 @@ export async function GET(
 ): Promise<Response> {
   const { provider } = await params;
 
-  // Unknown provider is a 404, not a 500 or a redirect to a provider that
-  // would then reject us.
-  const config = provider === 'google' || provider === 'github' || provider === 'apple'
-    ? providerConfig(provider)
-    : null;
+  // Unknown provider is a redirect to /sign-in?social=unavailable, never a
+  // redirect to a provider that would then reject us.
+  //
+  // The explicit guard (rather than a ternary) is what NARROWS `provider` to
+  // `ProviderId` for the calls below.
+  if (!isProviderId(provider)) {
+    log.warn('oauth start: unknown provider', { provider });
+    return signInRedirect(request, 'unavailable');
+  }
 
+  const config = providerConfig(provider);
   if (!config) {
     log.warn('oauth start: provider not configured', { provider });
     return signInRedirect(request, 'unavailable');
@@ -55,19 +60,7 @@ export async function GET(
 
   const returnTo = safeReturnPath(request.nextUrl.searchParams.get('returnTo'));
 
-  const flow = createPendingFlow(provider as 'google' | 'github' | 'apple', returnTo);
-
-  // Apple's secret is minted per exchange, so it is irrelevant here; the
-  // call exists to prove the configuration is usable BEFORE the user is
-  // sent to a consent screen we cannot complete. Cheap and fail-fast.
-  if (provider === 'apple') {
-    try {
-      await clientSecretFor('apple', config);
-    } catch {
-      log.error('oauth start: apple secret could not be minted', { provider });
-      return signInRedirect(request, 'unavailable');
-    }
-  }
+  const flow = createPendingFlow(provider, returnTo);
 
   const url = config.adapter.authorizationUrl({
     clientId: config.clientId,

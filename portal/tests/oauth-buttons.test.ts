@@ -19,9 +19,8 @@ import {
   enabledProviders,
   enabledProviderLabels,
   offeredProviders,
-  providerConfig,
 } from '@/lib/auth/oauth';
-import { GoogleIcon, GitHubIcon, AppleIcon } from '@/assets/brand/provider-icons';
+import { GoogleIcon, GitHubIcon } from '@/assets/brand/provider-icons';
 
 describe('socialNotice — fixed copy, never reflected text', () => {
   it('returns null when there is no reason (the clean case)', () => {
@@ -80,21 +79,20 @@ describe('offeredProviders — the buttons RENDER regardless of configuration', 
   // with a readable sentence. The old hazard (a button that dies after the
   // user commits) is gone because the refusal moved earlier, and the empty
   // row was the worse outcome.
-  it('always offers all three, configured or not', () => {
-    expect(offeredProviders()).toEqual(['google', 'github', 'apple']);
+  it('always offers every provider, configured or not', () => {
+    expect(offeredProviders()).toEqual(['google', 'github']);
   });
 
   it('is independent of the environment', () => {
     // No argument and no env read: this is a product decision, not a
     // deployment fact.
-    expect(offeredProviders()).toHaveLength(3);
+    expect(offeredProviders()).toHaveLength(2);
   });
 
   it('labels every offered provider, even with nothing configured', () => {
     expect(enabledProviderLabels()).toEqual([
       { id: 'google', name: 'Google' },
       { id: 'github', name: 'GitHub' },
-      { id: 'apple', name: 'Apple' },
     ]);
   });
 });
@@ -131,22 +129,11 @@ describe('enabledProviders — what can actually COMPLETE a sign-in', () => {
     expect(enabledProviders({ GOOGLE_CLIENT_ID: '', GOOGLE_CLIENT_SECRET: '' })).toEqual([]);
     expect(enabledProviders({ GOOGLE_CLIENT_ID: '   ', GOOGLE_CLIENT_SECRET: 's' })).toEqual([]);
   });
-
-  it('requires all four Apple values, not three', () => {
-    const three = {
-      APPLE_TEAM_ID: 'T',
-      APPLE_SERVICES_ID: 'S',
-      APPLE_KEY_ID: 'K',
-      // no APPLE_PRIVATE_KEY
-    };
-    expect(enabledProviders(three)).toEqual([]);
-    expect(providerConfig('apple', three)).toBeNull();
-  });
 });
 
 describe('provider marks', () => {
   it('each provider has a mark component', () => {
-    for (const Icon of [GoogleIcon, GitHubIcon, AppleIcon]) {
+    for (const Icon of [GoogleIcon, GitHubIcon]) {
       expect(typeof Icon).toBe('function');
     }
   });

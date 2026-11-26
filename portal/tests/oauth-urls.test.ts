@@ -77,9 +77,6 @@ describe('callbackUrlFor', () => {
     expect(callbackUrlFor(BRIDGE_URL, 'github')).toBe(
       'https://zaino.soon.it/api/oauth/github/callback',
     );
-    expect(callbackUrlFor(BRIDGE_URL, 'apple')).toBe(
-      'https://zaino.soon.it/api/oauth/apple/callback',
-    );
   });
 
   it('has NO trailing slash — providers compare the string exactly', () => {

@@ -121,6 +121,7 @@ describe('API access policy', () => {
       '/api/admin/orgs',
       '/api/admin/d17/export',
       '/api/account/delete',
+      '/api/account/connections',
       '/api/orgs',
       '/api/subscription',
       '/api/billing/payments',

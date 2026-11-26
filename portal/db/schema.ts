@@ -610,10 +610,15 @@ export const authUsers = pgTable('auth_users', {
   emailVerified: timestamp('email_verified', { withTimezone: true }),
   image:         text('image'),
   /**
-   * Apple hands out `@privaterelay.appleid.com` addresses. They are real
-   * and verified, but they are not a corporate domain — flagged so support
-   * can explain delivery and so no future domain rule treats one as staff.
-   * Migration 0041.
+   * Flag for a provider-issued private relay address such as Apple's
+   * `@privaterelay.appleid.com`. They are real and verified, but they are
+   * not a corporate domain — flagged so support can explain delivery and so
+   * no future domain rule treats one as staff. Migration 0041.
+   *
+   * Apple sign-in was removed, so nothing sets this to true any more. The
+   * column and its rows are kept: historic identities created while Apple
+   * was enabled still carry the flag, and dropping it would rewrite history
+   * for support.
    */
   emailIsPrivateRelay: boolean('email_is_private_relay').notNull().default(false),
   /**

@@ -1,10 +1,10 @@
 /**
- * GET|POST /api/oauth/<provider>/callback — finish a social sign-in.
+ * GET /api/oauth/<provider>/callback — finish a social sign-in.
  *
- * POST is not optional. Apple sends `response_mode=form_post`, so its
- * callback arrives as application/x-www-form-urlencoded in a BODY. A route
- * that only exports GET answers Apple with 405 and every Apple sign-in dies
- * at the last step.
+ * GET only. Every remaining provider returns the code in the query string;
+ * Apple was the one exception (it POSTs `response_mode=form_post`), and it
+ * has been removed — see `ProviderId` in lib/auth/oauth/types.ts. A POST
+ * here is a 405, which is the honest answer.
  *
  * EVERY branch below has one job: never sign in on a claim we did not
  * verify. In order —
@@ -24,7 +24,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { clientSecretFor, providerConfig, type ProviderId } from '@/lib/auth/oauth';
 import { readPendingCookie, clearPendingCookie, safeEqual } from '@/lib/auth/oauth/state';
 import { evaluateCallback, rejectDestination } from '@/lib/auth/oauth/callback-policy';
-import { resolveIdentity } from '@/lib/auth/oauth/resolve';
+import { resolveIdentity, ResolveRefusedError } from '@/lib/auth/oauth/resolve';
 import { mintSession, passwordChangedAtFor } from '@/lib/auth/oauth/session';
 import { OAuthProviderError } from '@/lib/auth/oauth/types';
 import { callbackUrlFor, canonicalOrigin } from '@/lib/auth/oauth/urls';
@@ -59,66 +59,24 @@ interface CallbackParams {
   code: string | null;
   state: string | null;
   error: string | null;
-  /** Apple only: the first-consent name blob, JSON, in the POST body. */
-  user: string | null;
 }
 
-/**
- * Read the callback payload from query OR body.
- *
- * Apple posts a form body; Google and GitHub use the query string. Both are
- * read for every provider — reading both is cheaper than branching, and a
- * provider that switches shape (Apple has) then keeps working.
- */
-async function readCallbackParams(request: NextRequest): Promise<CallbackParams> {
+/** Read the callback payload from the query string. */
+function readCallbackParams(request: NextRequest): CallbackParams {
   const q = request.nextUrl.searchParams;
-  let body: URLSearchParams | null = null;
-
-  if (request.method === 'POST') {
-    try {
-      const form = await request.formData();
-      body = new URLSearchParams();
-      for (const [k, v] of form.entries()) {
-        if (typeof v === 'string') body.set(k, v);
-      }
-    } catch {
-      body = null;
-    }
-  }
-
-  const pick = (name: string): string | null => body?.get(name) ?? q.get(name);
   return {
-    code: pick('code'),
-    state: pick('state'),
-    error: pick('error'),
-    user: pick('user'),
+    code: q.get('code'),
+    state: q.get('state'),
+    error: q.get('error'),
   };
 }
 
-/** Apple's `user` blob → the two fields the adapter uses. Never trusted beyond display. */
-function parseAppleName(raw: string | null): { firstName?: string; lastName?: string } | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as { name?: { firstName?: unknown; lastName?: unknown } };
-    const name = parsed?.name;
-    if (!name || typeof name !== 'object') return null;
-    return {
-      firstName: typeof name.firstName === 'string' ? name.firstName : undefined,
-      lastName: typeof name.lastName === 'string' ? name.lastName : undefined,
-    };
-  } catch {
-    // A malformed name is not a reason to refuse sign-in; the profile is
-    // simply nameless and the user can set one later.
-    return null;
-  }
-}
-
 function isProviderId(v: string): v is ProviderId {
-  return v === 'google' || v === 'github' || v === 'apple';
+  return v === 'google' || v === 'github';
 }
 
 async function handle(request: NextRequest, provider: string): Promise<NextResponse> {
-  const params = await readCallbackParams(request);
+  const params = readCallbackParams(request);
 
   // Everything the gate sequence needs, read BEFORE any branch runs — see
   // lib/auth/oauth/callback-policy.ts for why the ORDER is the property
@@ -196,7 +154,6 @@ async function handle(request: NextRequest, provider: string): Promise<NextRespo
       idToken: tokens.idToken,
       clientId: config.clientId,
       nonce: pending.nonce ?? undefined,
-      initialName: params.user ? parseAppleName(params.user) : null,
     });
   } catch (e) {
     await clearPendingCookie();
@@ -223,7 +180,12 @@ async function handle(request: NextRequest, provider: string): Promise<NextRespo
     const stamp = await passwordChangedAtFor(outcome.userId);
     await mintSession({
       authUserId: outcome.userId,
-      email: identity.email ?? '',
+      // THE STORED address, never `identity.email`. `authorize.ts` resolves a
+      // session by exact match on `users.email`, so minting with the
+      // provider's raw value produced a session that parses but resolves to
+      // nobody whenever the provider capitalised differently or disclosed no
+      // address at all (GitHub with a private email). See resolve.ts.
+      email: outcome.sessionEmail,
       passwordChangedAt: stamp,
     });
 
@@ -233,6 +195,7 @@ async function handle(request: NextRequest, provider: string): Promise<NextRespo
       provider,
       providerAccountId: identity.providerAccountId,
       outcome: outcome.kind,
+      ...(outcome.kind === 'existing_account' ? { synced: outcome.synced } : {}),
     });
 
     // An unverified identity still gets a session: they need a dashboard to
@@ -245,6 +208,17 @@ async function handle(request: NextRequest, provider: string): Promise<NextRespo
     return redirect(request, safeReturnPath(pending.returnTo) || DEFAULT_LANDING);
   } catch (e) {
     await clearPendingCookie();
+
+    // A refusal is a decision, not a failure: the address belongs to another
+    // account here. `email_unverified_elsewhere` gets its own copy because
+    // the person can act on it (confirm or reset that account); anything
+    // ambiguous is a schema problem and stays generic.
+    if (e instanceof ResolveRefusedError) {
+      const reason = e.reason === 'email_unverified_elsewhere' ? 'email_taken' : 'failed';
+      log.warn('oauth callback: resolve refused', { provider, reason: e.reason });
+      return fail(request, reason);
+    }
+
     log.error('oauth callback: resolve failed', {
       provider,
       name: e instanceof Error ? e.name : 'unknown',
@@ -254,14 +228,6 @@ async function handle(request: NextRequest, provider: string): Promise<NextRespo
 }
 
 export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ provider: string }> },
-): Promise<Response> {
-  const { provider } = await params;
-  return handle(request, provider);
-}
-
-export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ provider: string }> },
 ): Promise<Response> {

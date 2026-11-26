@@ -22,16 +22,12 @@ const ROOT = resolve(__dirname, '../..');
 const COMPOSE = readFileSync(resolve(ROOT, 'docker-compose.yml'), 'utf8');
 const ENV_EXAMPLE = readFileSync(resolve(ROOT, '.env.example'), 'utf8');
 
-/** The eight variables the OAuth adapters read. */
+/** The variables the OAuth adapters read. Apple was removed. */
 const PROVIDER_VARS = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
   'GITHUB_CLIENT_ID',
   'GITHUB_CLIENT_SECRET',
-  'APPLE_TEAM_ID',
-  'APPLE_SERVICES_ID',
-  'APPLE_KEY_ID',
-  'APPLE_PRIVATE_KEY',
 ] as const;
 
 /** The portal service block, so a var on another service does not count. */
@@ -78,7 +74,18 @@ describe('.env.example documents every provider variable', () => {
     // The single most common cause of redirect_uri_mismatch.
     expect(ENV_EXAMPLE).toContain('/api/oauth/google/callback');
     expect(ENV_EXAMPLE).toContain('/api/oauth/github/callback');
-    expect(ENV_EXAMPLE).toContain('/api/oauth/apple/callback');
+  });
+
+  it('no longer advertises Apple, which was removed', () => {
+    // A stale APPLE_* line would tell an operator to configure a provider
+    // the code no longer has, and `enabledProviders` would ignore it
+    // silently — the exact "looks configured but isn't" failure.
+    const portal = portalBlock(COMPOSE);
+    for (const name of ['APPLE_TEAM_ID', 'APPLE_SERVICES_ID', 'APPLE_KEY_ID', 'APPLE_PRIVATE_KEY']) {
+      expect(portal).not.toMatch(new RegExp(`^\\s+${name}:`, 'm'));
+      expect(ENV_EXAMPLE).not.toMatch(new RegExp(`^${name}=`, 'm'));
+    }
+    expect(ENV_EXAMPLE).not.toContain('/api/oauth/apple/callback');
   });
 
   it('ships the provider values EMPTY, never with a placeholder that looks set', () => {

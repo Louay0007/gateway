@@ -1,5 +1,5 @@
 import type { ProviderId } from "@/lib/auth/oauth/types";
-import { AppleIcon, GitHubIcon, GoogleIcon } from "@/assets/brand/provider-icons";
+import { GitHubIcon, GoogleIcon } from "@/assets/brand/provider-icons";
 
 /**
  * "Continue with …" — the provider row above the email form. Plan §7.
@@ -28,15 +28,14 @@ import { AppleIcon, GitHubIcon, GoogleIcon } from "@/assets/brand/provider-icons
  *   - `focus-visible` ring in the ring token, never `outline-none` alone.
  *   - `active:scale-[0.99]` + `motion-reduce` for the 100ms press feedback
  *     the rest of the auth surface has.
- *   - Icon in a fixed 18px box with a 12px gap, so all three labels start
- *     at the same x regardless of mark width. Without the fixed box the
- *     Apple glyph (narrower) shifts its label left and the column looks
- *     broken.
+ *   - Icon in a fixed 18px box with a 12px gap, so the labels start at the
+ *     same x regardless of mark width. Without the fixed box a narrower
+ *     glyph shifts its label left and the column looks broken.
  *
  * TEXT, NOT LOGOS, AS THE LABEL. The mark is decorative and `aria-hidden`;
- * the accessible name is the words. Google and Apple both require their
- * exact wording in a sign-in context, and "Continue with Google" satisfies
- * that while staying a sentence a screen reader can read.
+ * the accessible name is the words. Google requires its exact wording in a
+ * sign-in context, and "Continue with Google" satisfies that while staying
+ * a sentence a screen reader can read.
  */
 const PROVIDERS: Record<
   ProviderId,
@@ -44,7 +43,6 @@ const PROVIDERS: Record<
 > = {
   google: { label: "Continue with Google", Icon: GoogleIcon },
   github: { label: "Continue with GitHub", Icon: GitHubIcon },
-  apple: { label: "Continue with Apple", Icon: AppleIcon },
 };
 
 export function SocialButtons({
@@ -159,8 +157,14 @@ const NOTICES: Readonly<Record<string, string>> = Object.freeze(
     // right now" was accurate but read as an outage — this says what is
     // actually true and offers the path that works today.
     unavailable:
-      "Google, GitHub and Apple sign-in are not enabled on this deployment yet. Use your email and password below.",
+      "Google and GitHub sign-in are not enabled on this deployment yet. Use your email and password below.",
     unknown_provider: "That sign-in method is not available right now.",
+    // The provider proved the address, but an account here already holds it
+    // without having confirmed it. Creating a second identity on the same
+    // address is impossible (0041's unique index), so the answer is the
+    // recovery that actually exists: confirm it, or reset the password.
+    email_taken:
+      "That email address already belongs to an account here that has not been confirmed yet. Sign in with your password — or reset it — to confirm the address, then try again.",
   } satisfies Record<string, string>),
 );
 
