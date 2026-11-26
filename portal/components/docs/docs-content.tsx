@@ -2,7 +2,8 @@
 
 import * as React from "react";
 
-import { DocsHero, DocsToc } from "@/components/docs/docs-hero";
+import { DocsCta, DocsHero } from "@/components/docs/docs-hero";
+import { DocsRail } from "@/components/docs/docs-rail";
 import { Quickstart } from "@/components/docs/docs-quickstart";
 import { ModelsSection } from "@/components/docs/docs-models";
 import { AnthropicSection, OpenAISection } from "@/components/docs/docs-wire";
@@ -10,17 +11,29 @@ import { CodexSection } from "@/components/docs/docs-codex";
 import { ClaudeCodeSection } from "@/components/docs/docs-claude";
 import { KeysLimitsSection } from "@/components/docs/docs-keys";
 import { PUBLIC_BASE_URL } from "@/components/docs/docs-data";
+import { DOCS_GRID, DOCS_SECTIONS, DOCS_WRAP } from "@/components/docs/docs-layout";
 
 /**
  * DocsContent — the shared body for public /docs and /dashboard/docs.
  * Same copy, same snippets, same anchors on both; only the CTA target and
  * canvas tone adapt via `dashboard`.
  *
- * LAYOUT. A 220px sticky TOC and a reading column that is deliberately NARROW
- * relative to the page container: prose at 62ch and code blocks that can grow
- * wider than the text. The old grid let the content column run to 1280px,
- * which put a 120-character code line and a 400-character paragraph at the
- * same width — one of them was always wrong.
+ * THE GRID. A sticky 13–16rem rail and a content column that takes everything
+ * else, inside a 1680px page rail. The content column is `minmax(0,1fr)` for
+ * the reason recorded in docs-section.tsx: an `auto` track sizes to the longest
+ * code line and grows the page past the viewport.
+ *
+ * THE READING COLUMN IS NARROWER THAN THE CONTENT COLUMN, ON PURPOSE. Prose
+ * caps at 68ch (DOCS_PROSE, applied inside every Section); code, tables and
+ * figures take the column's full width. That split is the whole reason the page
+ * can be this wide — a 120-character code line and a 400-character paragraph
+ * never share a right edge, which is precisely what the old 1280px grid got
+ * wrong in the opposite direction.
+ *
+ * ONE LIST DRIVES THE RAIL AND THE NUMBERS. `DOCS_SECTIONS` holds the order;
+ * the rail renders it and each Section derives its numeral from its own
+ * position in it. A section added here gets an anchor, a rail entry and the
+ * right number, or it gets none of them — never a stale `index={5}`.
  */
 export function DocsContent({ dashboard = false }: { dashboard?: boolean }) {
   const [model, setModel] = React.useState("fast");
@@ -29,28 +42,30 @@ export function DocsContent({ dashboard = false }: { dashboard?: boolean }) {
   return (
     <div>
       <DocsHero dashboard={dashboard} />
-      <div className="mx-auto w-full max-w-6xl px-4 pb-20 sm:px-6 lg:px-8">
-        {/* BOTH THE WRAPPER AND THE COLUMN NEED `min-w-0`.
 
-            The wrapper becomes a two-column grid at `lg`, and its right column
-            is itself a grid. A grid item defaults to `min-width: auto`, which
-            refuses to shrink below its widest content — and here the widest
-            content is a code line inside the quickstart. Without `min-w-0` on
-            both levels, the chain resolves to max-content and /docs scrolled
-            177px sideways on a 390px phone. The `pre` inside CodeBlock can
-            only scroll if every ancestor above it agrees to be narrower than
-            its content. */}
-        <div className="min-w-0 gap-12 pt-12 lg:grid lg:grid-cols-[200px_minmax(0,1fr)]">
-          <DocsToc />
-          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-10">
-            <Quickstart model={model} setModel={setModel} base={base} setBase={setBase} />
-            <ModelsSection />
-            <OpenAISection model={model} base={base} />
-            <AnthropicSection model={model} base={base} />
-            <CodexSection />
-            <ClaudeCodeSection />
-            <KeysLimitsSection dashboard={dashboard} />
-          </div>
+      <div className={DOCS_WRAP}>
+        <div className={DOCS_GRID}>
+          <DocsRail items={DOCS_SECTIONS} dashboard={dashboard} />
+
+          {/* `gap-14` between sections, `mt-3` inside one. Two values for two
+              different relationships: adjacent topics are separated generously,
+              a heading and its lede are bound tightly. Using one interval for
+              both is what made the old page a single undifferentiated scroll. */}
+          <article className="min-w-0 py-14 sm:py-16">
+            <div className="grid gap-14 sm:gap-16">
+              <Quickstart model={model} setModel={setModel} base={base} setBase={setBase} />
+              <ModelsSection />
+              <OpenAISection model={model} base={base} />
+              <AnthropicSection model={model} base={base} />
+              <CodexSection />
+              <ClaudeCodeSection />
+              <KeysLimitsSection dashboard={dashboard} />
+            </div>
+
+            <div className="mt-16">
+              <DocsCta dashboard={dashboard} />
+            </div>
+          </article>
         </div>
       </div>
     </div>

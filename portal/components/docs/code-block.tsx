@@ -9,10 +9,17 @@ import { cn } from "@/lib/utils";
 /**
  * CodeBlock — a copyable snippet for the docs surface.
  *
- * Theme-agnostic: uses the code-surface tokens declared in globals.css
- * so it reads identically inside the light marketing canvas and the
- * themed dashboard shell. Copy falls back to select-all where
- * `navigator.clipboard` is unavailable (plain-HTTP LAN, insecure ctx).
+ * WHAT CHANGED AND WHY. The old header carried three fake window chrome dots.
+ * They meant nothing — this is not a window, it does not close or minimise, and
+ * a reader never interacted with them — so they were decoration standing in a
+ * slot where information belongs. The slot now says which FILE the snippet
+ * belongs in (`request.sh`, `~/.codex/config.toml`) and what language it is,
+ * which is the one question a copy-paste raises: where does this go?
+ *
+ * Theme-agnostic: uses the code-surface tokens declared in globals.css so it
+ * reads identically inside the light marketing canvas and the themed dashboard
+ * shell. Copy falls back to select-all where `navigator.clipboard` is
+ * unavailable (plain-HTTP LAN, insecure context).
  */
 export function CodeBlock({
   code,
@@ -29,8 +36,8 @@ export function CodeBlock({
 
   React.useEffect(() => {
     if (!copied) return;
-    const t = setTimeout(() => setCopied(false), 2000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCopied(false), 2000);
+    return () => clearTimeout(timer);
   }, [copied]);
 
   async function copy() {
@@ -70,18 +77,18 @@ export function CodeBlock({
       )}
     >
       <figcaption className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
-        <span className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span
-            aria-hidden
-            className="flex gap-1.5"
-          >
-            <i className="size-2.5 rounded-full bg-muted" />
-            <i className="size-2.5 rounded-full bg-muted" />
-            <i className="size-2.5 rounded-full bg-muted" />
-          </span>
-          <span className="font-mono">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate font-mono text-xs font-medium text-foreground">
             {filename ?? language}
           </span>
+          {/* The language, when the filename did not already imply it. Kept
+              lowercase and dim: it is a fact about the block, not a label for
+              the reader. */}
+          {filename ? (
+            <span className="shrink-0 text-[0.625rem] tracking-[0.1em] text-muted-foreground uppercase">
+              {language}
+            </span>
+          ) : null}
         </span>
         {/* The code surface is always dark, so this is one of the few places
             a ghost variant needs its own hover colour — the primitive carries
@@ -92,7 +99,7 @@ export function CodeBlock({
           size="xs"
           onClick={copy}
           aria-label={copied ? "Copied" : `Copy ${language} snippet`}
-          className="text-muted-foreground hover:bg-muted hover:text-foreground"
+          className="shrink-0 text-muted-foreground hover:bg-muted hover:text-foreground"
         >
           {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
           {copied ? "Copied" : "Copy"}

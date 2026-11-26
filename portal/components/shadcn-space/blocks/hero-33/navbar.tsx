@@ -16,19 +16,22 @@ import { MaintenanceBanner } from "@/components/marketing/maintenance-banner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChevronRight, Equal, X } from "lucide-react";
 
-// Pricing sits second, not last. It is the page a buyer looks for by name,
-// and it was reachable only from the footer — which itself linked a section
-// anchor on the landing page rather than /pricing.
-// Five destinations, in the order a buyer moves through them: try it,
-// see what it costs, see what it runs on, read how to wire it, then the
-// record. Everything else lives in the footer.
+// Three links plus one button, and together they are the buying path: what it
+// costs, how to read the docs, how to install — then "Get an API key".
+//
+// WHY THE LIST SHRANK. "Playground" and "Models" were removed from the header
+// on request: both are still published pages with entries in the footer
+// (zaino-footer.tsx), but a header is a shelf, not an index, and every extra
+// link dilutes the one action the page is asking for. "Sign in" was removed for
+// a different reason — it competed with "Get an API key" as a second, weaker
+// call to action, sitting at the end of a row of links where it read as one
+// more destination rather than the entry to an existing account. Returning
+// visitors still reach it from the footer, and every gated page redirects there
+// on its own.
 const navLinks = [
-  { title: "Playground", href: "/playground" },
   { title: "Pricing", href: "/pricing" },
-  { title: "Models", href: "/models" },
   { title: "Docs", href: "/docs" },
   { title: "Download", href: "/download" },
-  { title: "Sign in", href: "/sign-in" },
 ];
 
 const Navbar = ({
@@ -58,12 +61,16 @@ const Navbar = ({
   const navRef = useRef<HTMLElement>(null);
   const isLanding = tone === "light";
   const [isDarkTheme, setIsDarkTheme] = useState(false);
-  // "Sign in" is a link to a page a signed-in visitor is redirected away
-  // from — it would bounce them into /chat, which the right-hand button
-  // already does on purpose.
-  const visibleLinks = signedIn
-    ? navLinks.filter((l) => l.href !== "/sign-in")
-    : navLinks;
+  /**
+   * `navLinks` is the same list for every visitor now.
+   *
+   * It used to filter "/sign-in" out of the signed-in branch, because that
+   * link bounced an authenticated visitor into /chat — a page the right-hand
+   * button already opens on purpose. With "Sign in" removed from the list
+   * entirely there is nothing left to vary between branches, so the list is
+   * read directly and the filtered copy is gone rather than left behind as a
+   * filter that matches nothing.
+   */
 
   useEffect(() => {
     // Detect current dark mode state and watch for changes
@@ -201,7 +208,8 @@ const Navbar = ({
             className="hidden h-6 my-auto lg:block transition-colors duration-300"
           />
           <div className="hidden items-center gap-1 lg:flex">
-            {visibleLinks.map((link) => (
+            // One list for both the desktop row and the mobile sheet.
+            {navLinks.map((link) => (
               <a
                 key={link.title}
                 href={link.href}
@@ -280,7 +288,8 @@ const Navbar = ({
               </SheetClose>
             </SheetHeader>
             <div className="flex flex-col gap-1.5">
-              {visibleLinks.map((link) => (
+              // One list for both the desktop row and the mobile sheet.
+            {navLinks.map((link) => (
                 <SheetClose
                   key={link.title}
                   nativeButton={false}
@@ -338,14 +347,9 @@ const Navbar = ({
                 </>
               ) : (
                 <>
-                  <SheetClose
-                    nativeButton={false}
-                    render={
-                      <a href="/sign-in" className="transition-colors text-foreground">
-                        Sign in
-                      </a>
-                    }
-                  />
+                  {/* No "Sign in" here either, for the same reason it left the
+                      desktop row: one clear ask beats two competing ones. The
+                      footer carries the sign-in link. */}
                   <SheetClose
                     render={
                       <Button

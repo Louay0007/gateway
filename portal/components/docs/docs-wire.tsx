@@ -11,14 +11,19 @@ import {
 
 /**
  * Wire-format sections. OpenAI chat/completions is the primary shape
- * (metering, retries, and budgets are proven on it); Anthropic
- * /v1/messages is fully supported including tool calling and SSE.
+ * (metering, retries, and budgets are proven on it); Anthropic /v1/messages is
+ * fully supported including tool calling and SSE.
+ *
+ * LAYOUT. The compatibility statement used to be a second border+card sitting
+ * directly under the section's own card, i.e. a card inside a card by any
+ * reading. It is now the row it always was: the vendor mark, the claim, and the
+ * descriptor on one line, separated from the snippet by the same hairline the
+ * rest of the page uses.
  */
 export function OpenAISection({ model, base }: { model: string; base: string }) {
   return (
     <Section
       id="openai"
-      index={3}
       kicker="Wire format"
       title="OpenAI-compatible chat"
       body={
@@ -30,7 +35,7 @@ export function OpenAISection({ model, base }: { model: string; base: string }) 
         </>
       }
     >
-      <CompatCard
+      <CompatRow
         mark={<OpenAILogo />}
         name="OpenAI SDK"
         note="baseURL override only — no code changes beyond the key."
@@ -66,18 +71,18 @@ export function AnthropicSection({ model, base }: { model: string; base: string 
   return (
     <Section
       id="anthropic"
-      index={4}
       kicker="Wire format"
       title="Anthropic-compatible messages"
       body={
         <>
-          The same key drives <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[13px]">/v1/messages</code>{" "}
-          — native upstream support, valid tool-use arguments, SSE framing,
-          and the tool-result→answer turn all verified.
+          The same key drives{" "}
+          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[13px]">/v1/messages</code>{" "}
+          — native upstream support, valid tool-use arguments, SSE framing, and
+          the tool-result→answer turn all verified.
         </>
       }
     >
-      <CompatCard
+      <CompatRow
         mark={<AnthropicLogo />}
         name="Anthropic SDK"
         note="baseURL + key override — messages, tools, streaming."
@@ -93,31 +98,52 @@ export function AnthropicSection({ model, base }: { model: string; base: string 
   );
 }
 
-function CompatCard({ mark, name, note }: { mark: React.ReactNode; name: string; note: string }) {
+/**
+ * The compatibility row.
+ *
+ * It keeps the vendor mark at a fixed tile size — the marks are official
+ * artwork at wildly different aspect ratios, and letting each one size itself
+ * made the two rows disagree by 20px — but drops the container: a hairline
+ * above and below groups it with the snippet it introduces.
+ */
+function CompatRow({ mark, name, note }: { mark: React.ReactNode; name: string; note: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-4 rounded-xl border border-border bg-card p-4">
+    <div className="flex min-w-0 items-center gap-4 border-y border-border py-3">
       {mark}
-      <span>
-        <span className="block font-medium">{name}-compatible</span>
-        <span className="mt-0.5 block text-sm text-muted-foreground">{note}</span>
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-foreground">{name}-compatible</span>
+        <span className="mt-0.5 block text-[0.8125rem] leading-relaxed text-muted-foreground">
+          {note}
+        </span>
       </span>
     </div>
   );
 }
 
+/**
+ * Endpoints — two columns, no cell borders.
+ *
+ * The old version boxed this in a rounded border and ruled every row, giving a
+ * two-row table the same visual weight as the eight-row plan table further
+ * down the page. Method and path are one column because they are read as one
+ * token; the description is the only thing that wraps.
+ */
 function EndpointsTable({ rows }: { rows: [string, string][] }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-border">
-      <table className="w-full text-sm">
-        <tbody>
-          {rows.map(([k, v]) => (
-            <tr key={k} className="border-b border-border last:border-0">
-              <td className="px-4 py-2.5 font-mono text-[13px] whitespace-nowrap">{k}</td>
-              <td className="px-4 py-2.5 text-muted-foreground">{v}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    <table className="w-full min-w-0 border-collapse text-left text-sm">
+      <caption className="sr-only">Endpoint and what it answers</caption>
+      <tbody>
+        {rows.map(([endpoint, meaning]) => (
+          <tr key={endpoint} className="border-b border-border last:border-0">
+            <th scope="row" className="w-0 py-2.5 pr-6 align-top whitespace-nowrap">
+              <code className="font-mono text-[13px] text-foreground">{endpoint}</code>
+            </th>
+            <td className="py-2.5 align-top text-[0.8125rem] leading-relaxed text-muted-foreground">
+              {meaning}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
