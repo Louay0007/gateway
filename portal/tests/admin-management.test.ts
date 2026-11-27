@@ -93,7 +93,7 @@ describe('period extension', () => {
 
 describe('payments ledger', () => {
   const src = read('lib/admin/payments.ts');
-  const page = read('app/admin/payments/page.tsx');
+  const page = read('app/admin/(console)/payments/page.tsx');
 
   it('only claims one rail in the database', () => {
     // Dodo is a hosted checkout: no amount and no receipt are stored, so the
@@ -169,13 +169,13 @@ describe('customer search', () => {
 
 describe('the management surface is wired', () => {
   const pages = [
-    'app/admin/customers/page.tsx',
-    'app/admin/customers/[id]/page.tsx',
-    'app/admin/subscriptions/page.tsx',
-    'app/admin/payments/page.tsx',
-    'app/admin/payments/[id]/page.tsx',
-    'app/admin/trials/page.tsx',
-    'app/admin/system/page.tsx',
+    'app/admin/(console)/customers/page.tsx',
+    'app/admin/(console)/customers/[id]/page.tsx',
+    'app/admin/(console)/subscriptions/page.tsx',
+    'app/admin/(console)/payments/page.tsx',
+    'app/admin/(console)/payments/[id]/page.tsx',
+    'app/admin/(console)/trials/page.tsx',
+    'app/admin/(console)/system/page.tsx',
   ];
 
   it.each(pages)('%s exists', (p) => {

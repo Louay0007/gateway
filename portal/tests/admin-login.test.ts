@@ -235,3 +235,75 @@ describe('proxy.ts enforces the two credentials', () => {
     expect(src).not.toContain('x-admin-gate-path');
   });
 });
+
+// ───────────────────────────────────────────────────────────────────────
+//  The redirect loop — a layout that guards the page it redirects to
+// ───────────────────────────────────────────────────────────────────────
+
+describe('the console layout must not wrap the login page', () => {
+  /**
+   * THE BUG THIS EXISTS FOR, and why nothing else caught it.
+   *
+   * `app/admin/layout.tsx` applies to EVERY descendant route, including
+   * `app/admin/login/page.tsx`. So an unauthenticated request to
+   * /admin/login entered the layout, found no session, and redirected to
+   * /admin/login — the page it was already rendering. Infinite loop,
+   * ERR_TOO_MANY_REDIRECTS, every operator locked out, no error in any log.
+   *
+   * Every other check passed: the build succeeded, the pages compiled, the
+   * proxy allowed the path, and a `curl` that follows redirects reports the
+   * final 200 without ever showing the cycle. The nesting is the only place
+   * the loop is visible, so it is asserted here.
+   */
+  const admin = join(PORTAL, 'app/admin');
+
+  it('has no layout at app/admin/layout.tsx', () => {
+    // A layout at this level covers /admin/login. It must live in a route
+    // group so its scope excludes the login page.
+    expect(existsSync(join(admin, 'layout.tsx'))).toBe(false);
+  });
+
+  it('puts the shell in a route group, so URLs are unchanged', () => {
+    expect(existsSync(join(admin, '(console)/layout.tsx'))).toBe(true);
+  });
+
+  it('leaves the login page outside that group', () => {
+    expect(existsSync(join(admin, 'login/page.tsx'))).toBe(true);
+    // ...and there is no login INSIDE the group that would be shadowed.
+    expect(existsSync(join(admin, '(console)/login'))).toBe(false);
+  });
+
+  it('the guarded layout redirects only to a route it does not wrap', () => {
+    const layout = readFileSync(join(admin, '(console)/layout.tsx'), 'utf8');
+    const redirects = [...layout.matchAll(/redirect\("([^"]+)"\)/g)]
+      .map((m) => m[1])
+      // `matchAll` is typed as possibly-undefined capture groups under
+      // noUncheckedIndexedAccess; every match here has group 1 by construction.
+      .filter((t): t is string => typeof t === 'string');
+    expect(redirects.length).toBeGreaterThan(0);
+    for (const target of redirects) {
+      // Every redirect target must resolve OUTSIDE `(console)`, or it is a
+      // loop by construction.
+      const inner = join(admin, '(console)', target.replace(/^\/admin\/?/, ''), 'page.tsx');
+      expect(existsSync(inner), `layout must not redirect to a route it wraps: ${target}`).toBe(false);
+    }
+  });
+
+  it('keeps every console page inside the group', () => {
+    // A page left outside would render with no shell and, worse, no session
+    // check — an unauthenticated console screen.
+    for (const seg of [
+      'ops', 'orgs', 'customers', 'subscriptions', 'payments',
+      'd17', 'usage', 'credits', 'trials', 'audit', 'system', 'plans', 'staff',
+    ]) {
+      expect(
+        existsSync(join(admin, '(console)', seg, 'page.tsx')),
+        `${seg} must be inside (console) so the guard applies`,
+      ).toBe(true);
+      expect(
+        existsSync(join(admin, seg, 'page.tsx')),
+        `${seg} must NOT be at the unguarded level`,
+      ).toBe(false);
+    }
+  });
+});
