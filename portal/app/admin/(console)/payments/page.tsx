@@ -221,7 +221,12 @@ export default async function AdminPaymentsPage({
                   </TableCell>
                   <TableCell className="pr-4 text-right text-xs text-muted-foreground">
                     <Link href={`/admin/payments/${p.id}`} className="underline">
-                      {dateTime(p.submittedAt ?? p.verifiedAt ?? "")}
+                      {/* `?? ""` used to be passed straight to dateTime, which
+                          threw RangeError on an invalid Date and took the whole
+                          ledger down. `dateTime` now degrades to an em dash,
+                          and the null case is explicit here rather than relying
+                          on that. */}
+                      {dateTime(p.submittedAt ?? p.verifiedAt) }
                     </Link>
                   </TableCell>
                 </TableRow>

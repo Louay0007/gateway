@@ -67,13 +67,31 @@ const dayTimeFormatter = new Intl.DateTimeFormat("en-US", {
 });
 
 /** "Sep 13" — chart axes, day buckets. */
-export function shortDate(iso: string): string {
-  return dayFormatter.format(new Date(iso));
+export function shortDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "—" : dayFormatter.format(d);
 }
 
-/** "Sep 13, 14:02" — ledger rows. */
-export function dateTime(iso: string): string {
-  return dayTimeFormatter.format(new Date(iso));
+/**
+ * "Sep 13, 14:02" — ledger rows.
+ *
+ * AN INVALID DATE MUST NOT TAKE THE PAGE DOWN. `Intl.DateTimeFormat.format`
+ * throws `RangeError: Invalid time value` on a NaN date, and this is called
+ * inside `.map()` over rows read from the database — so ONE bad value (a NULL
+ * cast to the string "null", an empty string, a partially-written timestamp)
+ * crashed the whole screen with a 500 instead of rendering the other rows.
+ *
+ * Found on `/admin/payments`: a row whose `submittedAt`/`verifiedAt` were both
+ * absent produced `dateTime("")` and the page died. The correct behaviour for
+ * a formatter is to degrade, not to fail: an em dash is honest ("no date"),
+ * and the rest of the ledger still renders.
+ */
+export function dateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  // `format` throws on an invalid Date, so validate before calling it.
+  return Number.isNaN(d.getTime()) ? "—" : dayTimeFormatter.format(d);
 }
 
 /** "3m ago" / "2h ago" / "Oct 3" — last-used columns. */
