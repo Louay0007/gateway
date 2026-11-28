@@ -190,7 +190,15 @@ describe('POST /v1/responses through the edge', () => {
     // resolves it through model_list and its keys are allowlisted by alias —
     // rewriting it to the upstream name would be denied with 403.
     expect(seen.body.model).toBe('fast');
-    expect(seen.body.messages).toEqual([{ role: 'user', content: 'hello' }]);
+    // Identity leads the system prompt (edge/identity.mjs), then the client's
+    // own input as the user turn, translated by the shim. The shape proves the
+    // translation is live; the system block is the identity layer, which is
+    // what makes an API customer's "what model are you?" answer with our name.
+    expect(seen.body.messages).toEqual([
+      expect.objectContaining({ role: 'system' }),
+      { role: 'user', content: 'hello' },
+    ]);
+    expect(seen.body.messages[0].content).toContain('Zaino AI Fast, powered by Haiku 5.5');
     expect(seen.contentLength).toBe(String(Buffer.byteLength(JSON.stringify(seen.body))));
     expect(r.status).toBe(200);
   });
@@ -328,9 +336,14 @@ describe('POST /v1/responses through the edge', () => {
     const r = await post('/v1/chat/completions', { model: 'fast', messages: [{ role: 'user', content: 'hi' }] }, KEY);
     expect(r.status).toBe(200);
     expect(seen.path).toBe('/v1/chat/completions');
-    // Untranslated: no Responses-only field may appear, and the input must
-    // not have been flattened into `messages` from something else.
+    const messages = seen.body.messages;
+    // Identity leads (the edge adds it, see edge/identity.mjs), then the
+    // client's own turn verbatim. What the old assertion protected — that no
+    // Responses-only field leaked and the input was not flattened into a
+    // DIFFERENT message — still holds.
     expect(seen.body.input).toBeUndefined();
-    expect(seen.body.messages[0].content).toBe('hi');
+    expect(messages[messages.length - 1]).toEqual({ role: 'user', content: 'hi' });
+    expect(messages[0].role).toBe('system');
+    expect(messages[0].content).toContain('Zaino AI Fast');
   });
 });

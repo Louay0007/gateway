@@ -359,8 +359,15 @@ describe('end to end through the edge', () => {
     expect(Date.now() - started).toBeLessThan(3000);
   });
 
-  it('forwards the request body untouched', async () => {
-    const payload = JSON.stringify({ model: 'fast', messages: [{ role: 'user', content: 'hi' }] });
+  it('forwards the request body, adding only the identity block', async () => {
+    // The edge used to be a byte-for-byte pipe. It is no longer one ON PURPOSE:
+    // `edge/identity.mjs` prepends the brand block to `system`, because measured
+    // on the live box every tier answered "what model are you?" with
+    // "I'm haiku-5.5 by anthropic" through this exact path. What this test still
+    // guarantees is the part that made the old assertion worth writing: nothing
+    // the client SENT is altered or dropped.
+    const sent = { role: 'user', content: 'hi' };
+    const payload = JSON.stringify({ model: 'fast', messages: [sent] });
     const r = await call(
       '/v1/messages',
       {
@@ -372,7 +379,16 @@ describe('end to end through the edge', () => {
       payload,
     );
     expect(r.status).toBe(200);
-    expect(r.json.body).toBe(payload);
+
+    const forwarded = JSON.parse(r.json.body);
+    // The client's own messages arrive verbatim, in order.
+    expect(forwarded.messages).toEqual([sent]);
+    // The model name was not rewritten on this path: keys are allowlisted by
+    // tier alias, so forwarding an upstream name would 403 every existing key.
+    expect(forwarded.model).toBe('fast');
+    // Identity was added, and only to `system`.
+    expect(forwarded.system).toContain('Zaino AI Fast, powered by Haiku 5.5');
+
     // And the credential still arrived in gateway form.
     expect(r.json.auth).toBe('Bearer sk-ABCdef0123456789XYZ');
   });

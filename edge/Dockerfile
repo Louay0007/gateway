@@ -6,7 +6,7 @@
 FROM node:22-alpine
 
 WORKDIR /app
-COPY server.mjs responses-shim.mjs upstream-guard.mjs ./
+COPY identity.mjs upstream-guard.mjs responses-shim.mjs server.mjs ./
 
 USER node
 

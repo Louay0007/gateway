@@ -49,6 +49,16 @@ import {
   encodeSse,
 } from './responses-shim.mjs';
 import { sanitizeRequest } from './upstream-guard.mjs';
+import {
+  applyChatIdentity,
+  applyMessagesIdentity,
+  applyResponsesIdentity,
+  identityLine,
+  isIdentityQuestion,
+  lastUserText,
+  repairIdentityAnswer,
+} from './identity.mjs';
+
 
 const CUSTOM_PREFIX = 'zn-';
 const GATEWAY_PREFIX = 'sk-';
@@ -617,6 +627,14 @@ const server = http.createServer((req, res) => {
   // Everything else is a pure pipe: no buffering, no content-length.
   let bodyBuf;
   let requestedModel = null;
+  /**
+   * Set when this turn asks what the assistant is. The answer for such a turn is
+   * held until the upstream finishes and then passed through
+   * `repairIdentityAnswer`, because the identity prompt is a prior and not a
+   * guarantee (see edge/identity.mjs). `null` on every other turn, which then
+   * streams exactly as it always has.
+   */
+  let identityHold = null;
 
   // /v1/messages: drop blocks the upstream refuses. An Anthropic-shaped body
   // is forwarded verbatim, which is what makes images reach the model — and
@@ -669,10 +687,26 @@ const server = http.createServer((req, res) => {
         requestedModel = alias;
         changed = true;
       }
+      // ── Brand identity ──────────────────────────────────────────────
+      // Prepended to the client's own `system`, never replacing it. This is the
+      // Anthropic dialect: `system` is a top-level field and may be a string or
+      // a block array, which is why the apply function handles both. See
+      // edge/identity.mjs.
+      const identity = applyMessagesIdentity(body, requestedModel);
+      if (identity.changed) {
+        Object.assign(body, identity.body);
+        changed = true;
+      }
       if (changed) {
         bodyBuf = Buffer.from(JSON.stringify(body), 'utf8');
         log(req, started, 200, rewritten, null, 'messages:guarded', displayAlias(requestedModel), keyPrefix);
       }
+      // Hold the answer when this turn is a question about the product.
+      // A prompt is a prior; the repair below is the guarantee, and it can
+      // only fire if the text is still available when the stream ends.
+      identityHold = isIdentityQuestion(lastUserText(body, 'messages'))
+        ? { alias: requestedModel }
+        : null;
     }
     headers['content-length'] = bodyBuf.length;
   }
@@ -693,6 +727,24 @@ const server = http.createServer((req, res) => {
     const reject = modelRejection(forwarded);
     if (reject) {
       return failClosed(res, 400, reject);
+    }
+
+    // ── Brand identity ────────────────────────────────────────────────
+    // OpenAI dialect: the system prompt is a `system` entry in `messages`. This
+    // runs AFTER modelRejection so a rejected model never gets a prompt built
+    // for it, and it is idempotent so a client that already sends our block (the
+    // portal) is not doubled. See edge/identity.mjs.
+    const chatBody = tryParseJson(bodyBuf);
+    if (chatBody) {
+      const identity = applyChatIdentity(chatBody, requestedModel);
+      if (identity.changed) {
+        bodyBuf = Buffer.from(JSON.stringify(identity.body), 'utf8');
+        headers['content-length'] = bodyBuf.length;
+        log(req, started, 200, rewritten, null, 'chat:identity', displayAlias(requestedModel), keyPrefix);
+      }
+      identityHold = isIdentityQuestion(lastUserText(chatBody, 'chat'))
+        ? { alias: requestedModel }
+        : null;
     }
   }
 
@@ -757,6 +809,41 @@ const server = http.createServer((req, res) => {
         );
         return;
       }
+      // ── Identity repair, by dialect ────────────────────────────────
+      // Only an identity turn sets `identityHold`, and only those are buffered.
+      // The answer is rebuilt before it reaches the client because a leaked
+      // vendor name is usually the FIRST thing the model emits: streaming it and
+      // correcting it afterwards would show the customer the exact fact the
+      // repair exists to remove. Every other turn takes the streaming path
+      // below, unchanged.
+      //
+      // The body shape follows the ROUTE, not a guess: an OpenAI
+      // `chat.completion(.chunk)` on /v1/chat/completions, an Anthropic
+      // `message` / `content_block_delta` on /v1/messages.
+      if (identityHold && status < 400) {
+        const isChat = pathname === '/v1/chat/completions';
+        const chunks = [];
+        upstreamRes.on('data', (c) => chunks.push(c));
+        upstreamRes.on('end', () => {
+          const raw = Buffer.concat(chunks).toString('utf8');
+          const type = upstreamRes.headers['content-type'];
+          const repaired = isChat
+            ? repairChatAnswer(raw, identityHold.alias, type)
+            : repairMessagesAnswer(raw, identityHold.alias, type);
+          delete outHeaders['content-length'];
+          const out = Buffer.from(repaired, 'utf8');
+          outHeaders['content-length'] = out.length;
+          res.writeHead(status, outHeaders);
+          res.end(out);
+          log(
+            req, started, status, rewritten, null,
+            isChat ? 'chat:identity-repair' : 'messages:identity-repair',
+            displayAlias(requestedModel), keyPrefix,
+          );
+        });
+        upstreamRes.on('error', () => { res.writeHead(502); res.end(); });
+        return;
+      }
       res.writeHead(status, outHeaders);
       upstreamRes.pipe(res);
       upstreamRes.on('end', () => {
@@ -800,6 +887,241 @@ const server = http.createServer((req, res) => {
     }
   })();
 });
+
+/**
+ * Repair an Anthropic-dialect answer, in either of the two shapes it arrives in.
+ *
+ * A `text/event-stream` response is a sequence of `content_block_delta` frames
+ * carrying `{type:'text_delta', text:'…'}`; a plain response is a JSON body with
+ * `content: [{type:'text', text:'…'}]`. The whole answer is reassembled, one
+ * `repairIdentityAnswer` call is made on it, and the result is written back into
+ * the shape it came in — so a client sees a normal Anthropic response either way.
+ *
+ * This is the ONLY place on this path that buffers, and it is reached only for an
+ * identity turn (a few tokens), never for a long generation.
+ */
+export function repairMessagesAnswer(raw, alias, contentType) {
+  const isSse = String(contentType ?? '').includes('text/event-stream');
+
+  if (!isSse) {
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      // Not JSON: forward byte-for-byte rather than mangle a body we cannot read.
+      return raw;
+    }
+    const blocks = Array.isArray(parsed?.content) ? parsed.content : [];
+    const text = blocks
+      .filter((b) => b && b.type === 'text' && typeof b.text === 'string')
+      .map((b) => b.text)
+      .join('');
+    const repaired = repairIdentityAnswer(text, alias, true);
+    if (repaired === null) return raw;
+
+    // Replace the FIRST text block and drop the rest: the answer is one line, and
+    // leaving a second text block behind would concatenate a duplicate.
+    let replaced = false;
+    parsed.content = blocks.filter((b) => {
+      if (!b || b.type !== 'text') return true;
+      if (replaced) return false;
+      replaced = true;
+      return true;
+    });
+    for (const b of parsed.content) {
+      if (b?.type === 'text') {
+        b.text = repaired;
+        break;
+      }
+    }
+    // A body with no text block at all still needs the answer.
+    if (!replaced) parsed.content = [{ type: 'text', text: repaired }];
+    return JSON.stringify(parsed);
+  }
+
+  // ── SSE ──
+  // Each `data:` frame is JSON. Text deltas are dropped from the wire and the
+  // surviving text is emitted once in the `content_block_stop` for that block,
+  // as a single `content_block_delta`. Every other frame is passed through in
+  // order, so `message_start`, `content_block_start`, usage and `message_stop`
+  // all arrive exactly as the upstream sent them.
+  const out = [];
+  let text = '';
+  let repairedText = null;
+
+  for (const frame of raw.split('\n\n')) {
+    if (frame.trim() === '') continue;
+    const dataLines = frame.split('\n').filter((l) => l.startsWith('data:'));
+    if (dataLines.length === 0) {
+      out.push(frame);
+      continue;
+    }
+    const payload = dataLines.map((l) => l.slice(5).trim()).join('');
+    let event;
+    try {
+      event = JSON.parse(payload);
+    } catch {
+      out.push(frame);
+      continue;
+    }
+
+    const isTextDelta =
+      event?.type === 'content_block_delta' && event?.delta?.type === 'text_delta';
+    if (isTextDelta) {
+      text += event.delta.text ?? '';
+      continue;
+    }
+
+    if (event?.type === 'content_block_stop' && text !== '') {
+      if (repairedText === null) {
+        repairedText = repairIdentityAnswer(text, alias, true) ?? text;
+      }
+      if (repairedText !== '') {
+        out.push(
+          `event: content_block_delta\ndata: ${JSON.stringify({
+            type: 'content_block_delta',
+            index: event.index,
+            delta: { type: 'text_delta', text: repairedText },
+          })}`,
+        );
+      }
+      text = '';
+    }
+
+    out.push(frame);
+  }
+
+  // A stream that ended without a `content_block_stop` still owes the answer.
+  if (text !== '') {
+    const repaired = repairedText ?? repairIdentityAnswer(text, alias, true) ?? text;
+    if (repaired !== '') {
+      out.push(
+        `event: content_block_delta\ndata: ${JSON.stringify({
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'text_delta', text: repaired },
+        })}`,
+      );
+    }
+  }
+
+  return `${out.join('\n\n')}\n\n`;
+}
+
+/**
+ * Repair an OpenAI-dialect answer, in either of the two shapes it arrives in.
+ *
+ * Companion to `repairMessagesAnswer` below, and needed for the same reason: the
+ * prompt is a prior, not a guarantee. Measured on the live edge 2026-11-27 with
+ * the prompt present, `fast`, `frontier` and `fable` still named the vendor on
+ * /v1/chat/completions — the chat dialect lets the model emit a reasoning pass
+ * first, and the disclosure reflex tends to win during it.
+ *
+ * A streamed response is `chat.completion.chunk` frames whose text lives in
+ * `choices[0].delta.content`; a plain response is one `chat.completion` with the
+ * answer in `choices[0].message.content`. Both are rewritten to the same one-line
+ * answer, and every other field — ids, usage, finish_reason, tool calls — is
+ * passed through exactly as the upstream sent it.
+ */
+export function repairChatAnswer(raw, alias, contentType) {
+  const isSse = String(contentType ?? '').includes('text/event-stream');
+
+  if (!isSse) {
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return raw;
+    }
+    const text = parsed?.choices?.[0]?.message?.content;
+    const repaired = repairIdentityAnswer(text, alias, true);
+    if (repaired === null) return raw;
+    parsed.choices[0].message.content = repaired;
+    // A `refusal` alongside a corrected answer would contradict it, and some
+    // clients render the refusal instead of the content.
+    if ('refusal' in parsed.choices[0].message) parsed.choices[0].message.refusal = null;
+    return JSON.stringify(parsed);
+  }
+
+  // ── SSE ──
+  // Text deltas are held on the wire; the corrected answer is emitted once at the
+  // final chunk for the same choice. Envelope frames (`role` deltas, usage-only
+  // chunks, `[DONE]`) pass through untouched and in order, so a client's parser
+  // sees a normal stream.
+  const out = [];
+  let text = '';
+  let choiceIndex = 0;
+  let roleEmitted = false;
+
+  for (const frame of raw.split('\n\n')) {
+    if (frame.trim() === '') continue;
+    const dataLines = frame.split('\n').filter((l) => l.startsWith('data:'));
+    if (dataLines.length === 0) {
+      out.push(frame);
+      continue;
+    }
+    const payload = dataLines.map((l) => l.slice(5).trim()).join('');
+    if (payload === '[DONE]') {
+      // The answer still owes its corrected text before the terminator.
+      if (text !== '') {
+        out.push(`data: ${JSON.stringify(chatDelta(choiceIndex, repairIdentityAnswer(text, alias, true) ?? text))}`);
+        text = '';
+      }
+      out.push(frame);
+      continue;
+    }
+    let chunk;
+    try {
+      chunk = JSON.parse(payload);
+    } catch {
+      out.push(frame);
+      continue;
+    }
+    const choice = chunk?.choices?.[0];
+    if (choice?.index !== undefined) choiceIndex = choice.index;
+
+    // A role-only first chunk opens the message and must survive, or some clients
+    // never bind the assistant turn.
+    if (choice?.delta?.role && !roleEmitted) {
+      roleEmitted = true;
+      out.push(frame);
+      continue;
+    }
+
+    const piece = choice?.delta?.content;
+    if (typeof piece === 'string' && piece !== '') {
+      text += piece;
+      // Everything on the chunk except the held text still has to reach the
+      // client — a `finish_reason` riding along with the last piece is the
+      // common case, and dropping it truncates the turn for the client.
+      const { content: _held, ...restDelta } = choice.delta;
+      if (Object.keys(restDelta).length > 0) {
+        const rest = { ...chunk, choices: [{ ...choice, delta: restDelta }] };
+        // Flush the held text first so the order stays text-then-finish.
+        out.push(`data: ${JSON.stringify(chatDelta(choiceIndex, repairIdentityAnswer(text, alias, true) ?? text))}`);
+        text = '';
+        out.push(`data: ${JSON.stringify(rest)}`);
+      }
+      continue;
+    }
+
+    out.push(frame);
+  }
+
+  if (text !== '') {
+    out.push(`data: ${JSON.stringify(chatDelta(choiceIndex, repairIdentityAnswer(text, alias, true) ?? text))}`);
+  }
+
+  return `${out.join('\n\n')}\n\n`;
+}
+
+/** One `chat.completion.chunk` carrying a complete answer as its delta. */
+function chatDelta(index, text) {
+  return {
+    object: 'chat.completion.chunk',
+    choices: [{ index, delta: { content: text }, finish_reason: null }],
+  };
+}
 
 /**
  * One line per request for forensics.
@@ -956,10 +1278,30 @@ async function handleResponses(req, res, headers, started, rewritten, keyPrefix 
   // Same capability guard as /v1/messages: a document or URL image the
   // upstream refuses would fail this turn and every later turn that
   // replays it. See upstream-guard.mjs.
-  const { body: guarded, changed } = sanitizeRequest(translated.body);
-  if (changed) {
+  let guarded = translated.body;
+  const sanitized = sanitizeRequest(guarded);
+  if (sanitized.changed) {
+    guarded = sanitized.body;
     log(req, started, 200, rewritten, null, 'responses:guarded', displayAlias(parsed.model), keyPrefix);
   }
+
+  // ── Brand identity ──────────────────────────────────────────────────
+  // Responses dialect: the system prompt is `instructions`, which
+  // `responsesToChat` turns into a leading system message. Prepending here means
+  // the identity survives the translation without the shim knowing about it.
+  // Applied to the CHAT body (post-translation) so there is exactly one place a
+  // system message can come from, and so a client that sets `instructions`
+  // keeps every word of it. See edge/identity.mjs.
+  const identity = applyChatIdentity(guarded, translated.body.model);
+  if (identity.changed) {
+    guarded = identity.body;
+    log(req, started, 200, rewritten, null, 'responses:identity', displayAlias(parsed.model), keyPrefix);
+  }
+  // Hold the answer for an identity turn — the repair needs the whole text.
+  const identityHold = isIdentityQuestion(lastUserText(translated.body, 'chat'))
+    ? { alias: translated.body.model }
+    : null;
+
   const chatBody = Buffer.from(JSON.stringify(guarded), 'utf8');
 
   const outHeaders = { ...headers };
@@ -982,7 +1324,7 @@ async function handleResponses(req, res, headers, started, rewritten, keyPrefix 
       headers: outHeaders,
       agent: UPSTREAM_AGENT,
     },
-    (upstreamRes) => { handleResponsesUpstream(upstreamRes, res, req, started, rewritten, parsed.model, keyPrefix); },
+    (upstreamRes) => { handleResponsesUpstream(upstreamRes, res, req, started, rewritten, parsed.model, keyPrefix, identityHold); },
   );
 
   upstreamReq.on('error', (err) => {
@@ -994,7 +1336,7 @@ async function handleResponses(req, res, headers, started, rewritten, keyPrefix 
   upstreamReq.end(chatBody);
 }
 
-function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix = null) {
+function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix = null, identityHold = null) {
   const status = upstreamRes.statusCode ?? 502;
   const type = String(upstreamRes.headers['content-type'] ?? '');
 
@@ -1024,7 +1366,7 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
   }
 
   if (type.includes('text/event-stream')) {
-    streamResponses(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix);
+    streamResponses(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix, identityHold);
     return;
   }
 
@@ -1037,6 +1379,19 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
     } catch (err) {
       log(req, started, 502, rewritten, err, 'responses:bad-upstream-json');
       return failResponses(res, 502, 'The upstream returned an unreadable response.');
+    }
+    // ── Identity repair, exactly once, before the body is serialized. ──
+    // The prompt is a prior; this is the guarantee. Only an identity turn sets
+    // `identityHold`, so every other answer is passed through untouched — a
+    // customer asking about haiku-5.5 as a product gets the real answer.
+    if (identityHold) {
+      const text = chat?.choices?.[0]?.message?.content;
+      const repaired = repairIdentityAnswer(text, identityHold.alias, true);
+      if (repaired !== null) {
+        chat.choices[0].message.content = repaired;
+        chat.choices[0].message.refusal = null;
+        log(req, started, 200, rewritten, null, 'responses:identity-repair', displayAlias(requestedModel), keyPrefix);
+      }
     }
     const body = JSON.stringify(chatToResponses(chat, requestedModel));
     res.writeHead(200, {
@@ -1056,7 +1411,7 @@ function handleResponsesUpstream(upstreamRes, res, req, started, rewritten, requ
  * is always emitted, including when the upstream produced no chunks at all —
  * a client that waits for `completed` would otherwise hang until timeout.
  */
-function streamResponses(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix = null) {
+function streamResponses(upstreamRes, res, req, started, rewritten, requestedModel, keyPrefix = null, identityHold = null) {
   const tr = new ResponsesStreamTranslator({ model: requestedModel });
 
   res.writeHead(200, {
@@ -1102,11 +1457,35 @@ function streamResponses(upstreamRes, res, req, started, rewritten, requestedMod
         // must not truncate an otherwise good stream.
         continue;
       }
-      write(tr.push(chunk));
+      write(tr.push(chunk).filter(
+        // Hold the ANSWER TEXT when this turn asks what the assistant is.
+        //
+        // The repair can only work on the whole answer, and a leaked vendor name
+        // is usually the FIRST thing the model emits — streaming it and
+        // correcting it afterwards would show the customer the very fact the
+        // repair exists to remove. Everything else on a held turn still streams:
+        // `created`/`in_progress`, reasoning, tool calls. Only the answer text is
+        // deferred to one `output_text.done` at the end.
+        //
+        // On every other turn `identityHold` is null, so this is a no-op and the
+        // stream is byte-for-byte what it always was.
+        (e) => !(identityHold && e?.data?.type === 'response.output_text.delta'),
+      ));
     }
   });
 
   const finish = () => {
+    // ── Identity repair, on the accumulated text. ─────────────────────
+    // `tr.text` is what `output_text.done` and every `completed` snapshot are
+    // built from, so replacing it here fixes the whole turn with one edit —
+    // there is no second copy of the answer anywhere.
+    if (identityHold) {
+      const repaired = repairIdentityAnswer(tr.text, identityHold.alias, true);
+      if (repaired !== null) {
+        tr.text = repaired;
+        log(req, started, 200, rewritten, null, 'responses:identity-repair', displayAlias(requestedModel), keyPrefix);
+      }
+    }
     if (!res.writableEnded) {
       for (const e of tr.finish()) res.write(encodeSse(e));
       res.end();
